@@ -712,7 +712,8 @@
       { file: "Scenes/scene-11-moon.html",     name: "Lunar Base",         description: "A base on the moon",                       accent: "#c9c9c9" },
       { file: "Scenes/scene-12-gensokyo.html", name: "Gensokyo Map",       description: "A map of the Gensokyo region",             accent: "#ff7eb6" },
       { file: "Scenes/scene-13-bottle.html",   name: "Cirno In A Bottle",  description: "Baka in a bottle",                         accent: "#7ec8ff" },
-      { file: "Scenes/scene-14-sorcery.html",   name: "Cursed Courtyard",  description: "Fumo sorcerers vs curses, domain and all", accent: "#7b61ff" }
+      { file: "Scenes/scene-14-sorcery.html",  name: "Cursed Courtyard",   description: "Fumo sorcerers vs curses, domain and all", accent: "#7b61ff" },
+      { file: "Scenes/scene-15-triple-domain.html", name: "Triple Domain", description: "Three fumo, three domains, one legendary cutscene", accent: "#ff3d81" }
     ];
 
     // ============================================================================
@@ -1024,6 +1025,17 @@
       newFrame.onload = () => {
         if (token !== transitionToken) return;
         clearTimeout(loadTimer);
+
+        // Only inspect contentDocument over http/https to avoid file:// security warnings
+        if (window.location.protocol !== "file:") {
+          try {
+            const doc = newFrame.contentDocument;
+            if (doc && doc.title && /404|not found|error/i.test(doc.title)) {
+              handleFailure();
+              return;
+            }
+          } catch (err) {}
+        }
 
         newFrame.classList.add("is-visible");
         hideOverlay();

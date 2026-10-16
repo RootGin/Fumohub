@@ -1,0 +1,4257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Fumo Jujutsu Courtyard — Legendary Triple Domain Expansion</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Noto+Serif+JP:wght@700;900&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js r128 + OrbitControls + Post-Processing (UnrealBloomPass + Custom Cutscene FX Shader) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #090812;
+      color: #f8fafc;
+    }
+    .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    .font-kanji {
+      font-family: 'Noto Serif JP', serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    /* Frosted Glass UI Panels */
+    .glass-panel {
+      background: rgba(16, 15, 30, 0.78);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 10px 28px -6px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      transition: background 0.3s ease, border-color 0.3s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .ui-btn {
+      cursor: pointer;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+      border-color: rgba(255, 255, 255, 0.38);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+
+    .triple-domain-btn {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.88), rgba(220, 38, 38, 0.88), rgba(14, 165, 233, 0.88));
+      background-size: 200% 200%;
+      animation: gradientShift 4s ease infinite;
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      box-shadow: 0 0 24px rgba(236, 72, 153, 0.45);
+    }
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.14);
+      border-bottom: 2px solid rgba(255, 255, 255, 0.28);
+    }
+
+    /* Cinematic Letterbox Bars */
+    .letterbox-bar {
+      position: fixed;
+      left: 0;
+      width: 100%;
+      height: 11vh;
+      background: #040308;
+      z-index: 30;
+      transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+      pointer-events: none;
+    }
+    #letterbox-top {
+      top: 0;
+      transform: translateY(-100%);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    #letterbox-bottom {
+      bottom: 0;
+      transform: translateY(100%);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    body.cutscene-active #letterbox-top {
+      transform: translateY(0);
+    }
+    body.cutscene-active #letterbox-bottom {
+      transform: translateY(0);
+    }
+
+    /* Radial Anime Speed Lines & Halftone Overlay */
+    #speedlines-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 25;
+      opacity: 0;
+      transition: opacity 0.12s ease;
+    }
+    #halftone-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 24;
+      opacity: 0;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.18) 1.5px, transparent 1.5px);
+      background-size: 10px 10px;
+      mix-blend-mode: overlay;
+      transition: opacity 0.2s ease;
+    }
+
+    /* Full-Screen Kanji Title Cards */
+    #title-card-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 38;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transform: scale(1.18);
+      transition: opacity 0.18s ease, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    #title-card-overlay.is-visible {
+      opacity: 1;
+      transform: scale(1);
+    }
+    .title-kanji {
+      font-size: clamp(3rem, 9vw, 7.2rem);
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      line-height: 1.05;
+      text-shadow: 0 8px 36px rgba(0, 0, 0, 0.9), 0 0 40px var(--card-glow, #ec4899);
+    }
+    .title-sub {
+      margin-top: 0.6rem;
+      font-size: clamp(1rem, 2.4vw, 1.75rem);
+      font-weight: 800;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      padding: 0.35rem 1.4rem;
+      background: rgba(5, 5, 12, 0.85);
+      border-top: 2px solid var(--card-glow, #ec4899);
+      border-bottom: 2px solid var(--card-glow, #ec4899);
+    }
+
+    /* Diagonal Comic Split-Screen Panel Overlay */
+    #comic-split-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 36;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+    #comic-split-overlay.is-visible {
+      opacity: 1;
+    }
+    .comic-slash-1, .comic-slash-2 {
+      position: absolute;
+      top: -20%;
+      bottom: -20%;
+      width: 10px;
+      background: #ffffff;
+      box-shadow: 0 0 25px #ffffff, 0 0 10px #ec4899;
+      transform: rotate(16deg);
+    }
+    .comic-slash-1 { left: 33%; }
+    .comic-slash-2 { left: 66%; }
+    .comic-panel-badge {
+      position: absolute;
+      padding: 0.5rem 1.2rem;
+      background: rgba(8, 6, 18, 0.9);
+      border: 2px solid #fff;
+      font-weight: 900;
+      transform: skewX(-12deg);
+      box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.85);
+    }
+
+    /* Giant Impact Stamp (BLACK FLASH / K.O.) */
+    #impact-stamp {
+      position: fixed;
+      inset: 0;
+      z-index: 42;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transform: scale(2.2) rotate(-6deg);
+      transition: opacity 0.12s ease, transform 0.22s cubic-bezier(0.18, 1.4, 0.4, 1);
+    }
+    #impact-stamp.is-visible {
+      opacity: 1;
+      transform: scale(1) rotate(-4deg);
+    }
+
+    /* Stylized Subtitles at Bottom Center */
+    #subtitle-box {
+      position: fixed;
+      bottom: 13vh;
+      left: 50%;
+      transform: translateX(-50%) translateY(14px);
+      z-index: 45;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+      max-width: 90vw;
+      text-align: center;
+    }
+    #subtitle-box.is-visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Floating 2D Impact Popups (BLACK FLASH!, EXORCISED!) */
+    .floating-popup {
+      position: fixed;
+      pointer-events: none;
+      z-index: 35;
+      font-family: 'Fredoka', sans-serif;
+      font-weight: 700;
+      text-transform: uppercase;
+      animation: popupFloat 0.95s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes popupFloat {
+      0% { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
+      25% { opacity: 1; transform: translate(-50%, -90%) scale(1.18); }
+      100% { opacity: 0; transform: translate(-50%, -160%) scale(0.95); }
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- 2D Canvas for Anime Speed Lines & Halftone -->
+  <canvas id="speedlines-canvas"></canvas>
+  <div id="halftone-overlay"></div>
+
+  <!-- Letterbox Bars for Cutscene -->
+  <div id="letterbox-top" class="letterbox-bar flex items-center justify-end px-6">
+    <div id="cutscene-skip-hint" class="text-xs font-semibold tracking-widest uppercase text-slate-300/80 pointer-events-auto">
+      Press <kbd>Space</kbd> or <kbd>Esc</kbd> to Skip Cutscene
+    </div>
+  </div>
+  <div id="letterbox-bottom" class="letterbox-bar"></div>
+
+  <!-- Diagonal 3-Way Comic Split-Screen Overlay -->
+  <div id="comic-split-overlay">
+    <div style="position:absolute;inset:0;background:linear-gradient(90deg, rgba(168,85,247,0.22) 0%, rgba(168,85,247,0.22) 33%, rgba(220,38,38,0.22) 33%, rgba(220,38,38,0.22) 66%, rgba(56,189,248,0.22) 66%, rgba(56,189,248,0.22) 100%);"></div>
+    <div class="comic-slash-1"></div>
+    <div class="comic-slash-2"></div>
+    <div class="comic-panel-badge text-purple-300 border-purple-400" style="top:18%;left:8%;">
+      <div class="font-kanji text-2xl sm:text-4xl">境界無限</div>
+      <div class="text-xs tracking-widest">YUKARI • INFINITE BOUNDARY</div>
+    </div>
+    <div class="comic-panel-badge text-rose-300 border-rose-500" style="top:46%;left:41%;">
+      <div class="font-kanji text-2xl sm:text-4xl">紅月夜宴</div>
+      <div class="text-xs tracking-widest">REMILIA • CRIMSON BANQUET</div>
+    </div>
+    <div class="comic-panel-badge text-cyan-200 border-cyan-400" style="bottom:18%;right:7%;">
+      <div class="font-kanji text-2xl sm:text-4xl">夢想封印</div>
+      <div class="text-xs tracking-widest">REIMU • DREAM SEAL SANCTUM</div>
+    </div>
+  </div>
+
+  <!-- Full-Screen Kanji Title Card -->
+  <div id="title-card-overlay">
+    <div id="title-card-kanji" class="title-kanji font-kanji text-white">領域展開</div>
+    <div id="title-card-sub" class="title-sub font-display text-white">DOMAIN EXPANSION</div>
+  </div>
+
+  <!-- Giant Impact Stamp (BLACK FLASH / K.O.) -->
+  <div id="impact-stamp">
+    <div id="stamp-main" class="font-kanji text-6xl sm:text-8xl font-black tracking-wider text-rose-500" style="text-shadow: 0 0 35px #ef4444, 6px 6px 0 #000;">
+      黒閃 • BLACK FLASH
+    </div>
+    <div id="stamp-sub" class="font-display text-xl sm:text-3xl font-bold tracking-widest text-white bg-black/90 px-6 py-1.5 mt-2 border-2 border-rose-500">
+      CRITICAL CURSED IMPACT!
+    </div>
+  </div>
+
+  <!-- Cutscene Voice Subtitles -->
+  <div id="subtitle-box">
+    <div class="glass-panel rounded-2xl px-6 py-3.5 border-2" id="subtitle-panel" style="border-color: #a855f7;">
+      <div class="text-xs font-bold uppercase tracking-widest mb-1" id="subtitle-speaker" style="color: #d8b4fe;">
+        YUKARI YAKUMO
+      </div>
+      <div class="font-display text-base sm:text-xl font-bold text-white leading-snug" id="subtitle-text">
+        "Where the border ends, I begin. Domain Expansion: Infinite Boundary."
+      </div>
+    </div>
+  </div>
+
+  <!-- TOP-RIGHT HUD: Scoreboard, Combo Meter, Auto-Offer Banner & Active Fumo Badge (TOP-LEFT KEPT 100% CLEAR FOR HUB) -->
+  <div class="fixed top-4 right-4 z-20 flex flex-col items-end gap-2 max-w-sm">
+    <div class="flex items-center gap-2 flex-wrap justify-end">
+      <!-- Active Fumo / Curse Indicator -->
+      <div id="fumo-badge" class="glass-panel rounded-2xl px-3.5 py-2 text-xs font-semibold hidden items-center gap-2">
+        <span id="fumo-badge-dot" class="w-2.5 h-2.5 rounded-full inline-block bg-purple-400"></span>
+        <span id="fumo-badge-name">Yukari Yakumo</span>
+        <span id="fumo-badge-status" class="opacity-75 ml-1">Sorcerer</span>
+      </div>
+
+      <!-- Daiyousei's Live Judge Scoreboard & Combo HUD -->
+      <div class="glass-panel rounded-2xl px-4 py-2 flex items-center gap-3.5">
+        <div>
+          <div class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Daiyousei Judge Board</div>
+          <div class="flex items-baseline gap-2">
+            <span id="hud-score" class="font-display text-lg font-bold text-amber-300">000,000</span>
+            <span id="hud-rank" class="text-xs font-extrabold px-2 py-0.5 rounded bg-purple-500/30 border border-purple-400/50 text-purple-200">RANK B</span>
+          </div>
+        </div>
+        <div class="h-7 w-[1px] bg-white/15"></div>
+        <div class="text-right">
+          <div class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Combo</div>
+          <div id="hud-combo" class="font-display text-lg font-bold text-rose-400">0x</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Combo Threshold Auto-Offer Banner -->
+    <button id="combo-offer-banner" class="hidden triple-domain-btn ui-btn rounded-2xl px-4 py-2 text-xs font-bold tracking-wide items-center gap-2 shadow-xl">
+      <span>⚡ MAX CURSED ENERGY REACHED! CLICK OR PRESS <kbd>T</kbd> FOR TRIPLE DOMAIN!</span>
+    </button>
+  </div>
+
+  <!-- PHOTOSENSITIVITY NOTICE (Shown once before first cutscene, dismissible, bottom-center) -->
+  <div id="photosensitivity-banner" class="fixed bottom-16 left-1/2 -translate-x-1/2 z-30 w-[92vw] max-w-lg glass-panel rounded-2xl p-3.5 border border-amber-400/40 flex items-center justify-between gap-3">
+    <div class="text-xs leading-relaxed text-slate-200">
+      <b class="text-amber-300">⚡ Photosensitivity Notice:</b> The Triple Domain cutscene includes fast camera cuts, screen shake, and bright flashes. Press <kbd>R</kbd> anytime for <b>Reduced Flashing Mode</b>.
+    </div>
+    <div class="flex items-center gap-1.5 shrink-0">
+      <button id="btn-banner-reduce" class="ui-btn px-2.5 py-1.5 rounded-xl bg-amber-500/25 border border-amber-400/50 text-amber-200 text-xs font-bold">
+        Enable Reduced (R)
+      </button>
+      <button id="btn-banner-dismiss" class="ui-btn px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">
+        Got It
+      </button>
+    </div>
+  </div>
+
+  <!-- BOTTOM-RIGHT CONTROLS: Triple Domain, Solo Domain, Reset, Reduced Flashing, Voice, Mute -->
+  <div class="fixed bottom-4 right-4 z-20 flex flex-wrap items-center justify-end gap-2 max-w-[95vw]">
+    <!-- Trigger Triple Domain Cutscene -->
+    <button id="btn-triple-domain" title="Trigger Legendary Triple Domain Expansion Cutscene (T)"
+      class="triple-domain-btn ui-btn rounded-2xl px-4 py-2.5 flex items-center gap-2 text-xs sm:text-sm font-bold tracking-wide">
+      <span>🌌 TRIPLE DOMAIN</span>
+      <kbd>T</kbd>
+    </button>
+
+    <!-- Trigger Solo Domain -->
+    <button id="btn-solo-domain" title="Yukari Solo Domain Expansion (D)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2.5 flex items-center gap-1.5 text-xs font-bold text-purple-200 border-purple-400/40">
+      <span>👁️ Solo Domain</span>
+      <kbd class="hidden sm:inline-block">D</kbd>
+    </button>
+
+    <!-- Reset Scene & Fumos -->
+    <button id="btn-reset" title="Reset Plushies & Courtyard (Backspace)"
+      class="glass-panel ui-btn rounded-2xl px-3 py-2.5 flex items-center gap-1.5 text-xs font-semibold">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+      </svg>
+      <span class="hidden md:inline">Reset</span>
+    </button>
+
+    <!-- Reduced Flashing Toggle (R) -->
+    <button id="btn-reduced-flash" title="Toggle Reduced Flashing & Shake (R)"
+      class="glass-panel ui-btn rounded-2xl px-3 py-2.5 flex items-center gap-1.5 text-xs font-semibold">
+      <span id="reduced-flash-dot" class="w-2 h-2 rounded-full bg-slate-400"></span>
+      <span class="hidden sm:inline">Safe FX</span>
+      <kbd>R</kbd>
+    </button>
+
+    <!-- Voice Synthesis Toggle (V) -->
+    <button id="btn-voice" title="Toggle Caster Voice Lines (V)"
+      class="glass-panel ui-btn rounded-2xl px-3 py-2.5 flex items-center gap-1.5 text-xs font-semibold">
+      <span id="voice-status-icon">🗣️</span>
+      <span class="hidden sm:inline" id="voice-status-label">Voices ON</span>
+    </button>
+
+    <!-- Master Sound Mute Toggle (M) -->
+    <button id="btn-mute" title="Toggle Master Audio (M)"
+      class="glass-panel ui-btn rounded-2xl p-2.5 flex items-center justify-center">
+      <svg id="icon-sound-on" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+      </svg>
+      <svg id="icon-sound-off" class="w-4 h-4 hidden text-rose-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <line x1="23" y1="9" x2="17" y2="15"></line>
+        <line x1="17" y1="9" x2="23" y2="15"></line>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Floating Cursor Tooltip -->
+  <div id="fumo-tooltip" class="fixed z-30 opacity-0 pointer-events-none px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold flex items-center gap-2 shadow-lg">
+    <span id="tooltip-emoji">🎀</span>
+    <span id="tooltip-text">Yukari Fumo</span>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 1. PERSISTENT SETTINGS & ACCESSIBILITY (Wrapped in try/catch)
+    // ============================================================================
+    const STORAGE_KEYS = {
+      mode: 'voxel_fumo_sorcery_mode',
+      muted: 'voxel_fumo_sorcery_muted',
+      voices: 'voxel_fumo_sorcery_voices',
+      reducedFlash: 'voxel_fumo_sorcery_reduced_flash',
+      photoDismissed: 'voxel_fumo_sorcery_photo_dismissed'
+    };
+
+    function loadSetting(key, fallback) {
+      try {
+        const val = localStorage.getItem(key);
+        if (val === null) return fallback;
+        return JSON.parse(val);
+      } catch (e) {
+        return fallback;
+      }
+    }
+
+    function saveSetting(key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch (e) {}
+    }
+
+    let isMuted = Boolean(loadSetting(STORAGE_KEYS.muted, false));
+    let voicesEnabled = Boolean(loadSetting(STORAGE_KEYS.voices, true));
+    let reducedFlashing = Boolean(loadSetting(STORAGE_KEYS.reducedFlash, false));
+    let photoNoticeDismissed = Boolean(loadSetting(STORAGE_KEYS.photoDismissed, false));
+
+    const photoBanner = document.getElementById('photosensitivity-banner');
+    if (photoNoticeDismissed) {
+      photoBanner.classList.add('hidden');
+    }
+    document.getElementById('btn-banner-dismiss').addEventListener('click', () => {
+      photoNoticeDismissed = true;
+      saveSetting(STORAGE_KEYS.photoDismissed, true);
+      photoBanner.classList.add('hidden');
+    });
+    document.getElementById('btn-banner-reduce').addEventListener('click', () => {
+      setReducedFlashing(true);
+      photoNoticeDismissed = true;
+      saveSetting(STORAGE_KEYS.photoDismissed, true);
+      photoBanner.classList.add('hidden');
+    });
+
+    // ============================================================================
+    // 2. WEB AUDIO SYNTHESIZER, FORMANT CHOIR, PROCEDURAL OST & SPEECH SYNTHESIS
+    // ============================================================================
+    class SorceryAudioEngine {
+      constructor() {
+        this.ctx = null;
+        this.masterGain = null;
+        this.musicGain = null;
+        this.sfxGain = null;
+        this.choirGain = null;
+        this.compressor = null;
+        this.dayNightFilter = null;
+        this.activeVoicesCount = 0;
+        this.maxSimultaneousSfx = 18;
+        this.musicStep = 0;
+        this.musicTimer = 0;
+        this.isCutsceneMusic = false;
+        this.musicDuckTarget = 1.0;
+
+        // SpeechSynthesis voices
+        this.ttsVoices = [];
+        this.casterVoices = { yukari: null, remilia: null, reimu: null };
+        this.initSpeechVoices();
+      }
+
+      initSpeechVoices() {
+        try {
+          if (!('speechSynthesis' in window)) return;
+          const populate = () => {
+            try {
+              const list = window.speechSynthesis.getVoices() || [];
+              if (!list.length) return;
+              this.ttsVoices = list;
+              const jaVoices = list.filter(v => v.lang && v.lang.toLowerCase().includes('ja'));
+              const enVoices = list.filter(v => v.lang && v.lang.toLowerCase().includes('en'));
+              const pool = jaVoices.length > 0 ? jaVoices : (enVoices.length > 0 ? enVoices : list);
+              this.casterVoices.yukari = pool[0] || list[0];
+              this.casterVoices.remilia = pool[1 % pool.length] || list[0];
+              this.casterVoices.reimu = pool[2 % pool.length] || list[0];
+            } catch (e) {}
+          };
+          populate();
+          window.speechSynthesis.onvoiceschanged = populate;
+        } catch (e) {}
+      }
+
+      init() {
+        if (this.ctx) {
+          if (this.ctx.state === 'suspended' && !isPaused) {
+            this.ctx.resume().catch(() => {});
+          }
+          return;
+        }
+        try {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtx) return;
+          this.ctx = new AudioCtx();
+
+          // Dynamics Compressor + Limiter safety
+          this.compressor = this.ctx.createDynamicsCompressor();
+          this.compressor.threshold.setValueAtTime(-14, this.ctx.currentTime);
+          this.compressor.knee.setValueAtTime(12, this.ctx.currentTime);
+          this.compressor.ratio.setValueAtTime(8, this.ctx.currentTime);
+          this.compressor.attack.setValueAtTime(0.003, this.ctx.currentTime);
+          this.compressor.release.setValueAtTime(0.18, this.ctx.currentTime);
+
+          this.masterGain = this.ctx.createGain();
+          this.masterGain.gain.setValueAtTime(isMuted ? 0.0001 : 0.75, this.ctx.currentTime);
+
+          this.dayNightFilter = this.ctx.createBiquadFilter();
+          this.dayNightFilter.type = 'lowpass';
+          this.dayNightFilter.frequency.setValueAtTime(3800, this.ctx.currentTime);
+
+          this.musicGain = this.ctx.createGain();
+          this.musicGain.gain.setValueAtTime(0.28, this.ctx.currentTime);
+
+          this.sfxGain = this.ctx.createGain();
+          this.sfxGain.gain.setValueAtTime(0.85, this.ctx.currentTime);
+
+          this.choirGain = this.ctx.createGain();
+          this.choirGain.gain.setValueAtTime(0.45, this.ctx.currentTime);
+
+          this.musicGain.connect(this.dayNightFilter);
+          this.dayNightFilter.connect(this.compressor);
+          this.sfxGain.connect(this.compressor);
+          this.choirGain.connect(this.compressor);
+          this.compressor.connect(this.masterGain);
+          this.masterGain.connect(this.ctx.destination);
+        } catch (e) {}
+      }
+
+      setMuted(mute) {
+        isMuted = Boolean(mute);
+        saveSetting(STORAGE_KEYS.muted, isMuted);
+        if (this.ctx && this.masterGain) {
+          this.masterGain.gain.setTargetAtTime(isMuted ? 0.0001 : 0.75, this.ctx.currentTime, 0.04);
+        }
+        if (isMuted) this.cancelSpeech();
+      }
+
+      suspend() {
+        this.cancelSpeech();
+        if (this.ctx && this.ctx.state === 'running') {
+          this.ctx.suspend().catch(() => {});
+        }
+      }
+
+      resume() {
+        if (this.ctx && this.ctx.state === 'suspended' && !isMuted) {
+          this.ctx.resume().catch(() => {});
+        }
+      }
+
+      cancelSpeech() {
+        try {
+          if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+          }
+        } catch (e) {}
+      }
+
+      createPanner(panX = 0) {
+        if (!this.ctx) return null;
+        if (this.ctx.createStereoPanner) {
+          const p = this.ctx.createStereoPanner();
+          p.pan.setValueAtTime(THREE.MathUtils.clamp(panX, -1, 1), this.ctx.currentTime);
+          p.connect(this.sfxGain);
+          return p;
+        }
+        return this.sfxGain;
+      }
+
+      // Speak dramatic chant line + play formant choir pad underneath
+      speakLine(casterKey, text, durationSec = 3.5) {
+        this.musicDuckTarget = 0.25;
+        setTimeout(() => {
+          this.musicDuckTarget = 1.0;
+        }, durationSec * 1000);
+
+        // Always trigger synthesized Formant Choir pad & stinger underneath
+        if (casterKey === 'yukari') this.playFormantChoir([146.8, 220, 293.6, 349.2], durationSec, 'ahh');
+        else if (casterKey === 'remilia') this.playFormantChoir([130.8, 196, 261.6, 311.1], durationSec, 'ohh');
+        else if (casterKey === 'reimu') this.playFormantChoir([174.6, 261.6, 349.2, 440.0], durationSec, 'ahh');
+        else if (casterKey === 'fusion') {
+          this.playFormantChoir([146.8, 220, 293.6, 440, 587.3], durationSec, 'ahh');
+          setTimeout(() => this.playVocalShoutBurst(), (durationSec * 0.52) * 1000);
+        }
+
+        if (isMuted || !voicesEnabled) return;
+        try {
+          if (!('speechSynthesis' in window)) return;
+          window.speechSynthesis.cancel();
+          const utter = new SpeechSynthesisUtterance(text);
+          const chosenVoice = this.casterVoices[casterKey] || this.casterVoices.yukari;
+          if (chosenVoice) utter.voice = chosenVoice;
+
+          if (casterKey === 'yukari') {
+            utter.pitch = 0.78;
+            utter.rate = 0.88;
+          } else if (casterKey === 'remilia') {
+            utter.pitch = 1.32;
+            utter.rate = 0.92;
+          } else if (casterKey === 'reimu') {
+            utter.pitch = 1.12;
+            utter.rate = 1.08;
+          } else {
+            utter.pitch = 1.0;
+            utter.rate = 0.95;
+          }
+          utter.volume = 0.95;
+          window.speechSynthesis.speak(utter);
+        } catch (e) {}
+      }
+
+      // Formant-filtered synthesized choir "ahh" / "ohh" pad
+      playFormantChoir(freqs, duration = 3.2, vowel = 'ahh') {
+        if (isMuted) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const formants = vowel === 'ahh' ? [730, 1090, 2440] : [450, 800, 2600];
+          const masterEnv = this.ctx.createGain();
+          masterEnv.gain.setValueAtTime(0.001, now);
+          masterEnv.gain.linearRampToValueAtTime(0.26, now + 0.45);
+          masterEnv.gain.setValueAtTime(0.26, now + Math.max(0.5, duration - 0.5));
+          masterEnv.gain.exponentialRampToValueAtTime(0.001, now + duration);
+          masterEnv.connect(this.choirGain);
+
+          const bandpassNodes = formants.map((fFreq, idx) => {
+            const bp = this.ctx.createBiquadFilter();
+            bp.type = 'bandpass';
+            bp.frequency.setValueAtTime(fFreq, now);
+            bp.Q.setValueAtTime(5.5 + idx * 2, now);
+            bp.connect(masterEnv);
+            return bp;
+          });
+
+          freqs.forEach((f, i) => {
+            const osc = this.ctx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(f * (1 + (i % 2 === 0 ? 0.003 : -0.003)), now);
+            bandpassNodes.forEach(bp => osc.connect(bp));
+            osc.start(now);
+            osc.stop(now + duration + 0.05);
+          });
+        } catch (e) {}
+      }
+
+      // Shout-like noise burst on "Realm!"
+      playVocalShoutBurst() {
+        if (isMuted) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const bufferSize = this.ctx.sampleRate * 0.55;
+          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = buffer;
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.setValueAtTime(950, now);
+          filter.frequency.exponentialRampToValueAtTime(1600, now + 0.25);
+          filter.Q.setValueAtTime(3.5, now);
+
+          const gain = this.ctx.createGain();
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.45, now + 0.04);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.52);
+
+          noise.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.sfxGain);
+          noise.start(now);
+        } catch (e) {}
+      }
+
+      // Cute Fumo Squeeze Squeak
+      playSqueeze(pitch = 1.0, pan = 0) {
+        if (isMuted) return;
+        this.init();
+        if (!this.ctx || this.activeVoicesCount >= this.maxSimultaneousSfx) return;
+        try {
+          this.activeVoicesCount++;
+          const now = this.ctx.currentTime;
+          const out = this.createPanner(pan);
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          const base = (540 + Math.random() * 60) * pitch;
+          osc.frequency.setValueAtTime(base, now);
+          osc.frequency.exponentialRampToValueAtTime(base * 1.52, now + 0.08);
+          osc.frequency.exponentialRampToValueAtTime(base * 1.18, now + 0.17);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.14, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+          osc.connect(gain);
+          gain.connect(out);
+          osc.start(now);
+          osc.stop(now + 0.19);
+          setTimeout(() => { this.activeVoicesCount = Math.max(0, this.activeVoicesCount - 1); }, 200);
+        } catch (e) {}
+      }
+
+      // Soft thud / impact bounce
+      playBounce(intensity = 0.5, pan = 0) {
+        if (isMuted || intensity < 0.1) return;
+        this.init();
+        if (!this.ctx || this.activeVoicesCount >= this.maxSimultaneousSfx) return;
+        try {
+          this.activeVoicesCount++;
+          const now = this.ctx.currentTime;
+          const out = this.createPanner(pan);
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(110 + Math.min(90, intensity * 30), now);
+          osc.frequency.exponentialRampToValueAtTime(38, now + 0.11);
+          gain.gain.setValueAtTime(Math.min(0.22, intensity * 0.09), now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+          osc.connect(gain);
+          gain.connect(out);
+          osc.start(now);
+          osc.stop(now + 0.13);
+          setTimeout(() => { this.activeVoicesCount = Math.max(0, this.activeVoicesCount - 1); }, 140);
+        } catch (e) {}
+      }
+
+      // Cutscene: Standoff Drone + Heartbeat Thump
+      playStandoffDrone() {
+        if (isMuted) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(55, now);
+          osc.frequency.linearRampToValueAtTime(48, now + 3.2);
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(190, now);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.32, now + 0.4);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 3.4);
+          osc.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.sfxGain);
+          osc.start(now);
+          osc.stop(now + 3.5);
+
+          // 3 Heartbeat thumps
+          [0.4, 1.3, 2.2].forEach(offset => {
+            const hOsc = this.ctx.createOscillator();
+            const hGain = this.ctx.createGain();
+            hOsc.type = 'sine';
+            hOsc.frequency.setValueAtTime(80, now + offset);
+            hOsc.frequency.exponentialRampToValueAtTime(32, now + offset + 0.22);
+            hGain.gain.setValueAtTime(0.4, now + offset);
+            hGain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.25);
+            hOsc.connect(hGain);
+            hGain.connect(this.sfxGain);
+            hOsc.start(now + offset);
+            hOsc.stop(now + offset + 0.26);
+          });
+        } catch (e) {}
+      }
+
+      // Hand-Seal "Clap" Snap + Sub-Bass Drop + Unique Domain Motif
+      playDomainActivation(caster) {
+        if (isMuted) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          // 1. Sharp Hand-Seal Clap Snap
+          const clapOsc = this.ctx.createOscillator();
+          const clapGain = this.ctx.createGain();
+          clapOsc.type = 'triangle';
+          clapOsc.frequency.setValueAtTime(1400, now);
+          clapOsc.frequency.exponentialRampToValueAtTime(180, now + 0.07);
+          clapGain.gain.setValueAtTime(0.38, now);
+          clapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+          clapOsc.connect(clapGain);
+          clapGain.connect(this.sfxGain);
+          clapOsc.start(now);
+          clapOsc.stop(now + 0.09);
+
+          // 2. Massive Sub-Bass Drop on Title Card (+0.55s)
+          const subOsc = this.ctx.createOscillator();
+          const subGain = this.ctx.createGain();
+          subOsc.type = 'sine';
+          subOsc.frequency.setValueAtTime(135, now + 0.55);
+          subOsc.frequency.exponentialRampToValueAtTime(28, now + 1.85);
+          subGain.gain.setValueAtTime(0.001, now + 0.55);
+          subGain.gain.linearRampToValueAtTime(0.55, now + 0.6);
+          subGain.gain.exponentialRampToValueAtTime(0.001, now + 1.9);
+          subOsc.connect(subGain);
+          subGain.connect(this.sfxGain);
+          subOsc.start(now + 0.55);
+          subOsc.stop(now + 1.95);
+
+          // 3. Unique Motif per Caster
+          if (caster === 'yukari') {
+            // Eerie detuned synth + rhythmic clock tick-tock
+            [293.66, 300.5, 440, 434].forEach(f => {
+              const o = this.ctx.createOscillator();
+              const g = this.ctx.createGain();
+              o.type = 'sawtooth';
+              o.frequency.setValueAtTime(f, now + 0.6);
+              g.gain.setValueAtTime(0.07, now + 0.6);
+              g.gain.exponentialRampToValueAtTime(0.001, now + 2.8);
+              o.connect(g);
+              g.connect(this.sfxGain);
+              o.start(now + 0.6);
+              o.stop(now + 2.85);
+            });
+          } else if (caster === 'remilia') {
+            // Deep church-organ chord (C minor / D#dim)
+            [130.81, 155.56, 196.0, 261.63, 311.13].forEach(f => {
+              const o = this.ctx.createOscillator();
+              const g = this.ctx.createGain();
+              o.type = 'square';
+              o.frequency.setValueAtTime(f, now + 0.6);
+              g.gain.setValueAtTime(0.065, now + 0.6);
+              g.gain.exponentialRampToValueAtTime(0.001, now + 2.9);
+              o.connect(g);
+              g.connect(this.sfxGain);
+              o.start(now + 0.6);
+              o.stop(now + 2.95);
+            });
+          } else if (caster === 'reimu') {
+            // Bright shrine Suzu bell + deep bronze gong
+            [1046.5, 1318.5, 1567.98, 2093.0].forEach((f, i) => {
+              const o = this.ctx.createOscillator();
+              const g = this.ctx.createGain();
+              o.type = 'sine';
+              o.frequency.setValueAtTime(f, now + 0.55 + i * 0.06);
+              g.gain.setValueAtTime(0.11, now + 0.55 + i * 0.06);
+              g.gain.exponentialRampToValueAtTime(0.001, now + 2.4);
+              o.connect(g);
+              g.connect(this.sfxGain);
+              o.start(now + 0.55 + i * 0.06);
+              o.stop(now + 2.45);
+            });
+          }
+        } catch (e) {}
+      }
+
+      // Clash: Shatter crackle & rapid-fire rising hits
+      playClashBarrage() {
+        if (isMuted) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          for (let i = 0; i < 14; i++) {
+            const t = now + i * 0.32;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(180 + i * 55, t);
+            osc.frequency.exponentialRampToValueAtTime(65, t + 0.18);
+            gain.gain.setValueAtTime(0.22, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+            osc.connect(gain);
+            gain.connect(this.sfxGain);
+            osc.start(t);
+            osc.stop(t + 0.22);
+          }
+        } catch (e) {}
+      }
+
+      // Fusion: Reversed-cymbal riser -> Whiteout silence -> Tri-chord power hit
+      playFusionRiserAndHit() {
+        if (isMuted) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          // Riser (0..1.4s)
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(110, now);
+          osc.frequency.exponentialRampToValueAtTime(1760, now + 1.35);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.exponentialRampToValueAtTime(0.38, now + 1.32);
+          gain.gain.linearRampToValueAtTime(0.0001, now + 1.4);
+          osc.connect(gain);
+          gain.connect(this.sfxGain);
+          osc.start(now);
+          osc.stop(now + 1.45);
+
+          // Tri-chord power hit after brief silence (at +1.65s)
+          [146.83, 220.0, 293.66, 369.99, 440.0, 587.33].forEach(f => {
+            const hOsc = this.ctx.createOscillator();
+            const hGain = this.ctx.createGain();
+            hOsc.type = 'triangle';
+            hOsc.frequency.setValueAtTime(f, now + 1.65);
+            hGain.gain.setValueAtTime(0.14, now + 1.65);
+            hGain.gain.exponentialRampToValueAtTime(0.001, now + 4.5);
+            hOsc.connect(hGain);
+            hGain.connect(this.sfxGain);
+            hOsc.start(now + 1.65);
+            hOsc.stop(now + 4.55);
+          });
+        } catch (e) {}
+      }
+
+      // Finisher: Beam Charge -> Slow-mo Whoosh -> Enormous BLACK FLASH Boom
+      playFinisherSequence() {
+        if (isMuted) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          // 1. Beam charging whine (0..1.8s)
+          const cOsc = this.ctx.createOscillator();
+          const cGain = this.ctx.createGain();
+          cOsc.type = 'sine';
+          cOsc.frequency.setValueAtTime(220, now);
+          cOsc.frequency.exponentialRampToValueAtTime(1480, now + 1.8);
+          cGain.gain.setValueAtTime(0.01, now);
+          cGain.gain.linearRampToValueAtTime(0.3, now + 1.75);
+          cGain.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
+          cOsc.connect(cGain);
+          cGain.connect(this.sfxGain);
+          cOsc.start(now);
+          cOsc.stop(now + 2.05);
+
+          // 2. Enormous Impact Boom at +2.2s
+          const bOsc = this.ctx.createOscillator();
+          const bGain = this.ctx.createGain();
+          bOsc.type = 'sine';
+          bOsc.frequency.setValueAtTime(160, now + 2.2);
+          bOsc.frequency.exponentialRampToValueAtTime(22, now + 4.8);
+          bGain.gain.setValueAtTime(0.65, now + 2.2);
+          bGain.gain.exponentialRampToValueAtTime(0.001, now + 4.9);
+          bOsc.connect(bGain);
+          bGain.connect(this.sfxGain);
+          bOsc.start(now + 2.2);
+          bOsc.stop(now + 5.0);
+        } catch (e) {}
+      }
+
+      // Black Flash Crit Hit Sound
+      playBlackFlashHit() {
+        if (isMuted) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(320, now);
+          osc.frequency.exponentialRampToValueAtTime(34, now + 0.42);
+          gain.gain.setValueAtTime(0.5, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+          osc.connect(gain);
+          gain.connect(this.sfxGain);
+          osc.start(now);
+          osc.stop(now + 0.46);
+        } catch (e) {}
+      }
+
+      // Procedural Background Music Loop (scales with combo & switches during cutscene)
+      updateMusic(dt, comboCount, nightMix) {
+        if (isMuted || !this.ctx || this.ctx.state !== 'running') return;
+
+        // Smoothly cross-fade Day/Night filter frequency
+        const targetCutoff = THREE.MathUtils.lerp(4200, 2100, nightMix);
+        this.dayNightFilter.frequency.setTargetAtTime(targetCutoff, this.ctx.currentTime, 0.1);
+        this.musicGain.gain.setTargetAtTime(0.26 * this.musicDuckTarget, this.ctx.currentTime, 0.08);
+
+        const stepInterval = this.isCutsceneMusic ? 0.18 : Math.max(0.20, 0.32 - Math.min(0.1, comboCount * 0.01));
+        this.musicTimer += dt;
+        if (this.musicTimer < stepInterval) return;
+        this.musicTimer -= stepInterval;
+
+        const now = this.ctx.currentTime;
+        const step = this.musicStep++;
+
+        // Touhou / Jujutsu pentatonic minor scale in D: D, F, G, A, Bb, C, D
+        const bassNotes = [73.42, 73.42, 87.31, 98.0, 65.41, 65.41, 82.41, 73.42];
+        const leadNotes = [293.66, 349.23, 392.0, 440.0, 466.16, 523.25, 587.33, 698.46];
+
+        try {
+          // Pulsing dark synth bass
+          const bFreq = bassNotes[step % bassNotes.length];
+          const bOsc = this.ctx.createOscillator();
+          const bGain = this.ctx.createGain();
+          bOsc.type = this.isCutsceneMusic ? 'sawtooth' : 'triangle';
+          bOsc.frequency.setValueAtTime(bFreq, now);
+          bGain.gain.setValueAtTime(this.isCutsceneMusic ? 0.16 : 0.11, now);
+          bGain.gain.exponentialRampToValueAtTime(0.001, now + stepInterval * 0.9);
+          bOsc.connect(bGain);
+          bGain.connect(this.musicGain);
+          bOsc.start(now);
+          bOsc.stop(now + stepInterval);
+
+          // Sparse shrine bells / epic arpeggio during cutscene or high combo
+          if (this.isCutsceneMusic || comboCount >= 2 || step % 2 === 0) {
+            const lFreq = leadNotes[(step * 3) % leadNotes.length] * (this.isCutsceneMusic ? 1.5 : 1.0);
+            const lOsc = this.ctx.createOscillator();
+            const lGain = this.ctx.createGain();
+            lOsc.type = 'sine';
+            lOsc.frequency.setValueAtTime(lFreq, now);
+            lGain.gain.setValueAtTime(this.isCutsceneMusic ? 0.09 : 0.05, now);
+            lGain.gain.exponentialRampToValueAtTime(0.001, now + stepInterval * 1.4);
+            lOsc.connect(lGain);
+            lGain.connect(this.musicGain);
+            lOsc.start(now);
+            lOsc.stop(now + stepInterval * 1.5);
+          }
+        } catch (e) {}
+      }
+    }
+
+    const audio = new SorceryAudioEngine();
+
+    // ============================================================================
+    // 3. VOXEL & COLOR UTILITIES (Identical SoftVoxel & Felt Seam Standard)
+    // ============================================================================
+    const tempColor = new THREE.Color();
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    const tempEuler = new THREE.Euler();
+
+    function voxelHash(x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    }
+
+    function varyColor(hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
+      tempColor.set(hexOrString);
+      const h = voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      tempColor.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return tempColor.clone();
+    }
+
+    function createSoftVoxelGeometry(size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    }
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        tempQuat.identity();
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    // ============================================================================
+    // 4. SCENE, CAMERA, RENDERER & CUSTOM POST-PROCESSING SHADER
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#94a3b8');
+    scene.fog = new THREE.FogExp2('#94a3b8', 0.012);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.5, 160);
+    camera.position.set(0, 11.5, 24.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    container.appendChild(renderer.domElement);
+
+    // Custom Post-Processing ShaderPass for Cutscene Visuals Toolkit:
+    // Chromatic Aberration, Colored Vignette, Film Grain, and Inverted-Color Impact Flash!
+    const CutsceneFXShader = {
+      uniforms: {
+        tDiffuse: { value: null },
+        uChroma: { value: 0.0 },
+        uVignetteStrength: { value: 0.25 },
+        uVignetteColor: { value: new THREE.Color(0x05030a) },
+        uInvert: { value: 0.0 },
+        uWhiteFlash: { value: 0.0 },
+        uTime: { value: 0.0 }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform float uChroma;
+        uniform float uVignetteStrength;
+        uniform vec3 uVignetteColor;
+        uniform float uInvert;
+        uniform float uWhiteFlash;
+        uniform float uTime;
+        varying vec2 vUv;
+
+        float rand(vec2 co) {
+          return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+        }
+
+        void main() {
+          vec2 dir = vUv - vec2(0.5);
+          float dist = length(dir);
+          vec2 offset = dir * uChroma * 0.028;
+
+          float r = texture2D(tDiffuse, vUv + offset).r;
+          float g = texture2D(tDiffuse, vUv).g;
+          float b = texture2D(tDiffuse, vUv - offset).b;
+          vec3 col = vec3(r, g, b);
+
+          // Subtle film grain
+          float grain = (rand(vUv + fract(uTime)) - 0.5) * 0.032;
+          col += grain;
+
+          // Color inversion for Black Flash / Impact Freeze Frame
+          col = mix(col, vec3(1.0) - col, uInvert);
+
+          // Colored Vignette
+          float vig = smoothstep(0.32, 0.88, dist) * uVignetteStrength;
+          col = mix(col, uVignetteColor, clamp(vig, 0.0, 0.92));
+
+          // Whiteout Flash
+          col = mix(col, vec3(1.0), clamp(uWhiteFlash, 0.0, 1.0));
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    };
+
+    let composer = null;
+    let bloomPass = null;
+    let cutsceneFXPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.32,
+        0.55,
+        0.78
+      );
+      cutsceneFXPass = new THREE.ShaderPass(CutsceneFXShader);
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+      composer.addPass(cutsceneFXPass);
+    } catch (e) {
+      composer = null;
+    }
+
+    // OrbitControls for Base Scene
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 2.5, -1.5);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.48;
+    controls.minPolarAngle = 0.08;
+    controls.minDistance = 7;
+    controls.maxDistance = 42;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.4;
+
+    let lastInteractionTime = performance.now();
+    const recordInteraction = () => {
+      lastInteractionTime = performance.now();
+      controls.autoRotate = false;
+      audio.init();
+    };
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 5. LIGHTING (Capped Dynamic Lights for High Performance)
+    // ============================================================================
+    // 1. Hemisphere Light
+    const hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x334155, 0.65);
+    hemiLight.position.set(0, 25, 0);
+    scene.add(hemiLight);
+
+    // 2. Main Sun / Moon Directional Light with Soft Shadows
+    const mainDirLight = new THREE.DirectionalLight(0xe2e8f0, 1.15);
+    mainDirLight.position.set(-16, 22, 12);
+    mainDirLight.castShadow = true;
+    mainDirLight.shadow.mapSize.width = 2048;
+    mainDirLight.shadow.mapSize.height = 2048;
+    mainDirLight.shadow.camera.near = 2;
+    mainDirLight.shadow.camera.far = 65;
+    const dCam = 19;
+    mainDirLight.shadow.camera.left = -dCam;
+    mainDirLight.shadow.camera.right = dCam;
+    mainDirLight.shadow.camera.top = dCam;
+    mainDirLight.shadow.camera.bottom = -dCam;
+    mainDirLight.shadow.bias = -0.0006;
+    scene.add(mainDirLight);
+
+    // 3. Courtyard Center Cursed / Domain Dynamic PointLight
+    const domainCenterLight = new THREE.PointLight(0xa855f7, 0.4, 28, 1.5);
+    domainCenterLight.position.set(0, 4.5, 0);
+    scene.add(domainCenterLight);
+
+    // 4. Lantern & Vending Machine Warm/Cyan PointLight
+    const courtyardAccentLight = new THREE.PointLight(0xff9e44, 0.35, 18, 1.6);
+    courtyardAccentLight.position.set(-7.5, 3.2, -4.5);
+    scene.add(courtyardAccentLight);
+
+    // Shared Voxel Materials
+    const plushMaterial = new THREE.MeshStandardMaterial({ roughness: 0.90, metalness: 0.03 });
+    const stoneMaterial = new THREE.MeshStandardMaterial({ roughness: 0.86, metalness: 0.06 });
+    const woodMaterial = new THREE.MeshStandardMaterial({ roughness: 0.78, metalness: 0.05 });
+    const emissiveVoxelMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 0.9,
+      roughness: 0.2
+    });
+    const translucentIceMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.85,
+      roughness: 0.15,
+      metalness: 0.05,
+      emissive: new THREE.Color(0x38bdf8),
+      emissiveIntensity: 0.45
+    });
+    const crystalWingMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.2,
+      metalness: 0.1,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 0.55
+    });
+
+    // ============================================================================
+    // 6. RUINED SORCERY-SCHOOL COURTYARD ARCHITECTURE & PROPS
+    // ============================================================================
+    const RV = 0.28; // Room/Courtyard Voxel unit = 0.28 world units
+    const furnitureColliders = [];
+
+    function addCollider(minX, minY, minZ, maxX, maxY, maxZ, name = 'prop') {
+      furnitureColliders.push({
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        name
+      });
+    }
+
+    const stoneVoxels = [];
+    const woodVoxels = [];
+    const glowVoxels = [];
+    const floatingRubbleData = []; // { basePos: Vector3, rotSpeed: Vector3, phase: number, color: Color, sx, sy, sz }
+
+    function pushVox(list, x, y, z, hex, variance = 0.035, sx = 1, sy = 1, sz = 1) {
+      list.push({
+        x, y, z,
+        color: varyColor(hex, x, y, z, variance),
+        sx, sy, sz
+      });
+    }
+
+    function pushBox(list, x0, y0, z0, x1, y1, z1, hexOrFn, variance = 0.035) {
+      for (let x = x0; x <= x1; x++) {
+        for (let y = y0; y <= y1; y++) {
+          for (let z = z0; z <= z1; z++) {
+            if (x > x0 && x < x1 && y > y0 && y < y1 && z > z0 && z < z1) continue;
+            const c = typeof hexOrFn === 'function' ? hexOrFn(x, y, z) : hexOrFn;
+            if (c) pushVox(list, x, y, z, c, variance);
+          }
+        }
+      }
+    }
+
+    function buildSorceryCourtyard() {
+      // 1. SPLIT STONE PAVEMENT WITH IMPACT CRATERS & CHALK BARRIER CIRCLES
+      for (let x = -46; x <= 46; x++) {
+        for (let z = -44; z <= 42; z++) {
+          const distCenter = Math.hypot(x, z + 2);
+          // Central impact crater depression
+          const isCrater = distCenter < 11 && distCenter > 8.5 && ((x + z) % 3 === 0);
+          // Chalk / Cursed Barrier Circles on the courtyard floor
+          const isOuterRing = Math.abs(distCenter - 18.5) < 0.65;
+          const isInnerHex = Math.abs(distCenter - 10.5) < 0.55 || (distCenter < 18.5 && (Math.abs(x) === Math.abs(z + 2) || x === 0 || z === -2) && ((x + z) % 2 === 0));
+
+          if (isOuterRing || isInnerHex) {
+            const chalkCol = isOuterRing ? '#a855f7' : '#38bdf8';
+            pushVox(glowVoxels, x, 0.12, z, chalkCol, 0.01, 0.9, 0.25, 0.9);
+          }
+
+          const tileSeam = (x % 5 === 0) || (z % 5 === 0);
+          const crackLine = Math.abs(x - z * 0.7) < 0.8 && distCenter < 24;
+          let col = tileSeam ? '#334155' : ((x + z) % 2 === 0 ? '#475569' : '#3f4d63');
+          if (crackLine) col = '#1e293b';
+          const yOff = isCrater ? -0.35 : -0.5;
+          pushVox(stoneVoxels, x, yOff, z, col, 0.04);
+        }
+      }
+
+      // 2. MAIN TEMPLE BUILDING AT BACK (rz = -42..-30, rx = -28..28) WITH CRACKED CURVED ROOF
+      pushBox(stoneVoxels, -28, 0, -42, 28, 3, -30, '#64748b'); // Stone foundation
+      pushBox(woodVoxels, -26, 4, -40, 26, 18, -32, (x, y, z) => {
+        // Wall hole on left side (rx -20..-15, ry 6..11, z === -32) for Suwako peeking out!
+        if (z === -32 && x >= -20 && x <= -15 && y >= 6 && y <= 11) return null;
+        if (x % 6 === 0 || y === 4 || y === 18) return '#451a03'; // Dark timber beams
+        return '#e2d9c8'; // Plaster temple wall
+      });
+      // Sweeping dark-tiled pagoda roof with battle damage crack
+      for (let ry = 0; ry <= 9; ry++) {
+        const spanX = 31 - ry * 2;
+        const spanZ = 9 - Math.floor(ry * 0.7);
+        for (let x = -spanX; x <= spanX; x++) {
+          for (let z = -36 - spanZ; z <= -36 + spanZ; z++) {
+            // Battle-damaged roof gap near x = 8..13
+            if (x >= 8 && x <= 12 && z > -35 && ry > 3) continue;
+            const roofCol = (x % 2 === 0) ? '#1e293b' : '#0f172a';
+            pushVox(stoneVoxels, x, 19 + ry, z, roofCol, 0.03);
+          }
+        }
+      }
+      addCollider(-8.0, 0, -11.8, 8.0, 5.5, -8.6, 'main_temple');
+
+      // 3. LEFT RUINED WALL & COLLAPSED GATE (rx = -42..-34, rz = -24..18)
+      pushBox(stoneVoxels, -42, 0, -24, -36, 13, 18, (x, y, z) => {
+        // Collapsed breach in the middle of the gate (z -4..6, y > 5)
+        if (z >= -4 && z <= 6 && y > 4 + Math.abs(z) * 0.7) return null;
+        return y <= 2 ? '#475569' : '#64748b';
+      });
+      // Cracked roof tiles atop the intact sections of the left wall
+      for (let z = -25; z <= -5; z++) {
+        for (let x = -43; x <= -35; x++) {
+          pushVox(stoneVoxels, x, 14 + (4 - Math.abs(x + 39)) * 0.4, z, '#1e293b');
+        }
+      }
+      addCollider(-11.8, 0, -6.8, -9.8, 4.0, 5.0, 'left_gate');
+
+      // 4. TWO CRIMSON TORII ARCHES (Back-right pathway & East entrance)
+      const buildTorii = (cx, cz, rotZ = false) => {
+        for (let y = 0; y <= 18; y++) {
+          const col = y < 3 ? '#1e293b' : '#dc2626';
+          if (!rotZ) {
+            pushVox(woodVoxels, cx - 7, y, cz, col, 0.02, 1.4, 1, 1.4);
+            pushVox(woodVoxels, cx + 7, y, cz, col, 0.02, 1.4, 1, 1.4);
+          } else {
+            pushVox(woodVoxels, cx, y, cz - 7, col, 0.02, 1.4, 1, 1.4);
+            pushVox(woodVoxels, cx, y, cz + 7, col, 0.02, 1.4, 1, 1.4);
+          }
+        }
+        for (let i = -10; i <= 10; i++) {
+          const curve = Math.abs(i) > 7 ? 0.5 : 0;
+          if (!rotZ) {
+            pushVox(woodVoxels, cx + i, 18 + curve, cz, '#b91c1c', 0.02, 1, 1.2, 1.5);
+            pushVox(woodVoxels, cx + i, 19 + curve, cz, '#1e293b', 0.02, 1, 0.8, 1.7);
+            if (Math.abs(i) <= 8) pushVox(woodVoxels, cx + i, 15, cz, '#dc2626');
+          } else {
+            pushVox(woodVoxels, cx, 18 + curve, cz + i, '#b91c1c', 0.02, 1.5, 1.2, 1);
+            pushVox(woodVoxels, cx, 19 + curve, cz + i, '#1e293b', 0.02, 1.7, 0.8, 1);
+            if (Math.abs(i) <= 8) pushVox(woodVoxels, cx, 15, cz + i, '#dc2626');
+          }
+        }
+      };
+      buildTorii(0, -25, false);
+      buildTorii(36, -6, true);
+
+      // 5. STONE LANTERNS (Toro) WITH GLOWING CORES
+      const lanternSpots = [[-14, -22], [14, -22], [-24, 10], [24, 10]];
+      lanternSpots.forEach(([lx, lz]) => {
+        pushBox(stoneVoxels, lx - 1, 0, lz - 1, lx + 1, 1, lz + 1, '#64748b');
+        pushBox(stoneVoxels, lx, 2, lz, lx, 6, lz, '#94a3b8');
+        pushBox(stoneVoxels, lx - 1, 7, lz - 1, lx + 1, 7, lz + 1, '#64748b');
+        pushVox(glowVoxels, lx, 8.2, lz, '#ffb703', 0.01, 1.4, 1.4, 1.4);
+        pushBox(stoneVoxels, lx - 2, 9, lz - 2, lx + 2, 10, lz + 2, '#475569');
+        pushVox(stoneVoxels, lx, 11, lz, '#475569');
+        addCollider((lx - 2) * RV, 0, (lz - 2) * RV, (lx + 2) * RV, 3.2, (lz + 2) * RV, 'lantern');
+      });
+
+      // 6. BROKEN STONE PILLARS AROUND COURTYARD
+      const pillars = [[-22, -8, 11], [22, -10, 8], [-18, 18, 7], [20, 16, 10]];
+      pillars.forEach(([px, pz, ph]) => {
+        pushBox(stoneVoxels, px - 2, 0, pz - 2, px + 2, ph, pz + 2, (x, y) => {
+          return y === ph ? '#475569' : '#94a3b8';
+        });
+        addCollider((px - 2.2) * RV, 0, (pz - 2.2) * RV, (px + 2.2) * RV, (ph + 1) * RV, (pz + 2.2) * RV, 'pillar');
+      });
+
+      // 7. OLD GNARLED SACRED TREE WITH SHIMENAWA TALISMAN ROPE (rx = -30, rz = -16)
+      for (let y = 0; y <= 18; y++) {
+        const twistX = Math.sin(y * 0.25) * 1.2;
+        const twistZ = Math.cos(y * 0.25) * 1.0;
+        const r = y < 5 ? 3 : 2;
+        for (let dx = -r; dx <= r; dx++) {
+          for (let dz = -r; dz <= r; dz++) {
+            if (dx * dx + dz * dz <= r * r + 1) {
+              // Shimenawa sacred rope & white paper shide at y = 5..6
+              const isRope = (y === 5 || y === 6) && (dx * dx + dz * dz >= r * r - 1);
+              const isShide = (y >= 3 && y <= 5) && ((dx + dz) % 3 === 0) && (dx * dx + dz * dz >= r * r);
+              const col = isShide ? '#ffffff' : (isRope ? '#eab308' : '#4a2c18');
+              pushVox(woodVoxels, -30 + twistX + dx, y, -16 + twistZ + dz, col);
+            }
+          }
+        }
+      }
+      // Dark autumn/cursed blossom canopy
+      for (let x = -38; x <= -21; x++) {
+        for (let y = 15; y <= 25; y++) {
+          for (let z = -24; z <= -8; z++) {
+            const d = Math.hypot((x + 30) * 0.8, (y - 19) * 1.1, (z + 16) * 0.8);
+            if (d < 7.2 && d > 4.5 && ((x + y + z) % 2 === 0)) {
+              const leafCol = ((x + z) % 3 === 0) ? '#7e22ce' : '#3b0764';
+              pushVox(woodVoxels, x, y, z, leafCol, 0.05);
+            }
+          }
+        }
+      }
+      addCollider(-33 * RV, 0, -19 * RV, -27 * RV, 5.0, -13 * RV, 'sacred_tree');
+
+      // 8. BELL TOWER (Bonsho) ON RIGHT SIDE (rx = 32, rz = -24)
+      for (const [dx, dz] of [[-4, -4], [4, -4], [-4, 4], [4, 4]]) {
+        pushBox(woodVoxels, 32 + dx, 0, -24 + dz, 32 + dx, 16, -24 + dz, '#5c2c16');
+      }
+      pushBox(stoneVoxels, 26, 17, -30, 38, 20, -18, '#1e293b'); // Bell tower roof
+      // Hanging bronze temple bell
+      pushBox(stoneVoxels, 30, 8, -26, 34, 14, -22, '#2d3748');
+      addCollider(27 * RV, 0, -29 * RV, 37 * RV, 5.6, -19 * RV, 'bell_tower');
+
+      // 9. GLOWING VENDING MACHINE & SNACK TRAY BENCH (rx = -32, rz = 12)
+      pushBox(stoneVoxels, -34, 0, 10, -30, 11, 15, (x, y, z) => {
+        if (x === -30 && y >= 4 && y <= 9 && z >= 11 && z <= 14) return null; // Lit display window
+        return '#2563eb'; // Iconic blue Japanese vending machine
+      });
+      for (let y = 4; y <= 9; y++) {
+        for (let z = 11; z <= 14; z++) {
+          const canCol = (y + z) % 2 === 0 ? '#38bdf8' : '#f43f5e';
+          pushVox(glowVoxels, -30.1, y, z, canCol, 0.02, 0.6, 0.85, 0.85);
+        }
+      }
+      // Wooden bench with snack tray & dango skewers right next to vending machine
+      pushBox(woodVoxels, -33, 0, 17, -29, 3, 23, '#78350f');
+      pushBox(woodVoxels, -32, 4, 18, -30, 4, 21, '#dc2626'); // Red lacquer snack tray
+      pushVox(stoneVoxels, -31, 4.8, 19, '#fde047', 0.02, 0.8, 0.8, 0.8); // Onigiri / Dango
+      pushVox(stoneVoxels, -31, 4.8, 20, '#f472b6', 0.02, 0.8, 0.8, 0.8);
+      addCollider(-34.5 * RV, 0, 9.5 * RV, -29.5 * RV, 3.2, 23.5 * RV, 'vending_area');
+
+      // 10. FLOATING CURSED RUBBLE BLOCKS AROUND THE COURTYARD
+      for (let i = 0; i < 36; i++) {
+        const angle = (i / 36) * Math.PI * 2;
+        const rad = 6.5 + (i % 5) * 2.1;
+        floatingRubbleData.push({
+          basePos: new THREE.Vector3(Math.cos(angle) * rad, 0.9 + (i % 4) * 0.85, Math.sin(angle) * rad - 1.5),
+          rotSpeed: new THREE.Vector3(0.4 + (i % 3) * 0.3, 0.6, 0.3),
+          phase: i * 0.7,
+          color: varyColor(i % 4 === 0 ? '#a855f7' : '#475569', i, i, i, 0.05),
+          scale: 0.22 + (i % 3) * 0.14
+        });
+      }
+    }
+
+    buildSorceryCourtyard();
+
+    const courtyardGroup = new THREE.Group();
+    scene.add(courtyardGroup);
+
+    const stoneMesh = buildVoxelInstancedMesh(stoneVoxels, RV, stoneMaterial, true, true);
+    const woodMesh = buildVoxelInstancedMesh(woodVoxels, RV, woodMaterial, true, true);
+    const glowMesh = buildVoxelInstancedMesh(glowVoxels, RV, emissiveVoxelMat, false, false);
+    if (stoneMesh) courtyardGroup.add(stoneMesh);
+    if (woodMesh) courtyardGroup.add(woodMesh);
+    if (glowMesh) courtyardGroup.add(glowMesh);
+
+    // InstancedMesh for Floating Rubble
+    const rubbleMesh = new THREE.InstancedMesh(createSoftVoxelGeometry(1), stoneMaterial, floatingRubbleData.length);
+    rubbleMesh.castShadow = true;
+    for (let i = 0; i < floatingRubbleData.length; i++) {
+      rubbleMesh.setColorAt(i, floatingRubbleData[i].color);
+    }
+    scene.add(rubbleMesh);
+
+    function updateFloatingRubble(time, cutsceneLift = 0) {
+      for (let i = 0; i < floatingRubbleData.length; i++) {
+        const r = floatingRubbleData[i];
+        const bob = Math.sin(time * 1.8 + r.phase) * 0.28 + cutsceneLift * (1.8 + (i % 5) * 0.9);
+        tempPos.set(r.basePos.x, r.basePos.y + bob, r.basePos.z);
+        tempEuler.set(time * r.rotSpeed.x + r.phase, time * r.rotSpeed.y, time * r.rotSpeed.z);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(r.scale, r.scale * 0.75, r.scale * 1.1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        rubbleMesh.setMatrixAt(i, tempMatrix);
+      }
+      rubbleMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 7. 3D VOXEL JUDGE SCOREBOARD (Held by Daiyousei, Reacts to Cutscene!)
+    // ============================================================================
+    const scoreboardGroup = new THREE.Group();
+    scoreboardGroup.position.set(5.6, 0, 4.8);
+    scoreboardGroup.rotation.y = -0.45;
+    scene.add(scoreboardGroup);
+
+    // Build wooden stand + dark LED matrix frame
+    const boardStandVoxels = [];
+    pushBox(boardStandVoxels, -6, 0, -1, 6, 9, 1, (x, y, z) => {
+      if (z === 1 && Math.abs(x) <= 5 && y >= 3 && y <= 8) return '#090a10';
+      return '#5c381f';
+    });
+    const boardFrameMesh = buildVoxelInstancedMesh(boardStandVoxels, 0.2, woodMaterial, true, true);
+    scoreboardGroup.add(boardFrameMesh);
+
+    // Dynamic 3D LED pixel grid on the scoreboard (11x5 LED voxels)
+    const boardLedPixels = [];
+    for (let y = 3; y <= 8; y++) {
+      for (let x = -5; x <= 5; x++) {
+        boardLedPixels.push({ x, y, z: 1.15, color: new THREE.Color('#22c55e') });
+      }
+    }
+    const boardLedMesh = buildVoxelInstancedMesh(boardLedPixels, 0.2, emissiveVoxelMat, false, false);
+    scoreboardGroup.add(boardLedMesh);
+
+    let scoreboardMode = 'normal'; // 'normal' | 'clash_panic' | 'legendary'
+    function update3DScoreboard(time, combo) {
+      if (!boardLedMesh) return;
+      // Wobble scoreboard wildly during Phase 2 Clash!
+      if (scoreboardMode === 'clash_panic') {
+        scoreboardGroup.rotation.z = Math.sin(time * 38) * 0.28;
+        scoreboardGroup.position.y = Math.abs(Math.sin(time * 24)) * 0.65;
+      } else if (scoreboardMode === 'legendary') {
+        scoreboardGroup.rotation.z = Math.sin(time * 4) * 0.05;
+        scoreboardGroup.position.y = 0;
+      } else {
+        scoreboardGroup.rotation.z = 0;
+        scoreboardGroup.position.y = 0;
+      }
+
+      for (let i = 0; i < boardLedPixels.length; i++) {
+        const px = boardLedPixels[i].x;
+        const py = boardLedPixels[i].y;
+        if (scoreboardMode === 'clash_panic') {
+          tempColor.setHSL(((px + py + time * 12) * 0.15) % 1.0, 0.95, 0.6);
+        } else if (scoreboardMode === 'legendary') {
+          // Crown / S+ Gold & Magenta shimmer
+          const isSPlus = (Math.abs(px) <= 3 && (py === 4 || py === 6 || py === 8));
+          tempColor.set(isSPlus ? '#fde047' : '#ec4899');
+        } else {
+          const activeCols = Math.min(11, Math.floor(combo * 1.2) + 2);
+          if (px + 5 < activeCols) {
+            tempColor.set(combo >= 5 ? '#f43f5e' : '#38bdf8');
+          } else {
+            tempColor.set('#1e293b');
+          }
+        }
+        boardLedMesh.setColorAt(i, tempColor);
+      }
+      boardLedMesh.instanceColor.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 8. TOUHOU FUMO VOXEL PLUSHIE CLASS (Exact room.html Standard + Sorcerer Gear)
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const fumos = [];
+    const fumoMap = {};
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.role = config.role || 'Sorcerer Fumo';
+        this.emoji = config.emoji || '🎀';
+        this.accentColor = config.accentColor || '#a855f7';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.082 * this.scaleFactor; // Exact fine voxel unit from room.html
+        this.radius = 0.85 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.isKnockedDown = false; // Used in Phase 5 Aftermath when casters flop onto their backs!
+
+        // Soft-Body Spring States
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+        this.sealPoseWeight = 0.0; // 0 = normal dangling arms, 1 = raised Domain Hand-Seal pose!
+
+        // Scene Hierarchy
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        this.propPivot = new THREE.Group();
+        this.squashGroup.add(this.propPivot);
+
+        this.buildCharacterVoxels(config);
+        this.syncTransform(0);
+        scene.add(this.root);
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingSolidVoxels = [];
+        const wingGlowVoxels = [];
+        const propGlowVoxels = [];
+
+        const skinBase = '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false) => {
+          const seamDarken = (isSeam && ((Math.abs(x + y + z) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z,
+            color: varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // 1. STUBBY SITTING TORSO (Dark Sorcerer-School Uniform Remixed in Signature Colors!)
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain; // Dark sorcerer coat base
+
+              // White under-skirt / hakama trim at y === 1
+              if (y === 1 && z >= 1) col = cfg.trimColor || '#ffffff';
+              // Sorcerer high collar & signature gold Jujutsu swirl buttons on front
+              if (z >= 2 && x === 0 && (y === 3 || y === 5)) {
+                col = '#fbbf24'; // Gold sorcerer button
+              } else if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                col = cfg.collarColor || cfg.accentColor;
+              }
+              if (cfg.hasWhiteApron && z >= 1 && Math.abs(x) <= 2 && y <= 4) {
+                col = '#f8fafc';
+              }
+
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        // 2. SHORT DANGLING ARMS
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || cfg.outfitMain;
+                if (y === -3) col = skinBase;
+                else if (y === -2) col = cfg.accentColor; // Signature sorcerer cuff trim
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        // 3. SHORT SITTING / DANGLING LEGS WITH SHOES
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = '#ffffff';
+                if (z === 0) col = skinBase;
+                if (z >= 3) col = cfg.shoeColor || '#1e1b2e';
+                if (z === 4 && y === 1 && x === 0) col = cfg.accentColor;
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        // 4. OVERSIZED ROUND FUMO HEAD (Hollow Shell dist <= 6.4 && dist >= 4.5, Iconic 'ᗜˬᗜ' Face)
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                // Iconic Fumo Face Plane
+                if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (y === 6) col = '#1f141e';
+                  else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                  else col = cfg.eyeColor;
+                } else if (Math.abs(x) === 4 && y === 3) {
+                  col = blushCol;
+                } else if (y === 2 && Math.abs(x) <= 1) {
+                  col = (x === 0) ? '#e07a7a' : smileCol;
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        // 5. CHARACTER-SPECIFIC HATS, HAIR, WINGS & SORCERY ACCESSORIES
+        if (this.id === 'yukari') {
+          // Purple/Lavendar Mob Cap with Violet & Magenta Ribbons
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -7; hz <= 5; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 7.0 && r >= 4.6) {
+                addPlushVoxel(headVoxels, hx, 11.2, hz, '#f3e8ff');
+                if (r <= 6.2) addPlushVoxel(headVoxels, hx, 12.1, hz, '#9333ea');
+              }
+            }
+          }
+          // Voxel Parasol held on right side + Floating Boundary Gap rimmed with Eyes behind her!
+          for (let py = 0; py <= 11; py++) {
+            addPlushVoxel(rightArmVoxels, 1.8, py - 2, 1.5, py > 8 ? '#a855f7' : '#f5d0fe');
+          }
+          // Floating Gap behind Yukari (wingSolidVoxels + wingGlowVoxels for glowing eyes)
+          for (let gx = -9; gx <= 9; gx++) {
+            const gy = Math.sin((gx / 9) * Math.PI) * 3.2;
+            for (let y = Math.floor(-gy); y <= Math.ceil(gy); y++) {
+              const isRim = Math.abs(Math.abs(y) - gy) < 0.9;
+              if (isRim) {
+                wingGlowVoxels.push({ x: gx, y: y + 3, z: -2.0, color: new THREE.Color('#ec4899') });
+              } else if ((gx + y) % 4 === 0 && Math.abs(gx) < 6) {
+                // Glowing red/gold eyes inside the gap!
+                wingGlowVoxels.push({ x: gx, y: y + 3, z: -1.8, color: new THREE.Color('#ef4444'), sx: 1.3, sy: 0.8, sz: 0.8 });
+              } else {
+                wingSolidVoxels.push({ x: gx, y: y + 3, z: -2.2, color: new THREE.Color('#090414') });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'remilia') {
+          // Pink/Crimson Mob Cap + Bat Wings
+          for (let hx = -8; hx <= 8; hx++) {
+            for (let hz = -7; hz <= 6; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 7.4 && r >= 4.5) {
+                addPlushVoxel(headVoxels, hx, 11.0, hz, '#ffe4e6');
+                if (r <= 6.4) addPlushVoxel(headVoxels, hx, 12.0, hz, '#dc2626');
+                if (r <= 5.5) addPlushVoxel(headVoxels, hx, 13.0, hz, '#fecdd3');
+              }
+            }
+          }
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 7; wx++) {
+              const topY = 2.2 + Math.sin((wx / 7) * Math.PI) * 2.8;
+              for (let wy = -1; wy <= topY; wy++) {
+                wingSolidVoxels.push({
+                  x: side * wx, y: wy, z: -0.6 - wx * 0.15,
+                  color: varyColor(wy >= topY - 0.8 ? '#991b1b' : '#1e102b', wx, wy, 0, 0.03)
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'reimu') {
+          // Side hair tubes + Huge Red Hakurei Bow + Gohei Wand + Orbiting Hexagonal Barrier & Ofuda
+          for (const side of [-1, 1]) {
+            for (let y = -1; y <= 5; y++) {
+              const tubeCol = (y === 5) ? '#ef4444' : ((y >= 1 && y <= 4) ? '#ffffff' : cfg.hairColor);
+              addPlushVoxel(headVoxels, side * 6.8, y, 2.2, tubeCol);
+              addPlushVoxel(headVoxels, side * 6.8, y, 3.0, tubeCol);
+            }
+          }
+          for (let bx = -7; bx <= 7; bx++) {
+            const wingHeight = Math.min(4, Math.floor(Math.abs(bx) * 0.7) + 1);
+            for (let by = -wingHeight; by <= wingHeight; by++) {
+              addPlushVoxel(headVoxels, bx, 12.2 + by * 0.75, -1.5 - Math.abs(bx) * 0.15, '#dc2626');
+            }
+          }
+          // Gohei wand with white paper shide
+          for (let gy = -2; gy <= 6; gy++) {
+            addPlushVoxel(rightArmVoxels, 1.5, gy, 2.0, '#78350f');
+          }
+          addPlushVoxel(rightArmVoxels, 1.5, 6.5, 2.8, '#ffffff');
+          addPlushVoxel(rightArmVoxels, 1.5, 5.2, 3.4, '#ef4444');
+          // Orbiting Hexagonal Cyan/White Barrier Ring + Ofuda Talismans behind Reimu
+          for (let i = 0; i < 18; i++) {
+            const ang = (i / 18) * Math.PI * 2;
+            const rx = Math.cos(ang) * 7.8;
+            const ry = Math.sin(ang) * 7.8 + 3.5;
+            wingGlowVoxels.push({
+              x: rx, y: ry, z: -1.5,
+              color: new THREE.Color(i % 3 === 0 ? '#ffffff' : '#38bdf8'),
+              sx: 1.3, sy: 1.8, sz: 0.5
+            });
+          }
+        }
+
+        if (this.id === 'cirno') {
+          // SMUG CIRNO WITH GOJO-STYLE BANDAGE BLINDFOLD PUSHED UP ON HER FOREHEAD!
+          for (let hx = -6; hx <= 6; hx++) {
+            for (let hz = -5; hz <= 6; hz++) {
+              if (Math.hypot(hx, hz) >= 5.2 && Math.hypot(hx, hz) <= 6.8) {
+                // White bandage wrap pushed up across forehead (y = 7..8.5)
+                addPlushVoxel(headVoxels, hx, 7.6, hz, (hx + hz) % 3 === 0 ? '#e2e8f0' : '#ffffff');
+                addPlushVoxel(headVoxels, hx, 8.4, hz, '#f8fafc');
+              }
+            }
+          }
+          // Big Blue Bow behind head
+          for (let bx = -6; bx <= 6; bx++) {
+            const h = Math.min(3, Math.floor(Math.abs(bx) * 0.65) + 1);
+            for (let by = -h; by <= h; by++) {
+              addPlushVoxel(headVoxels, bx, 10.5 + by * 0.75, -4.8, '#1d4ed8');
+            }
+          }
+          // 6 Translucent Ice Wings
+          const wingAngles = [0.45, 0.05, -0.35];
+          for (const side of [-1, 1]) {
+            for (let w = 0; w < 3; w++) {
+              const ang = wingAngles[w];
+              for (let r = 1; r <= 7; r++) {
+                wingGlowVoxels.push({
+                  x: side * (1.2 + Math.cos(ang) * r * 1.05),
+                  y: 1.0 + Math.sin(ang) * r * 1.05,
+                  z: -0.5 - r * 0.15,
+                  color: varyColor(r > 5 ? '#e0f2fe' : '#38bdf8', r, w, 0, 0.02),
+                  sx: 1.1, sy: 0.85, sz: 0.6
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'flandre') {
+          // BOSS CURSE FLANDRE: Glowing Red Eyes, Blonde Side Ponytail, Mob Cap & Rainbow Crystal Prism Wings!
+          for (const side of [-1, 1]) {
+            propGlowVoxels.push({ x: side * 2.5, y: 12.2, z: 5.5, color: new THREE.Color('#ff003c'), sx: 1.8, sy: 1.4, sz: 1.2 });
+          }
+          for (let py = 2; py <= 7; py++) {
+            addPlushVoxel(headVoxels, -7.2 - (7 - py) * 0.3, py, 0.5, py === 6 ? '#e63946' : cfg.hairColor);
+          }
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -7; hz <= 5; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.8 && r >= 4.8) {
+                addPlushVoxel(headVoxels, hx, 11.2, hz, '#1e1b2e');
+                addPlushVoxel(headVoxels, hx, 12.1, hz * 0.85, '#dc2626');
+              }
+            }
+          }
+          const crystalColors = ['#38bdf8', '#3b82f6', '#a855f7', '#ec4899', '#f97316', '#fde047', '#4ade80', '#ef4444'];
+          for (const side of [-1, 1]) {
+            for (let rx = 1; rx <= 10; rx++) {
+              const branchY = 2.5 + (rx <= 4 ? rx * 0.45 : (4 * 0.45 - (rx - 4) * 0.35));
+              wingSolidVoxels.push({
+                x: side * rx, y: branchY, z: -0.5,
+                color: new THREE.Color('#090514'),
+                sx: 0.9, sy: 0.65, sz: 0.65
+              });
+              if (rx % 2 === 0 && rx <= 8) {
+                const cIdx = (side === -1 ? (rx / 2 - 1) : (3 + rx / 2));
+                const cHex = crystalColors[cIdx % 8];
+                for (let cy = -2; cy <= 0; cy++) {
+                  wingGlowVoxels.push({
+                    x: side * (rx + 0.3),
+                    y: branchY - 1.1 + cy * 0.95,
+                    z: -0.5,
+                    color: new THREE.Color(cHex),
+                    sx: (cy === -1) ? 1.45 : 0.8, sy: 0.95, sz: 0.8
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        if (this.id === 'marisa') {
+          for (let y = -1; y <= 5; y++) {
+            addPlushVoxel(headVoxels, -6.6, y, 2.8, y === 0 ? '#ffffff' : cfg.hairColor);
+          }
+          for (let hx = -10; hx <= 10; hx++) {
+            for (let hz = -10; hz <= 10; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 10.2 && r >= 4.2) {
+                const brimY = 10.2 - hz * 0.22 + Math.sin(Math.atan2(hz, hx) * 4) * 0.4;
+                addPlushVoxel(headVoxels, hx, brimY, hz - 1.2, '#181824');
+              }
+            }
+          }
+          for (let ch = 0; ch <= 8; ch++) {
+            const coneR = Math.max(0.8, 5.2 - ch * 0.55);
+            for (let hx = -6; hx <= 6; hx++) {
+              for (let hz = -6; hz <= 6; hz++) {
+                const r = Math.hypot(hx, hz);
+                if (r <= coneR && r >= coneR - 1.3) {
+                  addPlushVoxel(headVoxels, hx, 10.8 + ch * 0.9 - hz * 0.18, hz - 1.5 - ch * 0.28, (ch === 1 || ch === 2) ? '#fde047' : '#181824');
+                }
+              }
+            }
+          }
+        }
+
+        if (this.id === 'sakuya') {
+          for (const side of [-1, 1]) {
+            for (let y = -2; y <= 5; y++) {
+              addPlushVoxel(headVoxels, side * 6.5, y, 3.2, (y <= -1) ? '#22c55e' : cfg.hairColor);
+            }
+          }
+          for (let hx = -6; hx <= 6; hx++) {
+            addPlushVoxel(headVoxels, hx, 11.8, 1.8 - Math.abs(hx) * 0.15, Math.abs(hx) === 6 ? '#22c55e' : '#ffffff');
+          }
+        }
+
+        if (this.id === 'youmu') {
+          // Black hair bow + Floating white Myon phantom half
+          for (let bx = -3; bx <= 0; bx++) {
+            addPlushVoxel(headVoxels, -5.5 + bx * 0.4, 10.8, 1.5, '#111827');
+          }
+          for (let mx = -2; mx <= 2; mx++) {
+            for (let my = -2; my <= 2; my++) {
+              if (mx * mx + my * my <= 4) {
+                wingGlowVoxels.push({ x: 6.5 + mx * 0.7, y: 5.0 + my * 0.7, z: 2.0, color: new THREE.Color('#f8fafc') });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'daiyousei') {
+          // Yellow hair ribbons + green fairy wings
+          for (const side of [-1, 1]) {
+            addPlushVoxel(headVoxels, side * 6.5, 9.5, 0.5, '#fde047');
+            for (let wx = 1; wx <= 5; wx++) {
+              wingGlowVoxels.push({ x: side * wx, y: 2 + wx * 0.4, z: -0.5, color: new THREE.Color('#86efac') });
+            }
+          }
+        }
+
+        if (this.id === 'suwako' || this.id === 'roof_sleeper') {
+          for (let hx = -6; hx <= 6; hx++) {
+            for (let hz = -5; hz <= 5; hz++) {
+              if (Math.hypot(hx, hz) <= 6.2 && Math.hypot(hx, hz) >= 4.2) {
+                addPlushVoxel(headVoxels, hx, 10.8, hz, this.id === 'suwako' ? '#a3b18a' : '#f43f5e');
+              }
+            }
+          }
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allFumoRaycastMeshes.push(m);
+          }
+          return m;
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        registerPart(wingSolidVoxels, this.wingsPivot);
+        if (wingGlowVoxels.length > 0) {
+          const wMat = (this.id === 'cirno') ? translucentIceMaterial : crystalWingMaterial;
+          registerPart(wingGlowVoxels, this.wingsPivot, wMat);
+        }
+        if (propGlowVoxels.length > 0) {
+          registerPart(propGlowVoxels, this.propPivot, emissiveVoxelMat);
+        }
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.48, this.squash - 0.44 * strength);
+        this.squashVel = -3.8 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 15 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 12 * strength;
+        this.limbPitch = -0.65 * strength;
+        this.limbPitchVel = -6.0 * strength;
+        spawnBurstParticles(this.pos, this.accentColor, 14);
+        const pan = THREE.MathUtils.clamp(this.pos.x / 10, -1, 1);
+        audio.playSqueeze(this.pitchAudio, pan);
+      }
+
+      resetToHome() {
+        this.pos.copy(this.homePos);
+        this.vel.set(0, 0, 0);
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.isKnockedDown = false;
+        this.sealPoseWeight = 0;
+        this.squeeze(0.7);
+      }
+
+      updatePhysics(dt, time, zeroGravity = false) {
+        // 1. Volume-Preserving Squash & Stretch Spring
+        const squashForce = (1.0 - this.squash) * 210.0 - this.squashVel * 11.5;
+        this.squashVel += squashForce * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash + this.squashVel * dt, 0.45, 1.55);
+
+        // 2. Oversized Head Wobble Spring
+        const idleHeadBob = Math.sin(time * 2.4 + this.homePos.x) * 0.03;
+        this.headPitchVel += ((idleHeadBob - this.headPitch) * 140.0 - this.headPitchVel * 7.5) * dt;
+        this.headRollVel += ((0 - this.headRoll) * 140.0 - this.headRollVel * 7.5) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        // 3. Limb Dangle Spring
+        const targetLimbPitch = (this.isDragged || !this.isGrounded) ? 0.58 : 0.0;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * 120.0 - this.limbPitchVel * 8.0) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * 120.0 - this.limbRollVel * 8.0) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.8, 0.9);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+
+        // 4. Rigid-Body / Courtyard Collisions when not dragged or scripted
+        if (!this.isDragged && !cutsceneState.active) {
+          if (zeroGravity) {
+            this.vel.y += Math.sin(time * 2 + this.homePos.x) * 0.5 * dt;
+          } else {
+            this.vel.y -= 24.0 * dt;
+          }
+          this.vel.multiplyScalar(Math.pow(0.985, dt * 60));
+          this.pos.addScaledVector(this.vel, dt);
+
+          this.yaw += this.angVel.y * dt;
+          this.pitch += this.angVel.x * dt;
+          this.roll += this.angVel.z * dt;
+          this.angVel.multiplyScalar(Math.pow(0.92, dt * 60));
+
+          this.isGrounded = false;
+
+          // Floor Collision (Y = 0)
+          if (this.pos.y < 0) {
+            const impact = -this.vel.y;
+            this.pos.y = 0;
+            if (impact > 2.0) {
+              this.vel.y = impact * 0.42;
+              this.squashVel -= Math.min(9.5, impact * 0.95);
+              spawnDustAndCrack(this.pos, impact);
+              audio.playBounce(impact * 0.09, this.pos.x / 10);
+              if (impact > 9.5) triggerBlackFlashImpact(this.pos, this);
+            } else {
+              this.vel.y = 0;
+              this.isGrounded = true;
+            }
+            this.vel.x *= 0.80;
+            this.vel.z *= 0.80;
+          }
+
+          // Courtyard Outer Bounds
+          const bound = 11.2;
+          if (Math.abs(this.pos.x) > bound) {
+            const imp = Math.abs(this.vel.x);
+            this.pos.x = Math.sign(this.pos.x) * bound;
+            this.vel.x *= -0.5;
+            if (imp > 3.5) {
+              spawnDustAndCrack(this.pos, imp);
+              audio.playBounce(imp * 0.08, this.pos.x / 10);
+            }
+          }
+          if (Math.abs(this.pos.z) > bound) {
+            const imp = Math.abs(this.vel.z);
+            this.pos.z = Math.sign(this.pos.z) * bound;
+            this.vel.z *= -0.5;
+            if (imp > 3.5) {
+              spawnDustAndCrack(this.pos, imp);
+              audio.playBounce(imp * 0.08, this.pos.x / 10);
+            }
+          }
+
+          // Furniture / Ruined Pillar / Temple Colliders
+          const r = this.radius * 0.72;
+          const centerY = this.pos.y + r;
+          for (let i = 0; i < furnitureColliders.length; i++) {
+            const box = furnitureColliders[i];
+            const cx = THREE.MathUtils.clamp(this.pos.x, box.min.x, box.max.x);
+            const cy = THREE.MathUtils.clamp(centerY, box.min.y, box.max.y);
+            const cz = THREE.MathUtils.clamp(this.pos.z, box.min.z, box.max.z);
+            const dx = this.pos.x - cx;
+            const dy = centerY - cy;
+            const dz = this.pos.z - cz;
+            const distSq = dx * dx + dy * dy + dz * dz;
+
+            if (distSq < r * r) {
+              const dist = Math.sqrt(distSq);
+              if (centerY >= box.max.y - 0.25 && this.vel.y <= 0.5) {
+                const impact = -this.vel.y;
+                this.pos.y = box.max.y;
+                if (impact > 2.2) {
+                  this.vel.y = impact * 0.38;
+                  this.squashVel -= Math.min(8.5, impact * 0.85);
+                  spawnDustAndCrack(this.pos, impact);
+                  audio.playBounce(impact * 0.08, this.pos.x / 10);
+                } else {
+                  this.vel.y = 0;
+                  this.isGrounded = true;
+                }
+                this.vel.x *= 0.80;
+                this.vel.z *= 0.80;
+              } else if (dist > 0.0001) {
+                const nx = dx / dist, ny = dy / dist, nz = dz / dist;
+                const pen = r - dist;
+                this.pos.x += nx * pen;
+                this.pos.y = Math.max(0, this.pos.y + ny * pen);
+                this.pos.z += nz * pen;
+                const vn = this.vel.x * nx + this.vel.y * ny + this.vel.z * nz;
+                if (vn < 0) {
+                  const imp = -vn;
+                  this.vel.x -= 1.45 * vn * nx;
+                  this.vel.y -= 1.45 * vn * ny;
+                  this.vel.z -= 1.45 * vn * nz;
+                  if (imp > 3.0) {
+                    this.squashVel -= Math.min(7.0, imp * 0.6);
+                    spawnDustAndCrack(this.pos, imp);
+                    audio.playBounce(imp * 0.08, this.pos.x / 10);
+                    if (imp > 9.0) triggerBlackFlashImpact(this.pos, this);
+                  }
+                }
+              }
+            }
+          }
+
+          // Self-righting torque (unless knocked flat on back in Phase 5 aftermath!)
+          if (this.isGrounded) {
+            const targetPitch = this.isKnockedDown ? -1.42 : 0;
+            this.pitch = THREE.MathUtils.lerp(this.pitch, targetPitch, Math.min(1, dt * 8.5));
+            this.roll = THREE.MathUtils.lerp(this.roll, 0, Math.min(1, dt * 8.5));
+            this.angVel.multiplyScalar(0.75);
+          }
+        }
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+
+        // Blend between normal dangling arms and Domain Expansion Hand-Seal pose!
+        const seal = this.sealPoseWeight;
+        const baseLArmX = THREE.MathUtils.lerp(this.limbPitch, -1.15, seal);
+        const baseLArmZ = THREE.MathUtils.lerp(0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll, -0.45, seal);
+        const baseRArmX = THREE.MathUtils.lerp(this.limbPitch, -1.15, seal);
+        const baseRArmZ = THREE.MathUtils.lerp(-0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll, 0.45, seal);
+
+        this.leftArmPivot.rotation.set(baseLArmX, 0, baseLArmZ);
+        this.rightArmPivot.rotation.set(baseRArmX, 0, baseRArmZ);
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+
+        const wingFlutter = Math.sin(time * 4.2 + this.homePos.x) * 0.08 + (1.0 - this.squash) * 0.35 + seal * 0.25;
+        this.wingsPivot.rotation.x = wingFlutter;
+      }
+    }
+
+    // ============================================================================
+    // 9. SPAWN THE FULL CAST (3 Casters, Flandre Boss, Supporting, Spectators, Unexpected)
+    // ============================================================================
+    const castConfigs = [
+      // --- THE THREE DOMAIN CASTERS (Triangle Formation in Courtyard Center) ---
+      {
+        id: 'yukari',
+        name: 'Yukari Yakumo (Boundary Sorcerer)',
+        role: 'Special Grade Caster',
+        emoji: '👁️',
+        accentColor: '#a855f7',
+        hairColor: '#fde68a',
+        eyeColor: '#9333ea',
+        outfitMain: '#1e1035',
+        collarColor: '#a855f7',
+        trimColor: '#f3e8ff',
+        shoeColor: '#0f0720',
+        homePos: new THREE.Vector3(-2.6, 0, 2.2),
+        homeYaw: Math.PI - 0.42,
+        pitchAudio: 0.92
+      },
+      {
+        id: 'remilia',
+        name: 'Remilia Scarlet (Crimson Sorcerer)',
+        role: 'Special Grade Caster',
+        emoji: '🦇',
+        accentColor: '#dc2626',
+        hairColor: '#a5b4fc',
+        eyeColor: '#e11d48',
+        outfitMain: '#28091a',
+        collarColor: '#dc2626',
+        trimColor: '#fecdd3',
+        shoeColor: '#1a040e',
+        homePos: new THREE.Vector3(2.6, 0, 2.2),
+        homeYaw: -Math.PI + 0.42,
+        pitchAudio: 1.12
+      },
+      {
+        id: 'reimu',
+        name: 'Reimu Hakurei (Barrier Shrine Sorcerer)',
+        role: 'Special Grade Caster',
+        emoji: '⛩️',
+        accentColor: '#38bdf8',
+        hairColor: '#1e1b24',
+        eyeColor: '#dc2626',
+        outfitMain: '#172038',
+        collarColor: '#ef4444',
+        trimColor: '#38bdf8',
+        shoeColor: '#0f172a',
+        homePos: new THREE.Vector3(0.0, 0, 4.2),
+        homeYaw: Math.PI,
+        pitchAudio: 1.02
+      },
+
+      // --- BOSS CURSE FLANDRE SCARLET (Looming at North Altar) ---
+      {
+        id: 'flandre',
+        name: 'Cursed Boss Flandre Scarlet',
+        role: 'Disaster Curse Boss',
+        emoji: '💎',
+        accentColor: '#f43f5e',
+        hairColor: '#fef08a',
+        eyeColor: '#ff003c',
+        outfitMain: '#3b071e',
+        collarColor: '#fde047',
+        trimColor: '#f43f5e',
+        shoeColor: '#1f0310',
+        scale: 1.24,
+        homePos: new THREE.Vector3(0.0, 0, -3.6),
+        homeYaw: 0.0,
+        pitchAudio: 1.25
+      },
+
+      // --- SUPPORTING SORCERER FUMO ---
+      {
+        id: 'cirno',
+        name: 'Six-Eyes Smug Cirno (Bandage Forehead)',
+        role: 'Strongest Ice Fairy',
+        emoji: '❄️',
+        accentColor: '#38bdf8',
+        hairColor: '#7dd3fc',
+        eyeColor: '#0284c7',
+        outfitMain: '#0f172a',
+        collarColor: '#38bdf8',
+        trimColor: '#e0f2fe',
+        shoeColor: '#090d16',
+        homePos: new THREE.Vector3(-5.8, 0, 1.5),
+        homeYaw: 1.1,
+        pitchAudio: 1.18
+      },
+      {
+        id: 'marisa',
+        name: 'Marisa Kirisame (Star Sorcerer)',
+        role: 'Grade 1 Sorcerer',
+        emoji: '🌟',
+        accentColor: '#facc15',
+        hairColor: '#fde047',
+        eyeColor: '#ca8a04',
+        outfitMain: '#181826',
+        collarColor: '#facc15',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(6.2, 0, 0.8),
+        homeYaw: -1.1,
+        pitchAudio: 0.96
+      },
+      {
+        id: 'sakuya',
+        name: 'Sakuya Izayoi (Time Blade Sorcerer)',
+        role: 'Grade 1 Sorcerer',
+        emoji: '⏱️',
+        accentColor: '#60a5fa',
+        hairColor: '#e2e8f0',
+        eyeColor: '#2563eb',
+        outfitMain: '#172554',
+        collarColor: '#22c55e',
+        hasWhiteApron: true,
+        homePos: new THREE.Vector3(5.6, 3.1, -2.8), // Standing atop broken pillar!
+        homeYaw: -0.7,
+        pitchAudio: 0.94
+      },
+      {
+        id: 'youmu',
+        name: 'Youmu Konpaku (Phantom Blade Sorcerer)',
+        role: 'Grade 1 Sorcerer',
+        emoji: '⚔️',
+        accentColor: '#34d399',
+        hairColor: '#f1f5f9',
+        eyeColor: '#059669',
+        outfitMain: '#064e3b',
+        collarColor: '#34d399',
+        homePos: new THREE.Vector3(-6.2, 3.35, -2.2), // Atop left broken pillar!
+        homeYaw: 0.75,
+        pitchAudio: 1.06
+      },
+      {
+        id: 'daiyousei',
+        name: 'Judge Daiyousei (Scoreboard Keeper)',
+        role: 'Official Referee',
+        emoji: '📋',
+        accentColor: '#4ade80',
+        hairColor: '#86efac',
+        eyeColor: '#16a34a',
+        outfitMain: '#14532d',
+        collarColor: '#fde047',
+        scale: 0.88,
+        homePos: new THREE.Vector3(4.3, 0, 5.1),
+        homeYaw: -0.45,
+        pitchAudio: 1.32
+      },
+
+      // --- UNEXPECTED SPOTS & ROOF SPECTATORS ---
+      {
+        id: 'suwako',
+        name: 'Wall-Peeking Suwako Fumo',
+        role: 'Hidden Spectator',
+        emoji: '🐸',
+        accentColor: '#a3e635',
+        hairColor: '#fde68a',
+        eyeColor: '#4f46e5',
+        outfitMain: '#312e81',
+        scale: 0.78,
+        homePos: new THREE.Vector3(-4.9, 1.75, -8.8), // Peeking out of the hole in the temple wall!
+        homeYaw: 0.15,
+        pitchAudio: 1.38
+      },
+      {
+        id: 'roof_sleeper',
+        name: 'Sleepy Rooftop Fumo',
+        role: 'Napping on Temple Roof',
+        emoji: '💤',
+        accentColor: '#fb7185',
+        hairColor: '#fda4af',
+        eyeColor: '#e11d48',
+        outfitMain: '#4c0519',
+        scale: 0.85,
+        homePos: new THREE.Vector3(-3.8, 5.6, -9.6), // Asleep on the cracked temple roof!
+        homeYaw: 0.3,
+        pitchAudio: 1.15
+      }
+    ];
+
+    castConfigs.forEach(cfg => {
+      const f = new VoxelFumo(cfg);
+      if (f.id === 'roof_sleeper') f.isKnockedDown = true; // Asleep on her back on the roof!
+      fumos.push(f);
+      fumoMap[f.id] = f;
+    });
+
+    // ============================================================================
+    // 10. SWARM OF MANY-EYED BLOBBY CURSED SPIRITS (Scatter, Chase & Exorcise!)
+    // ============================================================================
+    const cursedSpirits = [];
+    const curseRaycastMeshes = [];
+
+    class VoxelCurseSpirit {
+      constructor(index, isSnackNibbler = false) {
+        this.index = index;
+        this.isSnackNibbler = isSnackNibbler;
+        this.name = isSnackNibbler ? 'Snack-Thief Mini Curse (Nibbling Dango!)' : `Many-Eyed Cursed Spirit #${index + 1}`;
+        this.emoji = '👁️';
+        this.accentColor = '#ec4899';
+        this.alive = true;
+        this.respawnTimer = 0;
+
+        this.homePos = isSnackNibbler
+          ? new THREE.Vector3(-8.65, 1.35, 5.45) // Nibbling right on the snack tray bench!
+          : new THREE.Vector3((Math.random() - 0.5) * 14, 0, (Math.random() - 0.5) * 12 - 1);
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.phase = index * 1.3;
+
+        this.root = new THREE.Group();
+        this.buildCurseMesh();
+        scene.add(this.root);
+      }
+
+      buildCurseMesh() {
+        const bodyVox = [];
+        const eyeVox = [];
+        const unit = this.isSnackNibbler ? 0.065 : 0.085;
+
+        for (let x = -3; x <= 3; x++) {
+          for (let y = 0; y <= 5; y++) {
+            for (let z = -3; z <= 3; z++) {
+              const d = Math.hypot(x, (y - 2.2) * 0.9, z);
+              if (d > 3.2) continue;
+              const isEye = (z >= 2 || x === -3 || x === 3 || y === 5) && ((x * 3 + y * 5 + z) % 4 === 0);
+              if (isEye) {
+                const eyeCol = ((x + y) % 2 === 0) ? '#ff0055' : '#fde047';
+                eyeVox.push({ x, y, z, color: new THREE.Color(eyeCol), sx: 1.15, sy: 1.15, sz: 1.15 });
+              } else {
+                bodyVox.push({ x, y, z, color: varyColor('#1e0b36', x, y, z, 0.05) });
+              }
+            }
+          }
+        }
+        const bMesh = buildVoxelInstancedMesh(bodyVox, unit, plushMaterial, true, true);
+        const eMesh = buildVoxelInstancedMesh(eyeVox, unit, emissiveVoxelMat, false, false);
+        if (bMesh) {
+          bMesh.userData.curse = this;
+          this.root.add(bMesh);
+          curseRaycastMeshes.push(bMesh);
+        }
+        if (eMesh) {
+          eMesh.userData.curse = this;
+          this.root.add(eMesh);
+          curseRaycastMeshes.push(eMesh);
+        }
+      }
+
+      exorcise(bonusPoints = 1200) {
+        if (!this.alive) return;
+        this.alive = false;
+        this.respawnTimer = 6.5;
+        this.root.visible = false;
+        spawnBurstParticles(this.pos, '#ec4899', 18);
+        audio.playBlackFlashHit();
+        addComboAndScore(1, bonusPoints, 'EXORCISED! +1200', this.pos, '#f472b6');
+      }
+
+      update(dt, time) {
+        if (!this.alive) {
+          if (!cutsceneState.active) {
+            this.respawnTimer -= dt;
+            if (this.respawnTimer <= 0) {
+              this.alive = true;
+              this.root.visible = true;
+              this.pos.copy(this.homePos);
+              spawnBurstParticles(this.pos, '#a855f7', 8);
+            }
+          }
+          return;
+        }
+
+        if (this.isSnackNibbler) {
+          // Cute nibbling bob on the snack tray
+          this.root.position.copy(this.pos);
+          this.root.rotation.x = Math.sin(time * 12) * 0.18;
+          this.root.scale.set(1 + Math.sin(time * 8) * 0.08, 1 - Math.sin(time * 8) * 0.08, 1);
+          return;
+        }
+
+        // Wander & chase nearest fumo (or scatter during Domain Expansion)
+        const angle = time * 0.9 + this.phase;
+        const targetX = Math.cos(angle) * (4.5 + (this.index % 3) * 2.2);
+        const targetZ = Math.sin(angle * 0.8) * (4.0 + (this.index % 2) * 2.5);
+        this.pos.x = THREE.MathUtils.lerp(this.pos.x, targetX, dt * 0.9);
+        this.pos.z = THREE.MathUtils.lerp(this.pos.z, targetZ, dt * 0.9);
+        this.pos.y = Math.abs(Math.sin(time * 4.5 + this.phase)) * 0.35;
+
+        // Check collision with any fast-moving thrown Fumo -> Exorcise on hit!
+        for (let i = 0; i < fumos.length; i++) {
+          const f = fumos[i];
+          if (f.vel.length() > 3.5 && f.pos.distanceTo(this.pos) < 1.35) {
+            this.exorcise(2500);
+            triggerBlackFlashImpact(this.pos, f);
+            break;
+          }
+        }
+
+        this.root.position.copy(this.pos);
+        this.root.rotation.y = Math.atan2(targetX - this.pos.x, targetZ - this.pos.z);
+        const squish = 1 + Math.sin(time * 6 + this.phase) * 0.12;
+        this.root.scale.set(squish, 1 / squish, squish);
+      }
+    }
+
+    // Spawn 7 roaming cursed spirits + 1 snack-nibbling mini curse
+    for (let i = 0; i < 7; i++) {
+      cursedSpirits.push(new VoxelCurseSpirit(i, false));
+    }
+    cursedSpirits.push(new VoxelCurseSpirit(7, true));
+
+    // ============================================================================
+    // 11. POOLED PARTICLES, CRACK DECALS, BLACK FLASH LIGHTNING & SCORE COMBO
+    // ============================================================================
+    let currentCombo = 0;
+    let currentScore = 0;
+    let comboDecayTimer = 0;
+
+    const hudScoreEl = document.getElementById('hud-score');
+    const hudRankEl = document.getElementById('hud-rank');
+    const hudComboEl = document.getElementById('hud-combo');
+    const comboOfferBanner = document.getElementById('combo-offer-banner');
+
+    function addComboAndScore(comboAdd, pointsAdd, popupLabel = null, worldPos = null, colorHex = '#fde047') {
+      currentCombo += comboAdd;
+      currentScore += pointsAdd * Math.max(1, Math.floor(currentCombo * 0.5));
+      comboDecayTimer = 6.5;
+
+      hudScoreEl.textContent = String(currentScore).padStart(6, '0').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      hudComboEl.textContent = `${currentCombo}x`;
+
+      let rank = 'RANK B';
+      if (currentScore >= 50000 || scoreboardMode === 'legendary') rank = 'S+ LEGENDARY';
+      else if (currentScore >= 20000) rank = 'RANK S';
+      else if (currentScore >= 7500) rank = 'RANK A';
+      hudRankEl.textContent = rank;
+
+      if (currentCombo >= 5 && !cutsceneState.active) {
+        comboOfferBanner.classList.remove('hidden');
+        comboOfferBanner.classList.add('flex');
+      }
+
+      if (popupLabel && worldPos) {
+        spawnFloatingPopup(popupLabel, worldPos, colorHex);
+      }
+    }
+
+    function spawnFloatingPopup(text, worldPos, colorHex = '#fde047') {
+      const v = worldPos.clone().add(new THREE.Vector3(0, 1.2, 0)).project(camera);
+      if (v.z > 1) return;
+      const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-(v.y * 0.5) + 0.5) * window.innerHeight;
+      const el = document.createElement('div');
+      el.className = 'floating-popup text-sm sm:text-base px-2.5 py-0.5 rounded-lg bg-black/80 border';
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      el.style.color = colorHex;
+      el.style.borderColor = colorHex;
+      el.textContent = text;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 950);
+    }
+
+    // Pooled Voxel Burst Particles (Confetti, Exorcism, Dust Puffs, Embers)
+    const PARTICLE_POOL_SIZE = 180;
+    const particlePool = [];
+    const particleMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.14, 0.14, 0.14), emissiveVoxelMat, PARTICLE_POOL_SIZE);
+    for (let i = 0; i < PARTICLE_POOL_SIZE; i++) {
+      particlePool.push({
+        active: false,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        life: 0,
+        maxLife: 1,
+        scale: 1
+      });
+      tempMatrix.makeScale(0, 0, 0);
+      particleMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(particleMesh);
+
+    function spawnBurstParticles(origin, hexColor, count = 14, speedMult = 1.0) {
+      const palette = [hexColor, '#ffffff', '#fde047', '#ec4899', '#38bdf8'];
+      let spawned = 0;
+      for (let i = 0; i < PARTICLE_POOL_SIZE && spawned < count; i++) {
+        const p = particlePool[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.5 + Math.random() * 0.45;
+          p.scale = 0.7 + Math.random() * 1.1;
+          p.pos.copy(origin).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0.5, (Math.random() - 0.5) * 0.5));
+          const ang = Math.random() * Math.PI * 2;
+          const spd = (2.2 + Math.random() * 4.2) * speedMult;
+          p.vel.set(Math.cos(ang) * spd, (2.5 + Math.random() * 4.5) * speedMult, Math.sin(ang) * spd);
+          particleMesh.setColorAt(i, new THREE.Color(palette[spawned % palette.length]));
+          spawned++;
+        }
+      }
+      if (particleMesh.instanceColor) particleMesh.instanceColor.needsUpdate = true;
+    }
+
+    function updateBurstParticles(dt) {
+      let dirty = false;
+      for (let i = 0; i < PARTICLE_POOL_SIZE; i++) {
+        const p = particlePool[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          particleMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= 9.5 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const s = p.scale * (1.0 - p.life / p.maxLife);
+        tempEuler.set(p.life * 8, p.life * 6, 0);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        particleMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) particleMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // Pooled Impact Crack Decals on Ground/Walls
+    const DECAL_POOL_SIZE = 24;
+    const decalPool = [];
+    const decalMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.85, 0.04, 0.12), stoneMaterial, DECAL_POOL_SIZE);
+    for (let i = 0; i < DECAL_POOL_SIZE; i++) {
+      decalPool.push({ active: false, life: 0 });
+      tempMatrix.makeScale(0, 0, 0);
+      decalMesh.setMatrixAt(i, tempMatrix);
+      decalMesh.setColorAt(i, new THREE.Color('#090a10'));
+    }
+    scene.add(decalMesh);
+    let decalCursor = 0;
+
+    function spawnDustAndCrack(pos, impact) {
+      spawnBurstParticles(pos, '#94a3b8', Math.min(12, Math.floor(impact * 1.5)), 0.7);
+      for (let k = 0; k < 3; k++) {
+        const idx = (decalCursor++) % DECAL_POOL_SIZE;
+        decalPool[idx].active = true;
+        decalPool[idx].life = 8.0;
+        tempPos.set(pos.x, 0.03, pos.z);
+        tempEuler.set(0, (k * Math.PI) / 3 + Math.random() * 0.4, 0);
+        tempQuat.setFromEuler(tempEuler);
+        const sc = Math.min(1.6, 0.6 + impact * 0.08);
+        tempScale.set(sc, 1, sc);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        decalMesh.setMatrixAt(idx, tempMatrix);
+      }
+      decalMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    function triggerBlackFlashImpact(pos, fumo) {
+      audio.playBlackFlashHit();
+      spawnBurstParticles(pos, '#ef4444', 22, 1.5);
+      spawnBurstParticles(pos, '#111827', 16, 1.3);
+      addComboAndScore(3, 5000, '⚡黒閃 BLACK FLASH! +5000', pos, '#ef4444');
+      triggerCameraShake(0.35, 0.25);
+      if (cutsceneFXPass && !reducedFlashing) {
+        cutsceneFXPass.uniforms.uChroma.value = 0.65;
+        cutsceneFXPass.uniforms.uInvert.value = 0.85;
+        setTimeout(() => {
+          if (cutsceneFXPass) cutsceneFXPass.uniforms.uInvert.value = 0.0;
+        }, 90);
+      }
+    }
+
+    // ============================================================================
+    // 12. 3D CUTSCENE DOMAIN EXPANSION STRUCTURES (Domes, Moon, Torii, Beam, Talisman)
+    // ============================================================================
+    const cutscene3DGroup = new THREE.Group();
+    scene.add(cutscene3DGroup);
+
+    // 12A. Three Expanding Voxel Domain Domes (Yukari Violet, Remilia Crimson, Reimu Cyan)
+    function createVoxelDome(colorHex, originPos) {
+      const vox = [];
+      const R = 10;
+      for (let x = -R; x <= R; x++) {
+        for (let y = 0; y <= R; y++) {
+          for (let z = -R; z <= R; z++) {
+            const d = Math.sqrt(x * x + y * y + z * z);
+            if (Math.abs(d - R) < 0.75 && ((x + y + z) % 2 === 0)) {
+              vox.push({ x, y, z, color: varyColor(colorHex, x, y, z, 0.05) });
+            }
+          }
+        }
+      }
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: new THREE.Color(colorHex),
+        emissiveIntensity: 0.9,
+        transparent: true,
+        opacity: 0.72,
+        roughness: 0.2
+      });
+      const mesh = buildVoxelInstancedMesh(vox, 0.42, mat, false, false);
+      mesh.position.copy(originPos);
+      mesh.scale.set(0.001, 0.001, 0.001);
+      mesh.visible = false;
+      cutscene3DGroup.add(mesh);
+      return mesh;
+    }
+
+    const yukariDome = createVoxelDome('#a855f7', new THREE.Vector3(-2.6, 0, 2.2));
+    const remiliaDome = createVoxelDome('#dc2626', new THREE.Vector3(2.6, 0, 2.2));
+    const reimuDome = createVoxelDome('#38bdf8', new THREE.Vector3(0.0, 0, 4.2));
+
+    // 12B. Yukari Domain: Floating Eyes & Rotating Violet Tile Floor
+    const yukariDomainProps = new THREE.Group();
+    yukariDomainProps.visible = false;
+    cutscene3DGroup.add(yukariDomainProps);
+    {
+      const floorVox = [];
+      const eyeVox = [];
+      for (let x = -16; x <= 16; x += 2) {
+        for (let z = -16; z <= 16; z += 2) {
+          if (Math.hypot(x, z) <= 16) {
+            floorVox.push({ x, y: 0.2, z, color: new THREE.Color((x + z) % 4 === 0 ? '#a855f7' : '#ec4899'), sx: 1.8, sy: 0.3, sz: 1.8 });
+          }
+        }
+      }
+      for (let i = 0; i < 28; i++) {
+        const ang = (i / 28) * Math.PI * 2;
+        const r = 7 + (i % 3) * 3.5;
+        eyeVox.push({
+          x: Math.cos(ang) * r,
+          y: 2.5 + (i % 5) * 1.4,
+          z: Math.sin(ang) * r,
+          color: new THREE.Color(i % 2 === 0 ? '#ef4444' : '#fde047'),
+          sx: 2.2, sy: 1.1, sz: 0.8
+        });
+      }
+      yukariDomainProps.add(buildVoxelInstancedMesh(floorVox, 0.45, emissiveVoxelMat, false, false));
+      yukariDomainProps.add(buildVoxelInstancedMesh(eyeVox, 0.45, emissiveVoxelMat, false, false));
+    }
+
+    // 12C. Remilia Domain: Giant Blood-Red Moon, Chandeliers & Bat Swarm
+    const remiliaDomainProps = new THREE.Group();
+    remiliaDomainProps.visible = false;
+    cutscene3DGroup.add(remiliaDomainProps);
+    {
+      const moonVox = [];
+      for (let x = -6; x <= 6; x++) {
+        for (let y = -6; y <= 6; y++) {
+          for (let z = -6; z <= 6; z++) {
+            const d = Math.sqrt(x * x + y * y + z * z);
+            if (d <= 6.2 && d >= 4.8) {
+              moonVox.push({ x, y: y + 18, z: z - 16, color: varyColor('#dc2626', x, y, z, 0.04) });
+            }
+          }
+        }
+      }
+      // Floating gold & crimson chandeliers + bats
+      for (let i = 0; i < 32; i++) {
+        const ang = (i / 32) * Math.PI * 2;
+        const r = 5.5 + (i % 4) * 2.5;
+        moonVox.push({
+          x: Math.cos(ang) * r,
+          y: 3.5 + (i % 4) * 1.8,
+          z: Math.sin(ang) * r,
+          color: new THREE.Color(i % 3 === 0 ? '#fbbf24' : '#ef4444'),
+          sx: 1.6, sy: 0.6, sz: 1.6
+        });
+      }
+      remiliaDomainProps.add(buildVoxelInstancedMesh(moonVox, 0.55, emissiveVoxelMat, false, false));
+    }
+
+    // 12D. Reimu Domain: Orbiting White-and-Cyan Torii Sanctum & Giant Ofuda Talismans
+    const reimuDomainProps = new THREE.Group();
+    reimuDomainProps.visible = false;
+    cutscene3DGroup.add(reimuDomainProps);
+    {
+      const sanctumVox = [];
+      for (let i = 0; i < 24; i++) {
+        const ang = (i / 24) * Math.PI * 2;
+        const r = 8.5;
+        const tx = Math.cos(ang) * r;
+        const tz = Math.sin(ang) * r;
+        const ty = 1.5 + (i % 3) * 2.2;
+        // Giant glowing Ofuda talisman cards
+        sanctumVox.push({
+          x: tx, y: ty, z: tz,
+          color: new THREE.Color(i % 2 === 0 ? '#38bdf8' : '#ffffff'),
+          sx: 1.4, sy: 3.2, sz: 0.4
+        });
+        sanctumVox.push({
+          x: tx, y: ty + 0.5, z: tz,
+          color: new THREE.Color('#ef4444'),
+          sx: 0.9, sy: 1.8, sz: 0.5
+        });
+      }
+      reimuDomainProps.add(buildVoxelInstancedMesh(sanctumVox, 0.5, emissiveVoxelMat, false, false));
+    }
+
+    // 12E. Phase 2 Sky Spiderweb Cracks & Shattering Dome Fragments
+    const skyCrackGroup = new THREE.Group();
+    skyCrackGroup.visible = false;
+    cutscene3DGroup.add(skyCrackGroup);
+    {
+      const crackVox = [];
+      for (let ray = 0; ray < 12; ray++) {
+        const ang = (ray / 12) * Math.PI * 2;
+        for (let r = 1; r <= 18; r++) {
+          const jitter = Math.sin(r * 1.7 + ray) * 1.2;
+          crackVox.push({
+            x: Math.cos(ang) * r + jitter * 0.3,
+            y: 7.5 + Math.sin(ang) * r * 0.45,
+            z: -3.0 + Math.sin(r + ray) * 2.0,
+            color: new THREE.Color(ray % 3 === 0 ? '#a855f7' : (ray % 3 === 1 ? '#ef4444' : '#38bdf8')),
+            sx: 1.4, sy: 0.45, sz: 0.45
+          });
+        }
+      }
+      skyCrackGroup.add(buildVoxelInstancedMesh(crackVox, 0.48, emissiveVoxelMat, false, false));
+    }
+
+    // 12F. Phase 4 Tri-Color Combined Voxel Finisher Beam & Shockwave Ring + Falling Talisman
+    const finisherBeamGroup = new THREE.Group();
+    finisherBeamGroup.visible = false;
+    cutscene3DGroup.add(finisherBeamGroup);
+    {
+      const beamVox = [];
+      const colors = ['#a855f7', '#dc2626', '#38bdf8', '#fde047', '#ffffff'];
+      for (let z = -16; z <= 8; z++) {
+        for (let i = 0; i < 12; i++) {
+          const ang = (i / 12) * Math.PI * 2 + z * 0.45;
+          const r = 1.65 + (i % 2) * 0.45;
+          beamVox.push({
+            x: Math.cos(ang) * r,
+            y: 2.2 + Math.sin(ang) * r,
+            z: z * 0.65,
+            color: new THREE.Color(colors[(i + Math.abs(z)) % colors.length]),
+            sx: 1.4, sy: 1.4, sz: 1.8
+          });
+        }
+      }
+      finisherBeamGroup.add(buildVoxelInstancedMesh(beamVox, 0.42, emissiveVoxelMat, false, false));
+    }
+
+    // Shockwave Ring
+    const shockwaveRing = new THREE.Mesh(
+      new THREE.TorusGeometry(1.5, 0.18, 8, 32),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 })
+    );
+    shockwaveRing.rotation.x = Math.PI / 2;
+    shockwaveRing.visible = false;
+    cutscene3DGroup.add(shockwaveRing);
+
+    // Tiny Voxel Ofuda Talisman that flutters down after Flandre is exorcised
+    const fallingTalisman = new THREE.Group();
+    fallingTalisman.visible = false;
+    {
+      const talVox = [
+        { x: 0, y: 0, z: 0, color: new THREE.Color('#ffffff'), sx: 1.6, sy: 3.2, sz: 0.3 },
+        { x: 0, y: 0, z: 0.1, color: new THREE.Color('#ef4444'), sx: 0.8, sy: 2.2, sz: 0.35 }
+      ];
+      fallingTalisman.add(buildVoxelInstancedMesh(talVox, 0.18, emissiveVoxelMat, false, false));
+    }
+    cutscene3DGroup.add(fallingTalisman);
+
+    // ============================================================================
+    // 13. SPEED LINES 2D CANVAS, TITLE CARDS, SUBTITLES & CAMERA SHAKE
+    // ============================================================================
+    const speedCanvas = document.getElementById('speedlines-canvas');
+    const speedCtx = speedCanvas.getContext('2d');
+    const halftoneEl = document.getElementById('halftone-overlay');
+    const titleCardOverlay = document.getElementById('title-card-overlay');
+    const titleCardKanji = document.getElementById('title-card-kanji');
+    const titleCardSub = document.getElementById('title-card-sub');
+    const comicSplitOverlay = document.getElementById('comic-split-overlay');
+    const impactStampEl = document.getElementById('impact-stamp');
+    const stampMainEl = document.getElementById('stamp-main');
+    const stampSubEl = document.getElementById('stamp-sub');
+    const subtitleBox = document.getElementById('subtitle-box');
+    const subtitlePanel = document.getElementById('subtitle-panel');
+    const subtitleSpeaker = document.getElementById('subtitle-speaker');
+    const subtitleText = document.getElementById('subtitle-text');
+
+    let speedLinesIntensity = 0;
+    let speedLinesColor = '#ffffff';
+    let shakeIntensity = 0;
+    let shakeDuration = 0;
+
+    function triggerCameraShake(strength = 0.4, duration = 0.35) {
+      const mult = reducedFlashing ? 0.25 : 1.0;
+      shakeIntensity = Math.max(shakeIntensity, strength * mult);
+      shakeDuration = Math.max(shakeDuration, duration);
+    }
+
+    function showTitleCard(kanji, sub, glowHex = '#a855f7', durationMs = 1550) {
+      titleCardOverlay.style.setProperty('--card-glow', glowHex);
+      titleCardKanji.textContent = kanji;
+      titleCardSub.textContent = sub;
+      titleCardOverlay.classList.add('is-visible');
+      setTimeout(() => {
+        titleCardOverlay.classList.remove('is-visible');
+      }, durationMs);
+    }
+
+    function showSubtitle(speaker, text, borderHex = '#a855f7', durationMs = 3400) {
+      subtitleSpeaker.textContent = speaker;
+      subtitleSpeaker.style.color = borderHex;
+      subtitlePanel.style.borderColor = borderHex;
+      subtitleText.textContent = `"${text}"`;
+      subtitleBox.classList.add('is-visible');
+      clearTimeout(showSubtitle._timer);
+      showSubtitle._timer = setTimeout(() => {
+        subtitleBox.classList.remove('is-visible');
+      }, durationMs);
+    }
+
+    function showImpactStamp(mainText, subText, colorHex = '#ef4444', durationMs = 1350) {
+      stampMainEl.textContent = mainText;
+      stampMainEl.style.color = colorHex;
+      stampMainEl.style.textShadow = `0 0 35px ${colorHex}, 6px 6px 0 #000`;
+      stampSubEl.textContent = subText;
+      stampSubEl.style.borderColor = colorHex;
+      impactStampEl.classList.add('is-visible');
+      setTimeout(() => {
+        impactStampEl.classList.remove('is-visible');
+      }, durationMs);
+    }
+
+    function renderSpeedLines(time) {
+      if (speedLinesIntensity <= 0.01) {
+        speedCanvas.style.opacity = '0';
+        return;
+      }
+      if (speedCanvas.width !== window.innerWidth || speedCanvas.height !== window.innerHeight) {
+        speedCanvas.width = window.innerWidth;
+        speedCanvas.height = window.innerHeight;
+      }
+      speedCanvas.style.opacity = String(Math.min(1, speedLinesIntensity * (reducedFlashing ? 0.35 : 0.85)));
+      const w = speedCanvas.width;
+      const h = speedCanvas.height;
+      const cx = w * 0.5;
+      const cy = h * 0.5;
+      speedCtx.clearRect(0, 0, w, h);
+      speedCtx.strokeStyle = speedLinesColor;
+      const lines = 64;
+      for (let i = 0; i < lines; i++) {
+        const ang = (i / lines) * Math.PI * 2 + Math.sin(time * 25 + i) * 0.03;
+        const innerR = Math.min(w, h) * (0.28 + ((i * 17 + Math.floor(time * 30)) % 15) * 0.015);
+        const outerR = Math.max(w, h) * 0.75;
+        speedCtx.lineWidth = (i % 3 === 0) ? 3.5 : 1.5;
+        speedCtx.beginPath();
+        speedCtx.moveTo(cx + Math.cos(ang) * innerR, cy + Math.sin(ang) * innerR);
+        speedCtx.lineTo(cx + Math.cos(ang) * outerR, cy + Math.sin(ang) * outerR);
+        speedCtx.stroke();
+      }
+    }
+
+    // ============================================================================
+    // 14. SCRIPTED TIMELINE SYSTEM: LEGENDARY TRIPLE DOMAIN EXPANSION (~38s)
+    //     + SOLO DOMAIN EXPANSION (~6.5s)
+    // ============================================================================
+    const cutsceneState = {
+      active: false,
+      mode: 'triple', // 'triple' | 'solo'
+      elapsed: 0,
+      timeScale: 1.0,
+      freezeTimer: 0,
+      rubbleLift: 0,
+      zeroGravityFumos: false,
+      camPosFrom: new THREE.Vector3(),
+      camPosTo: new THREE.Vector3(),
+      camLookFrom: new THREE.Vector3(),
+      camLookTo: new THREE.Vector3(),
+      camShotStart: 0,
+      camShotDuration: 3.0,
+      events: [],
+      firedIndices: new Set()
+    };
+
+    function setCameraShot(fromPos, toPos, fromLook, toLook, duration, fov = 40) {
+      cutsceneState.camPosFrom.copy(fromPos);
+      cutsceneState.camPosTo.copy(toPos);
+      cutsceneState.camLookFrom.copy(fromLook);
+      cutsceneState.camLookTo.copy(toLook);
+      cutsceneState.camShotStart = cutsceneState.elapsed;
+      cutsceneState.camShotDuration = Math.max(0.05, duration);
+      camera.fov = fov;
+      camera.updateProjectionMatrix();
+    }
+
+    function flashWhite(strength = 0.85, durationMs = 220) {
+      if (!cutsceneFXPass) return;
+      cutsceneFXPass.uniforms.uWhiteFlash.value = reducedFlashing ? Math.min(0.28, strength * 0.35) : strength;
+      setTimeout(() => {
+        if (cutsceneFXPass) cutsceneFXPass.uniforms.uWhiteFlash.value = 0;
+      }, durationMs);
+    }
+
+    function setVignette(hexColor, strength = 0.55) {
+      if (!cutsceneFXPass) return;
+      cutsceneFXPass.uniforms.uVignetteColor.value.set(hexColor);
+      cutsceneFXPass.uniforms.uVignetteStrength.value = reducedFlashing ? strength * 0.5 : strength;
+    }
+
+    function resetCutsceneVisuals() {
+      yukariDome.visible = false;
+      remiliaDome.visible = false;
+      reimuDome.visible = false;
+      yukariDomainProps.visible = false;
+      remiliaDomainProps.visible = false;
+      reimuDomainProps.visible = false;
+      skyCrackGroup.visible = false;
+      finisherBeamGroup.visible = false;
+      shockwaveRing.visible = false;
+      fallingTalisman.visible = false;
+      comicSplitOverlay.classList.remove('is-visible');
+      titleCardOverlay.classList.remove('is-visible');
+      impactStampEl.classList.remove('is-visible');
+      subtitleBox.classList.remove('is-visible');
+      halftoneEl.style.opacity = '0';
+      speedLinesIntensity = 0;
+      cutsceneState.timeScale = 1.0;
+      cutsceneState.rubbleLift = 0;
+      cutsceneState.zeroGravityFumos = false;
+      camera.fov = 40;
+      camera.updateProjectionMatrix();
+      if (cutsceneFXPass) {
+        cutsceneFXPass.uniforms.uChroma.value = 0;
+        cutsceneFXPass.uniforms.uInvert.value = 0;
+        cutsceneFXPass.uniforms.uWhiteFlash.value = 0;
+        cutsceneFXPass.uniforms.uVignetteColor.value.set(0x05030a);
+        cutsceneFXPass.uniforms.uVignetteStrength.value = 0.22;
+      }
+      ['yukari', 'remilia', 'reimu'].forEach(id => {
+        if (fumoMap[id]) fumoMap[id].sealPoseWeight = 0;
+      });
+    }
+
+    function startTripleDomainCutscene() {
+      if (cutsceneState.active) return;
+      audio.init();
+      comboOfferBanner.classList.add('hidden');
+      resetCutsceneVisuals();
+
+      // Snap key casters & Flandre boss into dramatic formation
+      const yukari = fumoMap.yukari;
+      const remilia = fumoMap.remilia;
+      const reimu = fumoMap.reimu;
+      const flandre = fumoMap.flandre;
+      [yukari, remilia, reimu, flandre].forEach(f => f.resetToHome());
+
+      cutsceneState.active = true;
+      cutsceneState.mode = 'triple';
+      cutsceneState.elapsed = 0;
+      cutsceneState.firedIndices.clear();
+      controls.enabled = false;
+      document.body.classList.add('cutscene-active');
+      audio.isCutsceneMusic = true;
+
+      // Build the 38-second 6-Phase Scripted Timeline
+      cutsceneState.events = [
+        // ====================================================================
+        // PHASE 0: STANDOFF (0.0s - 3.5s)
+        // ====================================================================
+        {
+          t: 0.0,
+          fn: () => {
+            audio.playStandoffDrone();
+            cutsceneState.timeScale = 0.55;
+            setVignette('#1e1035', 0.5);
+            setCameraShot(
+              new THREE.Vector3(0, 5.2, 13.5),
+              new THREE.Vector3(0, 3.2, 7.8),
+              new THREE.Vector3(0, 1.8, -2.5),
+              new THREE.Vector3(0, 1.6, -1.0),
+              3.5,
+              36
+            );
+            showSubtitle('FLANDRE SCARLET (BOSS CURSE)', 'Playtime is over... I will shatter every barrier in this courtyard!', '#f43f5e', 3100);
+          }
+        },
+        {
+          t: 1.8,
+          fn: () => {
+            cutsceneState.rubbleLift = 0.45;
+            spawnBurstParticles(flandre.pos, '#f43f5e', 24, 1.3);
+          }
+        },
+
+        // ====================================================================
+        // PHASE 1A: YUKARI ACTIVATION (3.5s - 7.5s)
+        // ====================================================================
+        {
+          t: 3.5,
+          fn: () => {
+            cutsceneState.timeScale = 1.0;
+            // Hard cut to dramatic low-angle close-up on Yukari
+            setCameraShot(
+              new THREE.Vector3(-1.8, 0.85, 0.6),
+              new THREE.Vector3(-2.1, 1.15, 1.1),
+              new THREE.Vector3(-2.6, 1.1, 2.2),
+              new THREE.Vector3(-2.6, 1.25, 2.2),
+              4.0,
+              32
+            );
+            yukari.sealPoseWeight = 1.0;
+            yukari.squeeze(0.85);
+            setVignette('#a855f7', 0.68);
+            halftoneEl.style.opacity = '0.65';
+            speedLinesColor = '#d8b4fe';
+            speedLinesIntensity = 0.65;
+            audio.playDomainActivation('yukari');
+            const line = 'Where the border ends, I begin. Domain Expansion: Infinite Boundary.';
+            showSubtitle('YUKARI YAKUMO', line, '#a855f7', 3700);
+            audio.speakLine('yukari', line, 3.6);
+          }
+        },
+        {
+          t: 4.1,
+          fn: () => {
+            // Brief freeze frame + Full-screen Kanji Title Card + Violet Dome burst
+            cutsceneState.freezeTimer = 0.16;
+            showTitleCard('境界無限', 'Domain Expansion • Infinite Boundary', '#a855f7', 1750);
+            yukariDome.visible = true;
+            yukariDomainProps.visible = true;
+            domainCenterLight.color.set('#a855f7');
+            domainCenterLight.intensity = 2.6;
+            triggerCameraShake(0.35, 0.4);
+          }
+        },
+
+        // ====================================================================
+        // PHASE 1B: REMILIA ACTIVATION (7.5s - 11.5s)
+        // ====================================================================
+        {
+          t: 7.5,
+          fn: () => {
+            // Hard cut to dramatic low-angle close-up on Remilia
+            setCameraShot(
+              new THREE.Vector3(1.8, 0.85, 0.6),
+              new THREE.Vector3(2.1, 1.15, 1.1),
+              new THREE.Vector3(2.6, 1.1, 2.2),
+              new THREE.Vector3(2.6, 1.25, 2.2),
+              4.0,
+              32
+            );
+            remilia.sealPoseWeight = 1.0;
+            remilia.squeeze(0.85);
+            setVignette('#dc2626', 0.72);
+            speedLinesColor = '#fca5a5';
+            speedLinesIntensity = 0.72;
+            audio.playDomainActivation('remilia');
+            const line = 'Kneel beneath the crimson moon. Domain Expansion: Crimson Moon Banquet.';
+            showSubtitle('REMILIA SCARLET', line, '#ef4444', 3700);
+            audio.speakLine('remilia', line, 3.6);
+          }
+        },
+        {
+          t: 8.1,
+          fn: () => {
+            cutsceneState.freezeTimer = 0.16;
+            showTitleCard('紅月夜宴', 'Domain Expansion • Crimson Moon Banquet', '#ef4444', 1750);
+            remiliaDome.visible = true;
+            remiliaDomainProps.visible = true;
+            domainCenterLight.color.set('#dc2626');
+            domainCenterLight.intensity = 2.8;
+            triggerCameraShake(0.38, 0.4);
+          }
+        },
+
+        // ====================================================================
+        // PHASE 1C: REIMU ACTIVATION + 3-WAY COMIC SPLIT BEAT (11.5s - 15.8s)
+        // ====================================================================
+        {
+          t: 11.5,
+          fn: () => {
+            // Hard cut to dramatic low-angle close-up on Reimu
+            setCameraShot(
+              new THREE.Vector3(0.0, 0.85, 2.3),
+              new THREE.Vector3(0.0, 1.15, 2.8),
+              new THREE.Vector3(0.0, 1.1, 4.2),
+              new THREE.Vector3(0.0, 1.25, 4.2),
+              3.2,
+              32
+            );
+            reimu.sealPoseWeight = 1.0;
+            reimu.squeeze(0.85);
+            setVignette('#38bdf8', 0.68);
+            speedLinesColor = '#bae6fd';
+            speedLinesIntensity = 0.75;
+            audio.playDomainActivation('reimu');
+            const line = 'No fate, no curse, no spirit passes. Domain Expansion: Dream Seal Sanctum.';
+            showSubtitle('REIMU HAKUREI', line, '#38bdf8', 3500);
+            audio.speakLine('reimu', line, 3.4);
+          }
+        },
+        {
+          t: 12.1,
+          fn: () => {
+            cutsceneState.freezeTimer = 0.16;
+            showTitleCard('夢想封印', 'Domain Expansion • Dream Seal Sanctum', '#38bdf8', 1650);
+            reimuDome.visible = true;
+            reimuDomainProps.visible = true;
+            domainCenterLight.color.set('#38bdf8');
+            domainCenterLight.intensity = 2.8;
+            triggerCameraShake(0.38, 0.4);
+          }
+        },
+        {
+          t: 14.5,
+          fn: () => {
+            // Diagonal 3-Way Split-Screen Comic Panel Beat!
+            comicSplitOverlay.classList.add('is-visible');
+            flashWhite(0.6, 140);
+            setCameraShot(
+              new THREE.Vector3(0, 3.2, 8.8),
+              new THREE.Vector3(0, 3.5, 9.5),
+              new THREE.Vector3(0, 1.2, 2.5),
+              new THREE.Vector3(0, 1.2, 2.5),
+              1.3,
+              46
+            );
+          }
+        },
+
+        // ====================================================================
+        // PHASE 2: THE CLASH (15.8s - 21.8s, 6s)
+        // ====================================================================
+        {
+          t: 15.8,
+          fn: () => {
+            comicSplitOverlay.classList.remove('is-visible');
+            skyCrackGroup.visible = true;
+            scoreboardMode = 'clash_panic';
+            audio.playClashBarrage();
+            showSubtitle('DAIYOUSEI (REFEREE)', 'T-Three Domain Expansions overlapping at once?! The barrier is shattering!!', '#4ade80', 3800);
+            speedLinesColor = '#ffffff';
+            speedLinesIntensity = 0.95;
+            if (cutsceneFXPass) cutsceneFXPass.uniforms.uChroma.value = reducedFlashing ? 0.22 : 0.72;
+            triggerCameraShake(0.65, 5.5);
+
+            // Rapid whip-pan orbital camera around the 3-domain clash point
+            setCameraShot(
+              new THREE.Vector3(-11.5, 4.8, 7.5),
+              new THREE.Vector3(11.5, 6.2, 6.5),
+              new THREE.Vector3(0, 2.2, 0),
+              new THREE.Vector3(0, 2.5, -1.5),
+              3.0,
+              52
+            );
+          }
+        },
+        {
+          t: 18.8,
+          fn: () => {
+            // Rapid-fire cut 2: Close whip on staggering Flandre Boss & shattering dome shards
+            setCameraShot(
+              new THREE.Vector3(5.5, 3.5, -0.5),
+              new THREE.Vector3(-5.5, 4.2, -1.0),
+              new THREE.Vector3(0, 1.6, -3.6),
+              new THREE.Vector3(0, 1.8, -3.6),
+              3.0,
+              48
+            );
+            flandre.squeeze(1.2);
+            spawnBurstParticles( new THREE.Vector3(0, 3.2, 1.0), '#a855f7', 28, 1.8 );
+            spawnBurstParticles( new THREE.Vector3(0, 3.2, 1.0), '#dc2626', 28, 1.8 );
+            spawnBurstParticles( new THREE.Vector3(0, 3.2, 1.0), '#38bdf8', 28, 1.8 );
+          }
+        },
+
+        // ====================================================================
+        // PHASE 3: FUSION — TRIPLE SOVEREIGN REALM (21.8s - 26.8s, 5s)
+        // ====================================================================
+        {
+          t: 21.8,
+          fn: () => {
+            audio.playFusionRiserAndHit();
+            cutsceneState.rubbleLift = 1.6;
+            cutsceneState.zeroGravityFumos = true;
+            // Line up Yukari, Remilia & Reimu in synchronized floating pose
+            yukari.pos.set(-2.4, 1.4, 2.2);
+            remilia.pos.set(2.4, 1.4, 2.2);
+            reimu.pos.set(0.0, 1.6, 2.8);
+            yukari.yaw = Math.PI - 0.15;
+            remilia.yaw = -Math.PI + 0.15;
+            reimu.yaw = Math.PI;
+          }
+        },
+        {
+          t: 23.2,
+          fn: () => {
+            // Whiteout flash -> Hard cut to wide shot of the merged Tri-Color Sovereign Realm!
+            flashWhite(0.95, 340);
+            yukariDome.visible = false;
+            remiliaDome.visible = false;
+            // Expand Reimu dome into the colossal outer Sovereign galaxy shell
+            reimuDome.position.set(0, 0, 0);
+            reimuDome.scale.set(2.3, 2.3, 2.3);
+            setVignette('#c026d3', 0.45);
+            speedLinesIntensity = 0.45;
+            if (cutsceneFXPass) cutsceneFXPass.uniforms.uChroma.value = 0.18;
+
+            setCameraShot(
+              new THREE.Vector3(0, 2.4, 9.2),
+              new THREE.Vector3(0, 3.8, 12.8),
+              new THREE.Vector3(0, 2.2, 0),
+              new THREE.Vector3(0, 2.0, -1.0),
+              3.6,
+              42
+            );
+
+            showTitleCard('三界合一', 'Triple Sovereign Realm', '#f472b6', 2200);
+            const line = 'Triple Domain... Sovereign Realm!';
+            showSubtitle('YUKARI • REMILIA • REIMU', line, '#f472b6', 3400);
+            audio.speakLine('fusion', line, 3.3);
+          }
+        },
+
+        // ====================================================================
+        // PHASE 4: THE FINISHER & BLACK FLASH K.O. (26.8s - 32.3s, 5.5s)
+        // ====================================================================
+        {
+          t: 26.8,
+          fn: () => {
+            // Combined Tri-Color Voxel Beam fires in 0.1x slow-motion!
+            audio.playFinisherSequence();
+            finisherBeamGroup.visible = true;
+            cutsceneState.timeScale = 0.12;
+            speedLinesColor = '#fde047';
+            speedLinesIntensity = 0.9;
+            setCameraShot(
+              new THREE.Vector3(-4.5, 2.5, 4.2),
+              new THREE.Vector3(-2.2, 2.8, -1.5),
+              new THREE.Vector3(0, 2.0, 2.0),
+              new THREE.Vector3(0, 2.2, -3.6),
+              2.2,
+              48
+            );
+            showSubtitle('ALL THREE CASTERS', 'CONVERGENCE BREAKER: FANTASY SEAL CRIMSON BOUNDARY!!', '#fde047', 2400);
+          }
+        },
+        {
+          t: 29.0,
+          fn: () => {
+            // IMPACT FREEZE FRAME + INVERTED COLOR FLASH + BLACK FLASH STAMP + MASSIVE SHOCKWAVE!
+            cutsceneState.timeScale = 1.0;
+            cutsceneState.freezeTimer = 0.22;
+            if (cutsceneFXPass) {
+              cutsceneFXPass.uniforms.uInvert.value = reducedFlashing ? 0.0 : 1.0;
+              cutsceneFXPass.uniforms.uChroma.value = reducedFlashing ? 0.25 : 0.95;
+            }
+            setTimeout(() => {
+              if (cutsceneFXPass) cutsceneFXPass.uniforms.uInvert.value = 0.0;
+            }, 190);
+
+            shockwaveRing.visible = true;
+            shockwaveRing.position.copy(flandre.pos).add(new THREE.Vector3(0, 1.2, 0));
+            shockwaveRing.scale.set(0.2, 0.2, 0.2);
+
+            triggerCameraShake(0.95, 1.4);
+            showImpactStamp('黒閃 • BLACK FLASH', 'TRIPLE DOMAIN FINISHER!', '#ef4444', 1450);
+
+            // Exorcise all active minor curses in a huge chain reaction!
+            cursedSpirits.forEach(c => {
+              if (c.alive && !c.isSnackNibbler) c.exorcise(2000);
+            });
+          }
+        },
+        {
+          t: 30.5,
+          fn: () => {
+            // Launch Flandre high into the sky + Voxel Confetti Burst + K.O. Stamp + Falling Talisman!
+            finisherBeamGroup.visible = false;
+            showImpactStamp('K.O. / 撃破', 'BOSS CURSE EXORCISED!', '#fde047', 1650);
+            spawnBurstParticles(flandre.pos, '#fde047', 45, 2.4);
+            spawnBurstParticles(flandre.pos, '#ec4899', 45, 2.2);
+            flandre.pos.set(0, 9.5, -3.6);
+            flandre.vel.set(0, 4.0, 0);
+
+            fallingTalisman.visible = true;
+            fallingTalisman.position.set(0, 6.2, -3.2);
+
+            setCameraShot(
+              new THREE.Vector3(0, 1.8, 4.5),
+              new THREE.Vector3(0, 2.5, 7.5),
+              new THREE.Vector3(0, 6.5, -3.6),
+              new THREE.Vector3(0, 1.5, -3.2),
+              1.8,
+              42
+            );
+          }
+        },
+
+        // ====================================================================
+        // PHASE 5: AFTERMATH (32.3s - 37.8s, 5.5s)
+        // ====================================================================
+        {
+          t: 32.3,
+          fn: () => {
+            // Domains collapse in a shimmering shockwave back to the courtyard
+            flashWhite(0.7, 250);
+            yukariDomainProps.visible = false;
+            remiliaDomainProps.visible = false;
+            reimuDomainProps.visible = false;
+            reimuDome.visible = false;
+            skyCrackGroup.visible = false;
+            halftoneEl.style.opacity = '0';
+            speedLinesIntensity = 0;
+            if (cutsceneFXPass) cutsceneFXPass.uniforms.uChroma.value = 0;
+            setVignette('#05030a', 0.22);
+
+            cutsceneState.rubbleLift = 0;
+            cutsceneState.zeroGravityFumos = false;
+            scoreboardMode = 'legendary';
+            addComboAndScore(10, 50000, '🏆 S+ LEGENDARY!', new THREE.Vector3(0, 2, 0), '#fde047');
+
+            // The three casters flop onto their backs, dazed!
+            [yukari, remilia, reimu].forEach(c => {
+              c.pos.y = 0;
+              c.vel.set(0, 0, 0);
+              c.sealPoseWeight = 0;
+              c.isKnockedDown = true;
+              c.isGrounded = true;
+              c.squeeze(0.9);
+            });
+            flandre.pos.set(0, 0, -3.6);
+            flandre.vel.set(0, 0, 0);
+            flandre.isKnockedDown = true;
+            flandre.isGrounded = true;
+
+            // Spectator fumos cheer & jump!
+            ['cirno', 'marisa', 'sakuya', 'youmu', 'daiyousei', 'suwako'].forEach(id => {
+              if (fumoMap[id]) {
+                fumoMap[id].vel.y = 5.5;
+                fumoMap[id].squeeze(0.9);
+              }
+            });
+
+            showSubtitle('DAIYOUSEI (JUDGE)', 'UNBELIEVABLE!! Score: 999,999 — RANK S+ LEGENDARY!!', '#fde047', 4200);
+
+            // Camera pulls back smoothly toward orbit view
+            setCameraShot(
+              new THREE.Vector3(0, 4.5, 11.5),
+              new THREE.Vector3(0, 11.5, 24.5),
+              new THREE.Vector3(0, 1.2, 1.5),
+              new THREE.Vector3(0, 2.5, -1.5),
+              5.2,
+              40
+            );
+          }
+        },
+        {
+          t: 37.8,
+          fn: () => {
+            endCutscene();
+          }
+        }
+      ];
+    }
+
+    // Shorter 6.5-second Solo Domain Expansion (Press D or click Solo Domain button)
+    function startSoloDomainCutscene() {
+      if (cutsceneState.active) return;
+      audio.init();
+      resetCutsceneVisuals();
+
+      const yukari = fumoMap.yukari;
+      yukari.resetToHome();
+
+      cutsceneState.active = true;
+      cutsceneState.mode = 'solo';
+      cutsceneState.elapsed = 0;
+      cutsceneState.firedIndices.clear();
+      controls.enabled = false;
+      document.body.classList.add('cutscene-active');
+      audio.isCutsceneMusic = true;
+
+      cutsceneState.events = [
+        {
+          t: 0.0,
+          fn: () => {
+            yukari.sealPoseWeight = 1.0;
+            yukari.squeeze(1.0);
+            setVignette('#a855f7', 0.65);
+            speedLinesColor = '#d8b4fe';
+            speedLinesIntensity = 0.7;
+            audio.playDomainActivation('yukari');
+            const line = 'Where the border ends, I begin. Domain Expansion: Infinite Boundary.';
+            showSubtitle('YUKARI YAKUMO (SOLO DOMAIN)', line, '#a855f7', 3800);
+            audio.speakLine('yukari', line, 3.6);
+            setCameraShot(
+              new THREE.Vector3(-4.2, 1.1, 4.8),
+              new THREE.Vector3(-2.6, 2.4, 7.2),
+              new THREE.Vector3(-2.6, 1.2, 2.2),
+              new THREE.Vector3(0, 1.8, 0),
+              3.5,
+              35
+            );
+          }
+        },
+        {
+          t: 0.7,
+          fn: () => {
+            showTitleCard('境界無限', 'Infinite Boundary', '#a855f7', 1800);
+            yukariDome.visible = true;
+            yukariDomainProps.visible = true;
+            cutsceneState.rubbleLift = 0.85;
+            triggerCameraShake(0.4, 0.5);
+          }
+        },
+        {
+          t: 3.6,
+          fn: () => {
+            // Exorcise nearby curses with a boundary pulse
+            flashWhite(0.55, 180);
+            cursedSpirits.forEach(c => {
+              if (c.alive && !c.isSnackNibbler) c.exorcise(1500);
+            });
+            setCameraShot(
+              new THREE.Vector3(-2.6, 2.4, 7.2),
+              new THREE.Vector3(0, 11.5, 24.5),
+              new THREE.Vector3(0, 1.8, 0),
+              new THREE.Vector3(0, 2.5, -1.5),
+              2.8,
+              40
+            );
+          }
+        },
+        {
+          t: 6.5,
+          fn: () => {
+            endCutscene();
+          }
+        }
+      ];
+    }
+
+    function skipCutsceneToAftermath() {
+      if (!cutsceneState.active) return;
+      audio.cancelSpeech();
+      if (cutsceneState.mode === 'triple' && cutsceneState.elapsed < 32.3) {
+        // Jump straight to Phase 5 Aftermath
+        cutsceneState.elapsed = 32.25;
+        for (let i = 0; i < cutsceneState.events.length; i++) {
+          if (cutsceneState.events[i].t < 32.25) {
+            cutsceneState.firedIndices.add(i);
+          }
+        }
+      } else {
+        endCutscene();
+      }
+    }
+
+    function endCutscene() {
+      cutsceneState.active = false;
+      audio.isCutsceneMusic = false;
+      document.body.classList.remove('cutscene-active');
+      resetCutsceneVisuals();
+      controls.target.set(0, 2.5, -1.5);
+      controls.enabled = true;
+      lastInteractionTime = performance.now();
+
+      // Let knocked-down casters pop back up after a moment
+      setTimeout(() => {
+        ['yukari', 'remilia', 'reimu', 'flandre'].forEach(id => {
+          if (fumoMap[id]) {
+            fumoMap[id].isKnockedDown = false;
+            fumoMap[id].squeeze(0.65);
+          }
+        });
+      }, 2200);
+    }
+
+    function updateCutsceneTimeline(rawDt, time) {
+      if (!cutsceneState.active) return;
+
+      if (cutsceneState.freezeTimer > 0) {
+        cutsceneState.freezeTimer -= rawDt;
+        return;
+      }
+
+      cutsceneState.elapsed += rawDt;
+      const t = cutsceneState.elapsed;
+
+      // Fire any scheduled events
+      for (let i = 0; i < cutsceneState.events.length; i++) {
+        if (!cutsceneState.firedIndices.has(i) && t >= cutsceneState.events[i].t) {
+          cutsceneState.firedIndices.add(i);
+          cutsceneState.events[i].fn();
+        }
+      }
+
+      // Animate expanding domain domes
+      if (yukariDome.visible) {
+        const s = Math.min(1.25, yukariDome.scale.x + rawDt * 2.2);
+        yukariDome.scale.set(s, s, s);
+        yukariDome.rotation.y = time * 0.6;
+      }
+      if (remiliaDome.visible) {
+        const s = Math.min(1.25, remiliaDome.scale.x + rawDt * 2.2);
+        remiliaDome.scale.set(s, s, s);
+        remiliaDome.rotation.y = -time * 0.5;
+      }
+      if (reimuDome.visible && t < 23.0) {
+        const s = Math.min(1.25, reimuDome.scale.x + rawDt * 2.2);
+        reimuDome.scale.set(s, s, s);
+        reimuDome.rotation.y = time * 0.7;
+      }
+      if (yukariDomainProps.visible) yukariDomainProps.rotation.y = time * 0.45;
+      if (remiliaDomainProps.visible) remiliaDomainProps.rotation.y = -time * 0.35;
+      if (reimuDomainProps.visible) reimuDomainProps.rotation.y = time * 0.85;
+      if (finisherBeamGroup.visible) finisherBeamGroup.rotation.z = time * 12.0;
+
+      if (shockwaveRing.visible) {
+        const rs = shockwaveRing.scale.x + rawDt * 18.0;
+        shockwaveRing.scale.set(rs, rs, rs);
+        shockwaveRing.material.opacity = Math.max(0, 1.0 - rs / 24.0);
+      }
+
+      if (fallingTalisman.visible && fallingTalisman.position.y > 0.35) {
+        fallingTalisman.position.y -= rawDt * 1.85;
+        fallingTalisman.position.x = Math.sin(time * 5.0) * 0.45;
+        fallingTalisman.rotation.z = Math.cos(time * 5.0) * 0.35;
+        fallingTalisman.rotation.y = time * 2.5;
+      }
+
+      // Smoothly interpolate scripted camera shot
+      const shotProgress = THREE.MathUtils.clamp((t - cutsceneState.camShotStart) / cutsceneState.camShotDuration, 0, 1);
+      const ease = shotProgress < 0.5
+        ? 2 * shotProgress * shotProgress
+        : 1 - Math.pow(-2 * shotProgress + 2, 2) / 2;
+
+      camera.position.lerpVectors(cutsceneState.camPosFrom, cutsceneState.camPosTo, ease);
+      const lookTarget = new THREE.Vector3().lerpVectors(cutsceneState.camLookFrom, cutsceneState.camLookTo, ease);
+
+      if (shakeDuration > 0) {
+        camera.position.x += (Math.random() - 0.5) * shakeIntensity;
+        camera.position.y += (Math.random() - 0.5) * shakeIntensity;
+      }
+      camera.lookAt(lookTarget);
+    }
+
+    // ============================================================================
+    // 15. POINTER INTERACTION: PICK UP, DRAG, THROW, SQUEEZE & EXORCISE CURSES
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let hoveredEntity = null;
+    let selectedFumo = null;
+    let isDraggingFumo = false;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+    const badgeEl = document.getElementById('fumo-badge');
+    const badgeDotEl = document.getElementById('fumo-badge-dot');
+    const badgeNameEl = document.getElementById('fumo-badge-name');
+    const badgeStatusEl = document.getElementById('fumo-badge-status');
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function pickEntityUnderPointer() {
+      raycaster.setFromCamera(pointerNDC, camera);
+      const fHits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      const cHits = raycaster.intersectObjects(curseRaycastMeshes, false);
+
+      if (cHits.length > 0 && cHits[0].object.userData.curse && cHits[0].object.userData.curse.alive) {
+        if (fHits.length === 0 || cHits[0].distance < fHits[0].distance) {
+          return { type: 'curse', entity: cHits[0].object.userData.curse };
+        }
+      }
+      if (fHits.length > 0 && fHits[0].object.userData.fumo) {
+        return { type: 'fumo', entity: fHits[0].object.userData.fumo };
+      }
+      return null;
+    }
+
+    function updateUIBadge(entity, statusText) {
+      if (!entity) {
+        badgeEl.classList.add('hidden');
+        badgeEl.classList.remove('flex');
+        return;
+      }
+      badgeEl.classList.remove('hidden');
+      badgeEl.classList.add('flex');
+      badgeDotEl.style.backgroundColor = entity.accentColor || '#a855f7';
+      badgeNameEl.textContent = entity.name;
+      badgeStatusEl.textContent = statusText;
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || cutsceneState.active) return;
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+
+      const hit = pickEntityUnderPointer();
+      if (!hit) return;
+
+      if (hit.type === 'curse') {
+        hit.entity.exorcise(1500);
+        updateUIBadge(hit.entity, 'Exorcised! ✨');
+        return;
+      }
+
+      if (hit.type === 'fumo') {
+        selectedFumo = hit.entity;
+        selectedFumo.isKnockedDown = false;
+        isDraggingFumo = false;
+        controls.enabled = false;
+
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), selectedFumo.pos);
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          dragOffset.subVectors(selectedFumo.pos, dragHitPoint);
+        } else {
+          dragOffset.set(0, 0, 0);
+        }
+        dragHistory = [{ pos: selectedFumo.pos.clone(), time: performance.now() }];
+        updateUIBadge(selectedFumo, selectedFumo.role);
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (cutsceneState.active) {
+        tooltipEl.style.opacity = '0';
+        return;
+      }
+      updatePointerNDC(e);
+
+      if (selectedFumo) {
+        recordInteraction();
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          selectedFumo.isDragged = true;
+          selectedFumo.isGrounded = false;
+          selectedFumo.squashVel += 3.2;
+          updateUIBadge(selectedFumo, 'Dragging — Throw at Curses!');
+        }
+
+        if (isDraggingFumo) {
+          raycaster.setFromCamera(pointerNDC, camera);
+          if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+            const targetPos = dragHitPoint.clone().add(dragOffset);
+            targetPos.x = THREE.MathUtils.clamp(targetPos.x, -10.8, 10.8);
+            targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.25, 11.5);
+            targetPos.z = THREE.MathUtils.clamp(targetPos.z, -10.8, 10.8);
+
+            const prevPos = selectedFumo.pos.clone();
+            selectedFumo.pos.lerp(targetPos, 0.55);
+
+            const deltaMove = selectedFumo.pos.clone().sub(prevPos);
+            selectedFumo.headRollVel -= deltaMove.x * 16.0;
+            selectedFumo.headPitchVel += deltaMove.z * 16.0 - deltaMove.y * 10.0;
+            selectedFumo.limbRollVel -= deltaMove.x * 22.0;
+            selectedFumo.roll = THREE.MathUtils.lerp(selectedFumo.roll, THREE.MathUtils.clamp(-deltaMove.x * 1.4, -0.45, 0.45), 0.3);
+            selectedFumo.pitch = THREE.MathUtils.lerp(selectedFumo.pitch, THREE.MathUtils.clamp(deltaMove.z * 1.4, -0.45, 0.45), 0.3);
+
+            const now = performance.now();
+            dragHistory.push({ pos: selectedFumo.pos.clone(), time: now });
+            while (dragHistory.length > 6) dragHistory.shift();
+          }
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      const hit = pickEntityUnderPointer();
+      if (hit) {
+        hoveredEntity = hit.entity;
+        renderer.domElement.style.cursor = hit.type === 'curse' ? 'crosshair' : 'grab';
+        tooltipEmojiEl.textContent = hoveredEntity.emoji;
+        tooltipTextEl.textContent = hoveredEntity.name;
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else {
+        hoveredEntity = null;
+        renderer.domElement.style.cursor = 'default';
+        tooltipEl.style.opacity = '0';
+      }
+    });
+
+    window.addEventListener('pointerup', () => {
+      if (!selectedFumo) return;
+      if (!cutsceneState.active) controls.enabled = true;
+      recordInteraction();
+
+      if (!isDraggingFumo) {
+        selectedFumo.squeeze(1.0);
+        addComboAndScore(1, 250, 'SQUEEZE! ᗜˬᗜ', selectedFumo.pos, selectedFumo.accentColor);
+        updateUIBadge(selectedFumo, 'Squeezed! ᗜˬᗜ');
+      } else {
+        selectedFumo.isDragged = false;
+        const now = performance.now();
+        while (dragHistory.length > 1 && now - dragHistory[0].time > 140) {
+          dragHistory.shift();
+        }
+        if (dragHistory.length >= 2) {
+          const first = dragHistory[0];
+          const last = dragHistory[dragHistory.length - 1];
+          const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+          const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+          if (throwVel.length() > 24) throwVel.setLength(24);
+          selectedFumo.vel.copy(throwVel);
+          const speed = throwVel.length();
+          selectedFumo.angVel.set(
+            throwVel.z * 0.65 + (Math.random() - 0.5) * speed * 0.4,
+            (Math.random() - 0.5) * speed * 0.5,
+            -throwVel.x * 0.65 + (Math.random() - 0.5) * speed * 0.4
+          );
+        }
+        updateUIBadge(selectedFumo, 'Thrown!');
+      }
+
+      selectedFumo = null;
+      isDraggingFumo = false;
+      renderer.domElement.style.cursor = hoveredEntity ? 'grab' : 'default';
+    });
+
+    // Fumo-to-Fumo Soft Collisions
+    function resolveFumoToFumoCollisions() {
+      for (let i = 0; i < fumos.length; i++) {
+        for (let j = i + 1; j < fumos.length; j++) {
+          const a = fumos[i];
+          const b = fumos[j];
+          const minDist = (a.radius + b.radius) * 0.78;
+          const dx = b.pos.x - a.pos.x;
+          const dy = (b.pos.y + b.radius * 0.6) - (a.pos.y + a.radius * 0.6);
+          const dz = b.pos.z - a.pos.z;
+          const distSq = dx * dx + dy * dy + dz * dz;
+
+          if (distSq < minDist * minDist && distSq > 0.0001) {
+            const dist = Math.sqrt(distSq);
+            const nx = dx / dist, ny = dy / dist, nz = dz / dist;
+            const overlap = (minDist - dist) * 0.5;
+            if (!a.isDragged) { a.pos.x -= nx * overlap; a.pos.z -= nz * overlap; }
+            if (!b.isDragged) { b.pos.x += nx * overlap; b.pos.z += nz * overlap; }
+
+            const rvx = b.vel.x - a.vel.x, rvy = b.vel.y - a.vel.y, rvz = b.vel.z - a.vel.z;
+            const vn = rvx * nx + rvy * ny + rvz * nz;
+            if (vn < 0) {
+              const imp = -vn * 0.68;
+              if (!a.isDragged) { a.vel.x -= imp * nx; a.vel.z -= imp * nz; a.squashVel -= Math.min(5, imp * 0.6); }
+              if (!b.isDragged) { b.vel.x += imp * nx; b.vel.z += imp * nz; b.squashVel -= Math.min(5, imp * 0.6); }
+              if (imp > 5.5 && (a.id === 'flandre' || b.id === 'flandre')) {
+                triggerBlackFlashImpact(fumoMap.flandre.pos, a);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // ============================================================================
+    // 16. DAY / NIGHT SMOOTH 2-SECOND TRANSITION & HUB INTEGRATION
+    // ============================================================================
+    let isNightMode = loadSetting(STORAGE_KEYS.mode, 'night') === 'night';
+    let dayNightProgress = isNightMode ? 1.0 : 0.0;
+    let dayNightTarget = dayNightProgress;
+
+    const daySkyCol = new THREE.Color('#94a3b8'); // Overcast desaturated pale cold daylight
+    const nightSkyCol = new THREE.Color('#080614'); // Dark indigo cursed night
+
+    const dayLightCol = new THREE.Color('#e2e8f0');
+    const nightLightCol = new THREE.Color('#818cf8');
+
+    function notifyParentMode() {
+      const modeStr = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: modeStr }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(night, immediate = false) {
+      isNightMode = Boolean(night);
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) dayNightProgress = dayNightTarget;
+      saveSetting(STORAGE_KEYS.mode, isNightMode ? 'night' : 'day');
+      notifyParentMode();
+    }
+
+    function toggleDayNight() {
+      setDayNightMode(!isNightMode, false);
+    }
+
+    function updateDayNightEnvironment(dt) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.5; // 2-second transition
+        dayNightProgress = dayNightProgress < dayNightTarget
+          ? Math.min(dayNightTarget, dayNightProgress + step)
+          : Math.max(dayNightTarget, dayNightProgress - step);
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      if (!cutsceneState.active) {
+        scene.background.lerpColors(daySkyCol, nightSkyCol, t);
+        scene.fog.color.copy(scene.background);
+        mainDirLight.color.lerpColors(dayLightCol, nightLightCol, t);
+        mainDirLight.intensity = THREE.MathUtils.lerp(1.22, 0.42, t);
+        hemiLight.intensity = THREE.MathUtils.lerp(0.68, 0.25, t);
+        domainCenterLight.intensity = THREE.MathUtils.lerp(0.25, 1.35, t);
+        courtyardAccentLight.intensity = THREE.MathUtils.lerp(0.2, 1.45, t);
+        emissiveVoxelMat.emissiveIntensity = THREE.MathUtils.lerp(0.55, 1.65, t);
+        if (bloomPass) {
+          bloomPass.strength = THREE.MathUtils.lerp(0.20, 0.62, t);
+        }
+      } else {
+        // Cutscene overrides with dramatic dark cursed sky & high bloom
+        scene.background.set('#05020d');
+        scene.fog.color.set('#05020d');
+        emissiveVoxelMat.emissiveIntensity = 1.95;
+        if (bloomPass) {
+          bloomPass.strength = reducedFlashing ? 0.35 : 0.78;
+        }
+      }
+    }
+
+    // ============================================================================
+    // 17. UI BUTTONS, KEYBOARD SHORTCUTS & HUB MESSAGE LISTENERS
+    // ============================================================================
+    const btnTripleDomain = document.getElementById('btn-triple-domain');
+    const btnSoloDomain = document.getElementById('btn-solo-domain');
+    const btnReset = document.getElementById('btn-reset');
+    const btnReducedFlash = document.getElementById('btn-reduced-flash');
+    const reducedFlashDot = document.getElementById('reduced-flash-dot');
+    const btnVoice = document.getElementById('btn-voice');
+    const voiceStatusLabel = document.getElementById('voice-status-label');
+    const btnMute = document.getElementById('btn-mute');
+    const iconSoundOn = document.getElementById('icon-sound-on');
+    const iconSoundOff = document.getElementById('icon-sound-off');
+
+    function setReducedFlashing(enabled) {
+      reducedFlashing = Boolean(enabled);
+      saveSetting(STORAGE_KEYS.reducedFlash, reducedFlashing);
+      reducedFlashDot.className = reducedFlashing
+        ? 'w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]'
+        : 'w-2 h-2 rounded-full bg-slate-400';
+    }
+
+    function updateAudioUIIcons() {
+      iconSoundOn.classList.toggle('hidden', isMuted);
+      iconSoundOff.classList.toggle('hidden', !isMuted);
+      voiceStatusLabel.textContent = voicesEnabled ? 'Voices ON' : 'Voices OFF';
+      setReducedFlashing(reducedFlashing);
+    }
+    updateAudioUIIcons();
+
+    btnTripleDomain.addEventListener('click', () => startTripleDomainCutscene());
+    comboOfferBanner.addEventListener('click', () => startTripleDomainCutscene());
+    btnSoloDomain.addEventListener('click', () => startSoloDomainCutscene());
+
+    btnReset.addEventListener('click', () => {
+      if (cutsceneState.active) endCutscene();
+      scoreboardMode = 'normal';
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 35));
+      cursedSpirits.forEach(c => { c.alive = true; c.root.visible = true; });
+    });
+
+    btnReducedFlash.addEventListener('click', () => setReducedFlashing(!reducedFlashing));
+
+    btnVoice.addEventListener('click', () => {
+      voicesEnabled = !voicesEnabled;
+      saveSetting(STORAGE_KEYS.voices, voicesEnabled);
+      if (!voicesEnabled) audio.cancelSpeech();
+      updateAudioUIIcons();
+    });
+
+    btnMute.addEventListener('click', () => {
+      audio.setMuted(!isMuted);
+      updateAudioUIIcons();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      recordInteraction();
+
+      const key = e.key.toLowerCase();
+      if ((e.key === 'Escape' || e.key === ' ') && cutsceneState.active) {
+        e.preventDefault();
+        skipCutsceneToAftermath();
+        return;
+      }
+
+      if (key === 't') {
+        e.preventDefault();
+        startTripleDomainCutscene();
+      } else if (key === 'd') {
+        e.preventDefault();
+        startSoloDomainCutscene();
+      } else if (key === 'n') {
+        e.preventDefault();
+        toggleDayNight();
+      } else if (key === 'm') {
+        e.preventDefault();
+        btnMute.click();
+      } else if (key === 'v') {
+        e.preventDefault();
+        btnVoice.click();
+      } else if (key === 'r') {
+        e.preventDefault();
+        setReducedFlashing(!reducedFlashing);
+      } else if (e.key === 'Backspace') {
+        btnReset.click();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ============================================================================
+    // 18. MAIN ANIMATION LOOP & HUB PAUSE / RESUME LIFECYCLE
+    // ============================================================================
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const rawDt = Math.min(0.04, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      // Apply cutscene timeScale (e.g., 0.1x slow-motion during Phase 4 beam)
+      const simDt = rawDt * (cutsceneState.active ? cutsceneState.timeScale : 1.0);
+
+      // Decay camera shake & chromatic aberration
+      if (shakeDuration > 0) {
+        shakeDuration -= rawDt;
+        if (shakeDuration <= 0) shakeIntensity = 0;
+      }
+      if (cutsceneFXPass) {
+        cutsceneFXPass.uniforms.uTime.value = elapsed;
+        if (!cutsceneState.active) {
+          cutsceneFXPass.uniforms.uChroma.value = THREE.MathUtils.lerp(cutsceneFXPass.uniforms.uChroma.value, 0, rawDt * 8);
+        }
+      }
+
+      // Decay combo timer in base play
+      if (!cutsceneState.active && currentCombo > 0) {
+        comboDecayTimer -= rawDt;
+        if (comboDecayTimer <= 0) {
+          currentCombo = 0;
+          hudComboEl.textContent = '0x';
+        }
+      }
+
+      // Update OrbitControls or Scripted Cutscene Camera
+      if (!cutsceneState.active) {
+        if (!selectedFumo && (now - lastInteractionTime > 5000)) {
+          controls.autoRotate = true;
+        }
+        controls.update();
+      } else {
+        updateCutsceneTimeline(rawDt, elapsed);
+      }
+
+      updateDayNightEnvironment(rawDt);
+      audio.updateMusic(rawDt, currentCombo, dayNightProgress);
+      updateFloatingRubble(elapsed, cutsceneState.rubbleLift);
+      update3DScoreboard(elapsed, currentCombo);
+      updateBurstParticles(simDt);
+      renderSpeedLines(elapsed);
+
+      for (let i = 0; i < cursedSpirits.length; i++) {
+        cursedSpirits[i].update(simDt, elapsed);
+      }
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].updatePhysics(simDt, elapsed, cutsceneState.zeroGravityFumos);
+      }
+      if (!cutsceneState.active) {
+        resolveFumoToFumoCollisions();
+      }
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function pauseScene() {
+      if (isPaused) return;
+      isPaused = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      audio.suspend();
+    }
+
+    function resumeScene() {
+      if (!isPaused) return;
+      isPaused = false;
+      prevTime = performance.now();
+      audio.resume();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    // Listen for messages from the parent scene browser hub
+    window.addEventListener('message', (e) => {
+      const data = e.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'toggleMode') {
+        toggleDayNight();
+      } else if (data.type === 'pause') {
+        pauseScene();
+      } else if (data.type === 'resume') {
+        resumeScene();
+      }
+    });
+
+    window.onload = () => {
+      setDayNightMode(isNightMode, true);
+      updateDayNightEnvironment(0);
+
+      // Initial welcoming bounce on all fumos
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.78;
+          f.squashVel = 2.0;
+        }, 100 + idx * 60);
+      });
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>
