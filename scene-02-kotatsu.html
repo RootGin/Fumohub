@@ -1,0 +1,2793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Winter Kotatsu — Touhou Fumo Voxel Diorama</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js r128 + OrbitControls + Post-Processing (UnrealBloomPass) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #121526;
+    }
+    h1, .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.80);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      box-shadow: 0 10px 28px -6px rgba(20, 15, 45, 0.18), 0 2px 6px rgba(20, 15, 45, 0.08);
+      transition: background 0.5s ease, color 0.5s ease, border-color 0.5s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    body.night-ui .glass-panel {
+      background: rgba(24, 22, 42, 0.80);
+      border-color: rgba(251, 146, 60, 0.28);
+      color: #fff7ed;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.6), 0 0 18px rgba(251, 146, 60, 0.14);
+    }
+    .ui-btn {
+      cursor: pointer;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+    #fumo-tooltip {
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.75rem;
+      line-height: 1.2;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.08);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.18);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.14);
+      border-bottom-color: rgba(255, 255, 255, 0.28);
+    }
+  </style>
+</head>
+<body class="text-slate-800">
+  <div id="canvas-container"></div>
+
+  <!-- Top-Right Controls: Active Fumo Badge, Roll Mikan, Squeeze All, Reset, Sound (Top-Left kept clear for Hub) -->
+  <div class="fixed top-4 right-4 z-20 flex items-center gap-2.5">
+    <!-- Active / Hovered Fumo Indicator -->
+    <div id="fumo-badge" class="glass-panel rounded-2xl px-3.5 py-2.5 text-xs font-semibold hidden items-center gap-2 transition-all">
+      <span id="fumo-badge-dot" class="w-2.5 h-2.5 rounded-full inline-block bg-orange-500"></span>
+      <span id="fumo-badge-name">Reimu Hakurei</span>
+      <span id="fumo-badge-status" class="opacity-70 ml-1">Warming up</span>
+    </div>
+
+    <!-- Roll Mikan Button -->
+    <button id="btn-roll-mikan" title="Roll a Mikan Orange off the Kotatsu! (O)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <span class="text-base leading-none">🍊</span>
+      <span class="hidden lg:inline">Roll Mikan</span>
+    </button>
+
+    <!-- Squeeze All Button -->
+    <button id="btn-squeeze-all" title="Squeeze All Fumos! (Space)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <span class="text-base leading-none">✨</span>
+      <span class="hidden md:inline">Squeeze All</span>
+    </button>
+
+    <!-- Reset Fumos & Mikan Button -->
+    <button id="btn-reset" title="Return Fumos & Mikan to Cozy Spots (R)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+      <span class="hidden sm:inline">Reset</span>
+    </button>
+
+    <!-- Sound Toggle Button -->
+    <button id="btn-sound" title="Toggle Plush Sound Effects (M)"
+      class="glass-panel ui-btn rounded-2xl p-2.5 flex items-center justify-center">
+      <svg id="icon-sound-on" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+      </svg>
+      <svg id="icon-sound-off" class="w-5 h-5 hidden opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <line x1="23" y1="9" x2="17" y2="15"></line>
+        <line x1="17" y1="9" x2="23" y2="15"></line>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Floating Cursor Tooltip for Hovered Fumo or Mikan -->
+  <div id="fumo-tooltip" class="fixed z-30 opacity-0 px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold flex items-center gap-2 shadow-lg">
+    <span id="tooltip-emoji">🍊</span>
+    <span id="tooltip-text">Reimu Fumo</span>
+  </div>
+
+  <!-- Bottom HUD Hints -->
+  <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none w-max max-w-[94vw]">
+    <div class="glass-panel rounded-2xl px-4 py-2 text-xs font-semibold flex flex-wrap items-center justify-center gap-x-4 gap-y-1 opacity-90">
+      <span>🖱️ <b>Click Fumo:</b> Squeeze</span>
+      <span>✋ <b>Drag Under Kotatsu:</b> Bulge Blanket & Throw</span>
+      <span>🍊 <b>Click Mikan:</b> Roll Off Table</span>
+      <span class="hidden sm:inline"><kbd>R</kbd> Reset</span>
+      <span class="hidden md:inline"><kbd>Space</kbd> Squeeze All</span>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 1. PROCEDURAL WEB AUDIO SYNTHESIZER (Soft Plush Squeaks, Boings & Thuds)
+    // ============================================================================
+    class PlushSoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) {
+            this.ctx = new AudioCtx();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playSqueeze(pitchMultiplier = 1.0) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+
+          const osc1 = this.ctx.createOscillator();
+          const gain1 = this.ctx.createGain();
+          osc1.type = 'sine';
+          const baseFreq = (520 + Math.random() * 80) * pitchMultiplier;
+          osc1.frequency.setValueAtTime(baseFreq, now);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.085);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.16);
+
+          gain1.gain.setValueAtTime(0.001, now);
+          gain1.gain.linearRampToValueAtTime(0.11, now + 0.025);
+          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+
+          osc1.connect(gain1);
+          gain1.connect(this.ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.18);
+
+          const osc2 = this.ctx.createOscillator();
+          const gain2 = this.ctx.createGain();
+          osc2.type = 'triangle';
+          osc2.frequency.setValueAtTime(baseFreq * 1.1, now + 0.11);
+          osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.65, now + 0.21);
+
+          gain2.gain.setValueAtTime(0.001, now + 0.11);
+          gain2.gain.linearRampToValueAtTime(0.08, now + 0.13);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+          osc2.connect(gain2);
+          gain2.connect(this.ctx.destination);
+          osc2.start(now + 0.11);
+          osc2.stop(now + 0.25);
+        } catch (e) {}
+      }
+
+      playBounce(intensity = 0.5) {
+        if (!this.enabled || intensity < 0.08) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const vol = Math.min(0.14, intensity * 0.12);
+
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          const startFreq = 115 + Math.min(80, intensity * 35);
+          osc.frequency.setValueAtTime(startFreq, now);
+          osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+
+      playPickup() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(280, now);
+          osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+    }
+
+    const soundFX = new PlushSoundEngine();
+
+    // ============================================================================
+    // 2. COLOR & VOXEL HELPER UTILITIES
+    // ============================================================================
+    const tempColor = new THREE.Color();
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    const tempEuler = new THREE.Euler();
+
+    function voxelHash(x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    }
+
+    function varyColor(hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
+      tempColor.set(hexOrString);
+      const h = voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      tempColor.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return tempColor.clone();
+    }
+
+    function createSoftVoxelGeometry(size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    }
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        tempQuat.identity();
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    // ============================================================================
+    // 3. SCENE, CAMERA, RENDERER & POST-PROCESSING SETUP
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#cfdce8');
+    scene.fog = new THREE.FogExp2('#cfdce8', 0.0085);
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.5, 130);
+    camera.position.set(17.5, 13.0, 18.0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.18,
+        0.55,
+        0.80
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (err) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0.0, 2.8, 0.0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.48;
+    controls.minPolarAngle = Math.PI * 0.08;
+    controls.minDistance = 7.5;
+    controls.maxDistance = 36;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.42;
+
+    let lastUserInteractionTime = performance.now();
+    const recordInteraction = () => {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+    };
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 4. LIGHTING & SHARED MATERIALS (Capped Dynamic Lights for Performance)
+    // ============================================================================
+    // 1. Hemisphere Light (Cold overcast winter sky / warm tatami bounce)
+    const hemiLight = new THREE.HemisphereLight(0xeef4fa, 0xbba78c, 0.72);
+    hemiLight.position.set(0, 22, 0);
+    scene.add(hemiLight);
+
+    // 2. Main Window & Shoji Directional Light (Overcast Daylight -> Blue Moonlight)
+    const windowDirLight = new THREE.DirectionalLight(0xeaf2fb, 1.18);
+    windowDirLight.position.set(-19, 13, 2);
+    windowDirLight.target.position.set(1, 1.5, 0);
+    scene.add(windowDirLight.target);
+    windowDirLight.castShadow = true;
+    windowDirLight.shadow.mapSize.width = 2048;
+    windowDirLight.shadow.mapSize.height = 2048;
+    windowDirLight.shadow.camera.near = 2;
+    windowDirLight.shadow.camera.far = 45;
+    const dCam = 14.5;
+    windowDirLight.shadow.camera.left = -dCam;
+    windowDirLight.shadow.camera.right = dCam;
+    windowDirLight.shadow.camera.top = dCam;
+    windowDirLight.shadow.camera.bottom = -dCam;
+    windowDirLight.shadow.bias = -0.0006;
+    windowDirLight.shadow.radius = 2.5;
+    scene.add(windowDirLight);
+
+    // 3. Kotatsu Under-Blanket Heater Point Light (Warm flickering orange-red glow!)
+    const kotatsuHeaterLight = new THREE.PointLight(0xff5e1a, 0.45, 9.5, 1.5);
+    kotatsuHeaterLight.position.set(0.5, 1.15, 0.5);
+    scene.add(kotatsuHeaterLight);
+
+    // 4. Washitsu Paper Lantern & Stove Warm Point Light (Casts cozy soft shadows at night!)
+    const roomLanternLight = new THREE.PointLight(0xffa447, 0.15, 19.0, 1.4);
+    roomLanternLight.position.set(-1.5, 6.8, -2.5);
+    roomLanternLight.castShadow = true;
+    roomLanternLight.shadow.mapSize.width = 1024;
+    roomLanternLight.shadow.mapSize.height = 1024;
+    roomLanternLight.shadow.bias = -0.001;
+    scene.add(roomLanternLight);
+
+    // 5. CRT TV Screen & Garden Stone Lantern Glow Point Light
+    const tvGlowLight = new THREE.PointLight(0x7dd3fc, 0.18, 8.5, 1.7);
+    tvGlowLight.position.set(5.2, 3.2, -6.5);
+    scene.add(tvGlowLight);
+
+    // Shared Materials
+    const plushMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.92,
+      metalness: 0.02
+    });
+
+    const roomSolidMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.84,
+      metalness: 0.04
+    });
+
+    const glossyPropMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.28,
+      metalness: 0.15
+    });
+
+    const shojiPaperMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfbf8f1,
+      emissive: new THREE.Color(0xdbeafe),
+      emissiveIntensity: 0.25,
+      roughness: 0.9,
+      transparent: true,
+      opacity: 0.93
+    });
+
+    const translucentIceMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.85,
+      roughness: 0.15,
+      metalness: 0.05,
+      transmission: 0.35,
+      emissive: new THREE.Color(0x38bdf8),
+      emissiveIntensity: 0.28
+    });
+
+    const warmEmissiveMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfff3d1,
+      emissive: new THREE.Color(0xff8c24),
+      emissiveIntensity: 0.45,
+      roughness: 0.25
+    });
+
+    const heaterEmissiveMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffd8be,
+      emissive: new THREE.Color(0xff4500),
+      emissiveIntensity: 1.4,
+      roughness: 0.2
+    });
+
+    const tvScreenEmissiveMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0x60a5fa),
+      emissiveIntensity: 0.45,
+      roughness: 0.25
+    });
+
+    // ============================================================================
+    // 5. WASHITSU ROOM ARCHITECTURE, SNOW GARDEN, KOTATSU & PROPS
+    // ============================================================================
+    const RV = 0.25; // 1 Room Voxel = 0.25 world units
+    const furnitureColliders = [];
+
+    function addCollider(minX, minY, minZ, maxX, maxY, maxZ, name = 'prop') {
+      furnitureColliders.push({
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        name
+      });
+    }
+
+    const solidRoomVoxels = [];
+    const glossyRoomVoxels = [];
+    const shojiPaperVoxels = [];
+    const warmGlowVoxels = [];
+    const heaterGlowVoxels = [];
+    const glassVoxels = [];
+
+    function pushVoxel(list, rx, ry, rz, colorHex, variance = 0.03, sx = 1, sy = 1, sz = 1) {
+      list.push({
+        x: rx,
+        y: ry,
+        z: rz,
+        color: varyColor(colorHex, rx, ry, rz, variance),
+        sx, sy, sz
+      });
+    }
+
+    function pushBoxVoxels(list, x0, y0, z0, x1, y1, z1, colorFnOrHex, variance = 0.03) {
+      for (let x = x0; x <= x1; x++) {
+        for (let y = y0; y <= y1; y++) {
+          for (let z = z0; z <= z1; z++) {
+            if (x > x0 && x < x1 && y > y0 && y < y1 && z > z0 && z < z1) continue;
+            const c = typeof colorFnOrHex === 'function' ? colorFnOrHex(x, y, z) : colorFnOrHex;
+            if (c) pushVoxel(list, x, y, z, c, variance);
+          }
+        }
+      }
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5A. TATAMI MAT FLOOR (Visible Weave & Brocade Borders), WALLS, SHOJI & WINDOW
+    // ----------------------------------------------------------------------------
+    function buildWashitsuAndGarden() {
+      // 1. TATAMI MAT FLOOR: rx [-36..39], rz [-36..39], top surface at Y = 0
+      for (let x = -36; x <= 39; x++) {
+        for (let z = -36; z <= 39; z++) {
+          const isOuterEdge = (x === -36 || x === 39 || z === -36 || z === 39);
+          // Engawa wooden hallway strip on left wall side (rx -36..-31)
+          let col = '#b8ad7e';
+          if (x < -30) {
+            const plankSeam = ((z + 40) % 12 === 0) || (x % 2 === 0);
+            col = plankSeam ? '#6e472b' : '#8c5a36';
+          } else {
+            // 6-Mat Tatami layout with dark green cloth borders (heri)
+            const tx = x + 30; // 0..69
+            const tz = z + 36; // 0..75
+            const isBorderX = (tx % 23 === 0 || tx % 23 === 22);
+            const isBorderZ = (tz % 38 === 0 || tz % 38 === 37);
+            if (isBorderX || isBorderZ) {
+              // Dark green brocade border with subtle gold diamond stitch
+              col = ((x + z) % 2 === 0) ? '#1f4e3d' : '#183d2f';
+            } else {
+              // Visible tatami rush grass weave
+              const matIdx = Math.floor(tx / 23) + Math.floor(tz / 38);
+              const weave = (matIdx % 2 === 0) ? ((z % 2 === 0) ? '#c2b982' : '#b5ac75') : ((x % 2 === 0) ? '#bdb47d' : '#b0a770');
+              col = weave;
+            }
+          }
+          pushVoxel(solidRoomVoxels, x + 0.5, -0.5, z + 0.5, col, 0.02);
+          if (isOuterEdge) {
+            pushVoxel(solidRoomVoxels, x + 0.5, -1.5, z + 0.5, '#4a2e1b', 0.015);
+          }
+        }
+      }
+
+      // 2. LEFT WALL (rx = -36..-35) WITH LARGE SNOWY GARDEN WINDOW & SLIDING SHOJI DOORS
+      // Garden Window Cutout: rz [-24..6], ry [10..35]
+      // Sliding Shoji Doors on Left Wall: rz [10..36], ry [1..36]
+      for (let y = 0; y <= 45; y++) {
+        for (let z = -36; z <= 39; z++) {
+          const inGardenWindow = (z >= -24 && z <= 6 && y >= 10 && y <= 35);
+          const inShojiDoor = (z >= 10 && z <= 36 && y >= 1 && y <= 36);
+          if (inGardenWindow || inShojiDoor) continue;
+
+          // Traditional Japanese clay wall (Juraku-kabe warm sage/sand) & cedar pillars (Hashira)
+          const isPillar = (z === -36 || z === -25 || z === 7 || z === 9 || z === 37 || z === 39);
+          const isBeam = (y <= 1 || y === 9 || y === 36 || y === 37 || y >= 44);
+          const wallCol = (isPillar || isBeam) ? '#6e472b' : '#d8ccb8';
+          pushVoxel(solidRoomVoxels, -35.5, y + 0.5, z + 0.5, wallCol, 0.02);
+        }
+      }
+
+      // Sliding Shoji Screen Doors (rz [10..36], ry [1..36]): cedar kumiko lattice + glowing shoji paper
+      for (let y = 1; y <= 36; y++) {
+        for (let z = 10; z <= 36; z++) {
+          const isOuterFrame = (y === 1 || y === 36 || z === 10 || z === 23 || z === 36);
+          const isKickplate = (y <= 6);
+          const isLattice = (y % 5 === 0 || (z - 10) % 4 === 0);
+          const rxPos = (z <= 23) ? -35.3 : -35.6; // Slightly offset sliding panels!
+          if (isOuterFrame || isKickplate) {
+            pushVoxel(solidRoomVoxels, rxPos, y + 0.5, z + 0.5, '#7c5233', 0.02);
+          } else if (isLattice) {
+            pushVoxel(solidRoomVoxels, rxPos, y + 0.5, z + 0.5, '#9c6b46', 0.015, 0.5, 0.85, 0.85);
+          } else {
+            pushVoxel(shojiPaperVoxels, rxPos - 0.1, y + 0.5, z + 0.5, '#fcf9f2', 0.01, 0.3, 1, 1);
+          }
+        }
+      }
+
+      // Garden Window Frame, Deep Wooden Ledge & Yukimi-Shoji Top Lattice
+      for (let z = -25; z <= 7; z++) {
+        // Window Sill / Ledge
+        pushVoxel(solidRoomVoxels, -34.5, 9.5, z + 0.5, '#6e472b', 0.02);
+        pushVoxel(solidRoomVoxels, -35.5, 9.5, z + 0.5, '#6e472b', 0.02);
+        pushVoxel(solidRoomVoxels, -36.5, 9.5, z + 0.5, '#593820', 0.02);
+        // Top frame
+        pushVoxel(solidRoomVoxels, -35.2, 35.5, z + 0.5, '#6e472b', 0.02);
+      }
+      // Upper Yukimi-Shoji paper header inside top of window (ry 30..34)
+      for (let y = 30; y <= 34; y++) {
+        for (let z = -24; z <= 6; z++) {
+          if (y === 30 || z % 4 === 0) {
+            pushVoxel(solidRoomVoxels, -35.3, y + 0.5, z + 0.5, '#8c5d3b', 0.02, 0.5, 0.9, 0.9);
+          } else {
+            pushVoxel(shojiPaperVoxels, -35.4, y + 0.5, z + 0.5, '#fcf9f2', 0.01, 0.3, 1, 1);
+          }
+        }
+      }
+      // Clear window glass pane
+      for (let y = 11; y <= 29; y += 2) {
+        for (let z = -23; z <= 5; z += 2) {
+          pushVoxel(glassVoxels, -35.8, y + 0.5, z + 0.5, '#dbeafe', 0.01, 0.18, 2.0, 2.0);
+        }
+      }
+
+      // 3. EXTERIOR SNOW-COVERED GARDEN DIORAMA (Outside Left Window: rx [-56..-37], rz [-28..10])
+      for (let x = -56; x <= -37; x++) {
+        for (let z = -28; z <= 10; z++) {
+          // Rolling snowdrift height
+          const drift = Math.round(Math.sin(x * 0.22) * 1.2 + Math.cos(z * 0.25) * 1.2);
+          const snowTopY = 8 + Math.max(0, drift);
+          for (let y = 6; y <= snowTopY; y++) {
+            const sCol = (y === snowTopY) ? '#f8fafc' : '#e2e8f0';
+            pushVoxel(solidRoomVoxels, x + 0.5, y + 0.5, z + 0.5, sCol, 0.015);
+          }
+        }
+      }
+      // Bamboo Garden Fence along back of garden (rx = -55, rz [-27..9], ry [9..18])
+      for (let z = -27; z <= 9; z++) {
+        for (let y = 9; y <= 17; y++) {
+          const bCol = (y === 12 || y === 15) ? '#3f2e21' : ((z % 2 === 0) ? '#718355' : '#87986a');
+          pushVoxel(solidRoomVoxels, -54.5, y + 0.5, z + 0.5, bCol, 0.025);
+        }
+        // Snow cap on bamboo fence
+        pushVoxel(solidRoomVoxels, -54.5, 18.5, z + 0.5, '#ffffff', 0.01);
+      }
+
+      // Traditional Stone Lantern (Tōrō) in the Snow Garden (rx = -46, rz = -16)
+      // Pedestal & Post
+      pushBoxVoxels(solidRoomVoxels, -47, 9, -17, -45, 10, -15, '#94a3b8');
+      pushBoxVoxels(solidRoomVoxels, -46, 11, -16, -46, 14, -16, '#94a3b8');
+      // Firebox (Hidaruma) with warm glowing paper core!
+      pushBoxVoxels(solidRoomVoxels, -47, 15, -17, -45, 15, -15, '#64748b');
+      pushBoxVoxels(warmGlowVoxels, -46, 16, -16, -46, 17, -16, '#ffb703');
+      // Stone Lantern Roof (Kasa) + Snow Cap on top
+      for (let lx = -48; lx <= -44; lx++) {
+        for (let lz = -18; lz <= -14; lz++) {
+          pushVoxel(solidRoomVoxels, lx + 0.5, 18.5, lz + 0.5, '#64748b', 0.02);
+          if (Math.abs(lx + 46) <= 1 && Math.abs(lz + 16) <= 1) {
+            pushVoxel(solidRoomVoxels, lx + 0.5, 19.5, lz + 0.5, '#f8fafc', 0.01);
+          }
+        }
+      }
+      pushVoxel(solidRoomVoxels, -45.5, 20.5, -15.5, '#f8fafc', 0.01);
+
+      // Cute Voxel Snowman (Yukidaruma) in the Garden (rx = -44, rz = -4)
+      // Bottom snow sphere
+      for (let sx = -2; sx <= 2; sx++) {
+        for (let sy = 0; sy <= 3; sy++) {
+          for (let sz = -2; sz <= 2; sz++) {
+            if (Math.hypot(sx, sy - 1.5, sz) <= 2.3) {
+              pushVoxel(solidRoomVoxels, -44 + sx + 0.5, 9 + sy + 0.5, -4 + sz + 0.5, '#ffffff', 0.01);
+            }
+          }
+        }
+      }
+      // Head snow sphere + coal eyes + carrot nose + red bucket hat!
+      for (let sx = -1; sx <= 1; sx++) {
+        for (let sy = 0; sy <= 2; sy++) {
+          for (let sz = -1; sz <= 1; sz++) {
+            pushVoxel(solidRoomVoxels, -44 + sx + 0.5, 13 + sy + 0.5, -4 + sz + 0.5, '#ffffff', 0.01);
+          }
+        }
+      }
+      pushVoxel(solidRoomVoxels, -42.2, 14.5, -4.5, '#1e293b', 0.01, 0.5, 0.5, 0.5); // Eye L
+      pushVoxel(solidRoomVoxels, -42.2, 14.5, -3.5, '#1e293b', 0.01, 0.5, 0.5, 0.5); // Eye R
+      pushVoxel(solidRoomVoxels, -41.8, 14.0, -4.0, '#f97316', 0.01, 1.1, 0.5, 0.5); // Carrot nose facing window!
+      // Red bucket hat tilted on snowman
+      pushBoxVoxels(solidRoomVoxels, -45, 16, -5, -43, 17, -3, '#e63946');
+
+      // Snow-covered Pine Shrub in Garden (rx = -48, rz = 3)
+      for (let py = 9; py <= 16; py++) {
+        const pr = Math.max(1, 4 - Math.floor((py - 9) * 0.45));
+        for (let px = -pr; px <= pr; px++) {
+          for (let pz = -pr; pz <= pr; pz++) {
+            if (Math.hypot(px, pz) <= pr) {
+              const isSnowCap = (py >= 14 || (py % 2 === 0 && Math.hypot(px, pz) >= pr - 0.6));
+              pushVoxel(solidRoomVoxels, -48 + px + 0.5, py + 0.5, 3 + pz + 0.5, isSnowCap ? '#f8fafc' : '#2d6a4f', 0.025);
+            }
+          }
+        }
+      }
+
+      // 4. BACK WALL (rz = -36..-35) WITH DOORWAY FOR NOREN CURTAIN & TOKONOMA ALCOVE
+      // Doorway cutout for Hanging Noren Curtain: rx [-22..-8], ry [0..34]
+      for (let y = 0; y <= 45; y++) {
+        for (let x = -35; x <= 39; x++) {
+          const inDoorway = (x >= -22 && x <= -8 && y <= 34);
+          if (inDoorway) {
+            // Dark hallway behind doorway so the noren stands out with depth
+            if (y <= 34) {
+              pushVoxel(solidRoomVoxels, x + 0.5, y + 0.5, -39.5, '#1e1b24', 0.01);
+            }
+            continue;
+          }
+          const isPillar = (x === -35 || x === -23 || x === -7 || x === 12 || x === 38 || x === 39);
+          const isBeam = (y <= 1 || y === 35 || y === 36 || y >= 44);
+          const col = (isPillar || isBeam) ? '#6e472b' : '#d8ccb8';
+          pushVoxel(solidRoomVoxels, x + 0.5, y + 0.5, -35.5, col, 0.02);
+        }
+      }
+
+      // Winter Calendar on Back Wall (rx [-4..3], ry [20..31], rz = -34.7)
+      for (let y = 20; y <= 31; y++) {
+        for (let x = -4; x <= 3; x++) {
+          let calCol = '#fdfbf7';
+          if (y >= 30) calCol = '#b91c1c'; // Red header bar
+          else if (y === 28 && (x === -1 || x === 0)) calCol = '#1e293b'; // Big "1" (January)
+          else if (y <= 26 && y % 2 === 0 && x % 2 === 0) {
+            calCol = (x === -2) ? '#ef4444' : '#94a3b8'; // Red Sunday / New Year dates!
+          }
+          pushVoxel(solidRoomVoxels, x + 0.5, y + 0.5, -34.7, calCol, 0.01, 1, 1, 0.35);
+        }
+      }
+
+      // Hanging Washitsu Paper Pendant Lamp (Andon / Akari Lamp) overhead at X = -1.5, Y = 8.5, Z = -2.5
+      for (let ly = 35; ly <= 44; ly++) {
+        pushVoxel(solidRoomVoxels, -6.0, ly + 0.5, -10.0, '#3a2415', 0.01, 0.35, 1, 0.35);
+      }
+      for (let lx = -8; lx <= -4; lx++) {
+        for (let ly = 30; ly <= 34; ly++) {
+          for (let lz = -12; lz <= -8; lz++) {
+            const isRib = (ly === 30 || ly === 34);
+            pushVoxel(isRib ? solidRoomVoxels : warmGlowVoxels, lx + 0.5, ly + 0.5, lz + 0.5, isRib ? '#5c3a21' : '#ffe599', 0.02);
+          }
+        }
+      }
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5B. HANGING NOREN CURTAIN (Animated Swaying Fabric Panels in Back Doorway)
+    // ----------------------------------------------------------------------------
+    const norenData = [];
+    function buildHangingNoren() {
+      // Bamboo rod across doorway at ry = 34, rx [-22..-8], rz = -34.8
+      for (let x = -23; x <= -7; x++) {
+        pushVoxel(solidRoomVoxels, x + 0.5, 34.5, -34.6, '#5c3a21', 0.02, 1, 0.7, 0.7);
+      }
+      // 3 Indigo Noren Slit Panels hanging from ry = 33 down to ry = 14
+      for (let x = -22; x <= -8; x++) {
+        // Vertical slits between panels at x === -17 and x === -13
+        if (x === -17 || x === -13) continue;
+        for (let y = 14; y <= 33; y++) {
+          // White crest circle on each panel
+          const panelCenter = (x < -17) ? -19.5 : ((x < -13) ? -15.0 : -10.5);
+          const dist = Math.hypot(x - panelCenter, y - 23);
+          const isCrest = (dist <= 2.3 && dist >= 1.1) || (Math.abs(x - panelCenter) <= 0.5 && y === 23);
+          const isTopLoop = (y === 33);
+          const col = isCrest ? '#f8fafc' : (isTopLoop ? '#1e3a5f' : '#1d3557');
+          norenData.push({
+            baseX: x + 0.5,
+            baseY: y + 0.5,
+            baseZ: -34.6,
+            panelIdx: (x < -17) ? 0 : ((x < -13) ? 1 : 2),
+            weight: (34 - y) / 20,
+            color: varyColor(col, x, y, -35, 0.025)
+          });
+        }
+      }
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5C. STACKED FUTON, RETRO CRT TV WITH NEW YEAR SPECIAL, STOVE & STEAMING KETTLE
+    // ----------------------------------------------------------------------------
+    const tvPixels = [];
+    function buildCornerProps() {
+      // 1. STACKED FOLDED FUTON & BLANKETS (Back-Left Tatami Corner: rx [-33..-24], rz [-34..-22], ry [0..7])
+      for (let layer = 0; layer < 3; layer++) {
+        const y0 = layer * 2;
+        const y1 = y0 + 1;
+        const futonPalette = layer === 0 ? '#9e2a2b' : (layer === 1 ? '#335c67' : '#e09f3e');
+        pushBoxVoxels(solidRoomVoxels, -33, y0, -34, -24, y1, -23, (x, y, z) => {
+          // White inner batting fold visible on front & right edge
+          if ((z === -23 || x === -24) && y === y0) return '#fdfbf7';
+          return futonPalette;
+        }, 0.03);
+      }
+      // Small folded pillow on top of futon stack
+      pushBoxVoxels(solidRoomVoxels, -31, 6, -31, -26, 7, -26, '#fff8f0', 0.02);
+      addCollider(-8.4, 0, -8.6, -5.8, 1.9, -5.5, 'stacked_futon');
+
+      // 2. LOW WOODEN TV CABINET & RETRO CRT TV (Back-Right: rx [14..32], rz [-34..-24])
+      // Low cabinet (ry 0..6 -> top at Y = 1.75)
+      pushBoxVoxels(solidRoomVoxels, 14, 0, -34, 32, 6, -24, (x, y, z) => {
+        if (z === -24 && x >= 16 && x <= 30 && y >= 1 && y <= 5) {
+          return (x === 23) ? '#4a2e1b' : ((x + y) % 2 === 0 ? '#8c5d3b' : '#7c5032'); // Slatted sliding doors
+        }
+        return '#6b4226';
+      }, 0.025);
+      addCollider(3.4, 0, -8.6, 8.1, 1.75, -5.9, 'tv_cabinet');
+
+      // Retro Red/Woodgrain Japanese Showa CRT TV on Cabinet (rx [17..28], ry [7..16], rz [-32..-25] -> top at Y = 4.25)
+      pushBoxVoxels(solidRoomVoxels, 17, 7, -32, 28, 16, -25, (x, y, z) => {
+        if (z === -25 && x >= 18 && x <= 25 && y >= 8 && y <= 15) return '#111827'; // Screen cavity
+        if (z === -25 && x >= 26 && x <= 27 && (y === 13 || y === 11)) return '#d4a373'; // Tuning dials
+        if (z === -25 && x >= 26 && x <= 27 && y <= 9) return '#374151'; // Speaker grille
+        return '#b91c1c'; // Festive retro red casing
+      }, 0.02);
+      // Rabbit-ear V-antenna on top of TV
+      for (let a = 1; a <= 5; a++) {
+        pushVoxel(glossyRoomVoxels, 22 - a * 0.7, 16.5 + a * 0.75, -28.0, '#cbd5e1', 0.01, 0.35, 0.9, 0.35);
+        pushVoxel(glossyRoomVoxels, 23 + a * 0.7, 16.5 + a * 0.75, -28.0, '#cbd5e1', 0.01, 0.35, 0.9, 0.35);
+      }
+      // Register live TV screen pixels
+      for (let sx = 18; sx <= 25; sx++) {
+        for (let sy = 8; sy <= 15; sy++) {
+          tvPixels.push({ x: sx + 0.5, y: sy + 0.5, z: -24.85, color: new THREE.Color('#1e1b4b') });
+        }
+      }
+      addCollider(4.2, 1.75, -8.1, 7.1, 4.25, -6.1, 'crt_tv');
+
+      // Kagami Mochi (Traditional New Year Stacked Rice Cake with Mikan on top!) next to TV (rx 30..31, rz -28..-27)
+      pushVoxel(solidRoomVoxels, 30.5, 7.3, -27.5, '#7f5539', 0.02, 2.2, 0.6, 2.2); // Wooden stand
+      pushVoxel(solidRoomVoxels, 30.5, 8.2, -27.5, '#ffffff', 0.01, 1.9, 1.1, 1.9); // Bottom mochi
+      pushVoxel(solidRoomVoxels, 30.5, 9.1, -27.5, '#ffffff', 0.01, 1.3, 0.9, 1.3); // Top mochi
+      pushVoxel(solidRoomVoxels, 30.5, 9.8, -27.5, '#f97316', 0.02, 0.75, 0.75, 0.75); // Tiny daidai orange
+
+      // 3. TRADITIONAL ROUND STOVE (HIBACHI / KEROSENE STOVE) & STEAMING IRON KETTLE (Tetsubin)
+      // Placed at X = -5.25, Z = 4.25 -> rx [-24..-18], rz [14..20]
+      // Wooden safety base tray
+      pushBoxVoxels(solidRoomVoxels, -25, 0, 13, -17, 0, 21, '#5c3a21', 0.02);
+      // Cylindrical retro cream/red stove body (ry 1..6)
+      for (let x = -24; x <= -18; x++) {
+        for (let z = 14; z <= 20; z++) {
+          const r = Math.hypot(x + 21, z - 17);
+          if (r <= 3.2) {
+            for (let y = 1; y <= 6; y++) {
+              if (r < 2.1 && y < 6) continue;
+              const isCage = (y === 4 || y === 5);
+              if (isCage) {
+                if ((x + z) % 2 === 0) {
+                  pushVoxel(glossyRoomVoxels, x + 0.5, y + 0.5, z + 0.5, '#475569', 0.01, 0.5, 1, 0.5);
+                } else {
+                  pushVoxel(heaterGlowVoxels, x + 0.5, y + 0.5, z + 0.5, '#ff5400', 0.01, 0.85, 0.9, 0.85);
+                }
+              } else {
+                const sCol = (y === 1) ? '#991b1b' : '#f4ece1';
+                pushVoxel(glossyRoomVoxels, x + 0.5, y + 0.5, z + 0.5, sCol, 0.02);
+              }
+            }
+          }
+        }
+      }
+      // Dark Cast-Iron Kettle (Tetsubin) sitting on top of stove (ry 7..9 -> spout at X = -5.0, Y = 2.5, Z = 4.25)
+      for (let x = -23; x <= -19; x++) {
+        for (let z = 15; z <= 19; z++) {
+          if (Math.hypot(x + 21, z - 17) <= 2.1) {
+            pushVoxel(glossyRoomVoxels, x + 0.5, 7.5, z + 0.5, '#1e293b', 0.02);
+            pushVoxel(glossyRoomVoxels, x + 0.5, 8.5, z + 0.5, '#1e293b', 0.02);
+          }
+        }
+      }
+      pushVoxel(glossyRoomVoxels, -21.0, 9.5, 17.0, '#b45309', 0.01, 1.3, 0.6, 1.3); // Brass kettle lid
+      pushVoxel(glossyRoomVoxels, -18.5, 8.4, 17.0, '#1e293b', 0.01, 1.1, 0.7, 0.7); // Kettle spout
+      // Arched iron handle
+      for (let hx = -22; hx <= -20; hx++) {
+        pushVoxel(glossyRoomVoxels, hx + 0.5, 10.6, 17.0, '#0f172a', 0.01, 0.8, 0.5, 0.5);
+      }
+      addCollider(-6.2, 0, 3.3, -4.2, 2.6, 5.2, 'stove_kettle');
+
+      // 4. PILE OF MANGA ON THE TATAMI FLOOR (Near Marisa at X = 4.8, Z = 4.2 -> rx [18..21], rz [15..18])
+      const mangaCols = ['#ef476f', '#ffd166', '#06d6a0', '#118ab2', '#8338ec'];
+      for (let m = 0; m < 5; m++) {
+        for (let x = 18; x <= 21; x++) {
+          for (let z = 15; z <= 17; z++) {
+            const c = (z === 17) ? '#fffdf7' : mangaCols[m];
+            pushVoxel(solidRoomVoxels, x + 0.5 + (m % 2) * 0.2, 0.35 + m * 0.68, z + 0.5, c, 0.02, 1, 0.6, 1);
+          }
+        }
+      }
+
+      // 5. MARISA'S BLACK WITCH HAT SET ON THE TATAMI FLOOR BESIDE HER!
+      // Placed at X = 4.6, Z = 1.6 (rx = 18.5, rz = 6.5)
+      const hatCenterRx = 18.5;
+      const hatCenterRz = 6.5;
+      for (let hx = -5; hx <= 5; hx++) {
+        for (let hz = -5; hz <= 5; hz++) {
+          const r = Math.hypot(hx, hz);
+          if (r <= 5.2) {
+            pushVoxel(solidRoomVoxels, hatCenterRx + hx * 0.65, 0.45, hatCenterRz + hz * 0.65, '#1f1e29', 0.02, 0.72, 0.65, 0.72);
+          }
+        }
+      }
+      for (let ch = 1; ch <= 6; ch++) {
+        const cr = Math.max(0.6, 3.2 - ch * 0.45);
+        for (let hx = -3; hx <= 3; hx++) {
+          for (let hz = -3; hz <= 3; hz++) {
+            if (Math.hypot(hx, hz) <= cr) {
+              const isBand = (ch === 1);
+              pushVoxel(
+                solidRoomVoxels,
+                hatCenterRx + hx * 0.65 - ch * 0.15,
+                0.45 + ch * 0.58,
+                hatCenterRz + hz * 0.65,
+                isBand ? '#f8fafc' : '#1f1e29',
+                0.02,
+                0.72, 0.68, 0.72
+              );
+            }
+          }
+        }
+      }
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5D. LOW WOODEN KOTATSU TABLE, HEATER CAGE, MIKAN BOWL, PEELS & TEA TRAY
+    // ----------------------------------------------------------------------------
+    // Kotatsu center at World (0.5, 0, 0.5) -> rx [2], rz [2]
+    // Tabletop spans World X [-2.5, 3.5] -> rx [-10..13], Z [-2.5, 3.5] -> rz [-10..13]
+    // Tabletop height: ry = 8 (top surface at Y = 2.25)
+    function buildKotatsuAndTableProps() {
+      // 1. Four Wooden Kotatsu Legs & Under-frame (rx -9..12, rz -9..12, ry 0..6)
+      for (const lx of [-8, 11]) {
+        for (const lz of [-8, 11]) {
+          for (let y = 0; y <= 6; y++) {
+            pushVoxel(solidRoomVoxels, lx + 0.5, y + 0.5, lz + 0.5, '#4a2e1b', 0.02);
+          }
+        }
+      }
+      // Glowing Orange Infrared Heater Unit mounted under the center of the Kotatsu! (ry = 6..6.5)
+      for (let x = -2; x <= 5; x++) {
+        for (let z = -2; z <= 5; z++) {
+          const isGrid = ((x + z) % 2 === 0);
+          pushVoxel(
+            isGrid ? glossyRoomVoxels : heaterGlowVoxels,
+            x + 0.5, 6.2, z + 0.5,
+            isGrid ? '#1e293b' : '#ff4500',
+            0.01, 1, 0.6, 1
+          );
+        }
+      }
+
+      // 2. Four Floor Zabuton Cushions around the Kotatsu
+      // North (Reimu), South (Yuyuko), East (Marisa), West (Youmu)
+      const zabutonSpots = [
+        { cx: 1.5, cz: -14.5, col: '#b91c1c' }, // North (Reimu crimson)
+        { cx: 1.5, cz: 17.5,  col: '#ec4899' }, // South (Yuyuko sakura)
+        { cx: 17.5, cz: 1.5,  col: '#ca8a04' }, // East (Marisa gold)
+        { cx: -14.5, cz: 1.5, col: '#15803d' }, // West (Youmu green)
+        { cx: -13.5, cz: 14.5, col: '#dc2626' } // Southwest (Mokou by stove)
+      ];
+      zabutonSpots.forEach(zSpot => {
+        for (let dx = -3; dx <= 3; dx++) {
+          for (let dz = -3; dz <= 3; dz++) {
+            const isCenterStitch = (Math.abs(dx) <= 0.5 && Math.abs(dz) <= 0.5);
+            pushVoxel(
+              solidRoomVoxels,
+              zSpot.cx + dx, 0.35, zSpot.cz + dz,
+              isCenterStitch ? '#fef08a' : zSpot.col,
+              0.03, 1, 0.7, 1
+            );
+          }
+        }
+      });
+
+      // 3. Polished Wooden Kotatsu Tabletop (Tenban) resting on top of the blanket (ry = 8 -> top at Y = 2.25)
+      for (let x = -9; x <= 12; x++) {
+        for (let z = -9; z <= 12; z++) {
+          const isBevelRim = (x === -9 || x === 12 || z === -9 || z === 12);
+          const woodCol = isBevelRim ? '#593720' : (((x + z) % 5 === 0) ? '#7f4f24' : '#8c5828');
+          pushVoxel(glossyRoomVoxels, x + 0.5, 8.5, z + 0.5, woodCol, 0.02);
+        }
+      }
+
+      // Register Kotatsu Tabletop Collider (Y from 0.2 to 2.25)
+      addCollider(-2.35, 0.2, -2.35, 3.35, 2.25, 3.35, 'kotatsu_table');
+
+      // 4. Wooden Mikan Bowl in the center-left of the Kotatsu Tabletop (X = -0.35, Z = 0.35 -> rx [-4..1], rz [-1..4], ry = 9..10)
+      for (let x = -4; x <= 1; x++) {
+        for (let z = -1; z <= 4; z++) {
+          const dist = Math.hypot(x + 1.5, z - 1.5);
+          if (dist <= 2.9) {
+            pushVoxel(glossyRoomVoxels, x + 0.5, 9.2, z + 0.5, '#9c6644', 0.02, 1, 0.5, 1);
+            if (dist >= 1.8) {
+              pushVoxel(glossyRoomVoxels, x + 0.5, 9.8, z + 0.5, '#7f4f24', 0.02, 1, 0.85, 1);
+            } else {
+              // Pile of static mikan oranges inside the bowl
+              pushVoxel(solidRoomVoxels, x + 0.5, 9.7, z + 0.5, '#f97316', 0.03, 0.9, 0.85, 0.9);
+            }
+          }
+        }
+      }
+
+      // 5. Scattered Mikan Peels on the Kotatsu Tabletop (Star-shaped open orange peels!)
+      const peelSpots = [
+        { x: -5.5, z: -4.5 },
+        { x: 6.5,  z: 5.5 },
+        { x: -4.5, z: 6.5 }
+      ];
+      peelSpots.forEach(p => {
+        pushVoxel(solidRoomVoxels, p.x, 9.1, p.z, '#fed7aa', 0.02, 0.7, 0.25, 0.7); // White pith center
+        for (const [ox, oz] of [[0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]]) {
+          pushVoxel(solidRoomVoxels, p.x + ox, 9.15, p.z + oz, '#fb923c', 0.02, 0.55, 0.3, 0.55);
+        }
+      });
+
+      // 6. Lacquered Tea Tray, Green Tea Cups & Chopsticks on the Kotatsu (rx [3..9], rz [-6..-1])
+      for (let x = 3; x <= 9; x++) {
+        for (let z = -6; z <= -1; z++) {
+          const isRim = (x === 3 || x === 9 || z === -6 || z === -1);
+          pushVoxel(glossyRoomVoxels, x + 0.5, 9.15, z + 0.5, isRim ? '#780000' : '#1e1b18', 0.015, 1, 0.35, 1);
+        }
+      }
+      // Two Yunomi ceramic green tea cups on the tray
+      for (const [cx, cz] of [[5.0, -4.0], [7.5, -3.0]]) {
+        pushVoxel(glossyRoomVoxels, cx, 9.6, cz, '#d8f3dc', 0.02, 1.1, 1.0, 1.1);
+        pushVoxel(glossyRoomVoxels, cx, 10.0, cz, '#52b788', 0.01, 0.8, 0.3, 0.8); // Green tea inside
+      }
+      // Pair of wooden chopsticks resting on a tiny ceramic chopstick rest (rx 4..7, rz 6.5)
+      pushVoxel(glossyRoomVoxels, 4.2, 9.15, 6.5, '#e63946', 0.01, 0.5, 0.35, 1.1);
+      for (let c = 0; c < 4; c++) {
+        pushVoxel(solidRoomVoxels, 4.2 + c * 0.75, 9.25, 6.25, '#e9c46a', 0.01, 0.8, 0.22, 0.22);
+        pushVoxel(solidRoomVoxels, 4.2 + c * 0.75, 9.25, 6.75, '#e9c46a', 0.01, 0.8, 0.22, 0.22);
+      }
+    }
+
+    buildWashitsuAndGarden();
+    buildHangingNoren();
+    buildCornerProps();
+    buildKotatsuAndTableProps();
+
+    const roomGroup = new THREE.Group();
+    scene.add(roomGroup);
+
+    const solidMesh = buildVoxelInstancedMesh(solidRoomVoxels, RV, roomSolidMaterial, true, true);
+    const glossyMesh = buildVoxelInstancedMesh(glossyRoomVoxels, RV, glossyPropMaterial, true, true);
+    const shojiPaperMesh = buildVoxelInstancedMesh(shojiPaperVoxels, RV, shojiPaperMaterial, false, true);
+    const warmGlowMesh = buildVoxelInstancedMesh(warmGlowVoxels, RV, warmEmissiveMaterial, false, false);
+    const heaterGlowMesh = buildVoxelInstancedMesh(heaterGlowVoxels, RV, heaterEmissiveMaterial, false, false);
+    const glassMesh = buildVoxelInstancedMesh(glassVoxels, RV, translucentIceMaterial, false, true);
+    const tvScreenMesh = buildVoxelInstancedMesh(tvPixels, RV, tvScreenEmissiveMaterial, false, false);
+
+    if (solidMesh) roomGroup.add(solidMesh);
+    if (glossyMesh) roomGroup.add(glossyMesh);
+    if (shojiPaperMesh) roomGroup.add(shojiPaperMesh);
+    if (warmGlowMesh) roomGroup.add(warmGlowMesh);
+    if (heaterGlowMesh) roomGroup.add(heaterGlowMesh);
+    if (glassMesh) roomGroup.add(glassMesh);
+    if (tvScreenMesh) roomGroup.add(tvScreenMesh);
+
+    const norenMesh = buildVoxelInstancedMesh(
+      norenData.map(n => ({ x: n.baseX, y: n.baseY, z: n.baseZ, color: n.color })),
+      RV,
+      plushMaterial,
+      true,
+      true
+    );
+    if (norenMesh) roomGroup.add(norenMesh);
+
+    function updateHangingNoren(time) {
+      if (!norenMesh) return;
+      for (let i = 0; i < norenData.length; i++) {
+        const n = norenData[i];
+        const waveZ = Math.sin(time * 1.5 + n.panelIdx * 1.1 + n.baseY * 0.14) * 0.75 * n.weight;
+        tempPos.set(n.baseX * RV, n.baseY * RV, (n.baseZ + waveZ) * RV);
+        tempQuat.identity();
+        tempScale.set(1, 1, 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        norenMesh.setMatrixAt(i, tempMatrix);
+      }
+      norenMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    function updateTVScreen(time) {
+      if (!tvScreenMesh) return;
+      // Animated New Year Kohaku / Festive Fireworks broadcast!
+      const burstX = 21.5 + Math.sin(time * 1.7) * 2.0;
+      const burstY = 12.0 + Math.cos(time * 2.1) * 1.5;
+      const radius = ((time * 3.2) % 4.2);
+
+      for (let i = 0; i < tvPixels.length; i++) {
+        const px = Math.floor(tvPixels[i].x);
+        const py = Math.floor(tvPixels[i].y);
+        // Red & white festive stage curtains at sides
+        if (px === 18 || px === 25) {
+          tempColor.set((py % 2 === 0) ? '#dc2626' : '#fef2f2');
+        } else if (py === 8) {
+          tempColor.set('#facc15'); // Gold stage floor
+        } else {
+          const d = Math.hypot(px - burstX, py - burstY);
+          if (Math.abs(d - radius) < 0.85) {
+            tempColor.set(((px + py) % 2 === 0) ? '#fbbf24' : '#f472b6');
+          } else {
+            tempColor.set('#1e1b4b');
+          }
+        }
+        tvScreenMesh.setColorAt(i, tempColor);
+      }
+      tvScreenMesh.instanceColor.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 6. DEFORMABLE CLOTH-LIKE KOTATSU BLANKET (Drapes & Bulges Around Fumos!)
+    // ============================================================================
+    // The thick quilted kotatsu futon drapes from under the tabletop (rx -10..13, rz -10..13)
+    // outward to the tatami floor (rx -15..18, rz -15..18).
+    // Whenever a Fumo is tucked under the edge or dragged under/out, the blanket vertices
+    // dynamically tent and bulge upward and outward over the plushie!
+    const blanketNodes = [];
+    function buildDeformableKotatsuBlanket() {
+      for (let x = -15; x <= 18; x++) {
+        for (let z = -15; z <= 18; z++) {
+          // Chebyshev distance from kotatsu center (1.5, 1.5) in room voxels
+          const dx = Math.abs(x - 1.5);
+          const dz = Math.abs(z - 1.5);
+          const dist = Math.max(dx, dz);
+          const euclid = Math.hypot((x - 1.5) * 0.85, (z - 1.5) * 0.85);
+
+          // Skip deep interior directly under the solid tabletop center to save instances
+          if (dist < 8.5) continue;
+          if (dist > 16.5 || euclid > 18.2) continue;
+
+          // Smooth cosine drape profile from ry = 7.6 (under tabletop rim) down to ry = 0.55 (on tatami)
+          const t = THREE.MathUtils.clamp((dist - 8.5) / 7.5, 0, 1);
+          const baseRy = 0.55 + (1.0 - Math.pow(t, 1.35)) * 7.1;
+
+          // Traditional Japanese crimson/gold Seigaiha / patchwork quilt pattern
+          let col = '#b91c1c'; // Warm kotatsu red
+          if (dist >= 15.5) {
+            col = '#f8fafc'; // Fluffy white fleece trim along the bottom hem
+          } else if (((x + 20) % 4 === 0) && ((z + 20) % 4 === 0)) {
+            col = '#fbbf24'; // Gold quilted stitch tuft
+          } else if (((Math.floor((x + 20) / 4) + Math.floor((z + 20) / 4)) % 2 === 0)) {
+            col = '#991b1b'; // Alternating deep crimson quilt square
+          }
+
+          blanketNodes.push({
+            wx: (x + 0.5) * RV,
+            baseWy: baseRy * RV,
+            wz: (z + 0.5) * RV,
+            curWy: baseRy * RV,
+            velWy: 0,
+            drapeFactor: Math.sin(t * Math.PI * 0.85), // Maximum deformability along the hanging skirt!
+            color: varyColor(col, x, Math.round(baseRy), z, 0.03)
+          });
+        }
+      }
+    }
+    buildDeformableKotatsuBlanket();
+
+    const blanketGeom = createSoftVoxelGeometry(RV * 1.12);
+    const blanketMesh = new THREE.InstancedMesh(blanketGeom, plushMaterial, blanketNodes.length);
+    blanketMesh.castShadow = true;
+    blanketMesh.receiveShadow = true;
+    for (let i = 0; i < blanketNodes.length; i++) {
+      blanketMesh.setColorAt(i, blanketNodes[i].color);
+    }
+    if (blanketMesh.instanceColor) blanketMesh.instanceColor.needsUpdate = true;
+    scene.add(blanketMesh);
+
+    function updateKotatsuBlanketCloth(dt, time) {
+      for (let i = 0; i < blanketNodes.length; i++) {
+        const node = blanketNodes[i];
+        let targetY = node.baseWy;
+
+        if (node.drapeFactor > 0.05) {
+          // Check proximity to all Fumos so the blanket bulges over tucked legs, peeking plushies, or dragged fumos!
+          let maxBulge = 0;
+          for (let f = 0; f < fumos.length; f++) {
+            const fumo = fumos[f];
+            // Ignore fumos high above the table (like Cirno sitting on top of the tabletop) unless pushed down into the skirt
+            if (fumo.pos.y > 1.85) continue;
+
+            const dx = node.wx - fumo.pos.x;
+            const dz = node.wz - fumo.pos.z;
+            const dSq = dx * dx + dz * dz;
+            const influenceR = fumo.isDragged ? 1.35 : 1.05;
+
+            if (dSq < influenceR * influenceR) {
+              const d = Math.sqrt(dSq);
+              const falloff = 1.0 - (d / influenceR);
+              const smoothFalloff = falloff * falloff * (3 - 2 * falloff);
+              const fumoHeight = Math.min(1.65, fumo.pos.y + fumo.radius * 0.95);
+              const bulge = smoothFalloff * node.drapeFactor * (0.48 + Math.max(0, fumoHeight * 0.42));
+              if (bulge > maxBulge) maxBulge = bulge;
+            }
+          }
+          // Subtle warm heater convection ripple
+          const ripple = Math.sin(time * 2.0 + node.wx * 2.5 + node.wz * 2.5) * 0.015 * node.drapeFactor;
+          targetY = Math.min(2.18, node.baseWy + maxBulge + ripple);
+        }
+
+        // Spring-damped cloth response
+        const force = (targetY - node.curWy) * 145.0 - node.velWy * 14.0;
+        node.velWy += force * dt;
+        node.curWy += node.velWy * dt;
+
+        tempPos.set(node.wx, node.curWy, node.wz);
+        tempQuat.identity();
+        const stretchY = 1.0 + Math.max(0, (node.curWy - node.baseWy) * 1.4);
+        tempScale.set(1.04, stretchY, 1.04);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        blanketMesh.setMatrixAt(i, tempMatrix);
+      }
+      blanketMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 7. INTERACTIVE ROLLING MIKAN ORANGES (Click or Knock off the Kotatsu!)
+    // ============================================================================
+    const allMikanMeshes = [];
+    const mikans = [];
+
+    class RollingMikan {
+      constructor(homePos) {
+        this.homePos = homePos.clone();
+        this.pos = homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.rot = new THREE.Euler(0, Math.random() * Math.PI * 2, 0);
+        this.radius = 0.21;
+        this.isGrounded = true;
+
+        this.group = new THREE.Group();
+        // Voxel cluster for a cute plump Mikan orange + green stem leaf
+        const mVoxels = [
+          { x: 0, y: 0, z: 0, color: '#f97316', sx: 2.1, sy: 1.65, sz: 2.1 },
+          { x: 0, y: 0.75, z: 0, color: '#fb923c', sx: 1.4, sy: 0.5, sz: 1.4 },
+          { x: 0, y: -0.75, z: 0, color: '#ea580c', sx: 1.4, sy: 0.5, sz: 1.4 },
+          { x: 0.15, y: 0.95, z: 0, color: '#22c55e', sx: 0.65, sy: 0.35, sz: 0.45 } // Green leaf
+        ];
+        this.mesh = buildVoxelInstancedMesh(mVoxels, 0.14, glossyPropMaterial, true, true);
+        this.mesh.userData.mikan = this;
+        this.group.add(this.mesh);
+        scene.add(this.group);
+        allMikanMeshes.push(this.mesh);
+        this.sync();
+      }
+
+      nudge(dirVec = null) {
+        if (!dirVec) {
+          const ang = Math.random() * Math.PI * 2;
+          dirVec = new THREE.Vector3(Math.cos(ang) * 3.8, 2.2, Math.sin(ang) * 3.8);
+        }
+        this.vel.copy(dirVec);
+        this.isGrounded = false;
+        soundFX.playPickup();
+      }
+
+      resetToHome() {
+        this.pos.copy(this.homePos);
+        this.vel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.sync();
+      }
+
+      update(dt) {
+        this.vel.y -= 20.0 * dt;
+        this.vel.multiplyScalar(Math.pow(0.985, dt * 60));
+        this.pos.addScaledVector(this.vel, dt);
+
+        // Roll rotation proportional to horizontal velocity
+        this.rot.z -= (this.vel.x / this.radius) * dt;
+        this.rot.x += (this.vel.z / this.radius) * dt;
+
+        // Check if over the Kotatsu Tabletop: X [-2.35, 3.35], Z [-2.35, 3.35], top Y = 2.25
+        const onTableXZ = (this.pos.x >= -2.32 && this.pos.x <= 3.32 && this.pos.z >= -2.32 && this.pos.z <= 3.32);
+        const supportY = (onTableXZ && this.pos.y >= 2.05) ? (2.25 + this.radius * 0.78) : (this.radius * 0.78);
+
+        if (this.pos.y <= supportY) {
+          const impact = -this.vel.y;
+          this.pos.y = supportY;
+          if (impact > 1.2) {
+            this.vel.y = impact * 0.42;
+            soundFX.playBounce(impact * 0.05);
+          } else {
+            this.vel.y = 0;
+            this.vel.x *= 0.92;
+            this.vel.z *= 0.92;
+          }
+        }
+
+        // Room bounds
+        this.pos.x = THREE.MathUtils.clamp(this.pos.x, -8.5, 9.0);
+        this.pos.z = THREE.MathUtils.clamp(this.pos.z, -8.5, 9.0);
+
+        this.sync();
+      }
+
+      sync() {
+        this.group.position.copy(this.pos);
+        this.group.rotation.copy(this.rot);
+      }
+    }
+
+    // Place 6 interactive Mikan oranges on the Kotatsu tabletop ready to roll off!
+    const mikanStartSpots = [
+      new THREE.Vector3(0.45, 2.42, 0.85),
+      new THREE.Vector3(0.95, 2.42, 0.35),
+      new THREE.Vector3(-0.95, 2.42, -0.55),
+      new THREE.Vector3(1.55, 2.42, 1.35),
+      new THREE.Vector3(-1.35, 2.42, 1.45),
+      new THREE.Vector3(0.25, 2.42, -1.35)
+    ];
+    mikanStartSpots.forEach(spot => mikans.push(new RollingMikan(spot)));
+
+    // ============================================================================
+    // 8. CONTINUOUS SNOWFALL & ACCUMULATING SNOWDRIFTS + CURLING STEAM
+    // ============================================================================
+    // 8A. Continuous Snowfall outside the Window (rx [-56..-36], rz [-26..8], ry [9..38])
+    const SNOWFLAKE_COUNT = 160;
+    const snowflakes = [];
+    const snowGeom = new THREE.BoxGeometry(0.11, 0.11, 0.11);
+    const snowMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
+    const snowMesh = new THREE.InstancedMesh(snowGeom, snowMat, SNOWFLAKE_COUNT);
+    for (let i = 0; i < SNOWFLAKE_COUNT; i++) {
+      snowflakes.push({
+        x: -13.8 + Math.random() * 4.7,
+        y: 2.2 + Math.random() * 7.5,
+        z: -6.5 + Math.random() * 8.2,
+        vy: 1.1 + Math.random() * 1.1,
+        swayPhase: Math.random() * Math.PI * 2,
+        scale: 0.65 + Math.random() * 0.85
+      });
+    }
+    scene.add(snowMesh);
+
+    // Accumulating Snow Pile on the Window Ledge & Garden (Grows higher as snow lands!)
+    const LEDGE_SNOW_COUNT = 64;
+    const ledgeSnowData = [];
+    const ledgeSnowMesh = new THREE.InstancedMesh(createSoftVoxelGeometry(RV), roomSolidMaterial, LEDGE_SNOW_COUNT);
+    ledgeSnowMesh.receiveShadow = true;
+    for (let i = 0; i < LEDGE_SNOW_COUNT; i++) {
+      const isLedge = (i < 32);
+      const z = isLedge ? (-23.5 + i * 0.92) * RV : (-22.0 + (i - 32) * 0.88) * RV;
+      const x = isLedge ? (-36.2 * RV) : ((-40.5 - (i % 5) * 1.8) * RV);
+      const baseY = isLedge ? (10.1 * RV) : (9.1 * RV);
+      ledgeSnowData.push({
+        x, baseY, z,
+        accumHeight: 0.35 + Math.random() * 0.35,
+        maxHeight: isLedge ? 2.4 : 2.8
+      });
+      ledgeSnowMesh.setColorAt(i, new THREE.Color('#ffffff'));
+    }
+    if (ledgeSnowMesh.instanceColor) ledgeSnowMesh.instanceColor.needsUpdate = true;
+    scene.add(ledgeSnowMesh);
+
+    function updateSnowfallAndAccumulation(time, dt) {
+      for (let i = 0; i < SNOWFLAKE_COUNT; i++) {
+        const s = snowflakes[i];
+        s.y -= s.vy * dt;
+        s.x += Math.sin(time * 1.4 + s.swayPhase) * 0.25 * dt;
+        s.z += Math.cos(time * 1.1 + s.swayPhase) * 0.35 * dt;
+
+        if (s.y < 2.35) {
+          s.y = 9.4;
+          s.x = -13.8 + Math.random() * 4.7;
+          s.z = -6.5 + Math.random() * 8.2;
+          // Increment a random snowdrift voxel on the window ledge or garden!
+          const pileIdx = Math.floor(Math.random() * LEDGE_SNOW_COUNT);
+          const pile = ledgeSnowData[pileIdx];
+          pile.accumHeight = Math.min(pile.maxHeight, pile.accumHeight + 0.035);
+        }
+
+        tempPos.set(s.x, s.y, s.z);
+        tempQuat.setFromEuler(tempEuler.set(time + s.swayPhase, time * 0.8, 0));
+        tempScale.set(s.scale, s.scale, s.scale);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        snowMesh.setMatrixAt(i, tempMatrix);
+      }
+      snowMesh.instanceMatrix.needsUpdate = true;
+
+      for (let i = 0; i < LEDGE_SNOW_COUNT; i++) {
+        const p = ledgeSnowData[i];
+        tempPos.set(p.x, p.baseY + (p.accumHeight * RV * 0.45), p.z);
+        tempQuat.identity();
+        tempScale.set(1.15, p.accumHeight, 1.15);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        ledgeSnowMesh.setMatrixAt(i, tempMatrix);
+      }
+      ledgeSnowMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // 8B. Curling Voxel Steam from the Iron Kettle, Tea Cups & Mokou's Mug!
+    const STEAM_COUNT = 42;
+    const steamParticles = [];
+    const steamGeom = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+    const steamMat = new THREE.MeshBasicMaterial({
+      color: 0xf8fafc,
+      transparent: true,
+      opacity: 0.42
+    });
+    const steamMesh = new THREE.InstancedMesh(steamGeom, steamMat, STEAM_COUNT);
+    for (let i = 0; i < STEAM_COUNT; i++) {
+      steamParticles.push({
+        sourceIdx: i % 3, // 0 = Iron Kettle spout, 1 = Mokou's Mug, 2 = Kotatsu Tea Tray
+        age: Math.random(),
+        speed: 0.45 + Math.random() * 0.25,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+    scene.add(steamMesh);
+
+    let mokouFumoRef = null;
+    function updateCurlingSteam(time, dt) {
+      for (let i = 0; i < STEAM_COUNT; i++) {
+        const st = steamParticles[i];
+        st.age += st.speed * dt;
+        if (st.age > 1.0) st.age -= 1.0;
+
+        let ox = -4.65, oy = 2.25, oz = 4.25; // Default: Iron Kettle spout
+        if (st.sourceIdx === 1 && mokouFumoRef) {
+          // Rise directly from Mokou's steaming mug even when you move her!
+          ox = mokouFumoRef.pos.x + 0.35;
+          oy = mokouFumoRef.pos.y + 0.65;
+          oz = mokouFumoRef.pos.z + 0.35;
+        } else if (st.sourceIdx === 2) {
+          // Kotatsu green tea cup
+          ox = 1.25;
+          oy = 2.55;
+          oz = -1.0;
+        }
+
+        const rise = st.age * 1.85;
+        const curlR = st.age * 0.24;
+        const px = ox + Math.sin(time * 2.6 + st.age * 5.0 + st.phase) * curlR;
+        const py = oy + rise;
+        const pz = oz + Math.cos(time * 2.2 + st.age * 5.0 + st.phase) * curlR;
+
+        const scale = Math.sin(st.age * Math.PI) * 1.45;
+        tempPos.set(px, py, pz);
+        tempQuat.setFromEuler(tempEuler.set(time + st.phase, time * 1.2, 0));
+        tempScale.set(scale, scale, scale);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        steamMesh.setMatrixAt(i, tempMatrix);
+      }
+      steamMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // 8C. Squeeze Pop Particles
+    const POP_MAX = 48;
+    const popParticles = [];
+    const popGeom = new THREE.BoxGeometry(0.11, 0.11, 0.11);
+    const popMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const popMesh = new THREE.InstancedMesh(popGeom, popMat, POP_MAX);
+    for (let i = 0; i < POP_MAX; i++) {
+      popParticles.push({ active: false, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, maxLife: 1, color: new THREE.Color('#ff85a1') });
+      tempMatrix.makeScale(0, 0, 0);
+      popMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(popMesh);
+
+    function spawnSqueezeParticles(origin, accentHex) {
+      const palette = [accentHex, '#fb923c', '#fde047', '#ffffff'];
+      let spawned = 0;
+      for (let i = 0; i < POP_MAX && spawned < 12; i++) {
+        const p = popParticles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.45 + Math.random() * 0.25;
+          p.pos.copy(origin).add(new THREE.Vector3(0, 0.9, 0));
+          const angle = (spawned / 12) * Math.PI * 2 + Math.random() * 0.3;
+          const speed = 2.2 + Math.random() * 2.0;
+          p.vel.set(Math.cos(angle) * speed, 2.5 + Math.random() * 2.2, Math.sin(angle) * speed);
+          p.color.set(palette[spawned % palette.length]);
+          popMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (popMesh.instanceColor) popMesh.instanceColor.needsUpdate = true;
+    }
+
+    function updatePopParticles(dt) {
+      let dirty = false;
+      for (let i = 0; i < POP_MAX; i++) {
+        const p = popParticles[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          popMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= 7.5 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const s = 1.0 - (p.life / p.maxLife);
+        tempQuat.setFromEuler(tempEuler.set(p.life * 8, p.life * 6, 0));
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        popMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) popMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 9. TOUHOU FUMO VOXEL PLUSHIE BUILDER & SOFT-BODY PHYSICS CLASS
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const fumos = [];
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.emoji = config.emoji || '🎀';
+        this.accentColor = config.accentColor || '#ef4444';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.082 * this.scaleFactor; // Fine voxel size per fumo block
+        this.radius = 0.85 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+        this.isSleeping = Boolean(config.isSleeping);
+
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isDragged = false;
+
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        // Optional floating companion pivot (e.g., Youmu's floating Myon ghost orb)
+        this.companionPivot = new THREE.Group();
+        this.squashGroup.add(this.companionPivot);
+
+        this.buildCharacterVoxels(config);
+        this.syncTransform(0);
+        scene.add(this.root);
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingSolidVoxels = [];
+        const wingGlowVoxels = [];
+        const companionVoxels = [];
+
+        const skinBase = '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false) => {
+          const seamDarken = (isSeam && ((Math.abs(x + y + z) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z,
+            color: varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // 1. STUBBY SITTING TORSO
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain;
+
+              if (y === 1 && z >= 1 && this.id !== 'mokou') col = '#ffffff';
+              if (cfg.hasWhiteApron && z >= 1 && Math.abs(x) <= 2 && y <= 5) {
+                col = '#fcfcfc';
+              }
+              if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                col = '#ffffff';
+                if (Math.abs(x) <= 1 && y === 5) col = cfg.tieColor || '#ef4444';
+              }
+              // Yuyuko pale blue kimono with white & deep blue trim
+              if (this.id === 'yuyuko' && z >= 2 && x === 0 && y <= 5) {
+                col = '#3b82f6';
+              }
+              // Mokou white shirt top + red suspender straps + white paper talismans (ofuda) on pants
+              if (this.id === 'mokou') {
+                if (y >= 4) {
+                  col = (z >= 2 && Math.abs(x) === 2) ? '#dc2626' : '#ffffff'; // Red suspenders over white shirt
+                } else {
+                  col = ((x + y) % 3 === 0 && z >= 2) ? '#fef9c3' : '#b91c1c'; // Paper talismans on red pants
+                }
+              }
+
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        // 2. SHORT DANGLING ARMS + HELD PROPS (Rice Bowl for Yuyuko, Steaming Mug for Mokou!)
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || '#ffffff';
+                if (y === -3) col = skinBase;
+                else if (this.id === 'reimu' && y === -1) col = '#e63946';
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        // Yuyuko holds a brimming porcelain Rice Bowl (Chawan) with fluffy white rice in her right hand!
+        if (this.id === 'yuyuko') {
+          for (let rx = -1; rx <= 1; rx++) {
+            for (let rz = 1; rz <= 3; rz++) {
+              addPlushVoxel(rightArmVoxels, rx, -3.2, rz, '#2563eb'); // Blue & white rice bowl
+              addPlushVoxel(rightArmVoxels, rx, -2.3, rz, '#ffffff'); // Fluffy white rice mound
+            }
+          }
+          addPlushVoxel(rightArmVoxels, 0, -1.5, 2, '#ffffff'); // Top rice peak
+          addPlushVoxel(rightArmVoxels, 1.2, -1.6, 2.5, '#d4a373'); // Chopstick tip
+        }
+
+        // Mokou holds a warm ceramic Steaming Mug in her right hand!
+        if (this.id === 'mokou') {
+          for (let mx = -1; mx <= 1; mx++) {
+            for (let mz = 1; mz <= 3; mz++) {
+              for (let my = -3.5; my <= -1.5; my += 1.0) {
+                const isTea = (my === -1.5 && mx === 0 && mz === 2);
+                addPlushVoxel(rightArmVoxels, mx * 0.85, my, mz * 0.85, isTea ? '#7f4f24' : '#f8fafc');
+              }
+            }
+          }
+        }
+
+        // 3. SHORT SITTING / DANGLING LEGS WITH SHOES
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = '#ffffff';
+                if (z === 0) col = skinBase;
+                if (this.id === 'mokou' && z <= 2) col = '#b91c1c'; // Mokou red pants
+                if (z >= 3) col = cfg.shoeColor || '#2b2d42';
+                if (z === 4 && y === 1 && x === 0) col = '#ffffff';
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        // 4. OVERSIZED ROUND FUMO HEAD, ICONIC 'ᗜˬᗜ' FACE (or sleeping 'ㅡˬㅡ' face), HAIR & HEADWEAR
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                if (this.isSleeping) {
+                  // Peaceful sleeping Fumo closed eyes (ㅡ ㅡ)
+                  if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y === 5) {
+                    col = '#1f141e';
+                  } else if (Math.abs(x) === 4 && y === 4) {
+                    col = blushCol;
+                  } else if (y === 2 && Math.abs(x) <= 1) {
+                    col = smileCol;
+                  }
+                } else {
+                  // Classic 'ᗜˬᗜ' Fumo Eyes!
+                  if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                    if (y === 6) col = '#1f141e';
+                    else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                    else col = cfg.eyeColor;
+                  } else if (Math.abs(x) === 4 && y === 3) {
+                    col = blushCol;
+                  } else if (y === 2 && Math.abs(x) <= 1) {
+                    col = (x === 0) ? '#e07a7a' : smileCol;
+                  }
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        // Character-Specific Hair & Accessories
+        if (this.id === 'reimu') {
+          for (const side of [-1, 1]) {
+            for (let y = -1; y <= 5; y++) {
+              const tubeCol = (y === 5) ? '#e63946' : ((y >= 1 && y <= 4) ? '#ffffff' : cfg.hairColor);
+              addPlushVoxel(headVoxels, side * 6.8, y, 2.2, tubeCol);
+              addPlushVoxel(headVoxels, side * 6.8, y, 3.0, tubeCol);
+            }
+          }
+          for (let bx = -7; bx <= 7; bx++) {
+            const wingHeight = Math.min(4, Math.floor(Math.abs(bx) * 0.7) + 1);
+            for (let by = -wingHeight; by <= wingHeight; by++) {
+              addPlushVoxel(headVoxels, bx, 12.2 + by * 0.75, -1.5 - Math.abs(bx) * 0.15, '#d90429');
+            }
+          }
+        }
+
+        if (this.id === 'cirno') {
+          for (let bx = -6; bx <= 6; bx++) {
+            const h = Math.min(3, Math.floor(Math.abs(bx) * 0.65) + 1);
+            for (let by = -h; by <= h; by++) {
+              addPlushVoxel(headVoxels, bx, 10.5 + by * 0.75, -4.8, '#1d4ed8');
+            }
+          }
+          const wingAngles = [0.45, 0.05, -0.35];
+          for (const side of [-1, 1]) {
+            for (let w = 0; w < 3; w++) {
+              const ang = wingAngles[w];
+              for (let r = 1; r <= 7; r++) {
+                const wx = side * (1.2 + Math.cos(ang) * r * 1.05);
+                const wy = 1.0 + Math.sin(ang) * r * 1.05;
+                const wz = -0.5 - r * 0.15;
+                wingGlowVoxels.push({
+                  x: wx, y: wy, z: wz,
+                  color: varyColor(r > 5 ? '#e0f2fe' : '#38bdf8', wx, wy, wz, 0.02),
+                  sx: 1.1, sy: 0.85, sz: 0.6
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'marisa') {
+          // Left side blonde braid with white ribbon (her big witch hat is resting on the tatami beside her!)
+          for (let y = -1; y <= 5; y++) {
+            addPlushVoxel(headVoxels, -6.6, y, 2.8, y === 0 ? '#ffffff' : cfg.hairColor);
+          }
+          // Cute small white hair ribbon on top-left of head when hat is off
+          for (let bx = -4; bx <= -1; bx++) {
+            addPlushVoxel(headVoxels, bx, 11.2, 1.5, '#ffffff');
+          }
+        }
+
+        if (this.id === 'yuyuko') {
+          // Wavy pink side curls
+          for (const side of [-1, 1]) {
+            for (let y = 0; y <= 4; y++) {
+              addPlushVoxel(headVoxels, side * 6.7, y, 2.0 + Math.sin(y) * 0.6, cfg.hairColor);
+            }
+          }
+          // Iconic Pale Blue Mob Cap + White Triangular Ghost Headband (Hitaikakushi) with Red Spirit Crest
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -6; hz <= 5; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.8 && r >= 4.4) {
+                addPlushVoxel(headVoxels, hx, 11.2, hz, '#bae6fd');
+              }
+            }
+          }
+          // Front triangular ghost cap with red whirlpool crest
+          for (let ty = 0; ty <= 4; ty++) {
+            const halfW = Math.max(0, 3 - Math.floor(ty * 0.7));
+            for (let tx = -halfW; tx <= halfW; tx++) {
+              const isCrest = (tx === 0 && (ty === 1 || ty === 2));
+              addPlushVoxel(headVoxels, tx, 10.2 + ty * 0.85, 4.8 - ty * 0.25, isCrest ? '#ef4444' : '#ffffff');
+            }
+          }
+        }
+
+        if (this.id === 'youmu') {
+          // Black Half-Phantom Bow Headband on right side of silver bob
+          for (let bx = -5; bx <= 1; bx++) {
+            addPlushVoxel(headVoxels, bx - 2.0, 11.5, 1.5, '#18181b');
+            if (Math.abs(bx) >= 2) {
+              addPlushVoxel(headVoxels, bx - 2.0, 12.3, 1.5, '#18181b');
+            }
+          }
+          // Floating White Ghost Orb (Myon) beside Youmu!
+          for (let gx = -2; gx <= 2; gx++) {
+            for (let gy = -2; gy <= 2; gy++) {
+              for (let gz = -2; gz <= 2; gz++) {
+                if (Math.hypot(gx, gy, gz) <= 2.2) {
+                  companionVoxels.push({
+                    x: 9.5 + gx * 0.75,
+                    y: 7.5 + gy * 0.75,
+                    z: 1.5 + gz * 0.75,
+                    color: new THREE.Color('#f8fafc')
+                  });
+                }
+              }
+            }
+          }
+          // Swirling ghost tail on Myon
+          companionVoxels.push({ x: 11.2, y: 9.2, z: 0.5, color: new THREE.Color('#e2e8f0') });
+          companionVoxels.push({ x: 12.0, y: 10.0, z: 0.0, color: new THREE.Color('#cbd5e1') });
+        }
+
+        if (this.id === 'mokou') {
+          // Long flowing white hair down her back studded with multiple red ribbons (ofuda bows)
+          for (let hy = -5; hy <= 8; hy++) {
+            for (let hx = -5; hx <= 5; hx++) {
+              const isBow = ((hy === 7 || hy === 2 || hy === -2) && Math.abs(hx) <= 2);
+              addPlushVoxel(headVoxels, hx, hy, -5.8 - (8 - hy) * 0.12, isBow ? '#dc2626' : cfg.hairColor);
+            }
+          }
+          // Big red bow on top-back of head
+          for (let bx = -5; bx <= 5; bx++) {
+            addPlushVoxel(headVoxels, bx, 11.8, -2.2, '#dc2626');
+          }
+        }
+
+        if (this.id === 'chen') {
+          // Cute Cat Ears + Green Mob Cap peeking out from under the kotatsu blanket!
+          for (const side of [-1, 1]) {
+            addPlushVoxel(headVoxels, side * 4.5, 11.8, 1.5, '#4a2c1d');
+            addPlushVoxel(headVoxels, side * 4.5, 12.7, 1.5, '#4a2c1d');
+            addPlushVoxel(headVoxels, side * 4.2, 11.8, 2.2, '#fda4af'); // Pink inner ear
+          }
+          for (let hx = -6; hx <= 6; hx++) {
+            for (let hz = -6; hz <= 4; hz++) {
+              if (Math.hypot(hx, hz) <= 6.2 && Math.hypot(hx, hz) >= 4.2) {
+                addPlushVoxel(headVoxels, hx, 11.0, hz, '#15803d');
+              }
+            }
+          }
+        }
+
+        if (this.id === 'shinmyoumaru') {
+          // Tiny Miracle Mallet / Bowl Hat on the sleeping Mikan-Bowl Fumo!
+          for (let hx = -5; hx <= 5; hx++) {
+            for (let hz = -5; hz <= 5; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 5.2) {
+                addPlushVoxel(headVoxels, hx, 11.4, hz, r >= 4.0 ? '#fbbf24' : '#dc2626');
+              }
+            }
+          }
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allFumoRaycastMeshes.push(m);
+          }
+          return m;
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        registerPart(wingSolidVoxels, this.wingsPivot);
+        if (wingGlowVoxels.length > 0) {
+          registerPart(wingGlowVoxels, this.wingsPivot, translucentIceMaterial);
+        }
+        if (companionVoxels.length > 0) {
+          registerPart(companionVoxels, this.companionPivot, translucentIceMaterial);
+        }
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.52, this.squash - 0.42 * strength);
+        this.squashVel = -3.5 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 11 * strength;
+        this.limbPitch = -0.65 * strength;
+        this.limbPitchVel = -6.0 * strength;
+        spawnSqueezeParticles(this.pos, this.accentColor);
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      resetToHome() {
+        this.pos.copy(this.homePos);
+        this.vel.set(0, 0, 0);
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.squeeze(0.75);
+      }
+
+      updatePhysics(dt, time) {
+        const squashStiff = 210.0;
+        const squashDamp = 11.5;
+        const squashForce = (1.0 - this.squash) * squashStiff - this.squashVel * squashDamp;
+        this.squashVel += squashForce * dt;
+        this.squash += this.squashVel * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash, 0.45, 1.55);
+
+        const headStiff = 140.0;
+        const headDamp = 7.5;
+        const idleHeadBob = Math.sin(time * 2.2 + this.homePos.x) * 0.028;
+        this.headPitchVel += ((idleHeadBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        const targetLimbPitch = (this.isDragged || !this.isGrounded) ? 0.58 : 0.0;
+        const limbStiff = 120.0;
+        const limbDamp = 8.0;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * limbStiff - this.limbPitchVel * limbDamp) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * limbStiff - this.limbRollVel * limbDamp) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.8, 0.9);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+
+        if (!this.isDragged) {
+          this.vel.y -= 24.0 * dt;
+          this.vel.multiplyScalar(Math.pow(0.985, dt * 60));
+
+          this.pos.addScaledVector(this.vel, dt);
+
+          this.yaw += this.angVel.y * dt;
+          this.pitch += this.angVel.x * dt;
+          this.roll += this.angVel.z * dt;
+          this.angVel.multiplyScalar(Math.pow(0.92, dt * 60));
+
+          this.isGrounded = false;
+
+          if (this.pos.y < 0) {
+            const impact = -this.vel.y;
+            this.pos.y = 0;
+            if (impact > 1.8) {
+              this.vel.y = impact * 0.42;
+              this.squashVel -= Math.min(9.0, impact * 0.95);
+              this.headPitchVel += (Math.random() - 0.5) * impact * 2.0;
+              this.headRollVel += (Math.random() - 0.5) * impact * 2.0;
+              soundFX.playBounce(impact * 0.08);
+            } else {
+              this.vel.y = 0;
+              this.isGrounded = true;
+            }
+            this.vel.x *= 0.82;
+            this.vel.z *= 0.82;
+          }
+
+          const minBound = -8.2;
+          const maxBound = 9.25;
+          if (this.pos.x < minBound) {
+            this.pos.x = minBound;
+            const imp = Math.abs(this.vel.x);
+            this.vel.x = imp * 0.48;
+            if (imp > 2.0) { this.squashVel -= imp * 0.5; soundFX.playBounce(imp * 0.06); }
+          } else if (this.pos.x > maxBound) {
+            this.pos.x = maxBound;
+            this.vel.x = -Math.abs(this.vel.x) * 0.48;
+          }
+          if (this.pos.z < minBound) {
+            this.pos.z = minBound;
+            const imp = Math.abs(this.vel.z);
+            this.vel.z = imp * 0.48;
+            if (imp > 2.0) { this.squashVel -= imp * 0.5; soundFX.playBounce(imp * 0.06); }
+          } else if (this.pos.z > maxBound) {
+            this.pos.z = maxBound;
+            this.vel.z = -Math.abs(this.vel.z) * 0.48;
+          }
+
+          const r = this.radius * 0.72;
+          const centerY = this.pos.y + r;
+
+          for (let i = 0; i < furnitureColliders.length; i++) {
+            const box = furnitureColliders[i];
+            // Allow fumos on the tatami floor to tuck their legs under the kotatsu blanket rim!
+            if (box.name === 'kotatsu_table' && this.pos.y < 0.65 && this.vel.y <= 0.5) {
+              continue;
+            }
+
+            const cx = THREE.MathUtils.clamp(this.pos.x, box.min.x, box.max.x);
+            const cy = THREE.MathUtils.clamp(centerY, box.min.y, box.max.y);
+            const cz = THREE.MathUtils.clamp(this.pos.z, box.min.z, box.max.z);
+
+            const dx = this.pos.x - cx;
+            const dy = centerY - cy;
+            const dz = this.pos.z - cz;
+            const distSq = dx * dx + dy * dy + dz * dz;
+
+            if (distSq < r * r) {
+              const dist = Math.sqrt(distSq);
+              if (centerY >= box.max.y - 0.25 && this.vel.y <= 0.5) {
+                const impact = -this.vel.y;
+                this.pos.y = box.max.y;
+                if (impact > 2.0) {
+                  this.vel.y = impact * 0.38;
+                  this.squashVel -= Math.min(8.5, impact * 0.85);
+                  this.headPitchVel += (Math.random() - 0.5) * impact * 1.8;
+                  soundFX.playBounce(impact * 0.08);
+                } else {
+                  this.vel.y = 0;
+                  this.isGrounded = true;
+                }
+                this.vel.x *= 0.80;
+                this.vel.z *= 0.80;
+              } else if (dist > 0.0001) {
+                const nx = dx / dist;
+                const ny = dy / dist;
+                const nz = dz / dist;
+                const pen = r - dist;
+                this.pos.x += nx * pen;
+                this.pos.y = Math.max(0, this.pos.y + ny * pen);
+                this.pos.z += nz * pen;
+
+                const vn = this.vel.x * nx + this.vel.y * ny + this.vel.z * nz;
+                if (vn < 0) {
+                  const imp = -vn;
+                  this.vel.x -= 1.42 * vn * nx;
+                  this.vel.y -= 1.42 * vn * ny;
+                  this.vel.z -= 1.42 * vn * nz;
+                  if (imp > 2.0) {
+                    this.squashVel -= Math.min(6.0, imp * 0.55);
+                    soundFX.playBounce(imp * 0.06);
+                  }
+                }
+              }
+            }
+          }
+
+          if (this.isGrounded) {
+            this.pitch = THREE.MathUtils.lerp(this.pitch, 0, Math.min(1, dt * 9.5));
+            this.roll = THREE.MathUtils.lerp(this.roll, 0, Math.min(1, dt * 9.5));
+            this.angVel.multiplyScalar(0.75);
+          }
+        }
+
+        // Knock Mikan oranges if a Fumo bumps into them!
+        for (let m = 0; m < mikans.length; m++) {
+          const mk = mikans[m];
+          const dx = mk.pos.x - this.pos.x;
+          const dy = mk.pos.y - (this.pos.y + this.radius * 0.5);
+          const dz = mk.pos.z - this.pos.z;
+          const d = Math.hypot(dx, dy, dz);
+          if (d < this.radius + mk.radius) {
+            mk.vel.x += (dx / Math.max(0.1, d)) * 4.5 + this.vel.x * 0.5;
+            mk.vel.y = Math.max(mk.vel.y, 1.8);
+            mk.vel.z += (dz / Math.max(0.1, d)) * 4.5 + this.vel.z * 0.5;
+          }
+        }
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+
+        this.leftArmPivot.rotation.set(this.limbPitch, 0, 0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.rightArmPivot.rotation.set(this.limbPitch, 0, -0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+
+        const wingFlutter = Math.sin(time * 3.8 + this.homePos.x) * 0.06 + (1.0 - this.squash) * 0.35;
+        this.wingsPivot.rotation.x = wingFlutter;
+
+        // Bob Youmu's floating ghost orb (Myon)
+        if (this.id === 'youmu') {
+          this.companionPivot.position.y = Math.sin(time * 3.2) * 0.14;
+          this.companionPivot.rotation.y = Math.sin(time * 1.5) * 0.18;
+        }
+      }
+    }
+
+    // ============================================================================
+    // 10. INSTANTIATE THE 8 TOUHOU FUMOS AROUND THE WINTER KOTATSU
+    // ============================================================================
+    const fumoConfigs = [
+      {
+        id: 'cirno',
+        name: 'Cirno (Sitting on the Kotatsu!)',
+        emoji: '❄️',
+        accentColor: '#38bdf8',
+        hairColor: '#7dd3fc',
+        eyeColor: '#0284c7',
+        outfitMain: '#2563eb',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#1e3a8a',
+        hasWhiteApron: false,
+        // Sitting happily right on top of the Kotatsu table!
+        homePos: new THREE.Vector3(-1.15, 2.25, -1.15),
+        homeYaw: 0.72,
+        pitchAudio: 1.15
+      },
+      {
+        id: 'reimu',
+        name: 'Reimu Hakurei (Tucked Under Blanket)',
+        emoji: '🍵',
+        accentColor: '#ef4444',
+        hairColor: '#2b1e23',
+        eyeColor: '#991b1b',
+        outfitMain: '#dc2626',
+        sleeveColor: '#ffffff',
+        tieColor: '#facc15',
+        shoeColor: '#451a03',
+        hasWhiteApron: false,
+        // North side of Kotatsu with legs tucked warmly under the blanket!
+        homePos: new THREE.Vector3(0.45, 0.15, -3.15),
+        homeYaw: 0.05,
+        pitchAudio: 1.0
+      },
+      {
+        id: 'marisa',
+        name: 'Marisa Kirisame (Hat on Tatami Beside Her)',
+        emoji: '⭐',
+        accentColor: '#facc15',
+        hairColor: '#fde047',
+        eyeColor: '#ca8a04',
+        outfitMain: '#1f2937',
+        sleeveColor: '#ffffff',
+        tieColor: '#ffffff',
+        shoeColor: '#111827',
+        hasWhiteApron: true,
+        // East side of Kotatsu with legs tucked under blanket & witch hat beside her!
+        homePos: new THREE.Vector3(3.95, 0.15, 0.45),
+        homeYaw: -Math.PI * 0.52,
+        pitchAudio: 0.96
+      },
+      {
+        id: 'yuyuko',
+        name: 'Yuyuko Saigyouji (Holding Rice Bowl)',
+        emoji: '🍚',
+        accentColor: '#f472b6',
+        hairColor: '#f9a8d4',
+        eyeColor: '#db2777',
+        outfitMain: '#93c5fd',
+        sleeveColor: '#dbeafe',
+        tieColor: '#1d4ed8',
+        shoeColor: '#1e3a8a',
+        hasWhiteApron: false,
+        // South side of Kotatsu happily holding her rice bowl!
+        homePos: new THREE.Vector3(0.45, 0.15, 4.05),
+        homeYaw: Math.PI * 0.98,
+        pitchAudio: 0.90
+      },
+      {
+        id: 'youmu',
+        name: 'Youmu Konpaku (With Floating Myon Orb)',
+        emoji: '⚔️',
+        accentColor: '#34d399',
+        hairColor: '#e2e8f0',
+        eyeColor: '#0f766e',
+        outfitMain: '#15803d',
+        sleeveColor: '#ffffff',
+        tieColor: '#18181b',
+        shoeColor: '#064e3b',
+        hasWhiteApron: false,
+        // West side of Kotatsu with her floating ghost orb!
+        homePos: new THREE.Vector3(-3.05, 0.15, 0.45),
+        homeYaw: Math.PI * 0.48,
+        pitchAudio: 1.08
+      },
+      {
+        id: 'mokou',
+        name: 'Fujiwara no Mokou (Holding Steaming Mug)',
+        emoji: '🔥',
+        accentColor: '#f97316',
+        hairColor: '#f1f5f9',
+        eyeColor: '#991b1b',
+        outfitMain: '#b91c1c',
+        sleeveColor: '#ffffff',
+        tieColor: '#dc2626',
+        shoeColor: '#450a0a',
+        hasWhiteApron: false,
+        // Sitting on cushion near the warm stove & kotatsu holding her steaming mug!
+        homePos: new THREE.Vector3(-3.25, 0.15, 3.65),
+        homeYaw: 2.35,
+        pitchAudio: 0.88
+      },
+      {
+        id: 'chen',
+        name: 'Chen (Peeking From Under Blanket!)',
+        emoji: '🐱',
+        accentColor: '#fb923c',
+        hairColor: '#78350f',
+        eyeColor: '#b45309',
+        outfitMain: '#dc2626',
+        sleeveColor: '#ffffff',
+        tieColor: '#fde047',
+        shoeColor: '#451a03',
+        hasWhiteApron: false,
+        scale: 0.82,
+        // Unexpected Spot #1: Tucked right under the southeast Kotatsu blanket edge peeking out!
+        homePos: new THREE.Vector3(2.55, 0.0, 2.65),
+        homeYaw: -2.4,
+        pitchAudio: 1.28
+      },
+      {
+        id: 'shinmyoumaru',
+        name: 'Mini Shinmyoumaru (Asleep in Mikan Bowl!)',
+        emoji: '🍊',
+        accentColor: '#fbbf24',
+        hairColor: '#c084fc',
+        eyeColor: '#9333ea',
+        outfitMain: '#fef08a',
+        sleeveColor: '#ffffff',
+        tieColor: '#dc2626',
+        shoeColor: '#78350f',
+        hasWhiteApron: false,
+        scale: 0.54,
+        isSleeping: true,
+        // Unexpected Spot #2: Sound asleep right inside the wooden Mikan bowl on the Kotatsu!
+        homePos: new THREE.Vector3(-0.35, 2.45, 0.35),
+        homeYaw: 0.55,
+        pitchAudio: 1.48
+      }
+    ];
+
+    fumoConfigs.forEach(cfg => {
+      const f = new VoxelFumo(cfg);
+      if (f.id === 'mokou') mokouFumoRef = f;
+      fumos.push(f);
+    });
+
+    function resolveFumoToFumoCollisions() {
+      for (let i = 0; i < fumos.length; i++) {
+        for (let j = i + 1; j < fumos.length; j++) {
+          const a = fumos[i];
+          const b = fumos[j];
+          const minDist = (a.radius + b.radius) * 0.78;
+          const dx = b.pos.x - a.pos.x;
+          const dy = (b.pos.y + b.radius * 0.6) - (a.pos.y + a.radius * 0.6);
+          const dz = b.pos.z - a.pos.z;
+          const distSq = dx * dx + dy * dy + dz * dz;
+
+          if (distSq < minDist * minDist && distSq > 0.0001) {
+            const dist = Math.sqrt(distSq);
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const nz = dz / dist;
+            const overlap = (minDist - dist) * 0.5;
+
+            if (!a.isDragged) {
+              a.pos.x -= nx * overlap;
+              a.pos.y = Math.max(0, a.pos.y - ny * overlap);
+              a.pos.z -= nz * overlap;
+            }
+            if (!b.isDragged) {
+              b.pos.x += nx * overlap;
+              b.pos.y = Math.max(0, b.pos.y + ny * overlap);
+              b.pos.z += nz * overlap;
+            }
+
+            const rvx = b.vel.x - a.vel.x;
+            const rvy = b.vel.y - a.vel.y;
+            const rvz = b.vel.z - a.vel.z;
+            const vn = rvx * nx + rvy * ny + rvz * nz;
+            if (vn < 0) {
+              const imp = -vn * 0.68;
+              if (!a.isDragged) {
+                a.vel.x -= imp * nx;
+                a.vel.y -= imp * ny;
+                a.vel.z -= imp * nz;
+                a.squashVel -= Math.min(5.0, imp * 0.6);
+              }
+              if (!b.isDragged) {
+                b.vel.x += imp * nx;
+                b.vel.y += imp * ny;
+                b.vel.z += imp * nz;
+                b.squashVel -= Math.min(5.0, imp * 0.6);
+              }
+              if (imp > 1.5) soundFX.playBounce(imp * 0.07);
+            }
+          }
+        }
+      }
+    }
+
+    // ============================================================================
+    // 11. POINTER INTERACTION: SQUEEZE, PICK UP, DRAG UNDER BLANKET, THROW & MIKAN
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let hoveredFumo = null;
+    let hoveredMikan = null;
+    let selectedFumo = null;
+    let isDraggingFumo = false;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+    const badgeEl = document.getElementById('fumo-badge');
+    const badgeDotEl = document.getElementById('fumo-badge-dot');
+    const badgeNameEl = document.getElementById('fumo-badge-name');
+    const badgeStatusEl = document.getElementById('fumo-badge-status');
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function pickInteractiveUnderPointer() {
+      raycaster.setFromCamera(pointerNDC, camera);
+      const fHits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (fHits.length > 0 && fHits[0].object.userData.fumo) {
+        return { type: 'fumo', fumo: fHits[0].object.userData.fumo, point: fHits[0].point };
+      }
+      const mHits = raycaster.intersectObjects(allMikanMeshes, false);
+      if (mHits.length > 0 && mHits[0].object.userData.mikan) {
+        return { type: 'mikan', mikan: mHits[0].object.userData.mikan, point: mHits[0].point };
+      }
+      return null;
+    }
+
+    function updateUIBadge(fumo, statusText) {
+      if (!fumo) {
+        badgeEl.classList.add('hidden');
+        badgeEl.classList.remove('flex');
+        return;
+      }
+      badgeEl.classList.remove('hidden');
+      badgeEl.classList.add('flex');
+      badgeDotEl.style.backgroundColor = fumo.accentColor;
+      badgeNameEl.textContent = fumo.name;
+      badgeStatusEl.textContent = statusText;
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+
+      const hit = pickInteractiveUnderPointer();
+      if (hit && hit.type === 'mikan') {
+        // Click a Mikan orange to roll it off the Kotatsu table!
+        const pushDir = hit.mikan.pos.clone().sub(new THREE.Vector3(0.5, 2.2, 0.5)).normalize();
+        pushDir.x = (pushDir.x || 0.7) * 4.2;
+        pushDir.z = (pushDir.z || 0.7) * 4.2;
+        pushDir.y = 2.0;
+        hit.mikan.nudge(pushDir);
+        return;
+      }
+
+      if (hit && hit.type === 'fumo') {
+        selectedFumo = hit.fumo;
+        isDraggingFumo = false;
+        controls.enabled = false;
+
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), selectedFumo.pos);
+
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          dragOffset.subVectors(selectedFumo.pos, dragHitPoint);
+        } else {
+          dragOffset.set(0, 0, 0);
+        }
+
+        dragHistory = [{ pos: selectedFumo.pos.clone(), time: performance.now() }];
+        updateUIBadge(selectedFumo, 'Selected');
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      updatePointerNDC(e);
+
+      if (selectedFumo) {
+        recordInteraction();
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          selectedFumo.isDragged = true;
+          selectedFumo.isGrounded = false;
+          selectedFumo.squashVel += 3.2;
+          soundFX.playPickup();
+          updateUIBadge(selectedFumo, 'Dragging — Release to Throw!');
+        }
+
+        if (isDraggingFumo) {
+          raycaster.setFromCamera(pointerNDC, camera);
+          if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+            const targetPos = dragHitPoint.clone().add(dragOffset);
+            targetPos.x = THREE.MathUtils.clamp(targetPos.x, -8.0, 9.0);
+            targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.15, 10.2);
+            targetPos.z = THREE.MathUtils.clamp(targetPos.z, -8.0, 9.0);
+
+            const prevPos = selectedFumo.pos.clone();
+            selectedFumo.pos.lerp(targetPos, 0.55);
+
+            const deltaMove = selectedFumo.pos.clone().sub(prevPos);
+            selectedFumo.headRollVel -= deltaMove.x * 16.0;
+            selectedFumo.headPitchVel += deltaMove.z * 16.0 - deltaMove.y * 10.0;
+            selectedFumo.limbRollVel -= deltaMove.x * 22.0;
+            selectedFumo.roll = THREE.MathUtils.lerp(selectedFumo.roll, THREE.MathUtils.clamp(-deltaMove.x * 1.4, -0.45, 0.45), 0.3);
+            selectedFumo.pitch = THREE.MathUtils.lerp(selectedFumo.pitch, THREE.MathUtils.clamp(deltaMove.z * 1.4, -0.45, 0.45), 0.3);
+
+            const now = performance.now();
+            dragHistory.push({ pos: selectedFumo.pos.clone(), time: now });
+            while (dragHistory.length > 6) dragHistory.shift();
+          }
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      const hit = pickInteractiveUnderPointer();
+      if (hit && hit.type === 'fumo') {
+        hoveredFumo = hit.fumo;
+        hoveredMikan = null;
+        renderer.domElement.style.cursor = 'grab';
+        tooltipEmojiEl.textContent = hoveredFumo.emoji;
+        tooltipTextEl.textContent = hoveredFumo.name;
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else if (hit && hit.type === 'mikan') {
+        hoveredFumo = null;
+        hoveredMikan = hit.mikan;
+        renderer.domElement.style.cursor = 'pointer';
+        tooltipEmojiEl.textContent = '🍊';
+        tooltipTextEl.textContent = 'Sweet Mikan — Click to Roll!';
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else {
+        hoveredFumo = null;
+        hoveredMikan = null;
+        renderer.domElement.style.cursor = 'default';
+        tooltipEl.style.opacity = '0';
+      }
+    });
+
+    window.addEventListener('pointerup', () => {
+      if (!selectedFumo) return;
+      controls.enabled = true;
+      recordInteraction();
+
+      if (!isDraggingFumo) {
+        selectedFumo.squeeze(1.0);
+        updateUIBadge(selectedFumo, 'Squeezed! ᗜˬᗜ');
+      } else {
+        selectedFumo.isDragged = false;
+        const now = performance.now();
+        while (dragHistory.length > 1 && now - dragHistory[0].time > 140) {
+          dragHistory.shift();
+        }
+        if (dragHistory.length >= 2) {
+          const first = dragHistory[0];
+          const last = dragHistory[dragHistory.length - 1];
+          const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+          const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+          if (throwVel.length() > 22) throwVel.setLength(22);
+          selectedFumo.vel.copy(throwVel);
+
+          const speed = throwVel.length();
+          selectedFumo.angVel.set(
+            throwVel.z * 0.65 + (Math.random() - 0.5) * speed * 0.4,
+            (Math.random() - 0.5) * speed * 0.5,
+            -throwVel.x * 0.65 + (Math.random() - 0.5) * speed * 0.4
+          );
+        } else {
+          selectedFumo.vel.set(0, 0, 0);
+        }
+        updateUIBadge(selectedFumo, 'Thrown!');
+      }
+
+      selectedFumo = null;
+      isDraggingFumo = false;
+      renderer.domElement.style.cursor = hoveredFumo ? 'grab' : 'default';
+    });
+
+    // ============================================================================
+    // 12. DAY / NIGHT SMOOTH INTERPOLATION (~2 SECONDS) & HUB INTEGRATION
+    // ============================================================================
+    const STORAGE_MODE_KEY = 'voxel_fumo_kotatsu_mode';
+    let isNightMode = true; // Default to cozy snowy night warmth
+    let dayNightProgress = 1.0; // 0.0 = Day, 1.0 = Night
+    let dayNightTarget = 1.0;
+
+    // Day: Bright, cold, overcast winter afternoon
+    // Night: Deep blue moonlit snow outside + warm orange kotatsu & paper lantern glow inside
+    const daySkyColor = new THREE.Color('#cfdce8');
+    const nightSkyColor = new THREE.Color('#0c1226');
+
+    const dayWindowLightCol = new THREE.Color('#eaf2fb');
+    const nightWindowLightCol = new THREE.Color('#6090e8');
+
+    const dayHemiSky = new THREE.Color('#eef4fa');
+    const nightHemiSky = new THREE.Color('#1e294a');
+    const dayHemiGround = new THREE.Color('#bba78c');
+    const nightHemiGround = new THREE.Color('#14111c');
+
+    const dayShojiEmissive = new THREE.Color('#dbeafe');
+    const nightShojiEmissive = new THREE.Color('#3b5998');
+
+    function notifyParentMode() {
+      const modeStr = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: modeStr }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(night, { immediate = false, playSound = true } = {}) {
+      isNightMode = Boolean(night);
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) {
+        dayNightProgress = dayNightTarget;
+      }
+      document.body.classList.toggle('night-ui', isNightMode);
+
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
+      } catch (e) {}
+
+      if (playSound) {
+        soundFX.playPickup();
+      }
+      notifyParentMode();
+    }
+
+    function toggleDayNight() {
+      setDayNightMode(!isNightMode, { immediate: false, playSound: true });
+    }
+
+    function updateDayNightTransition(dt, elapsed) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.52; // ~2 seconds smooth transition
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      // 1. Sky & Fog
+      scene.background.lerpColors(daySkyColor, nightSkyColor, t);
+      scene.fog.color.copy(scene.background);
+
+      // 2. Window & Shoji Directional Light (Overcast Daylight -> Blue Moonlight on Snow)
+      windowDirLight.color.lerpColors(dayWindowLightCol, nightWindowLightCol, t);
+      windowDirLight.intensity = THREE.MathUtils.lerp(1.25, 0.42, t);
+
+      // 3. Hemisphere Bounce
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.75, 0.24, t);
+
+      // 4. Gently Flickering Kotatsu Heater Glow + Paper Lantern + TV Glow
+      const heaterFlicker = 0.88 + 0.12 * Math.sin(elapsed * 7.5) * Math.cos(elapsed * 4.3);
+      kotatsuHeaterLight.intensity = THREE.MathUtils.lerp(0.55, 2.25, t) * heaterFlicker;
+      roomLanternLight.intensity = THREE.MathUtils.lerp(0.12, 1.45, t);
+      tvGlowLight.intensity = THREE.MathUtils.lerp(0.18, 0.95, t);
+
+      // 5. Emissive Materials
+      shojiPaperMaterial.emissive.lerpColors(dayShojiEmissive, nightShojiEmissive, t);
+      shojiPaperMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.28, 0.14, t);
+      warmEmissiveMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.25, 2.25, t);
+      heaterEmissiveMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.85, 2.65, t) * heaterFlicker;
+      tvScreenEmissiveMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, 1.45, t);
+      translucentIceMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.22, 0.82, t);
+
+      // 6. UnrealBloomPass Strength
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.14, 0.68, t);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.85, 0.62, t);
+      }
+    }
+
+    // UI Button & Keyboard Listeners
+    document.getElementById('btn-roll-mikan').addEventListener('click', () => {
+      const m = mikans[Math.floor(Math.random() * mikans.length)];
+      m.nudge();
+    });
+
+    document.getElementById('btn-squeeze-all').addEventListener('click', () => {
+      fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 50));
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 40));
+      mikans.forEach(m => m.resetToHome());
+      updateUIBadge(null, '');
+    });
+
+    const btnSound = document.getElementById('btn-sound');
+    const iconSoundOn = document.getElementById('icon-sound-on');
+    const iconSoundOff = document.getElementById('icon-sound-off');
+    btnSound.addEventListener('click', () => {
+      soundFX.enabled = !soundFX.enabled;
+      iconSoundOn.classList.toggle('hidden', !soundFX.enabled);
+      iconSoundOff.classList.toggle('hidden', soundFX.enabled);
+      if (soundFX.enabled) soundFX.playPickup();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      const key = e.key.toLowerCase();
+      if (key === 'n') {
+        e.preventDefault();
+        toggleDayNight();
+      } else if (key === 'r') {
+        fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 40));
+        mikans.forEach(m => m.resetToHome());
+      } else if (key === ' ') {
+        e.preventDefault();
+        fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 50));
+      } else if (key === 'o') {
+        const m = mikans[Math.floor(Math.random() * mikans.length)];
+        m.nudge();
+      } else if (key === 'm') {
+        btnSound.click();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ============================================================================
+    // 13. MAIN ANIMATION LOOP, PAUSE / RESUME & HUB MESSAGE LISTENER
+    // ============================================================================
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.033, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      if (!selectedFumo && (now - lastUserInteractionTime > 4500)) {
+        controls.autoRotate = true;
+      }
+
+      controls.update();
+      updateDayNightTransition(dt, elapsed);
+      updateHangingNoren(elapsed);
+      updateTVScreen(elapsed);
+      updateSnowfallAndAccumulation(elapsed, dt);
+      updateCurlingSteam(elapsed, dt);
+      updatePopParticles(dt);
+
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].updatePhysics(dt, elapsed);
+      }
+      resolveFumoToFumoCollisions();
+
+      for (let i = 0; i < mikans.length; i++) {
+        mikans[i].update(dt);
+      }
+
+      updateKotatsuBlanketCloth(dt, elapsed);
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function pauseRenderLoop() {
+      if (isPaused) return;
+      isPaused = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+
+    function resumeRenderLoop() {
+      if (!isPaused) return;
+      isPaused = false;
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('message', (e) => {
+      const data = e.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'toggleMode') {
+        toggleDayNight();
+      } else if (data.type === 'pause') {
+        pauseRenderLoop();
+      } else if (data.type === 'resume') {
+        resumeRenderLoop();
+      }
+    });
+
+    window.onload = function () {
+      let initialNight = true;
+      try {
+        const saved = localStorage.getItem(STORAGE_MODE_KEY);
+        if (saved === 'day') initialNight = false;
+        else if (saved === 'night') initialNight = true;
+      } catch (e) {}
+
+      setDayNightMode(initialNight, { immediate: true, playSound: false });
+      updateDayNightTransition(0, 0);
+
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.78;
+          f.squashVel = 2.0;
+          f.headPitchVel = 4.0;
+        }, 120 + idx * 65);
+      });
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>

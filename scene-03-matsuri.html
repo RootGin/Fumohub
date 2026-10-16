@@ -1,0 +1,3054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Touhou Fumo Summer Festival (Matsuri) — Interactive 3D Voxel Diorama</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js r128 + OrbitControls + Post-Processing (UnrealBloomPass) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #120d24;
+      color: #1e293b;
+    }
+    .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    /* HUD Layout Utilities (Zero external CSS library warnings) */
+    .hud-top-right {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .hud-bottom-center {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: max-content;
+      max-width: 95vw;
+    }
+    .glass-panel {
+      background: rgba(255, 248, 238, 0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.68);
+      box-shadow: 0 10px 28px -6px rgba(45, 20, 15, 0.22), 0 2px 6px rgba(45, 20, 15, 0.1);
+      transition: background 0.5s ease, color 0.5s ease, border-color 0.5s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      color: #1e293b;
+    }
+    body.night-ui .glass-panel {
+      background: rgba(24, 19, 44, 0.82);
+      border-color: rgba(255, 165, 110, 0.28);
+      color: #fff5eb;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.6), 0 0 18px rgba(255, 130, 80, 0.16);
+    }
+    .pill-panel {
+      border-radius: 16px;
+      padding: 9px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: none;
+      font-family: inherit;
+    }
+    .icon-btn {
+      border-radius: 16px;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ui-btn {
+      cursor: pointer;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+    .firework-btn {
+      background: linear-gradient(135deg, rgba(255, 107, 107, 0.94), rgba(255, 159, 67, 0.94)) !important;
+      color: #ffffff !important;
+      border: 1px solid rgba(255, 230, 190, 0.65) !important;
+      box-shadow: 0 6px 20px rgba(255, 107, 107, 0.42);
+    }
+    body.night-ui .firework-btn {
+      background: linear-gradient(135deg, rgba(244, 63, 94, 0.94), rgba(245, 158, 11, 0.94)) !important;
+      box-shadow: 0 6px 24px rgba(244, 63, 94, 0.55), 0 0 16px rgba(251, 191, 36, 0.35);
+    }
+    .badge-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      display: inline-block;
+      background: #f43f5e;
+      flex-shrink: 0;
+    }
+    .badge-status {
+      opacity: 0.72;
+      margin-left: 4px;
+    }
+    #fumo-tooltip {
+      position: fixed;
+      z-index: 30;
+      opacity: 0;
+      padding: 6px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 11px;
+      line-height: 1.2;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.10);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.20);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.14);
+      border-bottom-color: rgba(255, 255, 255, 0.28);
+    }
+    .firework-btn kbd {
+      background: rgba(255, 255, 255, 0.22);
+      border-bottom-color: rgba(255, 255, 255, 0.35);
+      color: #ffffff;
+    }
+    .hidden {
+      display: none !important;
+    }
+    @media (max-width: 640px) {
+      .hide-sm {
+        display: none !important;
+      }
+    }
+    @media (max-width: 900px) {
+      .hide-md {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- Top-Right Controls: Active Fumo Badge, Squeeze All, Reset, Sound (Top-Left kept completely clear for Hub) -->
+  <div class="hud-top-right">
+    <!-- Active / Hovered Fumo Indicator -->
+    <div id="fumo-badge" class="glass-panel pill-panel hidden">
+      <span id="fumo-badge-dot" class="badge-dot"></span>
+      <span id="fumo-badge-name">Reimu Hakurei</span>
+      <span id="fumo-badge-status" class="badge-status">Scooping Goldfish</span>
+    </div>
+
+    <!-- Squeeze All Button -->
+    <button id="btn-squeeze-all" title="Squeeze All Fumos! (Space)" class="glass-panel pill-panel ui-btn">
+      <span style="font-size: 15px; line-height: 1;">✨</span>
+      <span class="hide-md">Squeeze All</span>
+    </button>
+
+    <!-- Reset Fumos Button -->
+    <button id="btn-reset" title="Return Fumos to Festival Spots (R)" class="glass-panel pill-panel ui-btn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+      <span class="hide-sm">Reset</span>
+    </button>
+
+    <!-- Sound Toggle Button -->
+    <button id="btn-sound" title="Toggle Festival & Plush Sound Effects (M)" class="glass-panel icon-btn ui-btn">
+      <svg id="icon-sound-on" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+      </svg>
+      <svg id="icon-sound-off" class="hidden" style="opacity: 0.6;" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <line x1="23" y1="9" x2="17" y2="15"></line>
+        <line x1="17" y1="9" x2="23" y2="15"></line>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Floating Cursor Tooltip for Hovered Fumo / Water Tank -->
+  <div id="fumo-tooltip" class="glass-panel">
+    <span id="tooltip-emoji">🏮</span>
+    <span id="tooltip-text">Reimu Fumo</span>
+  </div>
+
+  <!-- Bottom Center HUD: Fireworks Button & Concise Controls -->
+  <div class="hud-bottom-center">
+    <button id="btn-fireworks" title="Launch a Voxel Firework Shell! (F)" class="glass-panel pill-panel firework-btn ui-btn font-display">
+      <span style="font-size: 16px; line-height: 1;">🎆</span>
+      <span>Fireworks</span>
+      <kbd class="hide-sm">F</kbd>
+    </button>
+
+    <div class="glass-panel pill-panel hide-sm" style="pointer-events: none; font-size: 12px; gap: 14px;">
+      <span>🖱️ <b>Click Fumo:</b> Squeeze</span>
+      <span>✋ <b>Drag:</b> Throw</span>
+      <span>🐟 <b>Click Tank:</b> Ripple</span>
+      <span class="hide-md"><kbd>Space</kbd> Squeeze All</span>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 1. PROCEDURAL WEB AUDIO SYNTHESIZER (Unlocked strictly on User Gesture)
+    // ============================================================================
+    class MatsuriSoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+        this.unlocked = false;
+      }
+
+      // Called ONLY inside pointerdown / keydown user-gesture listeners
+      unlock() {
+        this.unlocked = true;
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume().catch(() => {});
+        }
+      }
+
+      canPlay() {
+        return this.enabled && this.unlocked && this.ctx && this.ctx.state === 'running';
+      }
+
+      playSqueeze(pitchMultiplier = 1.0) {
+        if (!this.canPlay()) return;
+        try {
+          const now = this.ctx.currentTime;
+
+          const osc1 = this.ctx.createOscillator();
+          const gain1 = this.ctx.createGain();
+          osc1.type = 'sine';
+          const baseFreq = (520 + Math.random() * 80) * pitchMultiplier;
+          osc1.frequency.setValueAtTime(baseFreq, now);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.085);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.16);
+
+          gain1.gain.setValueAtTime(0.001, now);
+          gain1.gain.linearRampToValueAtTime(0.11, now + 0.025);
+          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+
+          osc1.connect(gain1);
+          gain1.connect(this.ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.18);
+
+          const osc2 = this.ctx.createOscillator();
+          const gain2 = this.ctx.createGain();
+          osc2.type = 'triangle';
+          osc2.frequency.setValueAtTime(baseFreq * 1.1, now + 0.11);
+          osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.65, now + 0.21);
+
+          gain2.gain.setValueAtTime(0.001, now + 0.11);
+          gain2.gain.linearRampToValueAtTime(0.08, now + 0.13);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+          osc2.connect(gain2);
+          gain2.connect(this.ctx.destination);
+          osc2.start(now + 0.11);
+          osc2.stop(now + 0.25);
+        } catch (e) {}
+      }
+
+      playBounce(intensity = 0.5) {
+        if (!this.canPlay() || intensity < 0.08) return;
+        try {
+          const now = this.ctx.currentTime;
+          const vol = Math.min(0.14, intensity * 0.12);
+
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          const startFreq = 115 + Math.min(80, intensity * 35);
+          osc.frequency.setValueAtTime(startFreq, now);
+          osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+
+      playPickup() {
+        if (!this.canPlay()) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(280, now);
+          osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+
+      playSplash(big = false) {
+        if (!this.canPlay()) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(big ? 210 : 360, now);
+          osc.frequency.exponentialRampToValueAtTime(big ? 580 : 720, now + (big ? 0.14 : 0.08));
+          gain.gain.setValueAtTime(big ? 0.12 : 0.06, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + (big ? 0.16 : 0.09));
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + (big ? 0.17 : 0.1));
+        } catch (e) {}
+      }
+
+      playFireworkLaunch() {
+        if (!this.canPlay()) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(340, now);
+          osc.frequency.exponentialRampToValueAtTime(1180, now + 0.45);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.045, now + 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.46);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.48);
+        } catch (e) {}
+      }
+
+      playFireworkBurst() {
+        if (!this.canPlay()) return;
+        try {
+          const now = this.ctx.currentTime;
+
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(150, now);
+          osc.frequency.exponentialRampToValueAtTime(32, now + 0.38);
+          gain.gain.setValueAtTime(0.16, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.40);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.42);
+
+          const osc2 = this.ctx.createOscillator();
+          const gain2 = this.ctx.createGain();
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(1420 + Math.random() * 400, now + 0.05);
+          osc2.frequency.exponentialRampToValueAtTime(880, now + 0.28);
+          gain2.gain.setValueAtTime(0.04, now + 0.05);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.30);
+          osc2.connect(gain2);
+          gain2.connect(this.ctx.destination);
+          osc2.start(now + 0.05);
+          osc2.stop(now + 0.32);
+        } catch (e) {}
+      }
+    }
+
+    const soundFX = new MatsuriSoundEngine();
+    window.addEventListener('pointerdown', () => soundFX.unlock(), { passive: true });
+    window.addEventListener('keydown', () => soundFX.unlock(), { passive: true });
+
+    // ============================================================================
+    // 2. COLOR & VOXEL HELPER UTILITIES
+    // ============================================================================
+    const tempColor = new THREE.Color();
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    const tempEuler = new THREE.Euler();
+
+    function voxelHash(x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    }
+
+    function varyColor(hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
+      tempColor.set(hexOrString);
+      const h = voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      tempColor.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return tempColor.clone();
+    }
+
+    function createSoftVoxelGeometry(size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    }
+
+    // Helper that ALWAYS populates instanceColor so Three.js r128 never hits null instanceColor
+    function createColoredInstancedMesh(geom, material, count, defaultHex = '#ffffff', castShadow = false, receiveShadow = false) {
+      const mesh = new THREE.InstancedMesh(geom, material, count);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+      const col = new THREE.Color(defaultHex);
+      tempMatrix.identity();
+      for (let i = 0; i < count; i++) {
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, col);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        if (v.rx || v.ry || v.rz) {
+          tempEuler.set(v.rx || 0, v.ry || 0, v.rz || 0);
+          tempQuat.setFromEuler(tempEuler);
+        } else {
+          tempQuat.identity();
+        }
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    // ============================================================================
+    // 3. SCENE, CAMERA, RENDERER & POST-PROCESSING SETUP
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#f7a361');
+    scene.fog = new THREE.FogExp2('#f7a361', 0.0072);
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.5, 140);
+    camera.position.set(18.5, 12.8, 22.0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.18,
+        0.55,
+        0.82
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (err) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(-0.5, 3.2, 0.5);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.475;
+    controls.minPolarAngle = Math.PI * 0.06;
+    controls.minDistance = 9;
+    controls.maxDistance = 42;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.42;
+
+    let lastUserInteractionTime = performance.now();
+    const recordInteraction = () => {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+    };
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 4. LIGHTING SYSTEM (Capped Dynamic Lights; Lanterns Use Emissive + Bloom)
+    // ============================================================================
+    const hemiLight = new THREE.HemisphereLight(0xffd6a5, 0x8d6e63, 0.72);
+    hemiLight.position.set(0, 25, 0);
+    scene.add(hemiLight);
+
+    const mainDirLight = new THREE.DirectionalLight(0xffb76b, 1.35);
+    mainDirLight.position.set(-22, 11.5, 14);
+    mainDirLight.target.position.set(0, 1, 0);
+    scene.add(mainDirLight.target);
+    mainDirLight.castShadow = true;
+    mainDirLight.shadow.mapSize.width = 2048;
+    mainDirLight.shadow.mapSize.height = 2048;
+    mainDirLight.shadow.camera.near = 2;
+    mainDirLight.shadow.camera.far = 52;
+    const dCam = 16.5;
+    mainDirLight.shadow.camera.left = -dCam;
+    mainDirLight.shadow.camera.right = dCam;
+    mainDirLight.shadow.camera.top = dCam;
+    mainDirLight.shadow.camera.bottom = -dCam;
+    mainDirLight.shadow.bias = -0.0006;
+    mainDirLight.shadow.radius = 2.2;
+    scene.add(mainDirLight);
+
+    const yaguraLight = new THREE.PointLight(0xff9e44, 0.08, 22, 1.5);
+    yaguraLight.position.set(0.0, 6.8, 0.5);
+    yaguraLight.castShadow = true;
+    yaguraLight.shadow.mapSize.width = 1024;
+    yaguraLight.shadow.mapSize.height = 1024;
+    yaguraLight.shadow.bias = -0.001;
+    scene.add(yaguraLight);
+
+    const yataiStallLight = new THREE.PointLight(0xffaa4c, 0.05, 19, 1.5);
+    yataiStallLight.position.set(-2.5, 4.2, -5.2);
+    scene.add(yataiStallLight);
+
+    const streamGlowLight = new THREE.PointLight(0xff8c42, 0.05, 14, 1.6);
+    streamGlowLight.position.set(9.2, 2.2, 1.5);
+    scene.add(streamGlowLight);
+
+    const fireworkLight = new THREE.PointLight(0xffffff, 0.0, 48, 1.2);
+    fireworkLight.position.set(0, 14, -4);
+    scene.add(fireworkLight);
+
+    // Shared Materials
+    const plushMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.92,
+      metalness: 0.02
+    });
+
+    const solidWorldMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.84,
+      metalness: 0.05
+    });
+
+    const glossyWorldMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.24,
+      metalness: 0.14
+    });
+
+    const translucentWaterMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.78,
+      roughness: 0.12,
+      metalness: 0.05,
+      transmission: 0.38,
+      emissive: new THREE.Color(0x0284c7),
+      emissiveIntensity: 0.18
+    });
+
+    const crystalWingMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.2,
+      metalness: 0.1,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 0.35
+    });
+
+    const lanternRedEmissiveMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0xff4d29),
+      emissiveIntensity: 0.06,
+      roughness: 0.45
+    });
+
+    const lanternWhiteEmissiveMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0xffb74d),
+      emissiveIntensity: 0.08,
+      roughness: 0.4
+    });
+
+    const stallSignEmissiveMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0xffe082),
+      emissiveIntensity: 0.06,
+      roughness: 0.35
+    });
+
+    // ============================================================================
+    // 5. MATSURI STREET ARCHITECTURE, STALLS, YAGURA, TORII, BRIDGE & PROPS
+    // ============================================================================
+    const RV = 0.25; // 1 Environment Voxel = 0.25 world units
+    const furnitureColliders = [];
+
+    function addCollider(minX, minY, minZ, maxX, maxY, maxZ, name = 'prop') {
+      furnitureColliders.push({
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        name
+      });
+    }
+
+    const GOLDFISH_TANK_BOUNDS = {
+      minX: -6.75, maxX: -3.25,
+      minZ: 1.75,  maxZ: 4.50,
+      waterY: 0.95,
+      rimTopY: 1.15
+    };
+
+    const STREAM_BOUNDS = {
+      minX: 7.5, maxX: 11.2,
+      minZ: -9.5, maxZ: 9.5,
+      waterY: -0.15
+    };
+
+    const solidVoxels = [];
+    const glossyVoxels = [];
+    const waterVoxels = [];
+    const signEmissiveVoxels = [];
+    const staticWhiteLanternVoxels = [];
+
+    function pushVoxel(list, rx, ry, rz, colorHex, variance = 0.03, sx = 1, sy = 1, sz = 1) {
+      list.push({
+        x: rx,
+        y: ry,
+        z: rz,
+        color: varyColor(colorHex, rx, ry, rz, variance),
+        sx, sy, sz
+      });
+    }
+
+    function pushBoxVoxels(list, x0, y0, z0, x1, y1, z1, colorFnOrHex, variance = 0.03) {
+      for (let x = x0; x <= x1; x++) {
+        for (let y = y0; y <= y1; y++) {
+          for (let z = z0; z <= z1; z++) {
+            if (x > x0 && x < x1 && y > y0 && y < y1 && z > z0 && z < z1) continue;
+            const c = typeof colorFnOrHex === 'function' ? colorFnOrHex(x, y, z) : colorFnOrHex;
+            if (c) pushVoxel(list, x + 0.5, y + 0.5, z + 0.5, c, variance);
+          }
+        }
+      }
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5A. FESTIVAL STREET PAVEMENT, STREAM BED & WOODEN ARCHED BRIDGE (TAIKO-BASHI)
+    // ----------------------------------------------------------------------------
+    function buildStreetAndStream() {
+      for (let x = -48; x <= 47; x++) {
+        for (let z = -38; z <= 37; z++) {
+          const isOuterBorder = (x === -48 || x === 47 || z === -38 || z === 37);
+
+          if (x >= 30 && x <= 43) {
+            if (x === 30 || x === 43) {
+              pushVoxel(solidVoxels, x + 0.5, -0.4, z + 0.5, '#6b705c', 0.04, 1, 1.2, 1);
+            } else {
+              const pebbleCol = ((x * 3 + z * 5) % 4 === 0) ? '#4a5759' : '#3d405b';
+              pushVoxel(solidVoxels, x + 0.5, -2.2, z + 0.5, pebbleCol, 0.04);
+              const waterTint = ((x + z) % 3 === 0) ? '#38bdf8' : '#0284c7';
+              pushVoxel(waterVoxels, x + 0.5, -0.7, z + 0.5, waterTint, 0.02, 1.01, 0.85, 1.01);
+            }
+            continue;
+          }
+
+          let groundCol = '#4f6d46';
+          if (z >= -20 && z <= 22) {
+            const stoneTile = ((Math.floor((x + 48) / 3) + Math.floor((z + 20) / 3)) % 2 === 0);
+            const isGrout = ((x + 48) % 3 === 0) || ((z + 20) % 3 === 0);
+            if (isGrout) groundCol = '#52525b';
+            else groundCol = stoneTile ? '#71717a' : '#78716c';
+          } else if (z < -20) {
+            groundCol = ((x + z) % 2 === 0) ? '#7f6244' : '#73573b';
+          }
+
+          pushVoxel(solidVoxels, x + 0.5, -0.5, z + 0.5, groundCol, 0.03);
+          if (isOuterBorder) {
+            pushVoxel(solidVoxels, x + 0.5, -1.5, z + 0.5, '#3f2e21', 0.02);
+          }
+        }
+      }
+
+      // Wooden Arched Bridge (Taiko-bashi) over the Stream
+      for (let x = 27; x <= 46; x++) {
+        const normX = (x - 36.5) / 9.5;
+        const archY = Math.round((1.0 - normX * normX) * 4.5);
+        for (let z = -4; z <= 6; z++) {
+          const plankCol = (x % 2 === 0) ? '#9c6644' : '#7f4f24';
+          pushVoxel(solidVoxels, x + 0.5, archY + 0.5, z + 0.5, plankCol, 0.025);
+
+          if (z === -4 || z === 6) {
+            pushVoxel(solidVoxels, x + 0.5, archY + 3.5, z + 0.5, '#c1121f', 0.02);
+            if (x === 27 || x === 32 || x === 36 || x === 41 || x === 46) {
+              for (let py = 1; py <= 3; py++) {
+                pushVoxel(solidVoxels, x + 0.5, archY + py + 0.5, z + 0.5, '#c1121f', 0.02);
+              }
+              pushVoxel(glossyVoxels, x + 0.5, archY + 4.4, z + 0.5, '#fbbf24', 0.01, 0.85, 0.85, 0.85);
+            }
+          }
+        }
+      }
+      addCollider(6.75, 0.0, -1.0, 11.75, 1.35, 1.75, 'wooden_bridge');
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5B. VERMILION TORII GATE & BAMBOO WIND CHIME STAND (Left End of Street)
+    // ----------------------------------------------------------------------------
+    function buildToriiAndWindChimes() {
+      const tx = -42;
+      for (const tz of [-11, 11]) {
+        pushBoxVoxels(solidVoxels, tx - 1, 0, tz - 1, tx + 1, 4, tz + 1, '#1e1b24', 0.02);
+        for (let y = 5; y <= 34; y++) {
+          pushBoxVoxels(solidVoxels, tx - 1, y, tz - 1, tx + 1, y, tz + 1, '#d90429', 0.02);
+        }
+      }
+
+      pushBoxVoxels(solidVoxels, tx - 1, 27, -15, tx + 1, 28, 15, '#d90429', 0.02);
+      pushBoxVoxels(solidVoxels, tx - 1, 29, -2, tx + 1, 34, 2, '#1e1b24', 0.02);
+      pushVoxel(signEmissiveVoxels, tx + 1.4, 31.5, 0.0, '#fbbf24', 0.01, 0.4, 2.5, 1.6);
+
+      for (let z = -18; z <= 18; z++) {
+        const curve = Math.abs(z) > 12 ? Math.floor((Math.abs(z) - 12) * 0.45) : 0;
+        pushBoxVoxels(solidVoxels, tx - 1, 35 + curve, z, tx + 1, 36 + curve, z, '#d90429', 0.02);
+        pushBoxVoxels(solidVoxels, tx - 2, 37 + curve, z, tx + 2, 37 + curve, z, '#1e1b24', 0.02);
+      }
+
+      for (let z = -10; z <= 10; z++) {
+        pushVoxel(solidVoxels, tx + 1.2, 25.8, z + 0.5, '#e9c46a', 0.03, 0.8, 0.9, 1.0);
+        if (z % 5 === 0 && Math.abs(z) <= 8) {
+          pushVoxel(solidVoxels, tx + 1.3, 24.4, z + 0.5, '#ffffff', 0.01, 0.3, 1.2, 0.8);
+          pushVoxel(solidVoxels, tx + 1.3, 23.2, z + 0.8, '#ffffff', 0.01, 0.3, 1.2, 0.8);
+        }
+      }
+
+      addCollider(-11.0, 0, -3.2, -9.8, 8.5, -2.3, 'torii_pillar_left');
+      addCollider(-11.0, 0,  2.3, -9.8, 8.5,  3.2, 'torii_pillar_right');
+
+      // Bamboo Wind Chimes (Furin) Stand
+      for (const bz of [16, 22]) {
+        for (let y = 0; y <= 16; y++) {
+          const bamCol = (y % 4 === 0) ? '#588157' : '#74c69d';
+          pushVoxel(solidVoxels, -32.5, y + 0.5, bz + 0.5, bamCol, 0.02, 0.85, 1, 0.85);
+        }
+      }
+      for (let z = 15; z <= 23; z++) {
+        pushVoxel(solidVoxels, -32.5, 16.5, z + 0.5, '#74c69d', 0.02, 0.85, 0.85, 1);
+      }
+      for (let z = 15; z <= 23; z++) {
+        for (let x = -34; x <= -31; x++) {
+          pushVoxel(solidVoxels, x + 0.5, 17.5, z + 0.5, '#5c3a21', 0.02, 1, 0.6, 1);
+        }
+      }
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5C. CENTRAL WOODEN YAGURA DRUM TOWER
+    // ----------------------------------------------------------------------------
+    function buildYaguraTower() {
+      const x0 = -6, x1 = 8, z0 = 2, z1 = 16;
+      const pillars = [[x0, z0], [x1, z0], [x0, z1], [x1, z1]];
+      for (const [px, pz] of pillars) {
+        for (let y = 0; y <= 32; y++) {
+          pushBoxVoxels(solidVoxels, px, y, pz, px + 1, y, pz + 1, '#6e4528', 0.02);
+        }
+      }
+
+      pushBoxVoxels(solidVoxels, x0 - 1, 15, z0 - 1, x1 + 2, 16, z1 + 2, '#8c5836', 0.025);
+
+      for (let x = x0 - 1; x <= x1 + 2; x++) {
+        for (let z = z0 - 1; z <= z1 + 2; z++) {
+          const isPerim = (x === x0 - 1 || x === x1 + 2 || z === z0 - 1 || z === z1 + 2);
+          if (!isPerim) continue;
+          const stripe = (Math.floor((x + z + 40) / 2) % 2 === 0);
+          const makuCol = stripe ? '#d90429' : '#f8f9fa';
+          for (let y = 17; y <= 20; y++) {
+            pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, makuCol, 0.02);
+          }
+        }
+      }
+
+      for (let ry = 0; ry <= 4; ry++) {
+        const pad = 2 - Math.floor(ry * 0.5);
+        pushBoxVoxels(solidVoxels, x0 - pad, 32 + ry, z0 - pad, x1 + 1 + pad, 32 + ry, z1 + 1 + pad, () => {
+          return (ry === 0) ? '#5c3a21' : '#3d2817';
+        }, 0.025);
+      }
+
+      // Big Voxel Taiko Drum on Wooden Stand on top of the Yagura
+      pushBoxVoxels(solidVoxels, 0, 17, 7, 3, 18, 10, '#5c381f', 0.02);
+      for (let x = -1; x <= 4; x++) {
+        for (let y = 19; y <= 23; y++) {
+          for (let z = 6; z <= 11; z++) {
+            const dy = y - 21;
+            const dx = x - 1.5;
+            if (Math.hypot(dx, dy) <= 2.6) {
+              const isDrumHead = (z === 6 || z === 11);
+              const isStudRing = (z === 7 || z === 10) && Math.hypot(dx, dy) >= 1.8;
+              const col = isDrumHead ? '#f5ebe0' : (isStudRing ? '#1e1b24' : '#9e2a2b');
+              pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, col, 0.02);
+            }
+          }
+        }
+      }
+
+      addCollider(-1.75, 0.0, 0.25, 2.5, 4.25, 4.5, 'yagura_platform');
+      addCollider(-0.5, 4.25, 1.5, 1.25, 6.0, 3.0, 'taiko_drum');
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5D. ROW OF 4 YATAI STALLS + GOLDFISH TANK + STACKED CRATES
+    // ----------------------------------------------------------------------------
+    function buildYataiStalls() {
+      function buildBooth({ xStart, xEnd, zFront, zBack, stripeColA, stripeColB, signColor, signPatternFn, name }) {
+        pushBoxVoxels(solidVoxels, xStart, 0, zBack, xEnd, 10, zFront, (x, y, z) => {
+          if (y === 10) return '#b07d4f';
+          if (z === zFront && y >= 2 && y <= 8 && (x % 2 === 0)) return '#6e4528';
+          return '#855534';
+        }, 0.025);
+
+        for (const px of [xStart, xEnd]) {
+          for (const pz of [zBack, zFront]) {
+            for (let y = 11; y <= 23; y++) {
+              pushVoxel(solidVoxels, px + 0.5, y + 0.5, pz + 0.5, '#5c3a21', 0.02);
+            }
+          }
+        }
+
+        for (let x = xStart + 1; x <= xEnd - 1; x++) {
+          for (let y = 11; y <= 19; y++) {
+            pushVoxel(solidVoxels, x + 0.5, y + 0.5, zBack + 0.5, '#6e4528', 0.02);
+          }
+        }
+
+        for (let z = zBack - 1; z <= zFront + 3; z++) {
+          const roofY = 27 - Math.floor((z - zBack) * 0.35);
+          for (let x = xStart - 1; x <= xEnd + 1; x++) {
+            const stripe = (Math.floor((x - xStart) / 2) % 2 === 0);
+            const col = stripe ? stripeColA : stripeColB;
+            pushVoxel(solidVoxels, x + 0.5, roofY + 0.5, z + 0.5, col, 0.02);
+            if (z === zFront + 3) {
+              pushVoxel(solidVoxels, x + 0.5, roofY - 0.5, z + 0.5, col, 0.02);
+            }
+          }
+        }
+
+        const sMid = Math.floor((xStart + xEnd) / 2);
+        for (let sx = sMid - 4; sx <= sMid + 4; sx++) {
+          for (let sy = 25; sy <= 28; sy++) {
+            const isFrame = (sx === sMid - 4 || sx === sMid + 4 || sy === 25 || sy === 28);
+            if (isFrame) {
+              pushVoxel(solidVoxels, sx + 0.5, sy + 0.5, zFront + 2.6, '#4a2c11', 0.02);
+            } else {
+              const pixCol = signPatternFn ? signPatternFn(sx - sMid, sy - 26) : signColor;
+              pushVoxel(signEmissiveVoxels, sx + 0.5, sy + 0.5, zFront + 2.7, pixCol, 0.01);
+            }
+          }
+        }
+
+        for (let x = xStart + 2; x <= xEnd - 2; x += 2) {
+          pushVoxel(staticWhiteLanternVoxels, x + 0.5, 22.8, zFront + 0.5, '#fff3b0', 0.01, 1.5, 0.6, 0.8);
+        }
+
+        addCollider(xStart * RV, 0, zBack * RV, (xEnd + 1) * RV, 2.75, (zFront + 1) * RV, name + '_counter');
+        addCollider((xStart - 1) * RV, 5.8, (zBack - 1) * RV, (xEnd + 2) * RV, 7.0, (zFront + 3) * RV, name + '_roof');
+      }
+
+      // STALL 1: TAKOYAKI GRILL STALL
+      buildBooth({
+        xStart: -34, xEnd: -20, zFront: -24, zBack: -35,
+        stripeColA: '#d90429', stripeColB: '#f8f9fa',
+        signColor: '#fff3b0',
+        signPatternFn: (dx, dy) => (Math.hypot(dx, dy - 0.5) < 1.8 ? '#e63946' : '#fff3b0'),
+        name: 'takoyaki_stall'
+      });
+      pushBoxVoxels(glossyVoxels, -32, 11, -28, -26, 11, -25, '#1e1b24', 0.015);
+      for (let tx = -31; tx <= -27; tx += 1) {
+        for (let tz = -27; tz <= -26; tz += 1) {
+          pushVoxel(solidVoxels, tx + 0.5, 12.1, tz + 0.5, '#e09f3e', 0.03, 0.75, 0.75, 0.75);
+          pushVoxel(solidVoxels, tx + 0.5, 12.4, tz + 0.5, '#6f1d1b', 0.02, 0.45, 0.3, 0.45);
+        }
+      }
+      for (let c = 0; c < 5; c++) {
+        pushVoxel(solidVoxels, -23.5, 11.2 + c * 0.55, -26.0, c % 2 === 0 ? '#ffffff' : '#bae6fd', 0.01, 0.85, 0.5, 0.85);
+      }
+      pushVoxel(glossyVoxels, -21.5, 11.8, -26.5, '#dc2626', 0.01, 0.75, 1.6, 0.75);
+      pushVoxel(glossyVoxels, -22.5, 11.8, -27.5, '#fef08a', 0.01, 0.75, 1.5, 0.75);
+
+      // STALL 2: KITSUNE MASK STALL
+      buildBooth({
+        xStart: -17, xEnd: -3, zFront: -24, zBack: -35,
+        stripeColA: '#7209b7', stripeColB: '#f8f9fa',
+        signColor: '#ffd166',
+        signPatternFn: (dx, dy) => (Math.abs(dx) === 1 && dy === 1 ? '#d90429' : '#ffffff'),
+        name: 'mask_stall'
+      });
+      const maskPalette = ['#ffffff', '#ef4444', '#fde047', '#38bdf8', '#f472b6', '#ffffff'];
+      for (let mx = -15; mx <= -5; mx += 3) {
+        for (let my = 12; my <= 18; my += 3) {
+          const mCol = maskPalette[Math.abs(mx + my) % maskPalette.length];
+          pushVoxel(glossyVoxels, mx + 0.5, my + 0.5, -28.0, mCol, 0.02, 1.7, 1.9, 0.7);
+          pushVoxel(glossyVoxels, mx + 0.0, my + 1.5, -28.0, '#e63946', 0.01, 0.5, 0.6, 0.5);
+          pushVoxel(glossyVoxels, mx + 1.0, my + 1.5, -28.0, '#e63946', 0.01, 0.5, 0.6, 0.5);
+          pushVoxel(solidVoxels, mx + 0.1, my + 0.6, -27.5, '#1e1b24', 0.01, 0.4, 0.25, 0.3);
+          pushVoxel(solidVoxels, mx + 0.9, my + 0.6, -27.5, '#1e1b24', 0.01, 0.4, 0.25, 0.3);
+        }
+      }
+      for (let ux = -15; ux <= -6; ux += 4) {
+        pushVoxel(solidVoxels, ux + 0.5, 11.2, -25.5, '#ef476f', 0.02, 1.8, 0.3, 1.8);
+        pushVoxel(solidVoxels, ux + 0.5, 11.2, -24.2, '#e9c46a', 0.02, 0.4, 0.3, 1.2);
+      }
+
+      // STALL 3: WANAGE RING-TOSS BOOTH
+      buildBooth({
+        xStart: 0, xEnd: 14, zFront: -24, zBack: -35,
+        stripeColA: '#1d4ed8', stripeColB: '#f8f9fa',
+        signColor: '#bae6fd',
+        signPatternFn: (dx, dy) => (Math.abs(dx) === 2 || dy === 0 ? '#0284c7' : '#ffffff'),
+        name: 'ring_toss_stall'
+      });
+      for (let rx = 2; rx <= 12; rx++) {
+        for (let rz = -33; rz <= -28; rz++) {
+          pushVoxel(solidVoxels, rx + 0.5, 11.5 + (-28 - rz) * 0.4, rz + 0.5, '#2b9348', 0.02);
+        }
+      }
+      for (const px of [3, 6, 9, 11]) {
+        for (const pz of [-32, -29]) {
+          const pegY = 12.2 + (-28 - pz) * 0.4;
+          pushVoxel(solidVoxels, px + 0.5, pegY + 0.6, pz + 0.5, '#fbbf24', 0.01, 0.45, 1.4, 0.45);
+          if ((px + pz) % 2 === 0) {
+            pushVoxel(glossyVoxels, px + 0.5, pegY + 0.2, pz + 0.5, '#ec4899', 0.01, 1.3, 0.35, 1.3);
+          }
+        }
+      }
+
+      // STALL 4: SHAVED ICE & CANDY APPLES
+      buildBooth({
+        xStart: 17, xEnd: 28, zFront: -24, zBack: -35,
+        stripeColA: '#06d6a0', stripeColB: '#ffffff',
+        signColor: '#e0f2fe',
+        signPatternFn: (dx, dy) => (dy >= 1 ? '#ef4444' : '#38bdf8'),
+        name: 'shaved_ice_stall'
+      });
+      pushBoxVoxels(glossyVoxels, 19, 11, -27, 20, 14, -26, '#0284c7', 0.01);
+      pushVoxel(glossyVoxels, 19.5, 15.2, -26.5, '#38bdf8', 0.01, 1.6, 0.8, 1.6);
+      for (let ax = 22; ax <= 25; ax++) {
+        pushVoxel(solidVoxels, ax + 0.5, 11.5, -26.0, '#d4a373', 0.02, 0.25, 1.2, 0.25);
+        pushVoxel(glossyVoxels, ax + 0.5, 12.4, -26.0, '#e11d48', 0.01, 1.1, 1.1, 1.1);
+      }
+      const yoyoCols = ['#ff595e', '#ffca3a', '#8ac926', '#1982c4', '#f15bb5'];
+      for (let i = 0; i < 5; i++) {
+        pushVoxel(glossyVoxels, 27.5 - i * 0.4, 15.5 + (i % 2) * 1.2, -23.2, yoyoCols[i], 0.02, 1.1, 1.1, 1.1);
+      }
+
+      // GOLDFISH SCOOPING TUB (KINGYO-SUKUI)
+      for (let x = -27; x <= -13; x++) {
+        for (let z = 7; z <= 18; z++) {
+          const isRim = (x === -27 || x === -13 || z === 7 || z === 18);
+          pushVoxel(solidVoxels, x + 0.5, 0.5, z + 0.5, isRim ? '#c1121f' : '#0369a1', 0.02);
+          pushVoxel(solidVoxels, x + 0.5, 1.5, z + 0.5, isRim ? '#c1121f' : '#0284c7', 0.02);
+          if (isRim) {
+            pushVoxel(solidVoxels, x + 0.5, 2.5, z + 0.5, '#d90429', 0.02);
+            pushVoxel(solidVoxels, x + 0.5, 3.5, z + 0.5, '#e63946', 0.02);
+          } else {
+            pushVoxel(waterVoxels, x + 0.5, 2.7, z + 0.5, '#38bdf8', 0.02, 1.01, 1.4, 1.01);
+          }
+        }
+      }
+      pushVoxel(glossyVoxels, -25.5, 3.8, 8.5, '#f472b6', 0.01, 1.8, 0.6, 1.8);
+      pushVoxel(glossyVoxels, -14.5, 3.8, 16.5, '#fde047', 0.01, 1.8, 0.6, 1.8);
+      addCollider(-6.75, 0.0, 1.75, -3.25, 0.95, 4.50, 'goldfish_tank');
+
+      // STACKED WOODEN FESTIVAL CRATES
+      pushBoxVoxels(solidVoxels, 22, 0, -16, 27, 5, -11, (x, y, z) => {
+        const isEdge = (x === 22 || x === 27 || y === 0 || y === 5 || z === -16 || z === -11);
+        return isEdge ? '#6e4528' : '#9c6644';
+      }, 0.025);
+      for (let x = 21; x <= 27; x++) {
+        for (let z = -10; z <= -4; z++) {
+          for (let y = 0; y <= 4; y++) {
+            const isWall = (x === 21 || x === 27 || z === -10 || z === -4 || y === 0);
+            if (!isWall) {
+              if (y === 1) pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, '#fae1dd', 0.03);
+              continue;
+            }
+            pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, (y === 4) ? '#6e4528' : '#8c5836', 0.025);
+          }
+        }
+      }
+      addCollider(5.25, 0.0, -4.0, 7.0, 1.5, -2.75, 'stacked_crate_back');
+      addCollider(5.25, 0.0, -2.5, 7.0, 0.65, -1.0, 'open_sleeping_crate');
+    }
+
+    buildStreetAndStream();
+    buildToriiAndWindChimes();
+    buildYaguraTower();
+    buildYataiStalls();
+
+    const worldGroup = new THREE.Group();
+    scene.add(worldGroup);
+
+    const solidMesh = buildVoxelInstancedMesh(solidVoxels, RV, solidWorldMaterial, true, true);
+    const glossyMesh = buildVoxelInstancedMesh(glossyVoxels, RV, glossyWorldMaterial, true, true);
+    const waterMesh = buildVoxelInstancedMesh(waterVoxels, RV, translucentWaterMaterial, false, true);
+    const signEmissiveMesh = buildVoxelInstancedMesh(signEmissiveVoxels, RV, stallSignEmissiveMat, false, false);
+    const staticWhiteLanternMesh = buildVoxelInstancedMesh(staticWhiteLanternVoxels, RV, lanternWhiteEmissiveMat, false, false);
+
+    if (solidMesh) worldGroup.add(solidMesh);
+    if (glossyMesh) worldGroup.add(glossyMesh);
+    if (waterMesh) worldGroup.add(waterMesh);
+    if (signEmissiveMesh) worldGroup.add(signEmissiveMesh);
+    if (staticWhiteLanternMesh) worldGroup.add(staticWhiteLanternMesh);
+
+    // ============================================================================
+    // 6. SWAYING STRING LANTERNS (CHOCHIN), FLOATING STREAM LANTERNS & WIND CHIMES
+    // ============================================================================
+    const swayingLanterns = [];
+    const cordVoxels = [];
+
+    function addLanternString(p0, p1, count, sagAmount = 1.4) {
+      for (let s = 0; s <= 28; s++) {
+        const u = s / 28;
+        const cx = THREE.MathUtils.lerp(p0.x, p1.x, u);
+        const cz = THREE.MathUtils.lerp(p0.z, p1.z, u);
+        const cy = THREE.MathUtils.lerp(p0.y, p1.y, u) - Math.sin(u * Math.PI) * sagAmount;
+        cordVoxels.push({ x: cx / RV, y: cy / RV, z: cz / RV, color: new THREE.Color('#27272a'), sx: 0.45, sy: 0.45, sz: 0.45 });
+      }
+      for (let i = 1; i <= count; i++) {
+        const u = i / (count + 1);
+        const lx = THREE.MathUtils.lerp(p0.x, p1.x, u);
+        const lz = THREE.MathUtils.lerp(p0.z, p1.z, u);
+        const ly = THREE.MathUtils.lerp(p0.y, p1.y, u) - Math.sin(u * Math.PI) * sagAmount;
+        swayingLanterns.push({
+          anchorX: lx,
+          anchorY: ly,
+          anchorZ: lz,
+          isRed: i % 2 === 1,
+          phase: i * 0.9 + lx * 0.3
+        });
+      }
+    }
+
+    const yaguraTopNW = new THREE.Vector3(-1.5, 8.2, 0.5);
+    const yaguraTopNE = new THREE.Vector3(2.0, 8.2, 0.5);
+    const yaguraTopSW = new THREE.Vector3(-1.5, 8.2, 4.0);
+    const yaguraTopSE = new THREE.Vector3(2.0, 8.2, 4.0);
+
+    addLanternString(yaguraTopNW, new THREE.Vector3(-10.2, 8.5, -2.5), 7, 1.3);
+    addLanternString(yaguraTopSW, new THREE.Vector3(-10.2, 8.5, 2.8), 7, 1.3);
+    addLanternString(yaguraTopNW, new THREE.Vector3(-7.5, 6.8, -5.8), 6, 1.0);
+    addLanternString(yaguraTopNE, new THREE.Vector3(6.5, 6.8, -5.8), 6, 1.0);
+    addLanternString(yaguraTopSE, new THREE.Vector3(9.0, 6.2, 4.5), 6, 1.1);
+
+    const cordMesh = buildVoxelInstancedMesh(cordVoxels, RV, solidWorldMaterial, false, false);
+    if (cordMesh) worldGroup.add(cordMesh);
+
+    const redLanternList = swayingLanterns.filter(l => l.isRed);
+    const whiteLanternList = swayingLanterns.filter(l => !l.isRed);
+    const lanternCapGeom = new THREE.BoxGeometry(0.32, 0.12, 0.32);
+    const lanternBodyGeom = new THREE.BoxGeometry(0.42, 0.52, 0.42);
+
+    // Every InstancedMesh is initialized with instanceColor via createColoredInstancedMesh
+    const redLanternInstanced = createColoredInstancedMesh(lanternBodyGeom, lanternRedEmissiveMat, redLanternList.length, '#e63946');
+    const whiteLanternInstanced = createColoredInstancedMesh(lanternBodyGeom, lanternWhiteEmissiveMat, whiteLanternList.length, '#fff8eb');
+    const lanternCapInstanced = createColoredInstancedMesh(lanternCapGeom, glossyWorldMaterial, swayingLanterns.length * 2, '#1e1b24');
+    scene.add(redLanternInstanced);
+    scene.add(whiteLanternInstanced);
+    scene.add(lanternCapInstanced);
+
+    // Floating Paper Lanterns (Toro Nagashi) Drifting Down the Stream
+    const FLOATING_LANTERN_COUNT = 8;
+    const floatingLanterns = [];
+    const floatBaseGeom = new THREE.BoxGeometry(0.52, 0.12, 0.52);
+    const floatShadeGeom = new THREE.BoxGeometry(0.38, 0.46, 0.38);
+    const floatBaseMesh = createColoredInstancedMesh(floatBaseGeom, solidWorldMaterial, FLOATING_LANTERN_COUNT, '#7f4f24');
+    const floatShadeMesh = createColoredInstancedMesh(floatShadeGeom, lanternWhiteEmissiveMat, FLOATING_LANTERN_COUNT, '#fff3b0');
+
+    for (let i = 0; i < FLOATING_LANTERN_COUNT; i++) {
+      floatingLanterns.push({
+        x: 8.3 + (i % 3) * 0.75 + (Math.random() - 0.5) * 0.3,
+        z: -9.0 + (i / FLOATING_LANTERN_COUNT) * 18.0,
+        speed: 0.55 + Math.random() * 0.25,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+    scene.add(floatBaseMesh);
+    scene.add(floatShadeMesh);
+
+    // Bamboo Wind Chimes (Furin) with Swaying Paper Slips (Tanzaku)
+    const FURIN_COUNT = 4;
+    const furinBellGeom = new THREE.BoxGeometry(0.24, 0.22, 0.24);
+    const furinSlipGeom = new THREE.BoxGeometry(0.04, 0.42, 0.16);
+    const furinBellMesh = createColoredInstancedMesh(furinBellGeom, translucentWaterMaterial, FURIN_COUNT, '#38bdf8');
+    const furinSlipMesh = createColoredInstancedMesh(furinSlipGeom, plushMaterial, FURIN_COUNT, '#fff1f2', true, true);
+    const furinColors = ['#38bdf8', '#f472b6', '#4ade80', '#fbbf24'];
+    for (let i = 0; i < FURIN_COUNT; i++) {
+      furinBellMesh.setColorAt(i, new THREE.Color(furinColors[i]));
+    }
+    furinBellMesh.instanceColor.needsUpdate = true;
+    scene.add(furinBellMesh);
+    scene.add(furinSlipMesh);
+
+    function updateLanternsAndChimes(time, dt) {
+      let rIdx = 0, wIdx = 0, cIdx = 0;
+      for (let i = 0; i < swayingLanterns.length; i++) {
+        const l = swayingLanterns[i];
+        const swayX = Math.sin(time * 1.9 + l.phase) * 0.16;
+        const swayZ = Math.cos(time * 1.5 + l.phase) * 0.12;
+        tempPos.set(l.anchorX + swayX * 0.4, l.anchorY - 0.32, l.anchorZ + swayZ * 0.4);
+        tempEuler.set(swayZ, 0, -swayX);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(1, 1, 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+
+        if (l.isRed) {
+          redLanternInstanced.setMatrixAt(rIdx++, tempMatrix);
+        } else {
+          whiteLanternInstanced.setMatrixAt(wIdx++, tempMatrix);
+        }
+
+        tempPos.set(l.anchorX + swayX * 0.2, l.anchorY - 0.08, l.anchorZ + swayZ * 0.2);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        lanternCapInstanced.setMatrixAt(cIdx++, tempMatrix);
+
+        tempPos.set(l.anchorX + swayX * 0.6, l.anchorY - 0.56, l.anchorZ + swayZ * 0.6);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        lanternCapInstanced.setMatrixAt(cIdx++, tempMatrix);
+      }
+      redLanternInstanced.instanceMatrix.needsUpdate = true;
+      whiteLanternInstanced.instanceMatrix.needsUpdate = true;
+      lanternCapInstanced.instanceMatrix.needsUpdate = true;
+
+      for (let i = 0; i < FLOATING_LANTERN_COUNT; i++) {
+        const fl = floatingLanterns[i];
+        fl.z += fl.speed * dt;
+        if (fl.z > 9.2) fl.z = -9.2;
+        const bobY = STREAM_BOUNDS.waterY + 0.06 + Math.sin(time * 2.6 + fl.phase) * 0.03;
+        const driftX = fl.x + Math.sin(time * 1.1 + fl.phase) * 0.12;
+
+        tempPos.set(driftX, bobY, fl.z);
+        tempEuler.set(Math.sin(time * 2 + fl.phase) * 0.06, time * 0.25 + fl.phase, Math.cos(time * 1.8 + fl.phase) * 0.06);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(1, 1, 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        floatBaseMesh.setMatrixAt(i, tempMatrix);
+
+        tempPos.set(driftX, bobY + 0.26, fl.z);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        floatShadeMesh.setMatrixAt(i, tempMatrix);
+      }
+      floatBaseMesh.instanceMatrix.needsUpdate = true;
+      floatShadeMesh.instanceMatrix.needsUpdate = true;
+
+      for (let i = 0; i < FURIN_COUNT; i++) {
+        const fz = 4.25 + i * 0.35;
+        const fx = -8.12;
+        const fy = 3.85;
+        tempPos.set(fx, fy, fz);
+        tempEuler.set(0, time * 0.5 + i, Math.sin(time * 2.8 + i) * 0.12);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(1, 1, 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        furinBellMesh.setMatrixAt(i, tempMatrix);
+
+        const slipSwing = Math.sin(time * 3.4 + i * 1.3) * 0.38;
+        tempPos.set(fx + Math.sin(slipSwing) * 0.12, fy - 0.35, fz);
+        tempEuler.set(0.15, time * 0.8 + i, slipSwing);
+        tempQuat.setFromEuler(tempEuler);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        furinSlipMesh.setMatrixAt(i, tempMatrix);
+      }
+      furinBellMesh.instanceMatrix.needsUpdate = true;
+      furinSlipMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 7. GOLDFISH TANK SWIMMING FISH, WATER RIPPLES, SPLASHES & TAKOYAKI SMOKE
+    // ============================================================================
+    const GOLDFISH_COUNT = 12;
+    const goldfishData = [];
+    const fishBodyGeom = new THREE.BoxGeometry(0.22, 0.11, 0.10);
+    const fishTailGeom = new THREE.BoxGeometry(0.12, 0.09, 0.04);
+    const fishBodyMesh = createColoredInstancedMesh(fishBodyGeom, glossyWorldMaterial, GOLDFISH_COUNT, '#ef4444');
+    const fishTailMesh = createColoredInstancedMesh(fishTailGeom, glossyWorldMaterial, GOLDFISH_COUNT, '#fff1f2');
+
+    for (let i = 0; i < GOLDFISH_COUNT; i++) {
+      const isCalico = (i % 3 === 0);
+      const isGold = (i % 5 === 0);
+      const col = isGold ? '#f59e0b' : (isCalico ? '#fb7185' : '#ef4444');
+      goldfishData.push({
+        x: THREE.MathUtils.lerp(GOLDFISH_TANK_BOUNDS.minX + 0.4, GOLDFISH_TANK_BOUNDS.maxX - 0.4, Math.random()),
+        z: THREE.MathUtils.lerp(GOLDFISH_TANK_BOUNDS.minZ + 0.4, GOLDFISH_TANK_BOUNDS.maxZ - 0.4, Math.random()),
+        angle: Math.random() * Math.PI * 2,
+        speed: 0.45 + Math.random() * 0.35,
+        boost: 0,
+        phase: Math.random() * Math.PI * 2
+      });
+      fishBodyMesh.setColorAt(i, new THREE.Color(col));
+    }
+    fishBodyMesh.instanceColor.needsUpdate = true;
+    scene.add(fishBodyMesh);
+    scene.add(fishTailMesh);
+
+    const MAX_RIPPLES = 24;
+    const ripples = [];
+    const rippleGeom = new THREE.BoxGeometry(0.08, 0.03, 0.08);
+    const rippleMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.85 });
+    const RIPPLE_SEGMENTS = 12;
+    const rippleMesh = createColoredInstancedMesh(rippleGeom, rippleMat, MAX_RIPPLES * RIPPLE_SEGMENTS, '#e0f2fe');
+    for (let i = 0; i < MAX_RIPPLES; i++) {
+      ripples.push({ active: false, x: 0, y: 0, z: 0, radius: 0.05, maxRadius: 0.85, life: 0, maxLife: 0.7 });
+    }
+    for (let i = 0; i < MAX_RIPPLES * RIPPLE_SEGMENTS; i++) {
+      tempMatrix.makeScale(0, 0, 0);
+      rippleMesh.setMatrixAt(i, tempMatrix);
+    }
+    rippleMesh.instanceMatrix.needsUpdate = true;
+    scene.add(rippleMesh);
+
+    function spawnWaterRipple(wx, wy, wz, maxRadius = 0.75) {
+      for (let i = 0; i < MAX_RIPPLES; i++) {
+        const r = ripples[i];
+        if (!r.active) {
+          r.active = true;
+          r.x = wx;
+          r.y = wy + 0.03;
+          r.z = wz;
+          r.radius = 0.08;
+          r.maxRadius = maxRadius;
+          r.life = 0;
+          r.maxLife = 0.65;
+          break;
+        }
+      }
+      for (let i = 0; i < GOLDFISH_COUNT; i++) {
+        const gf = goldfishData[i];
+        const dx = gf.x - wx;
+        const dz = gf.z - wz;
+        const dist = Math.hypot(dx, dz);
+        if (dist < 1.35) {
+          gf.angle = Math.atan2(dz, dx) + (Math.random() - 0.5) * 0.4;
+          gf.boost = 2.2;
+        }
+      }
+    }
+
+    const SPLASH_MAX = 40;
+    const splashDrops = [];
+    const splashGeom = new THREE.BoxGeometry(0.10, 0.10, 0.10);
+    const splashMat = new THREE.MeshBasicMaterial({ color: 0xbae6fd });
+    const splashMesh = createColoredInstancedMesh(splashGeom, splashMat, SPLASH_MAX, '#bae6fd');
+    for (let i = 0; i < SPLASH_MAX; i++) {
+      splashDrops.push({ active: false, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, maxLife: 0.6 });
+      tempMatrix.makeScale(0, 0, 0);
+      splashMesh.setMatrixAt(i, tempMatrix);
+    }
+    splashMesh.instanceMatrix.needsUpdate = true;
+    scene.add(splashMesh);
+
+    function spawnWaterSplash(wx, wy, wz) {
+      spawnWaterRipple(wx, wy, wz, 1.15);
+      soundFX.playSplash(true);
+      let spawned = 0;
+      for (let i = 0; i < SPLASH_MAX && spawned < 18; i++) {
+        const d = splashDrops[i];
+        if (!d.active) {
+          d.active = true;
+          d.life = 0;
+          d.maxLife = 0.45 + Math.random() * 0.25;
+          d.pos.set(wx + (Math.random() - 0.5) * 0.3, wy + 0.1, wz + (Math.random() - 0.5) * 0.3);
+          const ang = Math.random() * Math.PI * 2;
+          const spd = 1.4 + Math.random() * 2.2;
+          d.vel.set(Math.cos(ang) * spd, 3.2 + Math.random() * 2.6, Math.sin(ang) * spd);
+          spawned++;
+        }
+      }
+    }
+
+    // Drifting Voxel Smoke from the Takoyaki Grill
+    const SMOKE_COUNT = 22;
+    const smokeData = [];
+    const smokeGeom = new THREE.BoxGeometry(0.18, 0.18, 0.18);
+    const smokeMat = new THREE.MeshBasicMaterial({
+      color: 0xf8fafc,
+      transparent: true,
+      opacity: 0.32
+    });
+    const smokeMesh = createColoredInstancedMesh(smokeGeom, smokeMat, SMOKE_COUNT, '#f8fafc');
+    for (let i = 0; i < SMOKE_COUNT; i++) {
+      smokeData.push({
+        baseX: -7.25 + (Math.random() - 0.5) * 1.1,
+        baseZ: -6.65 + (Math.random() - 0.5) * 0.6,
+        y: 3.1 + Math.random() * 3.2,
+        speed: 0.55 + Math.random() * 0.35,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+    scene.add(smokeMesh);
+
+    function updateWaterAndSmoke(time, dt) {
+      const minX = GOLDFISH_TANK_BOUNDS.minX + 0.38;
+      const maxX = GOLDFISH_TANK_BOUNDS.maxX - 0.38;
+      const minZ = GOLDFISH_TANK_BOUNDS.minZ + 0.38;
+      const maxZ = GOLDFISH_TANK_BOUNDS.maxZ - 0.38;
+
+      for (let i = 0; i < GOLDFISH_COUNT; i++) {
+        const gf = goldfishData[i];
+        gf.boost = Math.max(0, gf.boost - dt * 3.2);
+        gf.angle += Math.sin(time * 1.8 + gf.phase) * 0.9 * dt;
+        const spd = gf.speed + gf.boost;
+        gf.x += Math.cos(gf.angle) * spd * dt;
+        gf.z += Math.sin(gf.angle) * spd * dt;
+
+        if (gf.x < minX) { gf.x = minX; gf.angle = Math.PI - gf.angle; }
+        if (gf.x > maxX) { gf.x = maxX; gf.angle = Math.PI - gf.angle; }
+        if (gf.z < minZ) { gf.z = minZ; gf.angle = -gf.angle; }
+        if (gf.z > maxZ) { gf.z = maxZ; gf.angle = -gf.angle; }
+
+        const wy = 0.72 + Math.sin(time * 3.0 + gf.phase) * 0.04;
+        tempPos.set(gf.x, wy, gf.z);
+        tempEuler.set(0, -gf.angle, 0);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(1, 1, 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        fishBodyMesh.setMatrixAt(i, tempMatrix);
+
+        const tailWag = Math.sin(time * (12 + gf.boost * 6) + gf.phase) * 0.45;
+        tempPos.set(gf.x - Math.cos(gf.angle) * 0.14, wy, gf.z - Math.sin(gf.angle) * 0.14);
+        tempEuler.set(0, -gf.angle + tailWag, 0);
+        tempQuat.setFromEuler(tempEuler);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        fishTailMesh.setMatrixAt(i, tempMatrix);
+      }
+      fishBodyMesh.instanceMatrix.needsUpdate = true;
+      fishTailMesh.instanceMatrix.needsUpdate = true;
+
+      let rippleDirty = false;
+      for (let i = 0; i < MAX_RIPPLES; i++) {
+        const r = ripples[i];
+        if (!r.active) continue;
+        rippleDirty = true;
+        r.life += dt;
+        if (r.life >= r.maxLife) {
+          r.active = false;
+          for (let s = 0; s < RIPPLE_SEGMENTS; s++) {
+            tempMatrix.makeScale(0, 0, 0);
+            rippleMesh.setMatrixAt(i * RIPPLE_SEGMENTS + s, tempMatrix);
+          }
+          continue;
+        }
+        const prog = r.life / r.maxLife;
+        const rad = THREE.MathUtils.lerp(0.08, r.maxRadius, prog);
+        const scale = 1.0 - prog;
+        for (let s = 0; s < RIPPLE_SEGMENTS; s++) {
+          const ang = (s / RIPPLE_SEGMENTS) * Math.PI * 2;
+          tempPos.set(r.x + Math.cos(ang) * rad, r.y, r.z + Math.sin(ang) * rad);
+          tempEuler.set(0, -ang, 0);
+          tempQuat.setFromEuler(tempEuler);
+          tempScale.set(scale, scale, scale * 1.4);
+          tempMatrix.compose(tempPos, tempQuat, tempScale);
+          rippleMesh.setMatrixAt(i * RIPPLE_SEGMENTS + s, tempMatrix);
+        }
+      }
+      if (rippleDirty) rippleMesh.instanceMatrix.needsUpdate = true;
+
+      let splashDirty = false;
+      for (let i = 0; i < SPLASH_MAX; i++) {
+        const d = splashDrops[i];
+        if (!d.active) continue;
+        splashDirty = true;
+        d.life += dt;
+        if (d.life >= d.maxLife) {
+          d.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          splashMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        d.vel.y -= 11.5 * dt;
+        d.pos.addScaledVector(d.vel, dt);
+        const s = 1.0 - d.life / d.maxLife;
+        tempQuat.identity();
+        tempScale.set(s, s, s);
+        tempMatrix.compose(d.pos, tempQuat, tempScale);
+        splashMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (splashDirty) splashMesh.instanceMatrix.needsUpdate = true;
+
+      for (let i = 0; i < SMOKE_COUNT; i++) {
+        const sm = smokeData[i];
+        sm.y += sm.speed * dt;
+        if (sm.y > 6.4) sm.y = 3.05;
+        const normH = (sm.y - 3.05) / 3.35;
+        const wx = sm.baseX + Math.sin(time * 1.5 + sm.phase + normH * 3) * (0.1 + normH * 0.35);
+        const wz = sm.baseZ + Math.cos(time * 1.2 + sm.phase) * (0.1 + normH * 0.25);
+        const s = Math.sin(normH * Math.PI) * (0.6 + normH * 1.1);
+        tempPos.set(wx, sm.y, wz);
+        tempEuler.set(time + sm.phase, time * 0.7, 0);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(s, s, s);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        smokeMesh.setMatrixAt(i, tempMatrix);
+      }
+      smokeMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 8. VOXEL FIREWORKS SYSTEM (Rising Rockets, Spherical Spark Shells & Street Flash)
+    // ============================================================================
+    const FIREWORK_MAX_SPARKS = 520;
+    const fireworkSparks = [];
+    const fireworkRockets = [];
+    const fwSparkGeom = new THREE.BoxGeometry(0.16, 0.16, 0.16);
+    const fwSparkMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const fwSparkMesh = createColoredInstancedMesh(fwSparkGeom, fwSparkMat, FIREWORK_MAX_SPARKS, '#ffffff');
+
+    for (let i = 0; i < FIREWORK_MAX_SPARKS; i++) {
+      fireworkSparks.push({
+        active: false,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        color: new THREE.Color('#ffffff'),
+        life: 0,
+        maxLife: 1.0,
+        size: 1.0
+      });
+      tempMatrix.makeScale(0, 0, 0);
+      fwSparkMesh.setMatrixAt(i, tempMatrix);
+    }
+    fwSparkMesh.instanceMatrix.needsUpdate = true;
+    scene.add(fwSparkMesh);
+
+    const FIREWORK_PALETTES = [
+      ['#ff4d6d', '#ffb703', '#ffffff', '#ff758f'],
+      ['#38bdf8', '#c084fc', '#fde047', '#ffffff'],
+      ['#4ade80', '#2dd4bf', '#facc15', '#f43f5e'],
+      ['#f97316', '#ef4444', '#fde047', '#f472b6']
+    ];
+
+    function spawnSpark(pos, vel, colorHex, maxLife = 1.2, size = 1.0) {
+      for (let i = 0; i < FIREWORK_MAX_SPARKS; i++) {
+        const sp = fireworkSparks[i];
+        if (!sp.active) {
+          sp.active = true;
+          sp.pos.copy(pos);
+          sp.vel.copy(vel);
+          sp.color.set(colorHex);
+          sp.life = 0;
+          sp.maxLife = maxLife;
+          sp.size = size;
+          fwSparkMesh.setColorAt(i, sp.color);
+          return;
+        }
+      }
+    }
+
+    function launchFirework() {
+      const startX = -7.5 + Math.random() * 15.0;
+      const startZ = -10.5 - Math.random() * 4.5;
+      const targetY = 12.2 + Math.random() * 4.2;
+      const palette = FIREWORK_PALETTES[Math.floor(Math.random() * FIREWORK_PALETTES.length)];
+
+      fireworkRockets.push({
+        pos: new THREE.Vector3(startX, 1.0, startZ),
+        vel: new THREE.Vector3((Math.random() - 0.5) * 1.8, 15.5 + Math.random() * 3.5, (Math.random() - 0.5) * 1.2),
+        targetY,
+        palette,
+        trailTimer: 0
+      });
+      soundFX.playFireworkLaunch();
+    }
+
+    function explodeFireworkShell(origin, palette) {
+      soundFX.playFireworkBurst();
+      fireworkLight.position.copy(origin);
+      fireworkLight.color.set(palette[0]);
+      fireworkLight.intensity = 3.4;
+
+      const shellCount = 96;
+      for (let i = 0; i < shellCount; i++) {
+        const u = Math.random();
+        const v = Math.random();
+        const theta = u * 2.0 * Math.PI;
+        const phi = Math.acos(2.0 * v - 1.0);
+        const isInner = (i % 3 === 0);
+        const speed = isInner ? (3.6 + Math.random() * 1.2) : (6.8 + Math.random() * 1.8);
+
+        const vx = Math.sin(phi) * Math.cos(theta) * speed;
+        const vy = Math.cos(phi) * speed;
+        const vz = Math.sin(phi) * Math.sin(theta) * speed;
+
+        const cHex = isInner ? palette[2] : palette[i % 2];
+        spawnSpark(origin, new THREE.Vector3(vx, vy, vz), cHex, 1.15 + Math.random() * 0.55, isInner ? 1.0 : 1.35);
+      }
+      if (fwSparkMesh.instanceColor) fwSparkMesh.instanceColor.needsUpdate = true;
+    }
+
+    function updateFireworks(dt) {
+      let colorDirty = false;
+      for (let i = fireworkRockets.length - 1; i >= 0; i--) {
+        const r = fireworkRockets[i];
+        r.pos.addScaledVector(r.vel, dt);
+        r.vel.y -= 3.5 * dt;
+        r.trailTimer += dt;
+        if (r.trailTimer > 0.025) {
+          r.trailTimer = 0;
+          spawnSpark(
+            r.pos,
+            new THREE.Vector3((Math.random() - 0.5) * 0.8, -1.5, (Math.random() - 0.5) * 0.8),
+            '#fde047',
+            0.32,
+            0.75
+          );
+          colorDirty = true;
+        }
+        if (r.pos.y >= r.targetY || r.vel.y <= 1.0) {
+          explodeFireworkShell(r.pos, r.palette);
+          fireworkRockets.splice(i, 1);
+        }
+      }
+
+      let matrixDirty = false;
+      for (let i = 0; i < FIREWORK_MAX_SPARKS; i++) {
+        const sp = fireworkSparks[i];
+        if (!sp.active) continue;
+        matrixDirty = true;
+        sp.life += dt;
+        if (sp.life >= sp.maxLife) {
+          sp.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          fwSparkMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        sp.vel.multiplyScalar(Math.pow(0.94, dt * 60));
+        sp.vel.y -= 4.2 * dt;
+        sp.pos.addScaledVector(sp.vel, dt);
+
+        const lifeRatio = 1.0 - sp.life / sp.maxLife;
+        const s = sp.size * lifeRatio;
+        tempQuat.setFromEuler(tempEuler.set(sp.life * 6, sp.life * 4, 0));
+        tempScale.set(s, s, s);
+        tempMatrix.compose(sp.pos, tempQuat, tempScale);
+        fwSparkMesh.setMatrixAt(i, tempMatrix);
+      }
+
+      if (colorDirty && fwSparkMesh.instanceColor) fwSparkMesh.instanceColor.needsUpdate = true;
+      if (matrixDirty) fwSparkMesh.instanceMatrix.needsUpdate = true;
+
+      if (fireworkLight.intensity > 0.001) {
+        fireworkLight.intensity = Math.max(0, fireworkLight.intensity - dt * 4.2);
+      }
+    }
+
+    // Pop particles when you squeeze a fumo
+    const POP_MAX = 48;
+    const popParticles = [];
+    const popGeom = new THREE.BoxGeometry(0.11, 0.11, 0.11);
+    const popMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const popMesh = createColoredInstancedMesh(popGeom, popMat, POP_MAX, '#ff85a1');
+    for (let i = 0; i < POP_MAX; i++) {
+      popParticles.push({ active: false, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, maxLife: 1, color: new THREE.Color('#ff85a1') });
+      tempMatrix.makeScale(0, 0, 0);
+      popMesh.setMatrixAt(i, tempMatrix);
+    }
+    popMesh.instanceMatrix.needsUpdate = true;
+    scene.add(popMesh);
+
+    function spawnSqueezeParticles(origin, accentHex) {
+      const palette = [accentHex, '#ff85a1', '#fde047', '#ffffff'];
+      let spawned = 0;
+      for (let i = 0; i < POP_MAX && spawned < 12; i++) {
+        const p = popParticles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.45 + Math.random() * 0.25;
+          p.pos.copy(origin).add(new THREE.Vector3(0, 0.9, 0));
+          const angle = (spawned / 12) * Math.PI * 2 + Math.random() * 0.3;
+          const speed = 2.2 + Math.random() * 2.0;
+          p.vel.set(Math.cos(angle) * speed, 2.5 + Math.random() * 2.2, Math.sin(angle) * speed);
+          p.color.set(palette[spawned % palette.length]);
+          popMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (popMesh.instanceColor) popMesh.instanceColor.needsUpdate = true;
+    }
+
+    function updatePopParticles(dt) {
+      let dirty = false;
+      for (let i = 0; i < POP_MAX; i++) {
+        const p = popParticles[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          popMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= 7.5 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const s = 1.0 - (p.life / p.maxLife);
+        tempQuat.setFromEuler(tempEuler.set(p.life * 8, p.life * 6, 0));
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        popMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) popMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 9. TOUHOU FUMO VOXEL PLUSHIE BUILDER (YUKATA & MATSURI PROPS)
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const fumos = [];
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.emoji = config.emoji || '🏮';
+        this.accentColor = config.accentColor || '#ef4444';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.082 * this.scaleFactor;
+        this.radius = 0.85 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+        this.isSleeping = Boolean(config.isSleeping);
+        this.isDrummer = Boolean(config.isDrummer);
+
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+        this.homePitch = config.homePitch || 0;
+
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = this.homePitch;
+        this.roll = 0;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.inWaterCooldown = 0;
+
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        this.buildCharacterVoxels(config);
+        this.syncTransform(0);
+        scene.add(this.root);
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingSolidVoxels = [];
+        const wingGlowVoxels = [];
+
+        const skinBase = '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false, sx = 1, sy = 1, sz = 1) => {
+          const seamDarken = (isSeam && ((Math.abs(x + y + z) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z, sx, sy, sz,
+            color: varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // 1. STUBBY YUKATA TORSO WITH OBI SASH & BACK OBI BOW
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.yukataMain;
+
+              if (cfg.yukataPatternCol && ((Math.abs(x * 3 + y * 5 + z * 7) % 7) === 0)) {
+                col = cfg.yukataPatternCol;
+              }
+
+              if (y === 2 || y === 3) {
+                col = cfg.obiColor || '#fbbf24';
+                if (y === 3 && z >= 2 && Math.abs(x) <= 2) {
+                  col = cfg.obiCordColor || '#ffffff';
+                }
+              }
+
+              if (y >= 5 && z >= 2 && Math.abs(x) <= 1) {
+                col = (x === 0 && y === 6) ? skinBase : '#ffffff';
+              }
+
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        for (let bx = -2; bx <= 2; bx++) {
+          for (let by = 2; by <= 4; by++) {
+            if (bx === 0 && by === 4) continue;
+            addPlushVoxel(bodyVoxels, bx, by + 0.5, -3.6, cfg.obiColor || '#fbbf24');
+          }
+        }
+
+        // 2. DRAPED YUKATA SLEEVES, STUBBY HANDS & CHARACTER FESTIVAL PROPS
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || cfg.yukataMain;
+                if (y === -3) col = skinBase;
+                else if (y === -2 && cfg.yukataPatternCol && (x + z) % 2 === 0) col = cfg.yukataPatternCol;
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        if (this.id === 'reimu') {
+          for (let pz = 1; pz <= 5; pz++) {
+            addPlushVoxel(rightArmVoxels, 0.5, -3.0, pz, '#f472b6', false, 0.6, 0.4, 0.9);
+          }
+          for (let rx = -1; rx <= 2; rx++) {
+            for (let rz = 5; rz <= 8; rz++) {
+              const isRing = (rx === -1 || rx === 2 || rz === 5 || rz === 8);
+              addPlushVoxel(rightArmVoxels, rx, -3.0, rz, isRing ? '#f43f5e' : '#ffffff', false, 0.9, 0.35, 0.9);
+            }
+          }
+        }
+
+        if (this.id === 'marisa') {
+          for (let tx = -2; tx <= 1; tx++) {
+            for (let tz = 1; tz <= 4; tz++) {
+              addPlushVoxel(leftArmVoxels, tx, -3.2, tz, '#e9c46a', false, 0.9, 0.5, 0.9);
+              if (tz >= 2 && tz <= 3 && tx >= -1 && tx <= 0) {
+                addPlushVoxel(leftArmVoxels, tx, -2.3, tz, '#d97706', false, 0.85, 0.85, 0.85);
+              }
+            }
+          }
+        }
+
+        if (this.id === 'cirno') {
+          addPlushVoxel(rightArmVoxels, 0.5, -3.2, 2.2, '#ffffff', false, 1.6, 1.4, 1.6);
+          addPlushVoxel(rightArmVoxels, 0.5, -2.2, 2.2, '#ef4444', false, 1.8, 0.6, 1.8);
+          addPlushVoxel(rightArmVoxels, 0.5, -1.1, 2.2, '#38bdf8', false, 2.1, 1.5, 2.1);
+          addPlushVoxel(rightArmVoxels, 0.5, 0.1, 2.2, '#bae6fd', false, 1.3, 1.1, 1.3);
+        }
+
+        if (this.id === 'flandre') {
+          for (let sy = -3; sy <= 0; sy++) {
+            addPlushVoxel(rightArmVoxels, 0.5, sy, 2.4, '#e9c46a', false, 0.4, 0.9, 0.4);
+          }
+          for (let ax = -1; ax <= 1; ax++) {
+            for (let ay = 0; ay <= 2; ay++) {
+              for (let az = 1; az <= 3; az++) {
+                if (Math.hypot(ax, ay - 1, az - 2) <= 1.45) {
+                  addPlushVoxel(rightArmVoxels, 0.5 + ax * 0.8, ay, az + 0.4, '#e11d48');
+                }
+              }
+            }
+          }
+        }
+
+        if (this.id === 'sakuya') {
+          for (let a = 0; a < 8; a++) {
+            const ang = (a / 8) * Math.PI * 2;
+            addPlushVoxel(rightArmVoxels, 0.5 + Math.cos(ang) * 1.6, -2.5 + Math.sin(ang) * 1.6, 2.5, '#facc15', false, 0.7, 0.7, 0.7);
+          }
+        }
+
+        if (this.id === 'suika') {
+          addPlushVoxel(rightArmVoxels, 0.8, -3.5, 2.2, '#d97706', false, 1.9, 1.9, 1.9);
+          addPlushVoxel(rightArmVoxels, 0.8, -2.1, 2.2, '#dc2626', false, 1.1, 0.7, 1.1);
+          addPlushVoxel(rightArmVoxels, 0.8, -1.1, 2.2, '#f59e0b', false, 1.4, 1.4, 1.4);
+          for (let c = 1; c <= 4; c++) {
+            addPlushVoxel(leftArmVoxels, -0.8 - c * 0.4, -2.5 - c * 0.5, 1.5, '#94a3b8', false, 0.55, 0.55, 0.55);
+          }
+          addPlushVoxel(leftArmVoxels, -2.6, -5.0, 1.5, '#475569', false, 1.8, 1.8, 1.8);
+        }
+
+        if (this.id === 'raiko') {
+          for (let bz = 1; bz <= 5; bz++) {
+            addPlushVoxel(leftArmVoxels, -0.4, -2.8, bz, '#fde68a', false, 0.65, 0.65, 0.95);
+            addPlushVoxel(rightArmVoxels, 0.4, -2.8, bz, '#fde68a', false, 0.65, 0.65, 0.95);
+          }
+        }
+
+        if (this.id === 'suwako') {
+          for (let gx = -3; gx <= 3; gx++) {
+            for (let gy = 1; gy <= 5; gy++) {
+              for (let gz = 3; gz <= 7; gz++) {
+                const d = Math.hypot(gx * 0.9, (gy - 3) * 1.1, (gz - 5) * 0.9);
+                if (d <= 2.4) {
+                  const bCol = (gy >= 3 || (gx + gz) % 3 === 0) ? '#ef4444' : '#ffffff';
+                  addPlushVoxel(bodyVoxels, gx, gy, gz, bCol);
+                }
+              }
+            }
+          }
+          addPlushVoxel(bodyVoxels, -2.2, 3.5, 6.8, '#1e1b24', false, 0.7, 0.7, 0.7);
+          addPlushVoxel(bodyVoxels,  2.2, 3.5, 6.8, '#1e1b24', false, 0.7, 0.7, 0.7);
+          addPlushVoxel(bodyVoxels,  0.0, 3.0, 2.2, '#fb7185', false, 2.6, 2.0, 0.8);
+        }
+
+        // 3. SHORT SITTING / DANGLING LEGS WITH WOODEN GETA SANDALS
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = '#ffffff';
+                if (z === 0) col = skinBase;
+                if (z >= 3) col = cfg.shoeColor || '#7f4f24';
+                if (z === 3 && y === 1 && x === 0) col = cfg.accentColor;
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        // 4. OVERSIZED ROUND FUMO HEAD, ICONIC 'ᗜˬᗜ' FACE, HAIR & ACCESSORIES
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                if (this.isSleeping) {
+                  if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y === 4) {
+                    col = '#1f141e';
+                  } else if (Math.abs(x) === 4 && y === 3) {
+                    col = blushCol;
+                  } else if (y === 2 && Math.abs(x) <= 1) {
+                    col = smileCol;
+                  }
+                } else {
+                  if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                    if (y === 6) col = '#1f141e';
+                    else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                    else col = cfg.eyeColor;
+                  } else if (Math.abs(x) === 4 && y === 3) {
+                    col = blushCol;
+                  } else if (y === 2 && Math.abs(x) <= 1) {
+                    col = (x === 0) ? '#e07a7a' : smileCol;
+                  }
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        if (this.id === 'reimu') {
+          for (const side of [-1, 1]) {
+            for (let y = -1; y <= 5; y++) {
+              const tubeCol = (y === 5) ? '#e63946' : ((y >= 1 && y <= 4) ? '#ffffff' : cfg.hairColor);
+              addPlushVoxel(headVoxels, side * 6.8, y, 2.2, tubeCol);
+              addPlushVoxel(headVoxels, side * 6.8, y, 3.0, tubeCol);
+            }
+          }
+          for (let bx = -7; bx <= 7; bx++) {
+            const wingHeight = Math.min(4, Math.floor(Math.abs(bx) * 0.7) + 1);
+            for (let by = -wingHeight; by <= wingHeight; by++) {
+              addPlushVoxel(headVoxels, bx, 12.2 + by * 0.75, -1.5 - Math.abs(bx) * 0.15, '#d90429');
+            }
+          }
+        }
+
+        if (this.id === 'marisa') {
+          for (let y = -1; y <= 5; y++) {
+            addPlushVoxel(headVoxels, -6.6, y, 2.8, y === 0 ? '#ffffff' : cfg.hairColor);
+          }
+          for (let hx = -10; hx <= 10; hx++) {
+            for (let hz = -10; hz <= 10; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 9.8 && r >= 4.2) {
+                const brimY = 10.4 - hz * 0.18;
+                const strawCol = ((hx + hz) % 2 === 0) ? '#f4d35e' : '#e9c46a';
+                addPlushVoxel(headVoxels, hx, brimY, hz - 1.0, strawCol);
+              }
+            }
+          }
+          for (let ch = 0; ch <= 4; ch++) {
+            const crownR = 5.2 - ch * 0.35;
+            for (let hx = -6; hx <= 6; hx++) {
+              for (let hz = -6; hz <= 6; hz++) {
+                const r = Math.hypot(hx, hz);
+                if (r <= crownR && r >= (ch === 4 ? 0 : crownR - 1.3)) {
+                  const isBand = (ch === 1);
+                  const col = isBand ? '#1e1b24' : (((hx + hz) % 2 === 0) ? '#f4d35e' : '#e9c46a');
+                  addPlushVoxel(headVoxels, hx, 10.8 + ch * 0.85 - hz * 0.15, hz - 1.2, col);
+                }
+              }
+            }
+          }
+          addPlushVoxel(headVoxels, 4.8, 11.8, 2.8, '#ef4444', false, 1.5, 1.5, 1.5);
+        }
+
+        if (this.id === 'cirno') {
+          for (let bx = -6; bx <= 6; bx++) {
+            const h = Math.min(3, Math.floor(Math.abs(bx) * 0.65) + 1);
+            for (let by = -h; by <= h; by++) {
+              addPlushVoxel(headVoxels, bx, 10.5 + by * 0.75, -4.8, '#1d4ed8');
+            }
+          }
+          const wingAngles = [0.45, 0.05, -0.35];
+          for (const side of [-1, 1]) {
+            for (let w = 0; w < 3; w++) {
+              const ang = wingAngles[w];
+              for (let r = 1; r <= 7; r++) {
+                const wx = side * (1.2 + Math.cos(ang) * r * 1.05);
+                const wy = 1.0 + Math.sin(ang) * r * 1.05;
+                const wz = -0.5 - r * 0.15;
+                wingGlowVoxels.push({
+                  x: wx, y: wy, z: wz,
+                  color: varyColor(r > 5 ? '#e0f2fe' : '#38bdf8', wx, wy, wz, 0.02),
+                  sx: 1.1, sy: 0.85, sz: 0.6
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'flandre') {
+          for (let py = 2; py <= 7; py++) {
+            addPlushVoxel(headVoxels, -7.2 - (7 - py) * 0.3, py, 0.5, py === 6 ? '#e63946' : cfg.hairColor);
+          }
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -7; hz <= 5; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.8 && r >= 4.8) {
+                addPlushVoxel(headVoxels, hx, 11.2, hz, '#ffe5ec');
+                addPlushVoxel(headVoxels, hx, 12.1, hz * 0.85, '#e63946');
+                addPlushVoxel(headVoxels, hx * 0.8, 12.9, hz * 0.75, '#ffe5ec');
+              }
+            }
+          }
+          const crystalColors = ['#38bdf8', '#3b82f6', '#a855f7', '#ec4899', '#f97316', '#fde047', '#4ade80', '#ef4444'];
+          for (const side of [-1, 1]) {
+            for (let rx = 1; rx <= 9; rx++) {
+              const branchY = 2.5 + (rx <= 4 ? rx * 0.45 : (4 * 0.45 - (rx - 4) * 0.35));
+              wingSolidVoxels.push({
+                x: side * rx, y: branchY, z: -0.5,
+                color: new THREE.Color('#1e1b24'),
+                sx: 0.9, sy: 0.65, sz: 0.65
+              });
+              if (rx % 2 === 0 && rx <= 8) {
+                const cIdx = (side === -1 ? (rx / 2 - 1) : (3 + rx / 2));
+                const cHex = crystalColors[cIdx % 8];
+                for (let cy = -2; cy <= 0; cy++) {
+                  const width = (cy === -1) ? 1.35 : 0.75;
+                  wingGlowVoxels.push({
+                    x: side * (rx + 0.3),
+                    y: branchY - 1.1 + cy * 0.95,
+                    z: -0.5,
+                    color: new THREE.Color(cHex),
+                    sx: width, sy: 0.95, sz: 0.75
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        if (this.id === 'sakuya') {
+          for (const side of [-1, 1]) {
+            for (let y = -2; y <= 5; y++) {
+              const col = (y <= -1) ? '#22c55e' : cfg.hairColor;
+              addPlushVoxel(headVoxels, side * 6.5, y, 3.2, col);
+            }
+          }
+          for (let hx = -6; hx <= 6; hx++) {
+            addPlushVoxel(headVoxels, hx, 11.8, 1.8 - Math.abs(hx) * 0.15, Math.abs(hx) === 6 ? '#22c55e' : '#ffffff');
+            addPlushVoxel(headVoxels, hx, 12.5, 1.5 - Math.abs(hx) * 0.15, '#ffffff');
+          }
+        }
+
+        if (this.id === 'suika') {
+          for (const side of [-1, 1]) {
+            for (let y = -2; y <= 4; y++) {
+              addPlushVoxel(headVoxels, side * 6.4, y, -1.5, cfg.hairColor);
+              if (y === -1) addPlushVoxel(headVoxels, side * 6.6, y, 2.5, '#ef4444');
+            }
+            for (let h = 0; h <= 9; h++) {
+              const hx = side * (3.8 + Math.sin(h * 0.28) * 3.2);
+              const hy = 10.5 + h * 0.92;
+              const hz = 1.2 - h * 0.25;
+              const hornCol = (h % 2 === 0) ? '#f3d5b5' : '#d4a373';
+              addPlushVoxel(headVoxels, hx, hy, hz, hornCol, false, 1.15 - h * 0.05, 1.0, 1.15 - h * 0.05);
+            }
+          }
+        }
+
+        if (this.id === 'raiko') {
+          for (let hx = -6; hx <= 6; hx++) {
+            for (let hz = -6; hz <= 6; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.7 && r >= 5.5) {
+                const bandCol = ((hx + hz) % 2 === 0) ? '#ef4444' : '#ffffff';
+                addPlushVoxel(headVoxels, hx, 9.2, hz, bandCol);
+              }
+            }
+          }
+        }
+
+        if (this.id === 'yuyuko') {
+          for (let hx = -6; hx <= 6; hx++) {
+            for (let hz = -6; hz <= 5; hz++) {
+              if (Math.hypot(hx, hz) <= 6.6 && Math.hypot(hx, hz) >= 4.6) {
+                addPlushVoxel(headVoxels, hx, 11.0, hz, '#e0f2fe');
+              }
+            }
+          }
+          for (let bx = -3; bx <= 3; bx++) {
+            for (let by = 0; by <= 3 - Math.abs(bx); by++) {
+              addPlushVoxel(headVoxels, bx, 11.2 + by * 0.8, 5.2, (bx === 0 && by === 1) ? '#ef4444' : '#ffffff');
+            }
+          }
+        }
+
+        if (this.id === 'suwako') {
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -6; hz <= 6; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.8 && r >= 4.2) {
+                addPlushVoxel(headVoxels, hx, 10.6, hz, '#a3b18a');
+                if (r <= 5.6) addPlushVoxel(headVoxels, hx, 11.6, hz, '#a3b18a');
+              }
+            }
+          }
+          for (const side of [-1, 1]) {
+            addPlushVoxel(headVoxels, side * 3.5, 13.0, 2.5, '#a3b18a');
+            addPlushVoxel(headVoxels, side * 3.5, 13.2, 3.3, '#ffffff');
+            addPlushVoxel(headVoxels, side * 3.5, 13.2, 3.9, '#1e293b');
+          }
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allFumoRaycastMeshes.push(m);
+          }
+          return m;
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        registerPart(wingSolidVoxels, this.wingsPivot);
+        if (wingGlowVoxels.length > 0) {
+          const wMat = (this.id === 'cirno') ? translucentWaterMaterial : crystalWingMaterial;
+          registerPart(wingGlowVoxels, this.wingsPivot, wMat);
+        }
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.52, this.squash - 0.42 * strength);
+        this.squashVel = -3.5 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 11 * strength;
+        this.limbPitch = -0.65 * strength;
+        this.limbPitchVel = -6.0 * strength;
+        spawnSqueezeParticles(this.pos, this.accentColor);
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      resetToHome() {
+        this.pos.copy(this.homePos);
+        this.vel.set(0, 0, 0);
+        this.yaw = this.homeYaw;
+        this.pitch = this.homePitch;
+        this.roll = 0;
+        this.angVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.squeeze(0.75);
+      }
+
+      updatePhysics(dt, time) {
+        this.inWaterCooldown = Math.max(0, this.inWaterCooldown - dt);
+
+        const squashStiff = 210.0;
+        const squashDamp = 11.5;
+        const squashForce = (1.0 - this.squash) * squashStiff - this.squashVel * squashDamp;
+        this.squashVel += squashForce * dt;
+        this.squash += this.squashVel * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash, 0.45, 1.55);
+
+        const headStiff = 140.0;
+        const headDamp = 7.5;
+        const idleHeadBob = Math.sin(time * (this.isDrummer ? 5.2 : 2.2) + this.homePos.x) * (this.isDrummer ? 0.065 : 0.025);
+        this.headPitchVel += ((idleHeadBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        let targetLimbPitch = (this.isDragged || !this.isGrounded) ? 0.58 : 0.0;
+        if (this.isDrummer && this.isGrounded && !this.isDragged) {
+          targetLimbPitch = -0.35 + Math.sin(time * 9.5) * 0.35;
+        }
+        const limbStiff = 120.0;
+        const limbDamp = 8.0;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * limbStiff - this.limbPitchVel * limbDamp) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * limbStiff - this.limbRollVel * limbDamp) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.85, 0.9);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+
+        if (!this.isDragged) {
+          const prevY = this.pos.y;
+          this.vel.y -= 24.0 * dt;
+          this.vel.multiplyScalar(Math.pow(0.985, dt * 60));
+          this.pos.addScaledVector(this.vel, dt);
+
+          this.yaw += this.angVel.y * dt;
+          this.pitch += this.angVel.x * dt;
+          this.roll += this.angVel.z * dt;
+          this.angVel.multiplyScalar(Math.pow(0.92, dt * 60));
+
+          this.isGrounded = false;
+
+          // Splash into the Goldfish Scooping Tank
+          if (
+            this.inWaterCooldown <= 0 &&
+            prevY > GOLDFISH_TANK_BOUNDS.waterY &&
+            this.pos.y <= GOLDFISH_TANK_BOUNDS.waterY &&
+            this.pos.x >= GOLDFISH_TANK_BOUNDS.minX &&
+            this.pos.x <= GOLDFISH_TANK_BOUNDS.maxX &&
+            this.pos.z >= GOLDFISH_TANK_BOUNDS.minZ &&
+            this.pos.z <= GOLDFISH_TANK_BOUNDS.maxZ
+          ) {
+            spawnWaterSplash(this.pos.x, GOLDFISH_TANK_BOUNDS.waterY, this.pos.z);
+            this.inWaterCooldown = 0.45;
+          }
+
+          // Splash into the Stream
+          if (
+            this.inWaterCooldown <= 0 &&
+            prevY > 0.1 &&
+            this.pos.y <= 0.1 &&
+            this.pos.x >= STREAM_BOUNDS.minX &&
+            this.pos.x <= STREAM_BOUNDS.maxX &&
+            (this.pos.z < -1.1 || this.pos.z > 1.8)
+          ) {
+            spawnWaterSplash(this.pos.x, 0.0, this.pos.z);
+            this.inWaterCooldown = 0.45;
+          }
+
+          if (this.pos.y < 0) {
+            const impact = -this.vel.y;
+            this.pos.y = 0;
+            if (impact > 1.8) {
+              this.vel.y = impact * 0.42;
+              this.squashVel -= Math.min(9.0, impact * 0.95);
+              this.headPitchVel += (Math.random() - 0.5) * impact * 2.0;
+              this.headRollVel += (Math.random() - 0.5) * impact * 2.0;
+              soundFX.playBounce(impact * 0.08);
+            } else {
+              this.vel.y = 0;
+              this.isGrounded = true;
+            }
+            this.vel.x *= 0.82;
+            this.vel.z *= 0.82;
+          }
+
+          const minXBound = -11.2, maxXBound = 11.2;
+          const minZBound = -8.8,  maxZBound = 8.8;
+          if (this.pos.x < minXBound) { this.pos.x = minXBound; this.vel.x = Math.abs(this.vel.x) * 0.5; }
+          if (this.pos.x > maxXBound) { this.pos.x = maxXBound; this.vel.x = -Math.abs(this.vel.x) * 0.5; }
+          if (this.pos.z < minZBound) { this.pos.z = minZBound; this.vel.z = Math.abs(this.vel.z) * 0.5; }
+          if (this.pos.z > maxZBound) { this.pos.z = maxZBound; this.vel.z = -Math.abs(this.vel.z) * 0.5; }
+
+          const r = this.radius * 0.72;
+          const centerY = this.pos.y + r;
+
+          for (let i = 0; i < furnitureColliders.length; i++) {
+            const box = furnitureColliders[i];
+            const cx = THREE.MathUtils.clamp(this.pos.x, box.min.x, box.max.x);
+            const cy = THREE.MathUtils.clamp(centerY, box.min.y, box.max.y);
+            const cz = THREE.MathUtils.clamp(this.pos.z, box.min.z, box.max.z);
+
+            const dx = this.pos.x - cx;
+            const dy = centerY - cy;
+            const dz = this.pos.z - cz;
+            const distSq = dx * dx + dy * dy + dz * dz;
+
+            if (distSq < r * r) {
+              const dist = Math.sqrt(distSq);
+              if (centerY >= box.max.y - 0.28 && this.vel.y <= 0.5) {
+                const impact = -this.vel.y;
+                this.pos.y = box.max.y;
+                if (impact > 2.0) {
+                  this.vel.y = impact * 0.38;
+                  this.squashVel -= Math.min(8.5, impact * 0.85);
+                  this.headPitchVel += (Math.random() - 0.5) * impact * 1.8;
+                  soundFX.playBounce(impact * 0.08);
+                } else {
+                  this.vel.y = 0;
+                  this.isGrounded = true;
+                }
+                this.vel.x *= 0.80;
+                this.vel.z *= 0.80;
+              } else if (dist > 0.0001) {
+                const nx = dx / dist;
+                const ny = dy / dist;
+                const nz = dz / dist;
+                const pen = r - dist;
+                this.pos.x += nx * pen;
+                this.pos.y = Math.max(0, this.pos.y + ny * pen);
+                this.pos.z += nz * pen;
+
+                const vn = this.vel.x * nx + this.vel.y * ny + this.vel.z * nz;
+                if (vn < 0) {
+                  const imp = -vn;
+                  this.vel.x -= 1.42 * vn * nx;
+                  this.vel.y -= 1.42 * vn * ny;
+                  this.vel.z -= 1.42 * vn * nz;
+                  if (imp > 2.0) {
+                    this.squashVel -= Math.min(6.0, imp * 0.55);
+                    soundFX.playBounce(imp * 0.06);
+                  }
+                }
+              }
+            }
+          }
+
+          if (this.isGrounded) {
+            this.pitch = THREE.MathUtils.lerp(this.pitch, this.homePitch, Math.min(1, dt * 9.5));
+            this.roll = THREE.MathUtils.lerp(this.roll, 0, Math.min(1, dt * 9.5));
+            this.angVel.multiplyScalar(0.75);
+          }
+        }
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+
+        const altDrum = this.isDrummer ? Math.cos(time * 9.5) * 0.25 : 0;
+        this.leftArmPivot.rotation.set(this.limbPitch + altDrum, 0, 0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.rightArmPivot.rotation.set(this.limbPitch - altDrum, 0, -0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+
+        const wingFlutter = Math.sin(time * 3.8 + this.homePos.x) * 0.06 + (1.0 - this.squash) * 0.35;
+        this.wingsPivot.rotation.x = wingFlutter;
+      }
+    }
+
+    // ============================================================================
+    // 10. INSTANTIATE THE 9 MATSURI TOUHOU FUMO PLUSHIES
+    // ============================================================================
+    const fumoConfigs = [
+      {
+        id: 'reimu',
+        name: 'Reimu Hakurei (Scooping Goldfish)',
+        emoji: '🐟',
+        accentColor: '#ef4444',
+        hairColor: '#2b1e23',
+        eyeColor: '#991b1b',
+        yukataMain: '#dc2626',
+        yukataPatternCol: '#fef2f2',
+        obiColor: '#facc15',
+        obiCordColor: '#ffffff',
+        shoeColor: '#7f4f24',
+        homePos: new THREE.Vector3(-5.0, 0.0, 5.15),
+        homeYaw: Math.PI,
+        homePitch: 0.14,
+        pitchAudio: 1.0
+      },
+      {
+        id: 'marisa',
+        name: 'Marisa Kirisame (Takoyaki & Straw Hat)',
+        emoji: '🐙',
+        accentColor: '#facc15',
+        hairColor: '#fde047',
+        eyeColor: '#ca8a04',
+        yukataMain: '#1e293b',
+        yukataPatternCol: '#f8fafc',
+        obiColor: '#f59e0b',
+        obiCordColor: '#fef08a',
+        shoeColor: '#451a03',
+        homePos: new THREE.Vector3(-6.75, 0.0, -4.6),
+        homeYaw: 0.35,
+        pitchAudio: 0.96
+      },
+      {
+        id: 'cirno',
+        name: 'Cirno (Blue Shaved Ice Yukata)',
+        emoji: '🍧',
+        accentColor: '#38bdf8',
+        hairColor: '#7dd3fc',
+        eyeColor: '#0284c7',
+        yukataMain: '#2563eb',
+        yukataPatternCol: '#bae6fd',
+        obiColor: '#38bdf8',
+        obiCordColor: '#ffffff',
+        shoeColor: '#1e3a8a',
+        homePos: new THREE.Vector3(8.65, 1.35, 0.35),
+        homeYaw: -0.65,
+        pitchAudio: 1.16
+      },
+      {
+        id: 'flandre',
+        name: 'Flandre Scarlet (Candy Apple & Crystal Wings)',
+        emoji: '🍎',
+        accentColor: '#f43f5e',
+        hairColor: '#fef08a',
+        eyeColor: '#dc2626',
+        yukataMain: '#e11d48',
+        yukataPatternCol: '#ffe4e6',
+        obiColor: '#fde047',
+        obiCordColor: '#ef4444',
+        shoeColor: '#881337',
+        homePos: new THREE.Vector3(-2.3, 0.0, -4.4),
+        homeYaw: 0.25,
+        pitchAudio: 1.22
+      },
+      {
+        id: 'sakuya',
+        name: 'Sakuya Izayoi (Ring-Toss Booth Host)',
+        emoji: '🎯',
+        accentColor: '#60a5fa',
+        hairColor: '#e2e8f0',
+        eyeColor: '#1d4ed8',
+        yukataMain: '#1e3a8a',
+        yukataPatternCol: '#dbeafe',
+        obiColor: '#22c55e',
+        obiCordColor: '#ffffff',
+        shoeColor: '#172554',
+        homePos: new THREE.Vector3(1.85, 2.75, -5.85),
+        homeYaw: 0.05,
+        pitchAudio: 0.92
+      },
+      {
+        id: 'suika',
+        name: 'Suika Ibuki (Festival Sake Gourd & Horns)',
+        emoji: '🍶',
+        accentColor: '#f97316',
+        hairColor: '#ea580c',
+        eyeColor: '#b45309',
+        yukataMain: '#6d28d9',
+        yukataPatternCol: '#fde047',
+        obiColor: '#f97316',
+        obiCordColor: '#fef08a',
+        shoeColor: '#451a03',
+        homePos: new THREE.Vector3(5.45, 7.0, -6.2),
+        homeYaw: -0.35,
+        pitchAudio: 1.08
+      },
+      {
+        id: 'raiko',
+        name: 'Raiko Horikawa (Yagura Taiko Drummer Fumo)',
+        emoji: '🥁',
+        accentColor: '#ef4444',
+        hairColor: '#dc2626',
+        eyeColor: '#991b1b',
+        yukataMain: '#1f2937',
+        yukataPatternCol: '#ef4444',
+        obiColor: '#facc15',
+        obiCordColor: '#ffffff',
+        shoeColor: '#111827',
+        isDrummer: true,
+        homePos: new THREE.Vector3(0.35, 4.25, 3.35),
+        homeYaw: Math.PI,
+        pitchAudio: 0.88
+      },
+      {
+        id: 'yuyuko',
+        name: 'Sleeping Yuyuko (Tucked in a Wooden Crate!)',
+        emoji: '💤',
+        accentColor: '#f472b6',
+        hairColor: '#fbcfe8',
+        eyeColor: '#be185d',
+        yukataMain: '#ec4899',
+        yukataPatternCol: '#fce7f3',
+        obiColor: '#38bdf8',
+        obiCordColor: '#ffffff',
+        shoeColor: '#831843',
+        isSleeping: true,
+        scale: 0.88,
+        homePos: new THREE.Vector3(6.1, 0.65, -1.75),
+        homeYaw: -0.45,
+        pitchAudio: 1.12
+      },
+      {
+        id: 'suwako',
+        name: 'Mini Suwako (Hugging Giant Goldfish Balloon!)',
+        emoji: '🎈',
+        accentColor: '#4ade80',
+        hairColor: '#fde68a',
+        eyeColor: '#4f46e5',
+        yukataMain: '#4f46e5',
+        yukataPatternCol: '#a3e635',
+        obiColor: '#4ade80',
+        obiCordColor: '#ffffff',
+        shoeColor: '#312e81',
+        scale: 0.78,
+        homePos: new THREE.Vector3(-3.35, 0.95, 2.05),
+        homeYaw: -0.55,
+        pitchAudio: 1.38
+      }
+    ];
+
+    fumoConfigs.forEach(cfg => {
+      fumos.push(new VoxelFumo(cfg));
+    });
+
+    function resolveFumoToFumoCollisions() {
+      for (let i = 0; i < fumos.length; i++) {
+        for (let j = i + 1; j < fumos.length; j++) {
+          const a = fumos[i];
+          const b = fumos[j];
+          const minDist = (a.radius + b.radius) * 0.78;
+          const dx = b.pos.x - a.pos.x;
+          const dy = (b.pos.y + b.radius * 0.6) - (a.pos.y + a.radius * 0.6);
+          const dz = b.pos.z - a.pos.z;
+          const distSq = dx * dx + dy * dy + dz * dz;
+
+          if (distSq < minDist * minDist && distSq > 0.0001) {
+            const dist = Math.sqrt(distSq);
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const nz = dz / dist;
+            const overlap = (minDist - dist) * 0.5;
+
+            if (!a.isDragged) {
+              a.pos.x -= nx * overlap;
+              a.pos.y = Math.max(0, a.pos.y - ny * overlap);
+              a.pos.z -= nz * overlap;
+            }
+            if (!b.isDragged) {
+              b.pos.x += nx * overlap;
+              b.pos.y = Math.max(0, b.pos.y + ny * overlap);
+              b.pos.z += nz * overlap;
+            }
+
+            const rvx = b.vel.x - a.vel.x;
+            const rvy = b.vel.y - a.vel.y;
+            const rvz = b.vel.z - a.vel.z;
+            const vn = rvx * nx + rvy * ny + rvz * nz;
+            if (vn < 0) {
+              const imp = -vn * 0.68;
+              if (!a.isDragged) {
+                a.vel.x -= imp * nx;
+                a.vel.y -= imp * ny;
+                a.vel.z -= imp * nz;
+                a.squashVel -= Math.min(5.0, imp * 0.6);
+              }
+              if (!b.isDragged) {
+                b.vel.x += imp * nx;
+                b.vel.y += imp * ny;
+                b.vel.z += imp * nz;
+                b.squashVel -= Math.min(5.0, imp * 0.6);
+              }
+              if (imp > 1.5) soundFX.playBounce(imp * 0.07);
+            }
+          }
+        }
+      }
+    }
+
+    // ============================================================================
+    // 11. POINTER INTERACTION: SQUEEZE, DRAG & THROW, AND WATER TANK RIPPLES
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let hoveredFumo = null;
+    let selectedFumo = null;
+    let isDraggingFumo = false;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+    const badgeEl = document.getElementById('fumo-badge');
+    const badgeDotEl = document.getElementById('fumo-badge-dot');
+    const badgeNameEl = document.getElementById('fumo-badge-name');
+    const badgeStatusEl = document.getElementById('fumo-badge-status');
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function pickFumoUnderPointer() {
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (hits.length > 0 && hits[0].object.userData.fumo) {
+        return { fumo: hits[0].object.userData.fumo, point: hits[0].point };
+      }
+      return null;
+    }
+
+    function pickWaterUnderPointer() {
+      if (!waterMesh) return null;
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObject(waterMesh, false);
+      if (hits.length > 0) return hits[0].point;
+      return null;
+    }
+
+    function updateUIBadge(fumo, statusText) {
+      if (!fumo) {
+        badgeEl.classList.add('hidden');
+        return;
+      }
+      badgeEl.classList.remove('hidden');
+      badgeDotEl.style.backgroundColor = fumo.accentColor;
+      badgeNameEl.textContent = fumo.name;
+      badgeStatusEl.textContent = statusText;
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      soundFX.unlock();
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+
+      const hit = pickFumoUnderPointer();
+      if (hit) {
+        selectedFumo = hit.fumo;
+        isDraggingFumo = false;
+        controls.enabled = false;
+
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), selectedFumo.pos);
+
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          dragOffset.subVectors(selectedFumo.pos, dragHitPoint);
+        } else {
+          dragOffset.set(0, 0, 0);
+        }
+
+        dragHistory = [{ pos: selectedFumo.pos.clone(), time: performance.now() }];
+        updateUIBadge(selectedFumo, 'Selected');
+        return;
+      }
+
+      const waterPoint = pickWaterUnderPointer();
+      if (waterPoint) {
+        spawnWaterRipple(waterPoint.x, waterPoint.y, waterPoint.z, 0.85);
+        soundFX.playSplash(false);
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      updatePointerNDC(e);
+
+      if (selectedFumo) {
+        recordInteraction();
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          selectedFumo.isDragged = true;
+          selectedFumo.isGrounded = false;
+          selectedFumo.squashVel += 3.2;
+          soundFX.playPickup();
+          updateUIBadge(selectedFumo, 'Dragging — Release to Throw!');
+        }
+
+        if (isDraggingFumo) {
+          raycaster.setFromCamera(pointerNDC, camera);
+          if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+            const targetPos = dragHitPoint.clone().add(dragOffset);
+            targetPos.x = THREE.MathUtils.clamp(targetPos.x, -10.8, 10.8);
+            targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.25, 11.5);
+            targetPos.z = THREE.MathUtils.clamp(targetPos.z, -8.5, 8.5);
+
+            const prevPos = selectedFumo.pos.clone();
+            selectedFumo.pos.lerp(targetPos, 0.55);
+
+            const deltaMove = selectedFumo.pos.clone().sub(prevPos);
+            selectedFumo.headRollVel -= deltaMove.x * 16.0;
+            selectedFumo.headPitchVel += deltaMove.z * 16.0 - deltaMove.y * 10.0;
+            selectedFumo.limbRollVel -= deltaMove.x * 22.0;
+            selectedFumo.roll = THREE.MathUtils.lerp(selectedFumo.roll, THREE.MathUtils.clamp(-deltaMove.x * 1.4, -0.45, 0.45), 0.3);
+            selectedFumo.pitch = THREE.MathUtils.lerp(selectedFumo.pitch, THREE.MathUtils.clamp(deltaMove.z * 1.4, -0.45, 0.45), 0.3);
+
+            const now = performance.now();
+            dragHistory.push({ pos: selectedFumo.pos.clone(), time: now });
+            while (dragHistory.length > 6) dragHistory.shift();
+          }
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      const hit = pickFumoUnderPointer();
+      if (hit) {
+        hoveredFumo = hit.fumo;
+        renderer.domElement.style.cursor = 'grab';
+        tooltipEmojiEl.textContent = hoveredFumo.emoji;
+        tooltipTextEl.textContent = hoveredFumo.name;
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else {
+        hoveredFumo = null;
+        const waterHit = pickWaterUnderPointer();
+        if (waterHit) {
+          renderer.domElement.style.cursor = 'pointer';
+          tooltipEmojiEl.textContent = '🐟';
+          tooltipTextEl.textContent = 'Click water to make ripples!';
+          tooltipEl.style.opacity = '1';
+          tooltipEl.style.left = `${e.clientX + 14}px`;
+          tooltipEl.style.top = `${e.clientY - 18}px`;
+        } else {
+          renderer.domElement.style.cursor = 'default';
+          tooltipEl.style.opacity = '0';
+        }
+      }
+    });
+
+    window.addEventListener('pointerup', () => {
+      if (!selectedFumo) return;
+      controls.enabled = true;
+      recordInteraction();
+
+      if (!isDraggingFumo) {
+        selectedFumo.squeeze(1.0);
+        updateUIBadge(selectedFumo, 'Squeezed! ᗜˬᗜ');
+      } else {
+        selectedFumo.isDragged = false;
+        const now = performance.now();
+        while (dragHistory.length > 1 && now - dragHistory[0].time > 140) {
+          dragHistory.shift();
+        }
+        if (dragHistory.length >= 2) {
+          const first = dragHistory[0];
+          const last = dragHistory[dragHistory.length - 1];
+          const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+          const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+          if (throwVel.length() > 22) throwVel.setLength(22);
+          selectedFumo.vel.copy(throwVel);
+
+          const speed = throwVel.length();
+          selectedFumo.angVel.set(
+            throwVel.z * 0.65 + (Math.random() - 0.5) * speed * 0.4,
+            (Math.random() - 0.5) * speed * 0.5,
+            -throwVel.x * 0.65 + (Math.random() - 0.5) * speed * 0.4
+          );
+        } else {
+          selectedFumo.vel.set(0, 0, 0);
+        }
+        updateUIBadge(selectedFumo, 'Thrown!');
+      }
+
+      selectedFumo = null;
+      isDraggingFumo = false;
+      renderer.domElement.style.cursor = hoveredFumo ? 'grab' : 'default';
+    });
+
+    // ============================================================================
+    // 12. DAY / NIGHT SMOOTH INTERPOLATION (~2 SECONDS) & HUB INTEGRATION
+    // ============================================================================
+    const STORAGE_MODE_KEY = 'voxel_fumo_matsuri_mode';
+    let isNightMode = true;
+    let dayNightProgress = 1.0;
+    let dayNightTarget = 1.0;
+    let autoFireworkTimer = 1.5;
+
+    const daySkyColor = new THREE.Color('#f6a564');
+    const nightSkyColor = new THREE.Color('#090818');
+
+    const daySunLightCol = new THREE.Color('#ffb566');
+    const nightMoonLightCol = new THREE.Color('#6b88d6');
+
+    const dayHemiSky = new THREE.Color('#ffe3b8');
+    const nightHemiSky = new THREE.Color('#28254b');
+    const dayHemiGround = new THREE.Color('#9e6d4e');
+    const nightHemiGround = new THREE.Color('#141024');
+
+    function notifyParentMode() {
+      const modeStr = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: modeStr }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(night, { immediate = false, playSound = true } = {}) {
+      isNightMode = Boolean(night);
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) {
+        dayNightProgress = dayNightTarget;
+      }
+      document.body.classList.toggle('night-ui', isNightMode);
+
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
+      } catch (e) {}
+
+      if (playSound) {
+        soundFX.playPickup();
+      }
+      if (isNightMode && !immediate) {
+        setTimeout(() => launchFirework(), 350);
+      }
+      notifyParentMode();
+    }
+
+    function toggleDayNight() {
+      setDayNightMode(!isNightMode, { immediate: false, playSound: true });
+    }
+
+    function updateDayNightTransition(dt) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.52;
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      scene.background.lerpColors(daySkyColor, nightSkyColor, t);
+      scene.fog.color.copy(scene.background);
+      scene.fog.density = THREE.MathUtils.lerp(0.0068, 0.0092, t);
+
+      mainDirLight.color.lerpColors(daySunLightCol, nightMoonLightCol, t);
+      mainDirLight.intensity = THREE.MathUtils.lerp(1.42, 0.34, t);
+
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.75, 0.28, t);
+
+      yaguraLight.intensity = THREE.MathUtils.lerp(0.05, 1.55, t);
+      yataiStallLight.intensity = THREE.MathUtils.lerp(0.05, 1.25, t);
+      streamGlowLight.intensity = THREE.MathUtils.lerp(0.04, 1.05, t);
+
+      lanternRedEmissiveMat.emissiveIntensity = THREE.MathUtils.lerp(0.04, 1.85, t);
+      lanternWhiteEmissiveMat.emissiveIntensity = THREE.MathUtils.lerp(0.05, 2.15, t);
+      stallSignEmissiveMat.emissiveIntensity = THREE.MathUtils.lerp(0.04, 1.65, t);
+      translucentWaterMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.15, 0.48, t);
+      crystalWingMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.28, 1.25, t);
+
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.14, 0.72, t);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.85, 0.58, t);
+      }
+    }
+
+    document.getElementById('btn-fireworks').addEventListener('click', () => {
+      soundFX.unlock();
+      recordInteraction();
+      launchFirework();
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      soundFX.unlock();
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 40));
+      updateUIBadge(null, '');
+    });
+
+    document.getElementById('btn-squeeze-all').addEventListener('click', () => {
+      soundFX.unlock();
+      fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 50));
+    });
+
+    const btnSound = document.getElementById('btn-sound');
+    const iconSoundOn = document.getElementById('icon-sound-on');
+    const iconSoundOff = document.getElementById('icon-sound-off');
+    btnSound.addEventListener('click', () => {
+      soundFX.unlock();
+      soundFX.enabled = !soundFX.enabled;
+      iconSoundOn.classList.toggle('hidden', !soundFX.enabled);
+      iconSoundOff.classList.toggle('hidden', soundFX.enabled);
+      if (soundFX.enabled) soundFX.playPickup();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      soundFX.unlock();
+      const key = e.key.toLowerCase();
+      if (key === 'n') {
+        e.preventDefault();
+        toggleDayNight();
+      } else if (key === 'f') {
+        e.preventDefault();
+        launchFirework();
+      } else if (key === 'r') {
+        fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 40));
+      } else if (key === ' ') {
+        e.preventDefault();
+        fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 50));
+      } else if (key === 'm') {
+        btnSound.click();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ============================================================================
+    // 13. MAIN RENDER LOOP, PAUSE / RESUME & HUB MESSAGE LISTENER
+    // ============================================================================
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.033, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      if (!selectedFumo && (now - lastUserInteractionTime > 4500)) {
+        controls.autoRotate = true;
+      }
+
+      controls.update();
+      updateDayNightTransition(dt);
+      updateLanternsAndChimes(elapsed, dt);
+      updateWaterAndSmoke(elapsed, dt);
+      updateFireworks(dt);
+      updatePopParticles(dt);
+
+      if (dayNightProgress > 0.65) {
+        autoFireworkTimer -= dt;
+        if (autoFireworkTimer <= 0) {
+          launchFirework();
+          autoFireworkTimer = 2.8 + Math.random() * 2.4;
+        }
+      }
+
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].updatePhysics(dt, elapsed);
+      }
+      resolveFumoToFumoCollisions();
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function pauseRenderLoop() {
+      if (isPaused) return;
+      isPaused = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+
+    function resumeRenderLoop() {
+      if (!isPaused) return;
+      isPaused = false;
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('message', (e) => {
+      const data = e.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'toggleMode') {
+        toggleDayNight();
+      } else if (data.type === 'pause') {
+        pauseRenderLoop();
+      } else if (data.type === 'resume') {
+        resumeRenderLoop();
+      }
+    });
+
+    window.onload = function () {
+      let initialNight = true;
+      try {
+        const saved = localStorage.getItem(STORAGE_MODE_KEY);
+        if (saved === 'day') initialNight = false;
+        else if (saved === 'night') initialNight = true;
+      } catch (e) {}
+
+      setDayNightMode(initialNight, { immediate: true, playSound: false });
+      updateDayNightTransition(0);
+
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.78;
+          f.squashVel = 2.0;
+          f.headPitchVel = 4.0;
+        }, 120 + idx * 65);
+      });
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>

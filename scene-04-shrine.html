@@ -1,0 +1,2830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Hakurei Shrine — Touhou Fumo Voxel Diorama</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js r128 + OrbitControls + Post-Processing (UnrealBloomPass) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #0e1324;
+    }
+    h1, .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.78);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      box-shadow: 0 10px 28px -6px rgba(20, 15, 45, 0.18), 0 2px 6px rgba(20, 15, 45, 0.08);
+      transition: background 0.5s ease, color 0.5s ease, border-color 0.5s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    body.night-ui .glass-panel {
+      background: rgba(22, 24, 46, 0.78);
+      border-color: rgba(145, 135, 235, 0.28);
+      color: #f3f0ff;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.55), 0 0 16px rgba(130, 110, 255, 0.15);
+    }
+    .ui-btn {
+      cursor: pointer;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+    #fumo-tooltip {
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.75rem;
+      line-height: 1.2;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.08);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.18);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.14);
+      border-bottom-color: rgba(255, 255, 255, 0.28);
+    }
+  </style>
+</head>
+<body class="text-slate-800">
+  <div id="canvas-container"></div>
+
+  <!-- Top-Right Controls: Active Fumo Badge, Squeeze All, Reset, Sound (Top-Left kept clear for Hub) -->
+  <div class="fixed top-4 right-4 z-20 flex items-center gap-2.5">
+    <div id="fumo-badge" class="glass-panel rounded-2xl px-3.5 py-2.5 text-xs font-semibold hidden items-center gap-2 transition-all">
+      <span id="fumo-badge-dot" class="w-2.5 h-2.5 rounded-full inline-block bg-rose-500"></span>
+      <span id="fumo-badge-name">Reimu Hakurei</span>
+      <span id="fumo-badge-status" class="opacity-70 ml-1">Sweeping</span>
+    </div>
+
+    <button id="btn-squeeze-all" title="Squeeze All Fumos! (Space)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <span class="text-base leading-none">🌸</span>
+      <span class="hidden md:inline">Squeeze All</span>
+    </button>
+
+    <button id="btn-reset" title="Return Fumos to Shrine Spots (R)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+      <span class="hidden sm:inline">Reset</span>
+    </button>
+
+    <button id="btn-sound" title="Toggle Plush Sound Effects (M)"
+      class="glass-panel ui-btn rounded-2xl p-2.5 flex items-center justify-center">
+      <svg id="icon-sound-on" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+      </svg>
+      <svg id="icon-sound-off" class="w-5 h-5 hidden opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <line x1="23" y1="9" x2="17" y2="15"></line>
+        <line x1="17" y1="9" x2="23" y2="15"></line>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Floating Cursor Tooltip for Hovered Fumo -->
+  <div id="fumo-tooltip" class="fixed z-30 opacity-0 px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold flex items-center gap-2 shadow-lg">
+    <span id="tooltip-emoji">⛩️</span>
+    <span id="tooltip-text">Reimu Fumo</span>
+  </div>
+
+  <!-- Bottom Center HUD Hints -->
+  <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none w-max max-w-[94vw]">
+    <div class="glass-panel rounded-2xl px-4 py-2 text-xs font-semibold flex flex-wrap items-center justify-center gap-x-4 gap-y-1 opacity-90">
+      <span>🖱️ <b>Click Fumo:</b> Squeeze</span>
+      <span>✋ <b>Drag & Release:</b> Toss Down Stairs / Push Leaves</span>
+      <span>🔄 <b>Drag Background:</b> Orbit Shrine</span>
+      <span class="hidden sm:inline"><kbd>R</kbd> Reset Plushies</span>
+      <span class="hidden md:inline"><kbd>Space</kbd> Squeeze All</span>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 1. PROCEDURAL WEB AUDIO SYNTHESIZER (Soft Plush Squeaks, Boings & Thuds)
+    // ============================================================================
+    class PlushSoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) {
+            this.ctx = new AudioCtx();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playSqueeze(pitchMultiplier = 1.0) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+
+          const osc1 = this.ctx.createOscillator();
+          const gain1 = this.ctx.createGain();
+          osc1.type = 'sine';
+          const baseFreq = (520 + Math.random() * 80) * pitchMultiplier;
+          osc1.frequency.setValueAtTime(baseFreq, now);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.085);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.16);
+
+          gain1.gain.setValueAtTime(0.001, now);
+          gain1.gain.linearRampToValueAtTime(0.11, now + 0.025);
+          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+
+          osc1.connect(gain1);
+          gain1.connect(this.ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.18);
+
+          const osc2 = this.ctx.createOscillator();
+          const gain2 = this.ctx.createGain();
+          osc2.type = 'triangle';
+          osc2.frequency.setValueAtTime(baseFreq * 1.1, now + 0.11);
+          osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.65, now + 0.21);
+
+          gain2.gain.setValueAtTime(0.001, now + 0.11);
+          gain2.gain.linearRampToValueAtTime(0.08, now + 0.13);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+          osc2.connect(gain2);
+          gain2.connect(this.ctx.destination);
+          osc2.start(now + 0.11);
+          osc2.stop(now + 0.25);
+        } catch (e) {}
+      }
+
+      playBounce(intensity = 0.5) {
+        if (!this.enabled || intensity < 0.08) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const vol = Math.min(0.14, intensity * 0.12);
+
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          const startFreq = 115 + Math.min(80, intensity * 35);
+          osc.frequency.setValueAtTime(startFreq, now);
+          osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+
+      playPickup() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(280, now);
+          osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+    }
+
+    const soundFX = new PlushSoundEngine();
+
+    // ============================================================================
+    // 2. COLOR & VOXEL HELPER UTILITIES
+    // ============================================================================
+    const tempColor = new THREE.Color();
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    const tempEuler = new THREE.Euler();
+
+    function voxelHash(x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    }
+
+    function varyColor(hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
+      tempColor.set(hexOrString);
+      const h = voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      tempColor.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return tempColor.clone();
+    }
+
+    function createSoftVoxelGeometry(size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    }
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        if (v.rx || v.ry || v.rz) {
+          tempEuler.set(v.rx || 0, v.ry || 0, v.rz || 0);
+          tempQuat.setFromEuler(tempEuler);
+        } else {
+          tempQuat.identity();
+        }
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    // ============================================================================
+    // 3. SCENE, CAMERA, RENDERER & POST-PROCESSING SETUP
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#cce8ff');
+    scene.fog = new THREE.FogExp2('#cce8ff', 0.0082);
+
+    const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.5, 160);
+    camera.position.set(19.5, 13.8, 25.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.16,
+        0.55,
+        0.82
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (err) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0.0, 4.2, 0.5);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.475;
+    controls.minPolarAngle = Math.PI * 0.08;
+    controls.minDistance = 8;
+    controls.maxDistance = 48;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.42;
+
+    let lastUserInteractionTime = performance.now();
+    const recordInteraction = () => {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+    };
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 4. LIGHTING & MATERIALS (Capped Dynamic Lights for Performance)
+    // ============================================================================
+    // 1. Hemisphere Light
+    const hemiLight = new THREE.HemisphereLight(0xfff9ee, 0x8ea885, 0.72);
+    hemiLight.position.set(0, 30, 0);
+    scene.add(hemiLight);
+
+    // 2. Main Sun / Moon Directional Light (Casts soft shadows across the shrine hillside)
+    const sunDirLight = new THREE.DirectionalLight(0xfff2d6, 1.32);
+    sunDirLight.position.set(22, 26, 18);
+    sunDirLight.target.position.set(0, 2, -2);
+    scene.add(sunDirLight.target);
+    sunDirLight.castShadow = true;
+    sunDirLight.shadow.mapSize.width = 2048;
+    sunDirLight.shadow.mapSize.height = 2048;
+    sunDirLight.shadow.camera.near = 2;
+    sunDirLight.shadow.camera.far = 65;
+    const dCam = 19.5;
+    sunDirLight.shadow.camera.left = -dCam;
+    sunDirLight.shadow.camera.right = dCam;
+    sunDirLight.shadow.camera.top = dCam;
+    sunDirLight.shadow.camera.bottom = -dCam;
+    sunDirLight.shadow.bias = -0.0005;
+    sunDirLight.shadow.radius = 2.2;
+    scene.add(sunDirLight);
+
+    // 3. Soft Valley Bounce Fill Light
+    const fillLight = new THREE.DirectionalLight(0xdbeafe, 0.32);
+    fillLight.position.set(-18, 12, 10);
+    scene.add(fillLight);
+
+    // 4. Shrine Veranda Warm Lantern Point Light
+    const shrineLanternLight = new THREE.PointLight(0xffa94d, 0.0, 16, 1.6);
+    shrineLanternLight.position.set(0, 6.2, -3.2);
+    shrineLanternLight.castShadow = true;
+    shrineLanternLight.shadow.mapSize.width = 1024;
+    shrineLanternLight.shadow.mapSize.height = 1024;
+    shrineLanternLight.shadow.bias = -0.001;
+    scene.add(shrineLanternLight);
+
+    // 5. Stone Staircase Lanterns Point Light
+    const stairLanternLight = new THREE.PointLight(0xffb74d, 0.0, 18, 1.5);
+    stairLanternLight.position.set(0, 3.8, 6.5);
+    scene.add(stairLanternLight);
+
+    // 6. Mountain Stream Fairy / Spirit Glow Point Light
+    const streamGlowLight = new THREE.PointLight(0x67e8f9, 0.1, 12, 1.7);
+    streamGlowLight.position.set(-7.5, 2.2, 6.5);
+    scene.add(streamGlowLight);
+
+    // Shared Materials
+    const plushMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.92,
+      metalness: 0.02
+    });
+
+    const shrineSolidMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.84,
+      metalness: 0.04
+    });
+
+    const glossyPropMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.3,
+      metalness: 0.14
+    });
+
+    const translucentIceMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.82,
+      roughness: 0.15,
+      metalness: 0.05,
+      transmission: 0.35,
+      emissive: new THREE.Color(0x38bdf8),
+      emissiveIntensity: 0.25
+    });
+
+    const lanternGlowMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfff3c4,
+      emissive: new THREE.Color(0xffa726),
+      emissiveIntensity: 0.35,
+      roughness: 0.2
+    });
+
+    // ============================================================================
+    // 5. HAKUREI SHRINE ARCHITECTURE, HILLSIDE, GROVES & COLLIDER REGISTRY
+    // ============================================================================
+    const RV = 0.25; // 1 Architectural Voxel = 0.25 world units
+    const furnitureColliders = []; // { min: Vector3, max: Vector3, name }
+
+    function addCollider(minX, minY, minZ, maxX, maxY, maxZ, name = 'prop') {
+      furnitureColliders.push({
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        name
+      });
+    }
+
+    const solidVoxels = [];
+    const glossyVoxels = [];
+    const lanternGlowVoxels = [];
+    const waterBaseVoxels = [];
+
+    function pushVoxel(list, rx, ry, rz, colorHex, variance = 0.03, sx = 1, sy = 1, sz = 1) {
+      list.push({
+        x: rx,
+        y: ry,
+        z: rz,
+        color: varyColor(colorHex, rx, ry, rz, variance),
+        sx, sy, sz
+      });
+    }
+
+    function pushBoxVoxels(list, x0, y0, z0, x1, y1, z1, colorFnOrHex, variance = 0.03) {
+      for (let x = x0; x <= x1; x++) {
+        for (let y = y0; y <= y1; y++) {
+          for (let z = z0; z <= z1; z++) {
+            if (x > x0 && x < x1 && y > y0 && y < y1 && z > z0 && z < z1) continue;
+            const c = typeof colorFnOrHex === 'function' ? colorFnOrHex(x, y, z) : colorFnOrHex;
+            if (c) pushVoxel(list, x + 0.5, y + 0.5, z + 0.5, c, variance);
+          }
+        }
+      }
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5A. GENSOKYO HILLSIDE TERRAIN, STONE STAIRCASE, STREAM & WOODEN BRIDGE
+    // ----------------------------------------------------------------------------
+    // World Coordinate Layout (1 unit = 4 RV):
+    // - Lower Approach & Torii Gate: Z in [9.0, 15.0] (rz 36..60), Ground Y = 0.0 (ry = -1)
+    // - Stone Staircase: Z in [2.0, 9.0] (rz 8..36), X in [-2.5, 2.5] (rx -10..9), climbing Y = 0.0 -> Y = 2.5 (ry 0..9)
+    // - Upper Shrine Courtyard: Z in [-14.0, 2.0] (rz -56..8), Ground Y = 2.5 (ry = 9)
+    // - Main Shrine Hall (Haiden): Z in [-12.5, -4.0] (rz -50..-16), Veranda Y = 3.5 (ry = 13)
+    function buildHillsideAndStairs() {
+      // 1. Lower Approach Terrace & Stream Bed (rz 8..60, rx -56..55)
+      for (let x = -54; x <= 53; x++) {
+        for (let z = 8; z <= 58; z++) {
+          // Mountain Stream channel carving diagonally on the left (West) side:
+          const streamCenterX = -28 - (z - 28) * 0.28 + Math.sin(z * 0.18) * 2.5;
+          const distToStream = Math.abs(x - streamCenterX);
+
+          // Skip central staircase footprint for z <= 36
+          if (z <= 36 && x >= -11 && x <= 10) continue;
+
+          if (distToStream < 5.2) {
+            // Stream bed gravel at ry = -2
+            const pebbleCol = ((x + z) % 3 === 0) ? '#64748b' : '#475569';
+            pushVoxel(solidVoxels, x + 0.5, -1.5, z + 0.5, pebbleCol, 0.04);
+            if (distToStream >= 4.0) {
+              // Mossy stream bank rocks
+              pushVoxel(solidVoxels, x + 0.5, -0.5, z + 0.5, '#78716c', 0.05);
+              if ((x * z) % 5 === 0) pushVoxel(solidVoxels, x + 0.5, 0.3, z + 0.5, '#65a30d', 0.04, 1, 0.6, 1);
+            }
+            continue;
+          }
+
+          // Stone paved approach path in the center (x in -9..8, z in 36..58)
+          let groundCol = '#65a30d'; // Lush Gensokyo spring grass
+          if (x >= -8 && x <= 7) {
+            const flagstone = ((Math.floor((x + 10) / 3) + Math.floor(z / 3)) % 2 === 0);
+            groundCol = flagstone ? '#9ca3af' : '#94a3b8';
+            if (Math.abs(x) >= 7) groundCol = '#78716c'; // Stone curb
+          } else if (((x * 13 + z * 7) % 11) === 0) {
+            groundCol = '#4d7c0f'; // Richer clover patch
+          }
+          pushVoxel(solidVoxels, x + 0.5, -0.5, z + 0.5, groundCol, 0.035);
+
+          // Outer diorama skirt border
+          if (x === -54 || x === 53 || z === 58) {
+            pushVoxel(solidVoxels, x + 0.5, -1.5, z + 0.5, '#57534e', 0.02);
+            pushVoxel(solidVoxels, x + 0.5, -2.5, z + 0.5, '#44403c', 0.02);
+          }
+        }
+      }
+
+      // 2. Tiered Retaining Wall & Hillside Slopes between Lower (ry = -1) and Upper Courtyard (ry = 9)
+      for (let x = -54; x <= 53; x++) {
+        if (x >= -11 && x <= 10) continue; // Staircase gap
+        for (let z = 8; z <= 22; z++) {
+          const t = 1.0 - (z - 8) / 14;
+          const topY = Math.floor(t * 10);
+          for (let y = 0; y <= topY; y++) {
+            if (y < topY - 1 && z > 8 && z < 22 && x > -54 && x < 53) continue;
+            const isTop = (y === topY);
+            const col = isTop ? '#65a30d' : ((y % 3 === 0) ? '#78716c' : '#57534e');
+            pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, col, 0.04);
+          }
+        }
+      }
+
+      // 3. Long Stone Staircase (10 broad steps from Z = 9.0 down to Z = 2.0, ry = 0..9)
+      // Each step is 2.8 RV deep so Fumos physically bounce down every step!
+      for (let step = 0; step < 10; step++) {
+        const ry = 9 - step; // ry = 9 at top (z = 9..11), ry = 0 at bottom (z = 34..36)
+        const zStart = 9 + step * 3;
+        const zEnd = zStart + 2;
+
+        for (let z = zStart; z <= zEnd; z++) {
+          for (let x = -11; x <= 10; x++) {
+            const isBalustrade = (x <= -10 || x >= 9);
+            const stepTopY = isBalustrade ? ry + 2 : ry;
+            for (let y = 0; y <= stepTopY; y++) {
+              if (y < stepTopY && z > zStart && x > -11 && x < 10) continue;
+              let sCol = isBalustrade ? '#78716c' : ((x + step) % 4 === 0 ? '#94a3b8' : '#a8a29e');
+              // Moss patches on outer step edges
+              if (!isBalustrade && Math.abs(x) >= 7 && ((x + z) % 3 === 0)) sCol = '#84a98c';
+              pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, sCol, 0.03);
+            }
+          }
+          // Cherry blossom petal drifts gathered in the corners of the stone steps!
+          for (const sideX of [-9, -8, 7, 8]) {
+            if ((sideX + z) % 2 === 0) {
+              pushVoxel(solidVoxels, sideX + 0.5, ry + 1.15, z + 0.5, '#fbcfe8', 0.03, 0.9, 0.3, 0.9);
+            }
+          }
+        }
+
+        // Register individual step collider for authentic stair-tumbling physics!
+        addCollider(
+          -2.5, 0, zStart * RV,
+          2.5, (ry + 1) * RV, (zEnd + 1) * RV,
+          `stair_step_${step}`
+        );
+      }
+      // Staircase side stone balustrades colliders
+      addCollider(-3.0, 0, 2.0, -2.3, 3.1, 9.5, 'stair_rail_left');
+      addCollider(2.3, 0, 2.0, 3.0, 3.1, 9.5, 'stair_rail_right');
+
+      // 4. Upper Shrine Courtyard Platform (rz -54..8, rx -54..53, top surface at Y = 2.5 -> ry = 9)
+      for (let x = -54; x <= 53; x++) {
+        for (let z = -54; z <= 8; z++) {
+          // Only render surface layer & outer cliff border
+          const isBorder = (x === -54 || x === 53 || z === -54);
+          let courtCol = '#d6ccc2'; // Traditional raked shrine gravel
+          // Central stone footpath leading from stairs to Shrine Hall (x in -9..8, z in -16..8)
+          if (x >= -8 && x <= 7 && z >= -18) {
+            const tile = ((Math.floor((x + 8) / 3) + Math.floor((z + 20) / 3)) % 2 === 0);
+            courtCol = tile ? '#94a3b8' : '#a8a29e';
+            if (Math.abs(x) === 8) courtCol = '#78716c';
+          } else if (x < -22 || x > 22 || z < -42) {
+            // Grassy forest floor under the Cherry Blossom & Bamboo groves
+            courtCol = ((x + z) % 5 === 0) ? '#4d7c0f' : '#65a30d';
+          } else if (z % 2 === 0) {
+            courtCol = '#e3d5ca'; // Subtle raked gravel lines
+          }
+
+          pushVoxel(solidVoxels, x + 0.5, 9.5, z + 0.5, courtCol, 0.025);
+          if (isBorder) {
+            for (let y = -1; y <= 8; y += 2) {
+              pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, '#57534e', 0.02, 1, 2, 1);
+            }
+          }
+        }
+      }
+      // Register Upper Courtyard Collider (Y = 2.5)
+      addCollider(-13.8, 0.0, -13.8, 13.5, 2.5, 2.25, 'upper_courtyard');
+      addCollider(-13.8, 0.0, 2.25, -2.5, 2.3, 4.8, 'slope_left');
+      addCollider(2.5, 0.0, 2.25, 13.5, 2.3, 4.8, 'slope_right');
+
+      // 5. Small Arched Red Wooden Bridge over the Mountain Stream (rx -35..-23, rz 34..40)
+      for (let x = -35; x <= -23; x++) {
+        const t = (x + 29) / 6; // -1 to +1
+        const archY = Math.round((1 - t * t) * 2.5);
+        for (let z = 35; z <= 39; z++) {
+          pushVoxel(solidVoxels, x + 0.5, archY + 0.5, z + 0.5, '#9e6840', 0.025); // Wooden planks
+          if (z === 35 || z === 39) {
+            // Vermilion bridge railings & posts
+            pushVoxel(solidVoxels, x + 0.5, archY + 1.5, z + 0.5, '#dc2626', 0.02);
+            if (x === -35 || x === -29 || x === -23) {
+              pushVoxel(solidVoxels, x + 0.5, archY + 2.5, z + 0.5, '#dc2626', 0.02);
+              pushVoxel(glossyVoxels, x + 0.5, archY + 3.2, z + 0.5, '#fbbf24', 0.01, 0.8, 0.6, 0.8); // Brass giboshi cap
+            }
+          }
+        }
+      }
+      addCollider(-8.8, 0.0, 8.6, -5.6, 0.85, 10.0, 'stream_bridge');
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5B. MAIN HAKUREI SHRINE HALL (HAIDEN), CURVED ROOF, VERANDA & SHIMENAWA
+    // ----------------------------------------------------------------------------
+    function buildShrineMainHall() {
+      // Footprint: X in [-7.0, 7.0] (rx -28..27), Z in [-12.0, -4.0] (rz -48..-16)
+      // Base sits on Upper Courtyard (ry = 10), Veranda floor at ry = 13 (World Y = 3.5)
+
+      // 1. Stone Foundation & Wooden Veranda Deck (Engawa)
+      pushBoxVoxels(solidVoxels, -26, 10, -46, 25, 12, -16, (x, y, z) => {
+        if (y === 10) return '#78716c'; // Stone foundation base
+        return '#5c3a21'; // Dark wood under-porch lattice
+      });
+      // Wide Veranda Floor Planks (ry = 13 -> Top surface at Y = 3.5)
+      for (let x = -28; x <= 27; x++) {
+        for (let z = -47; z <= -15; z++) {
+          if (x > -22 && x < 21 && z > -43 && z < -21) continue; // Interior floor core
+          const plankCol = (x % 3 === 0) ? '#9e663f' : '#ad7249';
+          pushVoxel(solidVoxels, x + 0.5, 13.5, z + 0.5, plankCol, 0.025);
+        }
+      }
+      // Veranda Low Wooden Railing on Left, Right, and Front Flanks (leaving center steps open)
+      for (let x = -28; x <= 27; x++) {
+        if (x >= -7 && x <= 6) continue; // Front entrance opening
+        pushVoxel(solidVoxels, x + 0.5, 14.5, -15.5, '#b91c1c', 0.02, 1, 0.6, 0.6);
+        pushVoxel(solidVoxels, x + 0.5, 15.6, -15.5, '#7f1d1d', 0.02, 1, 0.6, 0.7);
+      }
+      for (let z = -47; z <= -15; z++) {
+        for (const rx of [-28, 27]) {
+          pushVoxel(solidVoxels, rx + 0.5, 14.5, z + 0.5, '#b91c1c', 0.02, 0.6, 0.6, 1);
+          pushVoxel(solidVoxels, rx + 0.5, 15.6, z + 0.5, '#7f1d1d', 0.02, 0.7, 0.6, 1);
+        }
+      }
+
+      // Front Wooden Veranda Steps (rx -7..6, rz -14..-11, climbing ry 10..13)
+      for (let s = 0; s < 4; s++) {
+        const sy = 10 + s;
+        const sz = -11 - s;
+        for (let x = -7; x <= 6; x++) {
+          pushVoxel(solidVoxels, x + 0.5, sy + 0.5, sz + 0.5, (x === -7 || x === 6) ? '#6e4528' : '#9e663f', 0.02);
+        }
+      }
+
+      // Register Veranda & Shrine Hall Colliders
+      addCollider(-7.0, 2.5, -12.0, 7.0, 3.5, -3.75, 'shrine_veranda');
+      addCollider(-1.8, 2.5, -3.75, 1.8, 3.1, -2.7, 'veranda_steps');
+      addCollider(-5.8, 3.5, -11.0, 5.8, 7.2, -5.0, 'shrine_main_hall');
+
+      // 2. Shrine Hall Walls, Timber Pillars, Sliding Shoji Doors & Paper Ofuda Charms
+      // Hall bounds: rx -22..21, rz -43..-20, ry 14..27
+      for (let y = 14; y <= 27; y++) {
+        for (let x = -22; x <= 21; x++) {
+          for (let z = -43; z <= -20; z++) {
+            if (x > -22 && x < 21 && z > -43 && z < -20) continue; // Hollow interior
+
+            const isCornerPillar = ((x === -22 || x === 21) && (z === -43 || z === -20));
+            const isFrontPillar = (z === -20 && (x === -12 || x === -7 || x === 6 || x === 11));
+            const isTopBeam = (y >= 26);
+
+            let wallCol = '#f8f5EE'; // Traditional white shikkui plaster
+            if (isCornerPillar || isFrontPillar || isTopBeam || y === 14) {
+              wallCol = '#6e4226'; // Dark cypress timber frame
+            } else if (z === -20 && x >= -6 && x <= 5 && y <= 24) {
+              // Front sliding lattice doors (shoji)
+              const isGrid = (x % 2 === 0 || y % 3 === 0);
+              wallCol = isGrid ? '#8c5836' : '#fffdf7';
+            } else if (z === -20 && Math.abs(x) >= 13 && Math.abs(x) <= 18 && y >= 17 && y <= 23) {
+              // Circular/octagonal lattice windows on left & right front bays
+              wallCol = ((x + y) % 2 === 0) ? '#7c4d2f' : '#fef3c7';
+            }
+
+            pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, wallCol, 0.02);
+          }
+        }
+      }
+
+      // Outer Veranda Support Pillars at front corners & steps
+      for (const px of [-26, -7, 6, 25]) {
+        for (let y = 14; y <= 26; y++) {
+          pushVoxel(solidVoxels, px + 0.5, y + 0.5, -16.5, (y <= 15) ? '#f8fafc' : '#7c4d2f', 0.02);
+        }
+      }
+
+      // Paper Ofuda Charms stuck on the front pillars!
+      for (const ox of [-7, 6]) {
+        pushVoxel(solidVoxels, ox + 0.5, 22.5, -15.8, '#fefefe', 0.01, 0.55, 1.4, 0.2);
+        pushVoxel(solidVoxels, ox + 0.5, 22.5, -15.7, '#dc2626', 0.01, 0.3, 0.9, 0.2);
+      }
+
+      // Glowing Paper Lanterns hanging under the front veranda eaves
+      for (const lx of [-10, 9]) {
+        pushVoxel(solidVoxels, lx + 0.5, 25.5, -16.5, '#1e1b24', 0.01, 0.6, 0.6, 0.6);
+        pushVoxel(lanternGlowVoxels, lx + 0.5, 24.0, -16.5, '#ffedd5', 0.01, 1.5, 2.1, 1.5);
+        pushVoxel(solidVoxels, lx + 0.5, 22.6, -16.5, '#1e1b24', 0.01, 1.1, 0.4, 1.1);
+      }
+
+      // 3. GIANT BRAIDED SHIMENAWA ROPE & WHITE PAPER SHIDE ACROSS FRONT EAVES
+      for (let x = -11; x <= 10; x++) {
+        const normX = (x + 0.5) / 11;
+        const thickness = 1.65 * (1.0 - normX * normX * 0.55);
+        const sagY = 25.2 - (1.0 - normX * normX) * 1.1;
+        const braidCol = (x % 2 === 0) ? '#d4a359' : '#b8863e';
+        pushVoxel(solidVoxels, x + 0.5, sagY, -15.2, braidCol, 0.03, 1.05, thickness, thickness);
+
+        // Zigzag white paper Shide hanging from the Shimenawa
+        if (x === -8 || x === -3 || x === 2 || x === 7) {
+          for (let s = 0; s < 4; s++) {
+            const zigX = (s % 2 === 0) ? -0.35 : 0.35;
+            pushVoxel(solidVoxels, x + 0.5 + zigX, sagY - 1.1 - s * 0.65, -15.0, '#ffffff', 0.01, 0.65, 0.75, 0.3);
+          }
+        }
+      }
+
+      // 4. GRAND CURVED SHRINE ROOF (Irimoya Kawara Tiled Roof with Upturned Eaves)
+      // Spans rx -33..32, rz -51..-11, ry 27..41
+      for (let h = 0; h <= 13; h++) {
+        const ry = 27 + h;
+        // Curved concave roof profile: wide overhang at bottom that sweeps steeply up to the ridge
+        const progress = h / 13;
+        const curve = Math.pow(progress, 0.72);
+        const halfZ = Math.round(20 * (1.0 - curve * 0.85));
+        const halfX = Math.round(32 - h * 0.85);
+        const centerZ = -31;
+
+        for (let x = -halfX; x <= halfX - 1; x++) {
+          for (let z = centerZ - halfZ; z <= centerZ + halfZ; z++) {
+            // Only outer shell of roof
+            const onEdgeZ = (z <= centerZ - halfZ + 1 || z >= centerZ + halfZ - 1);
+            const onEdgeX = (x <= -halfX + 1 || x >= halfX - 2);
+            if (!onEdgeZ && !onEdgeX && h < 13) continue;
+
+            // Upturned corner eaves curve (sori)
+            const cornerDist = Math.max(0, Math.abs(x) - (halfX - 6));
+            const eaveLift = (h <= 2) ? cornerDist * 0.25 : 0;
+
+            // Kawara tile ridges every 2 voxels in X
+            let tileCol = (x % 2 === 0) ? '#334155' : '#475569';
+            if (h === 0) tileCol = '#1e293b'; // Eave trim
+            // White gable wall triangle on left/right sides (irimoya gable)
+            if (onEdgeX && h >= 5 && h <= 10 && Math.abs(z - centerZ) <= halfZ - 2) {
+              tileCol = '#f8fafc';
+            }
+
+            pushVoxel(solidVoxels, x + 0.5, ry + 0.5 + eaveLift, z + 0.5, tileCol, 0.025);
+          }
+        }
+      }
+
+      // Grand Roof Ridge Beam (O-mune) & Golden Shachihoko / Finials at Ends (ry = 41..43)
+      for (let x = -22; x <= 21; x++) {
+        pushVoxel(solidVoxels, x + 0.5, 41.5, -31.0, '#1e293b', 0.02, 1, 1.3, 1.6);
+        if (x % 4 === 0) {
+          pushVoxel(glossyVoxels, x + 0.5, 42.3, -31.0, '#fbbf24', 0.01, 0.7, 0.6, 1.8); // Gold ridge crest
+        }
+      }
+      // Upturned Golden Roof Horns (Chigi / Katsuogi accents)
+      for (const gx of [-22, 21]) {
+        pushVoxel(glossyVoxels, gx + 0.5, 42.8, -31.0, '#f59e0b', 0.01, 1.4, 1.8, 1.4);
+        pushVoxel(glossyVoxels, gx + (gx < 0 ? -0.6 : 0.6), 44.0, -31.0, '#fde047', 0.01, 1.0, 1.4, 1.0);
+      }
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5C. TORII GATE, SAISEN DONATION BOX, PURIFICATION FOUNTAIN, LANTERNS & PROPS
+    // ----------------------------------------------------------------------------
+    function buildShrineProps() {
+      // 1. GRAND VERMILION TORII GATE AT BOTTOM OF STAIRS (Z = 12.25 -> rz = 49)
+      const toriiZ = 49;
+      // Black stone base pedestals & towering vermilion pillars (rx = -13 and rx = 12, ry = 0..32)
+      for (const px of [-13, 12]) {
+        for (let y = 0; y <= 32; y++) {
+          const isBase = (y <= 4);
+          const col = isBase ? '#1e293b' : '#dc2626';
+          const radiusScale = isBase ? 2.4 : 1.85;
+          pushVoxel(solidVoxels, px + 0.5, y + 0.5, toriiZ + 0.5, col, 0.02, radiusScale, 1.02, radiusScale);
+        }
+      }
+      // Lower crossbeam (Nuki) at ry = 25
+      for (let x = -17; x <= 16; x++) {
+        pushVoxel(solidVoxels, x + 0.5, 25.5, toriiZ + 0.5, '#dc2626', 0.02, 1.05, 1.4, 1.3);
+        // Black wedges where Nuki pierces pillars
+        if (x === -13 || x === 12) {
+          pushVoxel(solidVoxels, x + 0.5, 25.5, toriiZ + 0.5, '#1e293b', 0.01, 2.2, 1.6, 1.6);
+        }
+      }
+      // Upper curved lintel beam (Kasagi) with upturned tips & black cap (ry = 31..33)
+      for (let x = -20; x <= 19; x++) {
+        const edgeDist = Math.max(0, Math.abs(x + 0.5) - 12);
+        const curveY = (edgeDist * edgeDist) * 0.045;
+        pushVoxel(solidVoxels, x + 0.5, 31.5 + curveY, toriiZ + 0.5, '#dc2626', 0.02, 1.05, 1.5, 1.9);
+        pushVoxel(solidVoxels, x + 0.5, 32.8 + curveY, toriiZ + 0.5, '#1e293b', 0.02, 1.08, 0.9, 2.2);
+      }
+      // Central strut (Gakuzuka) & Gold-rimmed Shrine Name Tablet ("博麗神社")
+      for (let y = 26; y <= 31; y++) {
+        pushVoxel(solidVoxels, 0.0, y + 0.5, toriiZ + 0.5, '#1e293b', 0.02, 2.8, 1.05, 1.5);
+        if (y >= 27 && y <= 30) {
+          pushVoxel(glossyVoxels, 0.0, y + 0.5, toriiZ + 1.3, '#fbbf24', 0.01, 1.8, 0.9, 0.4);
+        }
+      }
+      // White paper Shide hanging beneath the Torii Nuki beam
+      for (const sx of [-9, -3, 3, 9]) {
+        pushVoxel(solidVoxels, sx, 24.2, toriiZ + 0.6, '#ffffff', 0.01, 0.6, 1.2, 0.3);
+        pushVoxel(solidVoxels, sx + 0.25, 23.3, toriiZ + 0.6, '#ffffff', 0.01, 0.6, 1.0, 0.3);
+      }
+      addCollider(-3.6, 0, 11.9, -2.9, 8.2, 12.6, 'torii_pillar_left');
+      addCollider(2.9, 0, 11.9, 3.6, 8.2, 12.6, 'torii_pillar_right');
+
+      // 2. ALWAYS-EMPTY SAISEN DONATION BOX + TINY JOKE SIGN (In front of veranda steps: rx -5..4, rz -9..-5, ry 10..14)
+      for (let x = -5; x <= 4; x++) {
+        for (let y = 10; y <= 14; y++) {
+          for (let z = -9; z <= -5; z++) {
+            const isRim = (x === -5 || x === 4 || z === -9 || z === -5);
+            if (y === 14) {
+              // Slatted coin-drop grate on top (hollow in center so Shion Fumo is stuck head-first!)
+              if (isRim || z === -7) {
+                pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, '#5c3a21', 0.02, 1, 0.7, 0.7);
+              }
+              continue;
+            }
+            if (!isRim && y > 10) continue; // Hollow box interior
+            const boxCol = ((y === 11 || y === 13) && (x === -5 || x === 4)) ? '#1e293b' : '#7c4d2f';
+            pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, boxCol, 0.025);
+          }
+        }
+      }
+      // White painted "賽銭" character strokes on front of Saisen Box
+      pushVoxel(solidVoxels, -1.5, 12.5, -4.8, '#f8fafc', 0.01, 1.2, 1.6, 0.2);
+      pushVoxel(solidVoxels, 1.2, 12.5, -4.8, '#f8fafc', 0.01, 1.2, 1.6, 0.2);
+
+      // Tiny Joke Sign next to Saisen Box ("Donations: 0 Yen — Please Give!! ᗜ˰ᗜ")
+      pushVoxel(solidVoxels, 6.5, 10.5, -6.5, '#6e4528', 0.02, 0.5, 3.2, 0.5); // Signpost
+      pushVoxel(solidVoxels, 6.5, 12.5, -6.5, '#fef3c7', 0.02, 3.4, 2.2, 0.4); // Wooden placard
+      pushVoxel(solidVoxels, 5.8, 12.6, -6.25, '#dc2626', 0.01, 0.9, 1.1, 0.2); // Red "0"
+      pushVoxel(solidVoxels, 7.1, 12.4, -6.25, '#3b82f6', 0.01, 0.5, 0.8, 0.2); // Painted sweat drop / tear
+      addCollider(-1.4, 2.5, -2.4, 1.3, 3.75, -1.1, 'saisen_donation_box');
+
+      // 3. SIX TRADITIONAL STONE LANTERNS (Tōrō) LINING THE STAIRS & COURTYARD
+      const lanternLocations = [
+        { rx: -13, ry: 0,  rz: 37, name: 'lantern_bottom_L' },
+        { rx: 12,  ry: 0,  rz: 37, name: 'lantern_bottom_R' },
+        { rx: -13, ry: 5,  rz: 22, name: 'lantern_mid_L' },
+        { rx: 12,  ry: 5,  rz: 22, name: 'lantern_mid_R' },
+        { rx: -14, ry: 10, rz: 4,  name: 'lantern_top_L' },
+        { rx: 13,  ry: 10, rz: 4,  name: 'lantern_top_R' } // Aunn Fumo naps on top of this one!
+      ];
+
+      lanternLocations.forEach((loc) => {
+        const lx = loc.rx + 0.5;
+        const ly = loc.ry;
+        const lz = loc.rz + 0.5;
+
+        // Stone base & pedestal post
+        pushVoxel(solidVoxels, lx, ly + 0.5, lz, '#78716c', 0.03, 2.8, 1.0, 2.8);
+        pushVoxel(solidVoxels, lx, ly + 1.5, lz, '#a8a29e', 0.03, 2.0, 1.0, 2.0);
+        pushVoxel(solidVoxels, lx, ly + 2.8, lz, '#a8a29e', 0.03, 1.3, 2.0, 1.3);
+        pushVoxel(solidVoxels, lx, ly + 4.1, lz, '#78716c', 0.03, 2.4, 0.8, 2.4);
+
+        // Glowing firebox chamber (Hibukuro)
+        pushVoxel(lanternGlowVoxels, lx, ly + 5.2, lz, '#fde68a', 0.01, 1.7, 1.6, 1.7);
+        // Stone corner mullions around firebox
+        for (const cx of [-0.8, 0.8]) {
+          for (const cz of [-0.8, 0.8]) {
+            pushVoxel(solidVoxels, lx + cx, ly + 5.2, lz + cz, '#78716c', 0.02, 0.4, 1.7, 0.4);
+          }
+        }
+
+        // Broad pagoda stone roof (Kasa) & top jewel (Hoju) -> Top at ly + 7.5
+        pushVoxel(solidVoxels, lx, ly + 6.4, lz, '#65a30d', 0.04, 3.2, 0.8, 3.2); // Mossy stone roof
+        pushVoxel(solidVoxels, lx, ly + 7.1, lz, '#78716c', 0.03, 2.1, 0.7, 2.1);
+        pushVoxel(solidVoxels, lx, ly + 7.7, lz, '#57534e', 0.03, 0.9, 0.7, 0.9);
+
+        addCollider(
+          (lx - 1.6) * RV, ly * RV, (lz - 1.6) * RV,
+          (lx + 1.6) * RV, (ly + 8.0) * RV, (lz + 1.6) * RV,
+          loc.name
+        );
+      });
+
+      // 4. PURIFICATION FOUNTAIN (CHŌZUYA / TEMIZUYA) WITH BAMBOO LADLES (Left Courtyard: rx -26..-18, rz -10..-3)
+      // Stone water basin (ry 10..12)
+      for (let x = -25; x <= -19; x++) {
+        for (let z = -9; z <= -4; z++) {
+          const isRim = (x === -25 || x === -19 || z === -9 || z === -4);
+          pushVoxel(solidVoxels, x + 0.5, 10.5, z + 0.5, '#78716c', 0.03);
+          if (isRim) {
+            pushVoxel(solidVoxels, x + 0.5, 11.5, z + 0.5, '#a8a29e', 0.03);
+            pushVoxel(solidVoxels, x + 0.5, 12.3, z + 0.5, ((x + z) % 3 === 0) ? '#65a30d' : '#78716c', 0.03, 1, 0.7, 1);
+          } else {
+            // Clear spring water filling the basin
+            pushVoxel(waterBaseVoxels, x + 0.5, 11.8, z + 0.5, '#38bdf8', 0.02, 1, 0.8, 1);
+          }
+        }
+      }
+      // Green Bamboo Water Spout Pipe & Two Wooden Ladles (Hishaku) resting across the basin
+      pushVoxel(solidVoxels, -24.5, 13.5, -6.5, '#4d7c0f', 0.02, 0.9, 2.2, 0.9); // Vertical bamboo pipe
+      pushVoxel(solidVoxels, -23.2, 14.0, -6.5, '#65a30d', 0.02, 2.4, 0.7, 0.7); // Horizontal spout
+      pushVoxel(waterBaseVoxels, -22.0, 13.0, -6.5, '#bae6fd', 0.01, 0.45, 1.8, 0.45); // Pouring water stream
+      // Wooden ladles
+      for (const lz of [-7.5, -5.2]) {
+        pushVoxel(solidVoxels, -21.5, 12.7, lz, '#e6ccb2', 0.02, 3.8, 0.25, 0.3); // Ladle handle
+        pushVoxel(solidVoxels, -23.0, 12.8, lz, '#ddb892', 0.02, 0.9, 0.65, 0.9); // Ladle cup
+      }
+      // Four wooden pavilion posts & tiled canopy roof over the fountain
+      for (const px of [-26, -18]) {
+        for (const pz of [-10, -3]) {
+          for (let y = 10; y <= 20; y++) {
+            pushVoxel(solidVoxels, px + 0.5, y + 0.5, pz + 0.5, '#6e4226', 0.02, 0.85, 1, 0.85);
+          }
+        }
+      }
+      for (let x = -27; x <= -17; x++) {
+        for (let z = -11; z <= -2; z++) {
+          const roofH = 21 + Math.max(0, 3 - Math.floor(Math.abs(x + 22) * 0.6));
+          pushVoxel(solidVoxels, x + 0.5, roofH + 0.5, z + 0.5, (x % 2 === 0) ? '#334155' : '#475569', 0.02);
+        }
+      }
+      addCollider(-6.6, 2.5, -2.6, -4.4, 3.3, -0.8, 'purification_fountain');
+
+      // 5. EMA WOODEN WISH PLAQUE RACK (Right Courtyard: rx 16..24, rz -8..-6)
+      for (const px of [16, 24]) {
+        for (let y = 10; y <= 19; y++) {
+          pushVoxel(solidVoxels, px + 0.5, y + 0.5, -7.0, '#6e4226', 0.02, 0.9, 1, 0.9);
+        }
+      }
+      // Small roof bar & 2 rows of hanging wooden Ema plaques
+      for (let x = 15; x <= 25; x++) {
+        pushVoxel(solidVoxels, x + 0.5, 20.2, -7.0, '#334155', 0.02, 1.1, 0.9, 2.2);
+        if (x >= 17 && x <= 23) {
+          pushVoxel(solidVoxels, x + 0.5, 17.5, -7.0, '#7c4d2f', 0.02, 1, 0.4, 0.4);
+          pushVoxel(solidVoxels, x + 0.5, 14.5, -7.0, '#7c4d2f', 0.02, 1, 0.4, 0.4);
+          if (x % 2 === 1) {
+            // Pentagonal Ema plaques with red ties & cute painted designs
+            for (const ey of [16.3, 13.3]) {
+              pushVoxel(solidVoxels, x + 0.5, ey + 0.7, -6.8, '#dc2626', 0.01, 0.25, 0.5, 0.25);
+              pushVoxel(solidVoxels, x + 0.5, ey, -6.8, '#f3d5b5', 0.03, 1.3, 1.1, 0.3);
+              pushVoxel(solidVoxels, x + 0.5, ey - 0.1, -6.6, ((x + Math.round(ey)) % 3 === 0) ? '#ef4444' : '#3b82f6', 0.01, 0.6, 0.5, 0.15);
+            }
+          }
+        }
+      }
+      addCollider(3.9, 2.5, -2.0, 6.3, 5.1, -1.4, 'ema_plaque_rack');
+
+      // 6. CEREMONIAL SAKE BARREL (KOMODARU) & SUIKA'S GIANT IBUKI SAKE GOURD ON THE VERANDA
+      // Sake barrel on left veranda (rx -19..-16, rz -19..-16, ry 14..17)
+      for (let x = -19; x <= -16; x++) {
+        for (let z = -19; z <= -16; z++) {
+          for (let y = 14; y <= 17; y++) {
+            const c = (y === 15 || y === 16) ? '#1e3a8a' : '#e6ccb2'; // Woven straw & indigo band
+            pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, c, 0.03);
+          }
+        }
+      }
+      // Suika's Giant Ibuki Sake Gourd on right veranda (rx 18..21, rz -18..-15, ry 14..19)
+      // Lower bulb + narrow waist with red rope + upper bulb + cork
+      pushVoxel(glossyVoxels, 19.5, 15.0, -17.0, '#d97706', 0.02, 2.8, 2.2, 2.8); // Lower gourd belly
+      pushVoxel(solidVoxels, 19.5, 16.5, -17.0, '#dc2626', 0.02, 1.5, 0.8, 1.5);  // Red braided waist cord
+      pushVoxel(glossyVoxels, 19.5, 17.6, -17.0, '#f59e0b', 0.02, 2.0, 1.7, 2.0); // Upper gourd bulb
+      pushVoxel(solidVoxels, 19.5, 18.8, -17.0, '#78350f', 0.02, 0.9, 0.9, 0.9);  // Wooden stopper
+      // Red sake dish (Sakazuki) next to Suika
+      pushVoxel(glossyVoxels, 13.5, 14.2, -16.8, '#dc2626', 0.01, 1.4, 0.4, 1.4);
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5D. CHERRY BLOSSOM GROVE (WEST) & BAMBOO GROVE (EAST)
+    // ----------------------------------------------------------------------------
+    function buildGroves() {
+      // 1. CHERRY BLOSSOM (SAKURA) TREES
+      const sakuraTrees = [
+        { rx: -36, ry: 10, rz: -26, scale: 1.15 },
+        { rx: -42, ry: 10, rz: -6,  scale: 1.05 },
+        { rx: -38, ry: 0,  rz: 22,  scale: 1.0  },
+        { rx: -18, ry: 0,  rz: 44,  scale: 0.95 },
+        { rx: 36,  ry: 10, rz: -34, scale: 1.1  }
+      ];
+
+      sakuraTrees.forEach((tree, tIdx) => {
+        const tx = tree.rx;
+        const ty = tree.ry;
+        const tz = tree.rz;
+        const hTrunk = Math.round(13 * tree.scale);
+
+        // Gnarled dark bark trunk
+        for (let y = 0; y <= hTrunk; y++) {
+          const swayX = Math.sin(y * 0.25 + tIdx) * 1.2;
+          const swayZ = Math.cos(y * 0.2 + tIdx) * 0.8;
+          const thick = Math.max(1.4, 3.0 - y * 0.12);
+          pushVoxel(solidVoxels, tx + swayX, ty + y + 0.5, tz + swayZ, '#4a3228', 0.03, thick, 1.1, thick);
+        }
+
+        // Fluffy multi-cluster Sakura Blossom Canopy
+        const clusters = [
+          { dx: 0, dy: hTrunk + 3, dz: 0, r: 7.2 * tree.scale },
+          { dx: -5, dy: hTrunk + 1, dz: 3, r: 5.2 * tree.scale },
+          { dx: 5, dy: hTrunk + 1, dz: -2, r: 5.4 * tree.scale },
+          { dx: 1, dy: hTrunk + 2, dz: 5, r: 4.8 * tree.scale },
+          { dx: -3, dy: hTrunk + 4, dz: -4, r: 5.0 * tree.scale }
+        ];
+
+        const sakuraPalette = ['#fbcfe8', '#f9a8d4', '#f472b6', '#fce7f3'];
+        clusters.forEach((c) => {
+          const rCeil = Math.ceil(c.r);
+          for (let x = -rCeil; x <= rCeil; x += 2) {
+            for (let y = -rCeil; y <= rCeil; y += 2) {
+              for (let z = -rCeil; z <= rCeil; z += 2) {
+                const d = Math.sqrt(x * x + (y * 1.35) * (y * 1.35) + z * z);
+                if (d <= c.r && d >= c.r - 2.6) {
+                  const col = sakuraPalette[Math.abs(x + y + z + tIdx) % sakuraPalette.length];
+                  pushVoxel(solidVoxels, tx + c.dx + x, ty + c.dy + y, tz + c.dz + z, col, 0.035, 2.1, 1.8, 2.1);
+                }
+              }
+            }
+          }
+        });
+
+        addCollider(
+          (tx - 1.8) * RV, ty * RV, (tz - 1.8) * RV,
+          (tx + 1.8) * RV, (ty + hTrunk) * RV, (tz + 1.8) * RV,
+          `sakura_trunk_${tIdx}`
+        );
+      });
+
+      // 2. BAMBOO GROVE ON THE EAST HILLSIDE & SHRINE FLANK
+      const bambooStalks = [
+        [30, 10, -18], [34, 10, -14], [38, 10, -20], [42, 10, -12], [33, 10, -6],
+        [39, 10, -4],  [45, 10, -18], [46, 10, -8],  [31, 10, 2],   [37, 10, 4],
+        [43, 10, 1],   [26, 0, 26],   [31, 0, 30],   [36, 0, 24],   [40, 0, 32],
+        [28, 0, 38],   [34, 0, 42],   [42, 0, 38]
+      ];
+
+      bambooStalks.forEach(([bx, by, bz], idx) => {
+        const stalkH = 18 + (idx % 5) * 3;
+        for (let y = 0; y <= stalkH; y++) {
+          const isNode = (y % 4 === 0);
+          const col = isNode ? '#3f6212' : ((idx % 2 === 0) ? '#65a30d' : '#4d7c0f');
+          const s = isNode ? 1.15 : 0.95;
+          pushVoxel(solidVoxels, bx + 0.5, by + y + 0.5, bz + 0.5, col, 0.025, s, 1.02, s);
+
+          // Feathery bamboo leaf clusters near top
+          if (y >= stalkH - 6 && y % 3 === 0) {
+            const sideX = ((y + idx) % 2 === 0) ? 1.8 : -1.8;
+            const sideZ = ((y * idx) % 2 === 0) ? 1.5 : -1.5;
+            pushVoxel(solidVoxels, bx + 0.5 + sideX, by + y + 0.5, bz + 0.5 + sideZ, '#84cc16', 0.03, 2.4, 0.6, 1.4);
+          }
+        }
+      });
+    }
+
+    buildHillsideAndStairs();
+    buildShrineMainHall();
+    buildShrineProps();
+    buildGroves();
+
+    const shrineWorldGroup = new THREE.Group();
+    scene.add(shrineWorldGroup);
+
+    const solidMesh = buildVoxelInstancedMesh(solidVoxels, RV, shrineSolidMaterial, true, true);
+    const glossyMesh = buildVoxelInstancedMesh(glossyVoxels, RV, glossyPropMaterial, true, true);
+    const lanternGlowMesh = buildVoxelInstancedMesh(lanternGlowVoxels, RV, lanternGlowMaterial, false, false);
+    const fountainWaterMesh = buildVoxelInstancedMesh(waterBaseVoxels, RV, translucentIceMaterial, false, true);
+
+    if (solidMesh) shrineWorldGroup.add(solidMesh);
+    if (glossyMesh) shrineWorldGroup.add(glossyMesh);
+    if (lanternGlowMesh) shrineWorldGroup.add(lanternGlowMesh);
+    if (fountainWaterMesh) shrineWorldGroup.add(fountainWaterMesh);
+
+    // ============================================================================
+    // 6. DYNAMIC ENVIRONMENTAL SYSTEMS:
+    //    - Flowing Stream Water with White Foam Ripples
+    //    - Interactive Pile of Fallen Voxel Leaves (Swept by Reimu & Pushed by Fumos)
+    //    - Drifting Cherry Blossom Petals
+    //    - Marisa's Hovering Flying Broom
+    //    - Valley Mist, Drifting Day Clouds, Full Moon, Night Fireflies & Aurora
+    // ============================================================================
+
+    // 6A. Flowing Stream Water with Ripples
+    const streamCells = [];
+    for (let z = 8; z <= 58; z++) {
+      const streamCenterX = -28 - (z - 28) * 0.28 + Math.sin(z * 0.18) * 2.5;
+      for (let x = Math.floor(streamCenterX - 3.6); x <= Math.ceil(streamCenterX + 3.6); x++) {
+        if (Math.abs(x - streamCenterX) < 3.8) {
+          streamCells.push({
+            rx: x + 0.5,
+            rz: z + 0.5,
+            phase: x * 0.7 + z * 0.35,
+            baseColor: varyColor('#0ea5e9', x, 0, z, 0.03)
+          });
+        }
+      }
+    }
+    const streamMesh = buildVoxelInstancedMesh(
+      streamCells.map(c => ({ x: c.rx, y: -0.65, z: c.rz, color: c.baseColor, sx: 1.02, sy: 0.7, sz: 1.02 })),
+      RV,
+      translucentIceMaterial,
+      false,
+      true
+    );
+    shrineWorldGroup.add(streamMesh);
+
+    function updateStreamWater(time) {
+      if (!streamMesh) return;
+      for (let i = 0; i < streamCells.length; i++) {
+        const c = streamCells[i];
+        const wave = Math.sin(c.rz * 0.45 - time * 3.8 + Math.cos(c.rx * 0.6 + time));
+        const rippleY = -0.65 + wave * 0.14;
+        tempPos.set(c.rx * RV, rippleY * RV, c.rz * RV);
+        tempQuat.identity();
+        tempScale.set(1.02, 0.7, 1.02);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        streamMesh.setMatrixAt(i, tempMatrix);
+
+        if (wave > 0.78) {
+          tempColor.set('#e0f2fe'); // Sparkling white foam ripple
+        } else {
+          tempColor.copy(c.baseColor);
+        }
+        streamMesh.setColorAt(i, tempColor);
+      }
+      streamMesh.instanceMatrix.needsUpdate = true;
+      if (streamMesh.instanceColor) streamMesh.instanceColor.needsUpdate = true;
+    }
+
+    // 6B. Interactive Pile of Fallen Voxel Leaves (Near Veranda Steps, Swept by Reimu & Pushed by Dragged Fumos!)
+    const LEAF_COUNT = 95;
+    const leaves = [];
+    const leafGeom = new THREE.BoxGeometry(0.16, 0.05, 0.16);
+    const leafMat = new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0.02 });
+    const leafMesh = new THREE.InstancedMesh(leafGeom, leafMat, LEAF_COUNT);
+    leafMesh.castShadow = true;
+    leafMesh.receiveShadow = true;
+
+    const leafPalette = ['#ea580c', '#d97706', '#f59e0b', '#dc2626', '#f472b6', '#84cc16'];
+    const leafPileCenter = new THREE.Vector3(-2.6, 2.52, -1.5);
+
+    for (let i = 0; i < LEAF_COUNT; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.pow(Math.random(), 0.7) * 1.35;
+      const lx = leafPileCenter.x + Math.cos(angle) * dist;
+      const lz = leafPileCenter.z + Math.sin(angle) * dist;
+      const ly = 2.53 + Math.max(0, (1.35 - dist) * 0.18) + Math.random() * 0.04;
+      const col = varyColor(leafPalette[i % leafPalette.length], i, 0, i, 0.04);
+
+      leaves.push({
+        homePos: new THREE.Vector3(lx, ly, lz),
+        pos: new THREE.Vector3(lx, ly, lz),
+        vel: new THREE.Vector3(),
+        rotY: Math.random() * Math.PI * 2,
+        rotX: (Math.random() - 0.5) * 0.35,
+        rotZ: (Math.random() - 0.5) * 0.35,
+        scale: 0.75 + Math.random() * 0.55,
+        color: col
+      });
+      leafMesh.setColorAt(i, col);
+    }
+    if (leafMesh.instanceColor) leafMesh.instanceColor.needsUpdate = true;
+    scene.add(leafMesh);
+
+    function resetLeafPile() {
+      for (let i = 0; i < LEAF_COUNT; i++) {
+        leaves[i].pos.copy(leaves[i].homePos);
+        leaves[i].vel.set(0, 0.8 + Math.random() * 0.8, 0);
+      }
+    }
+
+    function updateInteractiveLeaves(dt, time) {
+      // Reimu's sweeping broom tip position in world space (when Reimu is near her porch/steps spot)
+      const reimu = fumos[0];
+      let broomTip = null;
+      if (reimu && !reimu.isDragged && reimu.pos.distanceTo(reimu.homePos) < 1.2) {
+        const sweepSwing = Math.sin(time * 3.6) * 0.75;
+        broomTip = new THREE.Vector3(
+          reimu.pos.x - 0.55 + Math.cos(sweepSwing) * 0.45,
+          2.55,
+          reimu.pos.z + 0.65 + Math.sin(sweepSwing) * 0.35
+        );
+      }
+
+      for (let i = 0; i < LEAF_COUNT; i++) {
+        const lf = leaves[i];
+
+        // 1. Check interaction with any Fumo (dragged or tumbling!)
+        for (let f = 0; f < fumos.length; f++) {
+          const fumo = fumos[f];
+          const dx = lf.pos.x - fumo.pos.x;
+          const dy = lf.pos.y - (fumo.pos.y + 0.35);
+          const dz = lf.pos.z - fumo.pos.z;
+          const dSq = dx * dx + dy * dy + dz * dz;
+          const hitR = fumo.radius * 1.15;
+          if (dSq < hitR * hitR && dSq > 0.0001) {
+            const d = Math.sqrt(dSq);
+            const pushStrength = (fumo.isDragged ? 9.5 : 4.5) * (1 - d / hitR);
+            lf.vel.x += (dx / d) * pushStrength + fumo.vel.x * 0.25;
+            lf.vel.z += (dz / d) * pushStrength + fumo.vel.z * 0.25;
+            lf.vel.y += 1.2 + Math.random() * 1.6;
+          }
+        }
+
+        // 2. Reimu's broom sweeping nudge keeps gathering leaves toward the pile center
+        if (broomTip) {
+          const bDist = lf.pos.distanceTo(broomTip);
+          if (bDist < 0.95) {
+            const toPileX = leafPileCenter.x - lf.pos.x;
+            const toPileZ = leafPileCenter.z - lf.pos.z;
+            lf.vel.x += toPileX * 3.5 * dt + (Math.random() - 0.5) * 0.8;
+            lf.vel.z += toPileZ * 3.5 * dt + (Math.random() - 0.5) * 0.8;
+            lf.vel.y += 0.45;
+          }
+        }
+
+        // 3. Leaf gravity, air flutter & terrain landing
+        lf.vel.y -= 9.5 * dt;
+        lf.vel.x *= Math.pow(0.92, dt * 60);
+        lf.vel.z *= Math.pow(0.92, dt * 60);
+        lf.pos.addScaledVector(lf.vel, dt);
+
+        // Determine ground height under leaf (Upper courtyard Y=2.5 vs stairs vs lower Y=0)
+        let groundY = 0.03;
+        if (lf.pos.z <= 2.25) {
+          groundY = 2.53;
+        } else if (lf.pos.z < 9.0 && Math.abs(lf.pos.x) < 2.5) {
+          const stepT = 1.0 - (lf.pos.z - 2.25) / 6.75;
+          groundY = Math.max(0.03, stepT * 2.5 + 0.03);
+        }
+
+        if (lf.pos.y <= groundY) {
+          lf.pos.y = groundY;
+          lf.vel.y = 0;
+          lf.vel.x *= 0.65;
+          lf.vel.z *= 0.65;
+        } else {
+          lf.rotY += dt * 3.5;
+          lf.rotZ = Math.sin(time * 5 + i) * 0.45;
+        }
+
+        tempEuler.set(lf.rotX, lf.rotY, lf.rotZ);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(lf.scale, 1, lf.scale);
+        tempMatrix.compose(lf.pos, tempQuat, tempScale);
+        leafMesh.setMatrixAt(i, tempMatrix);
+      }
+      leafMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // 6C. Drifting Cherry Blossom Petals
+    const PETAL_COUNT = 220;
+    const petalData = [];
+    const petalGeom = new THREE.BoxGeometry(0.095, 0.025, 0.095);
+    const petalMat = new THREE.MeshBasicMaterial({
+      color: 0xffd6e7,
+      transparent: true,
+      opacity: 0.92
+    });
+    const petalMesh = new THREE.InstancedMesh(petalGeom, petalMat, PETAL_COUNT);
+    for (let i = 0; i < PETAL_COUNT; i++) {
+      petalData.push({
+        x: -14 + Math.random() * 28,
+        y: 0.5 + Math.random() * 14,
+        z: -12 + Math.random() * 28,
+        vx: 0.65 + Math.random() * 0.55,
+        vy: -(0.55 + Math.random() * 0.45),
+        vz: 0.35 + (Math.random() - 0.5) * 0.5,
+        phase: Math.random() * Math.PI * 2,
+        scale: 0.65 + Math.random() * 0.75
+      });
+    }
+    scene.add(petalMesh);
+
+    function updateSakuraPetals(time, dt) {
+      for (let i = 0; i < PETAL_COUNT; i++) {
+        const p = petalData[i];
+        p.x += (p.vx + Math.sin(time * 1.4 + p.phase) * 0.45) * dt;
+        p.y += (p.vy + Math.cos(time * 2.1 + p.phase) * 0.18) * dt;
+        p.z += (p.vz + Math.sin(time * 1.1 + p.phase) * 0.35) * dt;
+
+        if (p.y < 0.1 || p.x > 15 || p.z > 16) {
+          p.x = -14 + Math.random() * 20;
+          p.y = 9.5 + Math.random() * 5.5;
+          p.z = -12 + Math.random() * 22;
+        }
+
+        tempPos.set(p.x, p.y, p.z);
+        tempEuler.set(time * 2.2 + p.phase, time * 1.7 + p.phase, Math.sin(time * 3 + p.phase) * 0.8);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(p.scale, 1, p.scale);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        petalMesh.setMatrixAt(i, tempMatrix);
+      }
+      petalMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // 6D. Marisa's Hovering Flying Voxel Broom (Gently bobs in the air above the courtyard!)
+    const flyingBroomGroup = new THREE.Group();
+    const broomVoxels = [];
+    for (let z = -8; z <= 6; z++) {
+      // Wooden bamboo shaft
+      broomVoxels.push({ x: 0, y: 0, z, color: varyColor('#8d5b3c', 0, 0, z, 0.03), sx: 0.85, sy: 0.85, sz: 1.05 });
+    }
+    // Golden straw bristle tail at back (z = -12..-7)
+    for (let z = -12; z <= -7; z++) {
+      const spread = (z === -7) ? 1 : 2;
+      for (let x = -spread; x <= spread; x++) {
+        for (let y = -1; y <= 1; y++) {
+          const bCol = (z === -7) ? '#dc2626' : '#eab308';
+          broomVoxels.push({ x: x * 0.75, y: y * 0.75, z, color: varyColor(bCol, x, y, z, 0.04), sx: 0.85, sy: 0.85, sz: 1.0 });
+        }
+      }
+    }
+    const flyingBroomMesh = buildVoxelInstancedMesh(broomVoxels, 0.12, plushMaterial, true, true);
+    if (flyingBroomMesh) flyingBroomGroup.add(flyingBroomMesh);
+    const broomBasePos = new THREE.Vector3(5.2, 4.35, 1.2);
+    flyingBroomGroup.position.copy(broomBasePos);
+    scene.add(flyingBroomGroup);
+
+    // 6E. Sky Elements: Drifting Day Clouds, Valley Mist, Night Full Moon, Fireflies & Aurora Shimmer
+    // Drifting Voxel Clouds (Daytime)
+    const cloudGroup = new THREE.Group();
+    const cloudVoxels = [];
+    const cloudCenters = [
+      [-14, 15.5, -18], [4, 16.8, -22], [18, 15.0, -14], [-6, 14.5, 8]
+    ];
+    cloudCenters.forEach(([cx, cy, cz], idx) => {
+      for (let x = -4; x <= 4; x++) {
+        for (let z = -2; z <= 2; z++) {
+          if (Math.hypot(x * 0.6, z) <= 2.4) {
+            cloudVoxels.push({ x: cx + x * 0.7, y: cy + (Math.abs(x) < 2 ? 0.35 : 0), z: cz + z * 0.7, color: new THREE.Color('#ffffff'), sx: 1.5, sy: 0.8, sz: 1.5 });
+          }
+        }
+      }
+    });
+    const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.78 });
+    const cloudMesh = buildVoxelInstancedMesh(cloudVoxels, 0.45, cloudMat, false, false);
+    if (cloudMesh) cloudGroup.add(cloudMesh);
+    scene.add(cloudGroup);
+
+    // Drifting Valley Mist Bands
+    const mistMat = new THREE.MeshBasicMaterial({
+      color: 0xf1f5f9,
+      transparent: true,
+      opacity: 0.22,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    const mistPlanes = [];
+    for (let m = 0; m < 4; m++) {
+      const mp = new THREE.Mesh(new THREE.PlaneGeometry(34, 3.2), mistMat);
+      mp.position.set(0, 1.35 + m * 0.65, 10.5 - m * 4.5);
+      mp.rotation.x = -Math.PI * 0.42;
+      scene.add(mp);
+      mistPlanes.push({ mesh: mp, baseX: 0, phase: m * 1.7 });
+    }
+
+    // Glowing Full Moon over the Shrine (Night Mode)
+    const moonMat = new THREE.MeshBasicMaterial({
+      color: 0xfef9c3,
+      transparent: true,
+      opacity: 0.0
+    });
+    const moonGroup = new THREE.Group();
+    const moonMesh = new THREE.Mesh(new THREE.BoxGeometry(3.4, 3.4, 0.5), moonMat);
+    moonGroup.add(moonMesh);
+    moonGroup.position.set(-11, 16.5, -24);
+    scene.add(moonGroup);
+
+    // Faint Aurora-Like Shimmer above the Gensokyo Mountains (Night Mode)
+    const auroraSegments = [];
+    const auroraMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    const auroraGroup = new THREE.Group();
+    for (let a = -18; a <= 18; a++) {
+      const seg = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 5.5), auroraMat.clone());
+      const c = new THREE.Color().setHSL(0.45 + ((a + 18) / 36) * 0.32, 0.85, 0.62);
+      seg.material.color.copy(c);
+      seg.position.set(a * 1.1, 14.5, -25.5 - Math.cos(a * 0.2) * 2.5);
+      auroraGroup.add(seg);
+      auroraSegments.push({ mesh: seg, baseX: a * 1.1, baseY: 14.5, baseZ: seg.position.z, idx: a });
+    }
+    scene.add(auroraGroup);
+
+    // Floating Spirit-Orb Fireflies (Night Mode)
+    const FIREFLY_COUNT = 55;
+    const fireflyData = [];
+    const fireflyGeom = new THREE.BoxGeometry(0.14, 0.14, 0.14);
+    const fireflyMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending
+    });
+    const fireflyMesh = new THREE.InstancedMesh(fireflyGeom, fireflyMat, FIREFLY_COUNT);
+    const spiritColors = ['#fde047', '#67e8f9', '#a7f3d0', '#f472b6'];
+    for (let i = 0; i < FIREFLY_COUNT; i++) {
+      fireflyData.push({
+        x: -12 + Math.random() * 24,
+        y: 0.8 + Math.random() * 7.5,
+        z: -10 + Math.random() * 24,
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.6 + Math.random() * 0.8
+      });
+      fireflyMesh.setColorAt(i, new THREE.Color(spiritColors[i % spiritColors.length]));
+    }
+    if (fireflyMesh.instanceColor) fireflyMesh.instanceColor.needsUpdate = true;
+    scene.add(fireflyMesh);
+
+    function updateAtmosphere(time, dt) {
+      // Clouds slow drift
+      cloudGroup.position.x = Math.sin(time * 0.08) * 3.5;
+
+      // Valley mist gentle drift
+      for (let i = 0; i < mistPlanes.length; i++) {
+        const m = mistPlanes[i];
+        m.mesh.position.x = Math.sin(time * 0.25 + m.phase) * 2.2;
+      }
+
+      // Aurora curtain wave
+      const nightStrength = dayNightProgress;
+      for (let i = 0; i < auroraSegments.length; i++) {
+        const seg = auroraSegments[i];
+        const waveY = Math.sin(time * 1.1 + seg.idx * 0.35) * 0.65;
+        const waveZ = Math.cos(time * 0.8 + seg.idx * 0.25) * 0.85;
+        seg.mesh.position.y = seg.baseY + waveY;
+        seg.mesh.position.z = seg.baseZ + waveZ;
+        seg.mesh.material.opacity = nightStrength * (0.14 + 0.08 * Math.sin(time * 1.8 + seg.idx * 0.4));
+      }
+
+      // Spirit-Orb Fireflies
+      if (nightStrength > 0.02) {
+        for (let i = 0; i < FIREFLY_COUNT; i++) {
+          const ff = fireflyData[i];
+          const fx = ff.x + Math.sin(time * ff.speed + ff.phase) * 1.2;
+          const fy = ff.y + Math.cos(time * (ff.speed * 1.3) + ff.phase) * 0.65;
+          const fz = ff.z + Math.sin(time * (ff.speed * 0.8) + ff.phase * 2) * 1.2;
+          const pulse = (0.55 + 0.45 * Math.sin(time * 3.5 + ff.phase)) * nightStrength;
+          tempPos.set(fx, fy, fz);
+          tempEuler.set(time, time * 0.7, 0);
+          tempQuat.setFromEuler(tempEuler);
+          tempScale.set(pulse, pulse, pulse);
+          tempMatrix.compose(tempPos, tempQuat, tempScale);
+          fireflyMesh.setMatrixAt(i, tempMatrix);
+        }
+        fireflyMesh.instanceMatrix.needsUpdate = true;
+      }
+    }
+
+    // ============================================================================
+    // 7. SQUEEZE POP PARTICLES
+    // ============================================================================
+    const POP_MAX = 48;
+    const popParticles = [];
+    const popGeom = new THREE.BoxGeometry(0.11, 0.11, 0.11);
+    const popMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const popMesh = new THREE.InstancedMesh(popGeom, popMat, POP_MAX);
+    for (let i = 0; i < POP_MAX; i++) {
+      popParticles.push({ active: false, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, maxLife: 1, color: new THREE.Color('#ff85a1') });
+      tempMatrix.makeScale(0, 0, 0);
+      popMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(popMesh);
+
+    function spawnSqueezeParticles(origin, accentHex) {
+      const palette = [accentHex, '#ff85a1', '#fde047', '#ffffff'];
+      let spawned = 0;
+      for (let i = 0; i < POP_MAX && spawned < 12; i++) {
+        const p = popParticles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.45 + Math.random() * 0.25;
+          p.pos.copy(origin).add(new THREE.Vector3(0, 0.9, 0));
+          const angle = (spawned / 12) * Math.PI * 2 + Math.random() * 0.3;
+          const speed = 2.2 + Math.random() * 2.0;
+          p.vel.set(Math.cos(angle) * speed, 2.5 + Math.random() * 2.2, Math.sin(angle) * speed);
+          p.color.set(palette[spawned % palette.length]);
+          popMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (popMesh.instanceColor) popMesh.instanceColor.needsUpdate = true;
+    }
+
+    function updatePopParticles(dt) {
+      let dirty = false;
+      for (let i = 0; i < POP_MAX; i++) {
+        const p = popParticles[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          popMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= 7.5 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const s = 1.0 - (p.life / p.maxLife);
+        tempQuat.setFromEuler(new THREE.Euler(p.life * 8, p.life * 6, 0));
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        popMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) popMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 8. TOUHOU FUMO VOXEL PLUSHIE BUILDER & SOFT-BODY PHYSICS CLASS
+    //    (Using the exact hollow head & 'ᗜˬᗜ' face design from room.html)
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const fumos = [];
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.emoji = config.emoji || '🎀';
+        this.accentColor = config.accentColor || '#ef4444';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.082 * this.scaleFactor; // Fine voxel size per fumo block
+        this.radius = 0.85 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+        this.homePitch = config.homePitch || 0;
+        this.homeRoll = config.homeRoll || 0;
+        this.specialPose = config.specialPose || null; // 'sweeping' | 'broomHover' | 'upsideDownBox' | 'napping'
+
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = this.homePitch;
+        this.roll = this.homeRoll;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.hasLeftHome = false;
+
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        this.buildCharacterVoxels(config);
+        this.syncTransform(0);
+        scene.add(this.root);
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingSolidVoxels = [];
+        const wingGlowVoxels = [];
+
+        const skinBase = '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false, sx = 1, sy = 1, sz = 1) => {
+          const seamDarken = (isSeam && ((Math.abs(x + y + z) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z, sx, sy, sz,
+            color: varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // 1. STUBBY SITTING TORSO (Local y: 0..7, x: -4..4, z: -3..3)
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain;
+
+              if (y === 1 && z >= 1) col = '#ffffff';
+              if (cfg.hasWhiteApron && z >= 1 && Math.abs(x) <= 2 && y <= 5) {
+                col = '#fcfcfc';
+              }
+              if (this.id === 'aya' && y >= 4) {
+                col = '#ffffff'; // Aya crisp white tengu blouse above black skirt
+              }
+              if (this.id === 'suika' && y >= 4) {
+                col = '#f3e8ff'; // Suika light lavender top above deep purple skirt
+              }
+              if (this.id === 'daiyousei' && z >= 1 && Math.abs(x) <= 2 && y >= 2 && y <= 6) {
+                col = '#fef08a'; // Daiyousei yellow-green front ribbon trim
+              }
+              if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                col = '#ffffff';
+                if (Math.abs(x) <= 1 && y === 5) col = cfg.tieColor || '#ef4444';
+              }
+
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        // 2. SHORT DANGLING ARMS (+ Handheld Props for Reimu & Aya)
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || '#ffffff';
+                if (y === -3) col = skinBase;
+                else if (this.id === 'reimu' && y === -1) col = '#e63946';
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        // Reimu's Bamboo Sweeping Broom held in her right arm
+        if (this.id === 'reimu') {
+          for (let by = -9; by <= 4; by++) {
+            addPlushVoxel(rightArmVoxels, 0.8, by * 0.65, 2.2, '#a37b4c', false, 0.65, 0.8, 0.65);
+          }
+          for (let bx = -1; bx <= 2; bx++) {
+            for (let by = -12; by <= -9; by++) {
+              const bCol = (by === -9) ? '#dc2626' : '#eab308';
+              addPlushVoxel(rightArmVoxels, 0.4 + bx * 0.65, by * 0.6, 2.2, bCol, false, 0.75, 0.75, 0.9);
+            }
+          }
+        }
+
+        // Aya's Vintage Reporter Camera held in her right hand
+        if (this.id === 'aya') {
+          for (let cx = -1; cx <= 2; cx++) {
+            for (let cy = -4; cy <= -2; cy++) {
+              addPlushVoxel(rightArmVoxels, cx * 0.8, cy, 2.4, '#1e293b', false, 0.85, 0.85, 1.1);
+            }
+          }
+          addPlushVoxel(rightArmVoxels, 0.4, -3.0, 3.4, '#94a3b8', false, 1.2, 1.2, 0.8); // Camera lens barrel
+          addPlushVoxel(rightArmVoxels, 0.4, -3.0, 3.9, '#38bdf8', false, 0.8, 0.8, 0.4); // Cyan lens glass
+        }
+
+        // Suika's Mini Golden Sake Dish & Gourd Chain Charm on her left arm
+        if (this.id === 'suika') {
+          addPlushVoxel(leftArmVoxels, -1.2, -3.2, 1.8, '#dc2626', false, 1.6, 0.5, 1.6);
+        }
+
+        // 3. SHORT SITTING / DANGLING LEGS WITH SHOES
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = '#ffffff';
+                if (z === 0) col = skinBase;
+                if (z >= 3) col = cfg.shoeColor || '#2b2d42';
+                if (z === 4 && y === 1 && x === 0) col = '#ffffff';
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        // 4. OVERSIZED ROUND FUMO HEAD & ICONIC 'ᗜˬᗜ' FACE
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (y === 6) col = '#1f141e';
+                  else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                  else col = cfg.eyeColor;
+                } else if (Math.abs(x) === 4 && y === 3) {
+                  col = blushCol;
+                } else if (y === 2 && Math.abs(x) <= 1) {
+                  col = (x === 0) ? '#e07a7a' : smileCol;
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        // 5. CHARACTER-SPECIFIC HAIR, HATS, HORNS, BOWS & WINGS
+        if (this.id === 'reimu') {
+          for (const side of [-1, 1]) {
+            for (let y = -1; y <= 5; y++) {
+              const tubeCol = (y === 5) ? '#e63946' : ((y >= 1 && y <= 4) ? '#ffffff' : cfg.hairColor);
+              addPlushVoxel(headVoxels, side * 6.8, y, 2.2, tubeCol);
+              addPlushVoxel(headVoxels, side * 6.8, y, 3.0, tubeCol);
+            }
+          }
+          for (let bx = -7; bx <= 7; bx++) {
+            const wingHeight = Math.min(4, Math.floor(Math.abs(bx) * 0.7) + 1);
+            for (let by = -wingHeight; by <= wingHeight; by++) {
+              addPlushVoxel(headVoxels, bx, 12.2 + by * 0.75, -1.5 - Math.abs(bx) * 0.15, '#d90429');
+            }
+          }
+        }
+
+        if (this.id === 'marisa') {
+          for (let y = -1; y <= 5; y++) {
+            addPlushVoxel(headVoxels, -6.6, y, 2.8, y === 0 ? '#ffffff' : cfg.hairColor);
+          }
+          for (let hx = -10; hx <= 10; hx++) {
+            for (let hz = -10; hz <= 10; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 10.2 && r >= 4.2) {
+                const brimY = 10.2 - hz * 0.22 + Math.sin(Math.atan2(hz, hx) * 4) * 0.4;
+                addPlushVoxel(headVoxels, hx, brimY, hz - 1.2, '#22222b');
+              }
+            }
+          }
+          for (let ch = 0; ch <= 9; ch++) {
+            const coneR = Math.max(0.8, 5.2 - ch * 0.52);
+            for (let hx = -6; hx <= 6; hx++) {
+              for (let hz = -6; hz <= 6; hz++) {
+                const r = Math.hypot(hx, hz);
+                if (r <= coneR && r >= coneR - 1.3) {
+                  const isRibbon = (ch === 1 || ch === 2);
+                  addPlushVoxel(headVoxels, hx, 10.8 + ch * 0.9 - hz * 0.18, hz - 1.5 - ch * 0.28, isRibbon ? '#f8f9fa' : '#22222b');
+                }
+              }
+            }
+          }
+          for (let bx = -3; bx <= 3; bx++) {
+            addPlushVoxel(headVoxels, bx, 11.8, 3.8, '#ffffff');
+            if (Math.abs(bx) >= 1) addPlushVoxel(headVoxels, bx, 12.6, 3.8, '#ffffff');
+          }
+        }
+
+        if (this.id === 'suika') {
+          // Long flowing orange-brown hair locks with geometric cube hair ties
+          for (const side of [-1, 1]) {
+            for (let y = -2; y <= 4; y++) {
+              addPlushVoxel(headVoxels, side * 6.7, y, 1.5, cfg.hairColor);
+            }
+            const hairTieCol = (side === -1) ? '#dc2626' : '#facc15';
+            addPlushVoxel(headVoxels, side * 6.9, 5.5, 2.2, hairTieCol, false, 1.3, 1.3, 1.3);
+          }
+          // Two Iconic Curved Oni Horns rising from top of her head!
+          for (const side of [-1, 1]) {
+            for (let h = 0; h <= 7; h++) {
+              const hx = side * (3.2 + Math.sin(h * 0.35) * 2.1);
+              const hy = 11.2 + h * 0.82;
+              const hz = 0.5 - h * 0.22;
+              const hCol = (h % 2 === 0) ? '#e6ccb2' : '#d4a373';
+              const s = Math.max(0.65, 1.45 - h * 0.1);
+              addPlushVoxel(headVoxels, hx, hy, hz, hCol, false, s, s, s);
+            }
+            // Small white ribbon at base of each horn
+            addPlushVoxel(headVoxels, side * 3.2, 11.2, 1.2, '#ffffff', false, 1.5, 0.8, 1.2);
+          }
+        }
+
+        if (this.id === 'aya') {
+          // Red Tengu Tokin Hat perched on top-front of her black bob hair + white pom-poms
+          for (let hx = -2; hx <= 2; hx++) {
+            for (let hz = 0; hz <= 4; hz++) {
+              for (let hy = 11; hy <= 14; hy++) {
+                if (Math.hypot(hx, hz - 2) <= 2.4) {
+                  addPlushVoxel(headVoxels, hx, hy, hz, (hy === 12) ? '#1e293b' : '#dc2626');
+                }
+              }
+            }
+          }
+          // White pom-pom tassels on sides of tokin hat
+          addPlushVoxel(headVoxels, -3.5, 10.5, 3.2, '#ffffff', false, 1.3, 1.3, 1.3);
+          addPlushVoxel(headVoxels, 3.5, 10.5, 3.2, '#ffffff', false, 1.3, 1.3, 1.3);
+
+          // Black Crow Wings on her back
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 7; wx++) {
+              const topY = 2.5 + Math.sin((wx / 7) * Math.PI) * 2.5;
+              for (let wy = -1; wy <= topY; wy++) {
+                wingSolidVoxels.push({
+                  x: side * wx * 0.95, y: wy, z: -0.5 - wx * 0.15,
+                  color: varyColor('#1e1b24', wx, wy, 0, 0.03)
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'cirno') {
+          for (let bx = -6; bx <= 6; bx++) {
+            const h = Math.min(3, Math.floor(Math.abs(bx) * 0.65) + 1);
+            for (let by = -h; by <= h; by++) {
+              addPlushVoxel(headVoxels, bx, 10.5 + by * 0.75, -4.8, '#1d4ed8');
+            }
+          }
+          const wingAngles = [0.45, 0.05, -0.35];
+          for (const side of [-1, 1]) {
+            for (let w = 0; w < 3; w++) {
+              const ang = wingAngles[w];
+              for (let r = 1; r <= 7; r++) {
+                const wx = side * (1.2 + Math.cos(ang) * r * 1.05);
+                const wy = 1.0 + Math.sin(ang) * r * 1.05;
+                const wz = -0.5 - r * 0.15;
+                wingGlowVoxels.push({
+                  x: wx, y: wy, z: wz,
+                  color: varyColor(r > 5 ? '#e0f2fe' : '#38bdf8', wx, wy, wz, 0.02),
+                  sx: 1.1, sy: 0.85, sz: 0.6
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'daiyousei') {
+          // Long green right side ponytail tied with a bright yellow ribbon
+          for (let py = 0; py <= 7; py++) {
+            addPlushVoxel(headVoxels, -6.8 - (7 - py) * 0.25, py, 0.8, py === 6 ? '#facc15' : cfg.hairColor);
+          }
+          // Translucent Leaf-Green & Yellow Fairy Wings
+          const wingAngles = [0.35, -0.25];
+          for (const side of [-1, 1]) {
+            for (let w = 0; w < 2; w++) {
+              const ang = wingAngles[w];
+              for (let r = 1; r <= 6; r++) {
+                const wx = side * (1.1 + Math.cos(ang) * r * 0.95);
+                const wy = 1.0 + Math.sin(ang) * r * 0.95;
+                wingGlowVoxels.push({
+                  x: wx, y: wy, z: -0.4 - r * 0.12,
+                  color: varyColor(r > 4 ? '#fef08a' : '#84cc16', wx, wy, 0, 0.02),
+                  sx: 1.05, sy: 1.05, sz: 0.55
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'aunn') {
+          // Single central Komainu horn on forehead + floppy mint dog/lion ears on sides!
+          for (let hy = 11; hy <= 13; hy++) {
+            addPlushVoxel(headVoxels, 0, hy, 3.8, '#fde047', false, 1.1, 0.9, 1.1);
+          }
+          for (const side of [-1, 1]) {
+            for (let ey = 4; ey <= 9; ey++) {
+              addPlushVoxel(headVoxels, side * 6.8, ey, 1.0, cfg.hairColor, false, 1.2, 1.0, 1.5);
+            }
+          }
+        }
+
+        if (this.id === 'shion') {
+          // Blue poverty-god hair bow & side ribbon tail
+          for (let bx = -4; bx <= 4; bx++) {
+            addPlushVoxel(headVoxels, bx, 11.5, -2.5, '#1d4ed8');
+          }
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allFumoRaycastMeshes.push(m);
+          }
+          return m;
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        registerPart(wingSolidVoxels, this.wingsPivot);
+        if (wingGlowVoxels.length > 0) {
+          registerPart(wingGlowVoxels, this.wingsPivot, translucentIceMaterial);
+        }
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.52, this.squash - 0.42 * strength);
+        this.squashVel = -3.5 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 11 * strength;
+        this.limbPitch = -0.65 * strength;
+        this.limbPitchVel = -6.0 * strength;
+        spawnSqueezeParticles(this.pos, this.accentColor);
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      resetToHome() {
+        this.pos.copy(this.homePos);
+        this.vel.set(0, 0, 0);
+        this.yaw = this.homeYaw;
+        this.pitch = this.homePitch;
+        this.roll = this.homeRoll;
+        this.angVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.hasLeftHome = false;
+        this.squeeze(0.75);
+      }
+
+      updatePhysics(dt, time) {
+        // 1. Volume-Preserving Squash & Stretch Spring
+        const squashStiff = 210.0;
+        const squashDamp = 11.5;
+        const squashForce = (1.0 - this.squash) * squashStiff - this.squashVel * squashDamp;
+        this.squashVel += squashForce * dt;
+        this.squash += this.squashVel * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash, 0.45, 1.55);
+
+        // 2. Oversized Head Wobble Spring
+        const headStiff = 140.0;
+        const headDamp = 7.5;
+        const idleHeadBob = Math.sin(time * 2.2 + this.homePos.x) * 0.025;
+        this.headPitchVel += ((idleHeadBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        // 3. Dangling Limb Springs
+        const targetLimbPitch = (this.isDragged || !this.isGrounded) ? 0.58 : 0.0;
+        const limbStiff = 120.0;
+        const limbDamp = 8.0;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * limbStiff - this.limbPitchVel * limbDamp) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * limbStiff - this.limbRollVel * limbDamp) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.8, 0.9);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+
+        // 4. Special Home Poses (Marisa hovering on flying broom, Shion stuck head-first in Saisen Box)
+        if (!this.isDragged && !this.hasLeftHome) {
+          if (this.specialPose === 'broomHover') {
+            const bobY = Math.sin(time * 2.4) * 0.22;
+            const tiltZ = Math.cos(time * 1.8) * 0.05;
+            this.pos.set(this.homePos.x, this.homePos.y + bobY, this.homePos.z);
+            this.roll = tiltZ;
+            this.isGrounded = true;
+            this.syncTransform(time);
+            return;
+          }
+          if (this.specialPose === 'upsideDownBox') {
+            this.pos.copy(this.homePos);
+            this.pitch = this.homePitch + Math.sin(time * 4.5) * 0.06;
+            this.limbPitch = Math.sin(time * 7.5) * 0.35; // Kicking legs in the air!
+            this.isGrounded = true;
+            this.syncTransform(time);
+            return;
+          }
+        }
+
+        // 5. Rigid-Body / Soft-Plush Motion when NOT dragged
+        if (!this.isDragged) {
+          this.vel.y -= 24.0 * dt;
+          this.vel.multiplyScalar(Math.pow(0.985, dt * 60));
+
+          this.pos.addScaledVector(this.vel, dt);
+
+          this.yaw += this.angVel.y * dt;
+          this.pitch += this.angVel.x * dt;
+          this.roll += this.angVel.z * dt;
+          this.angVel.multiplyScalar(Math.pow(0.92, dt * 60));
+
+          this.isGrounded = false;
+
+          // Base Lower Ground / Stream Collision (Y = 0)
+          if (this.pos.y < 0) {
+            const impact = -this.vel.y;
+            this.pos.y = 0;
+            if (impact > 1.8) {
+              this.vel.y = impact * 0.42;
+              this.squashVel -= Math.min(9.0, impact * 0.95);
+              this.headPitchVel += (Math.random() - 0.5) * impact * 2.0;
+              this.headRollVel += (Math.random() - 0.5) * impact * 2.0;
+              soundFX.playBounce(impact * 0.08);
+            } else {
+              this.vel.y = 0;
+              this.isGrounded = true;
+            }
+            this.vel.x *= 0.82;
+            this.vel.z *= 0.82;
+          }
+
+          // Shrine Grounds Boundary Clamping
+          const minX = -12.5, maxX = 12.5;
+          const minZ = -12.5, maxZ = 14.0;
+          if (this.pos.x < minX) { this.pos.x = minX; this.vel.x = Math.abs(this.vel.x) * 0.48; }
+          if (this.pos.x > maxX) { this.pos.x = maxX; this.vel.x = -Math.abs(this.vel.x) * 0.48; }
+          if (this.pos.z < minZ) { this.pos.z = minZ; this.vel.z = Math.abs(this.vel.z) * 0.48; }
+          if (this.pos.z > maxZ) { this.pos.z = maxZ; this.vel.z = -Math.abs(this.vel.z) * 0.48; }
+
+          // Furniture, Staircase Steps, Lanterns & Veranda AABB Collisions
+          const r = this.radius * 0.72;
+          const centerY = this.pos.y + r;
+
+          for (let i = 0; i < furnitureColliders.length; i++) {
+            const box = furnitureColliders[i];
+            const cx = THREE.MathUtils.clamp(this.pos.x, box.min.x, box.max.x);
+            const cy = THREE.MathUtils.clamp(centerY, box.min.y, box.max.y);
+            const cz = THREE.MathUtils.clamp(this.pos.z, box.min.z, box.max.z);
+
+            const dx = this.pos.x - cx;
+            const dy = centerY - cy;
+            const dz = this.pos.z - cz;
+            const distSq = dx * dx + dy * dy + dz * dz;
+
+            if (distSq < r * r) {
+              const dist = Math.sqrt(distSq);
+              if (centerY >= box.max.y - 0.28 && this.vel.y <= 0.6) {
+                const impact = -this.vel.y;
+                this.pos.y = box.max.y;
+                if (impact > 1.9) {
+                  this.vel.y = impact * 0.38;
+                  this.squashVel -= Math.min(8.5, impact * 0.85);
+                  this.headPitchVel += (Math.random() - 0.5) * impact * 1.8;
+                  soundFX.playBounce(impact * 0.08);
+                } else {
+                  this.vel.y = 0;
+                  this.isGrounded = true;
+                }
+                this.vel.x *= 0.82;
+                this.vel.z *= 0.82;
+              } else if (dist > 0.0001) {
+                const nx = dx / dist;
+                const ny = dy / dist;
+                const nz = dz / dist;
+                const pen = r - dist;
+                this.pos.x += nx * pen;
+                this.pos.y = Math.max(0, this.pos.y + ny * pen);
+                this.pos.z += nz * pen;
+
+                const vn = this.vel.x * nx + this.vel.y * ny + this.vel.z * nz;
+                if (vn < 0) {
+                  const imp = -vn;
+                  this.vel.x -= 1.42 * vn * nx;
+                  this.vel.y -= 1.42 * vn * ny;
+                  this.vel.z -= 1.42 * vn * nz;
+                  if (imp > 1.8) {
+                    this.squashVel -= Math.min(6.0, imp * 0.55);
+                    soundFX.playBounce(imp * 0.06);
+                  }
+                }
+              }
+            }
+          }
+
+          // Self-righting plushie torque when resting on a surface
+          if (this.isGrounded) {
+            const targetPitch = (!this.hasLeftHome && this.specialPose === 'napping') ? this.homePitch : 0;
+            const targetRoll = (!this.hasLeftHome && this.specialPose === 'napping') ? this.homeRoll : 0;
+            this.pitch = THREE.MathUtils.lerp(this.pitch, targetPitch, Math.min(1, dt * 9.5));
+            this.roll = THREE.MathUtils.lerp(this.roll, targetRoll, Math.min(1, dt * 9.5));
+            this.angVel.multiplyScalar(0.75);
+          }
+        }
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+
+        // Reimu sweeping arm motion when at her home spot
+        let rightArmSweep = 0;
+        if (this.id === 'reimu' && !this.isDragged && !this.hasLeftHome) {
+          rightArmSweep = Math.sin(time * 3.6) * 0.38;
+        }
+
+        this.leftArmPivot.rotation.set(this.limbPitch, 0, 0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.rightArmPivot.rotation.set(this.limbPitch + rightArmSweep, rightArmSweep * 0.6, -0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+
+        const wingFlutter = Math.sin(time * 3.8 + this.homePos.x) * 0.07 + (1.0 - this.squash) * 0.35;
+        this.wingsPivot.rotation.x = wingFlutter;
+      }
+    }
+
+    // ============================================================================
+    // 9. INSTANTIATE THE 8 TOUHOU FUMO CHARACTERS AT THE HAKUREI SHRINE
+    // ============================================================================
+    const fumoConfigs = [
+      {
+        id: 'reimu',
+        name: 'Reimu Hakurei (Sweeping Shrine Maiden Fumo)',
+        emoji: '⛩️',
+        accentColor: '#ef4444',
+        hairColor: '#2b1e23',
+        eyeColor: '#991b1b',
+        outfitMain: '#dc2626',
+        sleeveColor: '#ffffff',
+        tieColor: '#facc15',
+        shoeColor: '#451a03',
+        hasWhiteApron: false,
+        // Sweeping fallen leaves at the foot of the Shrine porch steps!
+        homePos: new THREE.Vector3(-2.1, 2.5, -2.15),
+        homeYaw: -0.25,
+        pitchAudio: 1.0
+      },
+      {
+        id: 'marisa',
+        name: 'Marisa Kirisame (Flying Broom Fumo)',
+        emoji: '🧹',
+        accentColor: '#facc15',
+        hairColor: '#fde047',
+        eyeColor: '#ca8a04',
+        outfitMain: '#1f2937',
+        sleeveColor: '#ffffff',
+        tieColor: '#ffffff',
+        shoeColor: '#111827',
+        hasWhiteApron: true,
+        // Hovering in mid-air on her flying broomstick above the courtyard!
+        homePos: new THREE.Vector3(5.2, 4.42, 1.2),
+        homeYaw: -0.55,
+        specialPose: 'broomHover',
+        pitchAudio: 0.96
+      },
+      {
+        id: 'suika',
+        name: 'Suika Ibuki (Oni Sake Lover Fumo)',
+        emoji: '🍶',
+        accentColor: '#f97316',
+        hairColor: '#d97706',
+        eyeColor: '#b45309',
+        outfitMain: '#581c87',
+        sleeveColor: '#f3e8ff',
+        tieColor: '#ef4444',
+        shoeColor: '#3b0764',
+        hasWhiteApron: false,
+        // Sitting on the Shrine Veranda beside the giant Ibuki sake gourd!
+        homePos: new THREE.Vector3(3.9, 3.5, -4.1),
+        homeYaw: -0.35,
+        pitchAudio: 1.08
+      },
+      {
+        id: 'aya',
+        name: 'Aya Shameimaru (Tengu Reporter Fumo)',
+        emoji: '📸',
+        accentColor: '#ef4444',
+        hairColor: '#1e1b24',
+        eyeColor: '#dc2626',
+        outfitMain: '#1f2937',
+        sleeveColor: '#ffffff',
+        tieColor: '#dc2626',
+        shoeColor: '#111827',
+        hasWhiteApron: false,
+        // Perched near the top of the stone staircase snapping photos with her camera!
+        homePos: new THREE.Vector3(-3.8, 2.5, 1.3),
+        homeYaw: 0.45,
+        pitchAudio: 1.04
+      },
+      {
+        id: 'cirno',
+        name: 'Cirno (Stream Splash Ice Fairy Fumo)',
+        emoji: '❄️',
+        accentColor: '#38bdf8',
+        hairColor: '#7dd3fc',
+        eyeColor: '#0284c7',
+        outfitMain: '#2563eb',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#1e3a8a',
+        hasWhiteApron: false,
+        // Playing in the cool mountain stream beside the wooden bridge!
+        homePos: new THREE.Vector3(-7.4, 0.0, 7.6),
+        homeYaw: 0.55,
+        pitchAudio: 1.16
+      },
+      {
+        id: 'daiyousei',
+        name: 'Daiyousei (Lake Fairy Fumo)',
+        emoji: '🌿',
+        accentColor: '#84cc16',
+        hairColor: '#4ade80',
+        eyeColor: '#15803d',
+        outfitMain: '#2563eb',
+        sleeveColor: '#ffffff',
+        tieColor: '#facc15',
+        shoeColor: '#166534',
+        hasWhiteApron: false,
+        // Playing in the stream with Cirno!
+        homePos: new THREE.Vector3(-5.8, 0.0, 10.6),
+        homeYaw: -0.65,
+        pitchAudio: 1.24
+      },
+      {
+        id: 'shion',
+        name: 'Shion Yorigami (Stuck in Donation Box Fumo!)',
+        emoji: '💸',
+        accentColor: '#60a5fa',
+        hairColor: '#93c5fd',
+        eyeColor: '#1d4ed8',
+        outfitMain: '#3b82f6',
+        sleeveColor: '#e2e8f0',
+        tieColor: '#1e3a8a',
+        shoeColor: '#1e293b',
+        hasWhiteApron: false,
+        scale: 0.85,
+        // Unexpected Spot #1: Stuck head-first inside the empty Saisen Donation Box!
+        homePos: new THREE.Vector3(-0.15, 4.15, -1.75),
+        homeYaw: 0.15,
+        homePitch: Math.PI * 0.92,
+        specialPose: 'upsideDownBox',
+        pitchAudio: 1.32
+      },
+      {
+        id: 'aunn',
+        name: 'Aunn Komano (Napping on Stone Lantern Fumo!)',
+        emoji: '💤',
+        accentColor: '#34d399',
+        hairColor: '#a7f3d0',
+        eyeColor: '#059669',
+        outfitMain: '#ffffff',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#065f46',
+        hasWhiteApron: false,
+        scale: 0.88,
+        // Unexpected Spot #2: Peacefully napping on top of the right stone lantern!
+        homePos: new THREE.Vector3(3.38, 4.5, 1.12),
+        homeYaw: -0.4,
+        homePitch: 0.18,
+        homeRoll: 0.25,
+        specialPose: 'napping',
+        pitchAudio: 1.18
+      }
+    ];
+
+    fumoConfigs.forEach(cfg => {
+      fumos.push(new VoxelFumo(cfg));
+    });
+
+    function resolveFumoToFumoCollisions() {
+      for (let i = 0; i < fumos.length; i++) {
+        for (let j = i + 1; j < fumos.length; j++) {
+          const a = fumos[i];
+          const b = fumos[j];
+          const minDist = (a.radius + b.radius) * 0.78;
+          const dx = b.pos.x - a.pos.x;
+          const dy = (b.pos.y + b.radius * 0.6) - (a.pos.y + a.radius * 0.6);
+          const dz = b.pos.z - a.pos.z;
+          const distSq = dx * dx + dy * dy + dz * dz;
+
+          if (distSq < minDist * minDist && distSq > 0.0001) {
+            const dist = Math.sqrt(distSq);
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const nz = dz / dist;
+            const overlap = (minDist - dist) * 0.5;
+
+            if (!a.isDragged) {
+              a.pos.x -= nx * overlap;
+              a.pos.y = Math.max(0, a.pos.y - ny * overlap);
+              a.pos.z -= nz * overlap;
+            }
+            if (!b.isDragged) {
+              b.pos.x += nx * overlap;
+              b.pos.y = Math.max(0, b.pos.y + ny * overlap);
+              b.pos.z += nz * overlap;
+            }
+
+            const rvx = b.vel.x - a.vel.x;
+            const rvy = b.vel.y - a.vel.y;
+            const rvz = b.vel.z - a.vel.z;
+            const vn = rvx * nx + rvy * ny + rvz * nz;
+            if (vn < 0) {
+              const imp = -vn * 0.68;
+              if (!a.isDragged) {
+                a.vel.x -= imp * nx;
+                a.vel.y -= imp * ny;
+                a.vel.z -= imp * nz;
+                a.squashVel -= Math.min(5.0, imp * 0.6);
+              }
+              if (!b.isDragged) {
+                b.vel.x += imp * nx;
+                b.vel.y += imp * ny;
+                b.vel.z += imp * nz;
+                b.squashVel -= Math.min(5.0, imp * 0.6);
+              }
+              if (imp > 1.5) soundFX.playBounce(imp * 0.07);
+            }
+          }
+        }
+      }
+    }
+
+    // ============================================================================
+    // 10. POINTER INTERACTION: RAYCASTING, SQUEEZE, PICK UP, DRAG & THROW
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let hoveredFumo = null;
+    let selectedFumo = null;
+    let isDraggingFumo = false;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+    const badgeEl = document.getElementById('fumo-badge');
+    const badgeDotEl = document.getElementById('fumo-badge-dot');
+    const badgeNameEl = document.getElementById('fumo-badge-name');
+    const badgeStatusEl = document.getElementById('fumo-badge-status');
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function pickFumoUnderPointer() {
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (hits.length > 0 && hits[0].object.userData.fumo) {
+        return { fumo: hits[0].object.userData.fumo, point: hits[0].point };
+      }
+      return null;
+    }
+
+    function updateUIBadge(fumo, statusText) {
+      if (!fumo) {
+        badgeEl.classList.add('hidden');
+        badgeEl.classList.remove('flex');
+        return;
+      }
+      badgeEl.classList.remove('hidden');
+      badgeEl.classList.add('flex');
+      badgeDotEl.style.backgroundColor = fumo.accentColor;
+      badgeNameEl.textContent = fumo.name;
+      badgeStatusEl.textContent = statusText;
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+
+      const hit = pickFumoUnderPointer();
+      if (hit) {
+        selectedFumo = hit.fumo;
+        isDraggingFumo = false;
+        controls.enabled = false;
+
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), selectedFumo.pos);
+
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          dragOffset.subVectors(selectedFumo.pos, dragHitPoint);
+        } else {
+          dragOffset.set(0, 0, 0);
+        }
+
+        dragHistory = [{ pos: selectedFumo.pos.clone(), time: performance.now() }];
+        updateUIBadge(selectedFumo, 'Selected');
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      updatePointerNDC(e);
+
+      if (selectedFumo) {
+        recordInteraction();
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          selectedFumo.isDragged = true;
+          selectedFumo.hasLeftHome = true;
+          selectedFumo.isGrounded = false;
+          selectedFumo.squashVel += 3.2;
+          soundFX.playPickup();
+          updateUIBadge(selectedFumo, 'Dragging — Release to Toss!');
+        }
+
+        if (isDraggingFumo) {
+          raycaster.setFromCamera(pointerNDC, camera);
+          if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+            const targetPos = dragHitPoint.clone().add(dragOffset);
+            targetPos.x = THREE.MathUtils.clamp(targetPos.x, -12.0, 12.0);
+            targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.25, 13.5);
+            targetPos.z = THREE.MathUtils.clamp(targetPos.z, -11.5, 13.5);
+
+            const prevPos = selectedFumo.pos.clone();
+            selectedFumo.pos.lerp(targetPos, 0.55);
+
+            const deltaMove = selectedFumo.pos.clone().sub(prevPos);
+            selectedFumo.headRollVel -= deltaMove.x * 16.0;
+            selectedFumo.headPitchVel += deltaMove.z * 16.0 - deltaMove.y * 10.0;
+            selectedFumo.limbRollVel -= deltaMove.x * 22.0;
+            selectedFumo.roll = THREE.MathUtils.lerp(selectedFumo.roll, THREE.MathUtils.clamp(-deltaMove.x * 1.4, -0.45, 0.45), 0.3);
+            selectedFumo.pitch = THREE.MathUtils.lerp(selectedFumo.pitch, THREE.MathUtils.clamp(deltaMove.z * 1.4, -0.45, 0.45), 0.3);
+
+            const now = performance.now();
+            dragHistory.push({ pos: selectedFumo.pos.clone(), time: now });
+            while (dragHistory.length > 6) dragHistory.shift();
+          }
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      const hit = pickFumoUnderPointer();
+      if (hit) {
+        hoveredFumo = hit.fumo;
+        renderer.domElement.style.cursor = 'grab';
+        tooltipEmojiEl.textContent = hoveredFumo.emoji;
+        tooltipTextEl.textContent = hoveredFumo.name;
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else {
+        hoveredFumo = null;
+        renderer.domElement.style.cursor = 'default';
+        tooltipEl.style.opacity = '0';
+      }
+    });
+
+    window.addEventListener('pointerup', () => {
+      if (!selectedFumo) return;
+      controls.enabled = true;
+      recordInteraction();
+
+      if (!isDraggingFumo) {
+        selectedFumo.squeeze(1.0);
+        updateUIBadge(selectedFumo, 'Squeezed! ᗜˬᗜ');
+      } else {
+        selectedFumo.isDragged = false;
+        const now = performance.now();
+        while (dragHistory.length > 1 && now - dragHistory[0].time > 140) {
+          dragHistory.shift();
+        }
+        if (dragHistory.length >= 2) {
+          const first = dragHistory[0];
+          const last = dragHistory[dragHistory.length - 1];
+          const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+          const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+          if (throwVel.length() > 24) throwVel.setLength(24);
+          selectedFumo.vel.copy(throwVel);
+
+          const speed = throwVel.length();
+          selectedFumo.angVel.set(
+            throwVel.z * 0.65 + (Math.random() - 0.5) * speed * 0.4,
+            (Math.random() - 0.5) * speed * 0.5,
+            -throwVel.x * 0.65 + (Math.random() - 0.5) * speed * 0.4
+          );
+        } else {
+          selectedFumo.vel.set(0, 0, 0);
+        }
+        updateUIBadge(selectedFumo, 'Tossed!');
+      }
+
+      selectedFumo = null;
+      isDraggingFumo = false;
+      renderer.domElement.style.cursor = hoveredFumo ? 'grab' : 'default';
+    });
+
+    // ============================================================================
+    // 11. DAY / NIGHT SMOOTH INTERPOLATION (~2 SECONDS) & HUB INTEGRATION
+    // ============================================================================
+    const STORAGE_MODE_KEY = 'voxel_fumo_shrine_mode';
+    let isNightMode = false;
+    let dayNightProgress = 0.0; // 0.0 = Day, 1.0 = Night
+    let dayNightTarget = 0.0;
+
+    const daySkyColor = new THREE.Color('#cce8ff');
+    const nightSkyColor = new THREE.Color('#090d1e');
+
+    const daySunLightCol = new THREE.Color('#fff2d6');
+    const nightMoonLightCol = new THREE.Color('#7aa2f7');
+
+    const dayHemiSky = new THREE.Color('#fff9ee');
+    const nightHemiSky = new THREE.Color('#23294d');
+    const dayHemiGround = new THREE.Color('#8ea885');
+    const nightHemiGround = new THREE.Color('#0f1424');
+
+    const dayPetalCol = new THREE.Color('#ffd6e7');
+    const nightPetalCol = new THREE.Color('#c4b5fd');
+
+    const dayMistCol = new THREE.Color('#f8fafc');
+    const nightMistCol = new THREE.Color('#312e81');
+
+    function notifyParentMode() {
+      const modeStr = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: modeStr }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(night, { immediate = false, playSound = true } = {}) {
+      isNightMode = Boolean(night);
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) {
+        dayNightProgress = dayNightTarget;
+      }
+      document.body.classList.toggle('night-ui', isNightMode);
+
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
+      } catch (e) {}
+
+      if (playSound) {
+        soundFX.playPickup();
+      }
+      notifyParentMode();
+    }
+
+    function toggleDayNight() {
+      setDayNightMode(!isNightMode, { immediate: false, playSound: true });
+    }
+
+    function updateDayNightTransition(dt) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.52;
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      // 1. Sky Background & Valley Fog
+      scene.background.lerpColors(daySkyColor, nightSkyColor, t);
+      scene.fog.color.copy(scene.background);
+      scene.fog.density = THREE.MathUtils.lerp(0.008, 0.0115, t);
+
+      // 2. Sunlight -> Moonlight Directional Light
+      sunDirLight.color.lerpColors(daySunLightCol, nightMoonLightCol, t);
+      sunDirLight.intensity = THREE.MathUtils.lerp(1.32, 0.42, t);
+
+      // 3. Hemisphere & Fill Lights
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.72, 0.26, t);
+      fillLight.intensity = THREE.MathUtils.lerp(0.32, 0.1, t);
+
+      // 4. Shrine & Stone Lantern Dynamic Lights
+      shrineLanternLight.intensity = THREE.MathUtils.lerp(0.05, 1.55, t);
+      stairLanternLight.intensity = THREE.MathUtils.lerp(0.05, 1.45, t);
+      streamGlowLight.intensity = THREE.MathUtils.lerp(0.08, 1.15, t);
+
+      // 5. Emissives, Clouds, Moon, Petals & Mist
+      lanternGlowMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.25, 2.35, t);
+      translucentIceMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.2, 0.78, t);
+
+      cloudMat.opacity = THREE.MathUtils.lerp(0.78, 0.08, t);
+      moonMat.opacity = t;
+      moonGroup.position.y = THREE.MathUtils.lerp(13.0, 16.8, t);
+
+      petalMat.color.lerpColors(dayPetalCol, nightPetalCol, t);
+      mistMat.color.lerpColors(dayMistCol, nightMistCol, t);
+      mistMat.opacity = THREE.MathUtils.lerp(0.22, 0.14, t);
+      fireflyMat.opacity = t;
+
+      // 6. UnrealBloomPass Strength
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.15, 0.72, t);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.84, 0.60, t);
+      }
+    }
+
+    // Button & Keyboard Event Listeners
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 45));
+      resetLeafPile();
+      updateUIBadge(null, '');
+    });
+
+    document.getElementById('btn-squeeze-all').addEventListener('click', () => {
+      fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 55));
+    });
+
+    const btnSound = document.getElementById('btn-sound');
+    const iconSoundOn = document.getElementById('icon-sound-on');
+    const iconSoundOff = document.getElementById('icon-sound-off');
+    btnSound.addEventListener('click', () => {
+      soundFX.enabled = !soundFX.enabled;
+      iconSoundOn.classList.toggle('hidden', !soundFX.enabled);
+      iconSoundOff.classList.toggle('hidden', soundFX.enabled);
+      if (soundFX.enabled) soundFX.playPickup();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      const key = e.key.toLowerCase();
+      if (key === 'n') {
+        e.preventDefault();
+        toggleDayNight();
+      } else if (key === 'r') {
+        fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 45));
+        resetLeafPile();
+      } else if (key === ' ') {
+        e.preventDefault();
+        fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 55));
+      } else if (key === 'm') {
+        btnSound.click();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ============================================================================
+    // 12. MAIN ANIMATION, PAUSE / RESUME & HUB MESSAGE LISTENER
+    // ============================================================================
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.033, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      if (!selectedFumo && (now - lastUserInteractionTime > 4500)) {
+        controls.autoRotate = true;
+      }
+
+      controls.update();
+      updateDayNightTransition(dt);
+
+      // Update Marisa's hovering flying broom
+      flyingBroomGroup.position.y = broomBasePos.y + Math.sin(elapsed * 2.4) * 0.22;
+      flyingBroomGroup.rotation.y = -0.55 + Math.PI * 0.5;
+      flyingBroomGroup.rotation.x = Math.cos(elapsed * 1.8) * 0.06;
+
+      updateStreamWater(elapsed);
+      updateInteractiveLeaves(dt, elapsed);
+      updateSakuraPetals(elapsed, dt);
+      updateAtmosphere(elapsed, dt);
+      updatePopParticles(dt);
+
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].updatePhysics(dt, elapsed);
+      }
+      resolveFumoToFumoCollisions();
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function pauseRenderLoop() {
+      if (isPaused) return;
+      isPaused = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+
+    function resumeRenderLoop() {
+      if (!isPaused) return;
+      isPaused = false;
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    // Listen for messages from the parent scene browser hub
+    window.addEventListener('message', (e) => {
+      const data = e.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'toggleMode') {
+        toggleDayNight();
+      } else if (data.type === 'pause') {
+        pauseRenderLoop();
+      } else if (data.type === 'resume') {
+        resumeRenderLoop();
+      }
+    });
+
+    window.onload = function () {
+      let initialNight = false;
+      try {
+        const saved = localStorage.getItem(STORAGE_MODE_KEY);
+        if (saved === 'night') initialNight = true;
+      } catch (e) {}
+
+      setDayNightMode(initialNight, { immediate: true, playSound: false });
+      updateDayNightTransition(0);
+
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.78;
+          f.squashVel = 2.0;
+          f.headPitchVel = 4.0;
+        }, 120 + idx * 70);
+      });
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>

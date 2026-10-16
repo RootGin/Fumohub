@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voxel Scene Browser</title>
+  <style>
+    :root {
+      --scene-accent: #ff7eb6;
+      --mode-glow: rgba(255, 126, 182, 0.28);
+      --panel-bg: rgba(18, 20, 28, 0.72);
+      --panel-bg-solid: rgba(22, 25, 35, 0.88);
+      --panel-border: rgba(255, 255, 255, 0.12);
+      --panel-border-hover: rgba(255, 255, 255, 0.24);
+      --text-primary: #f3f5f9;
+      --text-secondary: rgba(235, 240, 255, 0.58);
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Oxygen, Ubuntu, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    body[data-mode="day"] {
+      --mode-glow: rgba(255, 210, 120, 0.32);
+    }
+
+    body[data-mode="night"] {
+      --mode-glow: rgba(120, 165, 255, 0.28);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0b0d13;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+    }
+
+    /* Full-viewport scene stage & iframes */
+    #stage {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      background: radial-gradient(circle at 50% 50%, #151924 0%, #090b10 100%);
+      z-index: 1;
+    }
+
+    .scene-frame {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+      background: transparent;
+    }
+
+    .scene-frame.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Top-left HUD controls */
+    .hud-top-left {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      max-width: calc(100vw - 32px);
+    }
+
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Frosted glass shared surface */
+    .glass-surface {
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px) saturate(160%);
+      -webkit-backdrop-filter: blur(16px) saturate(160%);
+      border: 1px solid var(--panel-border);
+      box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.42),
+        0 0 24px -4px var(--mode-glow),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    /* Pill selector button */
+    #selector-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      height: 42px;
+      padding: 0 14px 0 12px;
+      border-radius: 999px;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 13.5px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      transition:
+        border-color 0.2s ease,
+        background-color 0.2s ease,
+        transform 0.15s ease,
+        box-shadow 0.3s ease;
+      outline: none;
+    }
+
+    #selector-btn:hover {
+      border-color: var(--panel-border-hover);
+      background: rgba(26, 29, 40, 0.82);
+    }
+
+    #selector-btn:focus-visible {
+      border-color: var(--scene-accent);
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15), 0 8px 32px rgba(0, 0, 0, 0.45);
+    }
+
+    #selector-btn:active {
+      transform: translateY(1px);
+    }
+
+    .selector-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--scene-accent);
+      flex-shrink: 0;
+      transition: color 0.25s ease, box-shadow 0.25s ease;
+      box-shadow: 0 0 10px -2px var(--scene-accent);
+    }
+
+    .selector-icon svg {
+      width: 13px;
+      height: 13px;
+      display: block;
+    }
+
+    .selector-num {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--scene-accent);
+      background: rgba(255, 255, 255, 0.06);
+      padding: 2px 6px;
+      border-radius: 999px;
+      transition: color 0.25s ease;
+    }
+
+    .selector-name {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 200px;
+    }
+
+    .selector-chevron {
+      width: 15px;
+      height: 15px;
+      color: var(--text-secondary);
+      transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), color 0.2s ease;
+      flex-shrink: 0;
+      margin-left: 2px;
+    }
+
+    #selector-btn[aria-expanded="true"] .selector-chevron {
+      transform: rotate(180deg);
+      color: var(--text-primary);
+    }
+
+    /* Sun / Moon mode toggle button */
+    #mode-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      color: var(--text-primary);
+      cursor: pointer;
+      outline: none;
+      transition:
+        border-color 0.2s ease,
+        background-color 0.2s ease,
+        transform 0.15s ease,
+        box-shadow 0.3s ease;
+    }
+
+    #mode-btn:hover {
+      border-color: var(--panel-border-hover);
+      background: rgba(26, 29, 40, 0.82);
+    }
+
+    #mode-btn:focus-visible {
+      border-color: var(--scene-accent);
+    }
+
+    #mode-btn:active {
+      transform: translateY(1px);
+    }
+
+    #mode-btn svg {
+      width: 17px;
+      height: 17px;
+      transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), color 0.25s ease;
+    }
+
+    body[data-mode="day"] #mode-btn svg {
+      color: #ffd166;
+    }
+
+    body[data-mode="night"] #mode-btn svg {
+      color: #90caf9;
+    }
+
+    /* Dropdown panel */
+    #dropdown-panel {
+      width: 340px;
+      max-width: calc(100vw - 32px);
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: var(--panel-bg-solid);
+      transform-origin: top left;
+      opacity: 0;
+      transform: translateY(-8px) scale(0.98);
+      pointer-events: none;
+      visibility: hidden;
+      transition:
+        opacity 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+        transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0.22s;
+    }
+
+    #dropdown-panel.is-open {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+      visibility: visible;
+    }
+
+    /* Search box inside dropdown */
+    .search-wrapper {
+      position: relative;
+      padding: 10px 10px 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 21px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      color: var(--text-secondary);
+      pointer-events: none;
+    }
+
+    #scene-search {
+      width: 100%;
+      height: 34px;
+      padding: 0 12px 0 32px;
+      border-radius: 9px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.28);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.18s ease, background-color 0.18s ease;
+    }
+
+    #scene-search::placeholder {
+      color: rgba(235, 240, 255, 0.38);
+    }
+
+    #scene-search:focus {
+      border-color: var(--scene-accent);
+      background: rgba(0, 0, 0, 0.42);
+    }
+
+    /* Scrollable scene list */
+    #scene-list {
+      max-height: calc(60vh - 54px);
+      overflow-y: auto;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    /* Thin custom scrollbar */
+    #scene-list::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    #scene-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    #scene-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.18);
+      border-radius: 999px;
+    }
+
+    #scene-list::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.32);
+    }
+
+    .scene-row {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--text-primary);
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .scene-row:hover {
+      background: rgba(255, 255, 255, 0.07);
+    }
+
+    .scene-row.is-active {
+      background: rgba(255, 255, 255, 0.11);
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+
+    .scene-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      background: var(--row-accent, #ff7eb6);
+      box-shadow: 0 0 10px var(--row-accent, #ff7eb6);
+      position: relative;
+    }
+
+    .scene-row.is-active .scene-swatch::after {
+      content: "";
+      position: absolute;
+      inset: -3px;
+      border-radius: 6px;
+      border: 1.5px solid var(--row-accent, #ff7eb6);
+      opacity: 0.7;
+    }
+
+    .scene-row-num {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      min-width: 22px;
+    }
+
+    .scene-row.is-active .scene-row-num {
+      color: var(--row-accent, var(--scene-accent));
+    }
+
+    .scene-row-text {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .scene-row-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 2px;
+    }
+
+    .scene-row-desc {
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .empty-results {
+      padding: 22px 12px;
+      text-align: center;
+      font-size: 12.5px;
+      color: var(--text-secondary);
+    }
+
+    /* Centered loading & error overlay */
+    #status-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 12, 18, 0.55);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.32s ease;
+    }
+
+    #status-overlay.is-visible {
+      opacity: 1;
+    }
+
+    #status-overlay.is-error {
+      pointer-events: auto;
+    }
+
+    .loader-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding: 24px 30px;
+      border-radius: 18px;
+      text-align: center;
+      max-width: 380px;
+    }
+
+    /* 3D Spinning Voxel Cube */
+    .voxel-spinner {
+      width: 34px;
+      height: 34px;
+      perspective: 140px;
+    }
+
+    .voxel-cube {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      animation: spinCube 2.2s infinite cubic-bezier(0.45, 0.05, 0.55, 0.95);
+    }
+
+    .voxel-cube div {
+      position: absolute;
+      width: 34px;
+      height: 34px;
+      border: 1.5px solid rgba(255, 255, 255, 0.45);
+      background: var(--scene-accent);
+      opacity: 0.82;
+      box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.35);
+    }
+
+    .voxel-cube .front  { transform: rotateY(0deg) translateZ(17px); }
+    .voxel-cube .back   { transform: rotateY(180deg) translateZ(17px); }
+    .voxel-cube .right  { transform: rotateY(90deg) translateZ(17px); filter: brightness(0.85); }
+    .voxel-cube .left   { transform: rotateY(-90deg) translateZ(17px); filter: brightness(0.85); }
+    .voxel-cube .top    { transform: rotateX(90deg) translateZ(17px); filter: brightness(1.15); }
+    .voxel-cube .bottom { transform: rotateX(-90deg) translateZ(17px); filter: brightness(0.65); }
+
+    @keyframes spinCube {
+      0%   { transform: rotateX(-25deg) rotateY(0deg); }
+      50%  { transform: rotateX(25deg) rotateY(180deg); }
+      100% { transform: rotateX(-25deg) rotateY(360deg); }
+    }
+
+    .loader-title {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      color: var(--text-primary);
+    }
+
+    .loader-sub {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: -10px;
+    }
+
+    /* Friendly error state */
+    .error-box {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #status-overlay.is-error .voxel-spinner,
+    #status-overlay.is-error .loader-Info {
+      display: none;
+    }
+
+    #status-overlay.is-error .error-box {
+      display: flex;
+    }
+
+    .error-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: rgba(255, 92, 92, 0.16);
+      border: 1px solid rgba(255, 92, 92, 0.35);
+      color: #ff6b6b;
+      display: grid;
+      place-items: center;
+    }
+
+    .error-title {
+      font-size: 14.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .error-desc {
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--text-secondary);
+    }
+
+    .error-file {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--scene-accent);
+      background: rgba(255, 255, 255, 0.07);
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .retry-btn {
+      margin-top: 6px;
+      padding: 7px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--panel-border-hover);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+
+    .retry-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Bottom-left keyboard hint */
+    #kb-hint {
+      position: fixed;
+      bottom: 16px;
+      left: 16px;
+      z-index: 25;
+      padding: 7px 13px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      pointer-events: none;
+      opacity: 1;
+      transition: opacity 0.8s ease, transform 0.8s ease;
+    }
+
+    #kb-hint.is-hidden {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  </style>
+</head>
+<body data-mode="night">
+
+  <!-- Fullscreen Iframe Stage (two slots for cross-fading & single WebGL context lifecycle) -->
+  <main id="stage">
+    <iframe id="frame-a" class="scene-frame" title="Voxel Scene A" scrolling="no"></iframe>
+    <iframe id="frame-b" class="scene-frame" title="Voxel Scene B" scrolling="no"></iframe>
+  </main>
+
+  <!-- Top-Left Scene Selector & Mode Toggle -->
+  <div class="hud-top-left" id="hud-root">
+    <div class="bar-row">
+      <button
+        type="button"
+        id="selector-btn"
+        class="glass-surface"
+        aria-haspopup="listbox"
+        aria-expanded="false"
+        title="Select voxel scene"
+      >
+        <span class="selector-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+            <line x1="12" y1="22.08" x2="12" y2="12"/>
+          </svg>
+        </span>
+        <span class="selector-num" id="current-scene-num">01</span>
+        <span class="selector-name" id="current-scene-name">Cozy Fumo Room</span>
+        <svg class="selector-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </button>
+
+      <button
+        type="button"
+        id="mode-btn"
+        class="glass-surface"
+        title="Toggle Day/Night Mode (N)"
+        aria-label="Toggle Day/Night Mode"
+      >
+        <svg id="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
+      </button>
+    </div>
+
+    <!-- Dropdown Panel -->
+    <div id="dropdown-panel" class="glass-surface" role="region" aria-label="Scene Selection">
+      <div class="search-wrapper">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input
+          type="text"
+          id="scene-search"
+          placeholder="Filter scenes..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </div>
+      <div id="scene-list" role="listbox" aria-label="Scenes"></div>
+    </div>
+  </div>
+
+  <!-- Centered Loading & Error Overlay -->
+  <div id="status-overlay" class="is-visible" aria-live="polite">
+    <div class="loader-card glass-surface">
+      <div class="voxel-spinner" aria-hidden="true">
+        <div class="voxel-cube">
+          <div class="front"></div>
+          <div class="back"></div>
+          <div class="right"></div>
+          <div class="left"></div>
+          <div class="top"></div>
+          <div class="bottom"></div>
+        </div>
+      </div>
+      <div class="loader-Info">
+        <div class="loader-title" id="loading-scene-name">Loading scene...</div>
+      </div>
+
+      <div class="error-box">
+        <div class="error-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        </div>
+        <div class="error-title">Could not load scene</div>
+        <div class="error-desc">Make sure the scene file exists in the same folder:</div>
+        <code class="error-file" id="error-filename">scene-01-room.html</code>
+        <button type="button" class="retry-btn" id="retry-btn">Try Again</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Temporary Keyboard Shortcut Hint -->
+  <div id="kb-hint" class="glass-surface">
+    Press [ ] to switch scenes, N for day/night
+  </div>
+
+  <script>
+    // ============================================================================
+    // SCENE LIST CONFIGURATION
+    // Add new scenes by adding a single object line to this array.
+    // ============================================================================
+    const SCENES = [
+      { file: "scene-01-room.html",     name: "Cozy Fumo Room",     description: "The classic shelf, desk and CRT setup",   accent: "#ff7eb6" },
+      { file: "scene-02-kotatsu.html",  name: "Winter Kotatsu",     description: "Snowy night warmth under the blanket",    accent: "#7ec8ff" },
+      { file: "scene-03-matsuri.html",  name: "Summer Festival",    description: "Stalls, lanterns and fireworks",          accent: "#ffb347" },
+      { file: "scene-04-shrine.html",   name: "Hakurei Shrine",     description: "Shrine grounds on a Gensokyo hillside",   accent: "#ff5c5c" },
+      { file: "scene-05-mansion.html",  name: "Scarlet Tea Party",  description: "Tea time in the Scarlet Devil Mansion",   accent: "#c77dff" },
+      { file: "scene-06-danmaku.html",  name: "Danmaku Showdown",   description: "A tiny fumo bullet-hell battle",          accent: "#48cae4" },
+      { file: "scene-07-arcade.html",   name: "Fumo Claw Machine",  description: "An arcade of plush prizes",               accent: "#06d6a0" },
+      { file: "scene-08-workshop.html", name: "Fumo Workshop",      description: "Where fumo get sewn and stuffed",         accent: "#ffd166" }
+    ];
+
+    // ============================================================================
+    // STATE & DOM REFERENCES
+    // ============================================================================
+    const STORAGE_KEY = "voxel_scene_browser_last_index";
+    const LOAD_TIMEOUT_MS = 8000;
+
+    let currentIndex = -1;
+    let isDropdownOpen = false;
+    let currentMode = "night"; // 'day' | 'night'
+    let activeSlot = 0; // 0 -> frame-a, 1 -> frame-b
+    let loadTimer = null;
+    let transitionToken = 0;
+
+    const frames = [
+      document.getElementById("frame-a"),
+      document.getElementById("frame-b")
+    ];
+    const hudRoot = document.getElementById("hud-root");
+    const selectorBtn = document.getElementById("selector-btn");
+    const currentSceneNumEl = document.getElementById("current-scene-num");
+    const currentSceneNameEl = document.getElementById("current-scene-name");
+    const modeBtn = document.getElementById("mode-btn");
+    const modeIcon = document.getElementById("mode-icon");
+    const dropdownPanel = document.getElementById("dropdown-panel");
+    const searchInput = document.getElementById("scene-search");
+    const sceneListEl = document.getElementById("scene-list");
+    const statusOverlay = document.getElementById("status-overlay");
+    const loadingSceneNameEl = document.getElementById("loading-scene-name");
+    const errorFilenameEl = document.getElementById("error-filename");
+    const retryBtn = document.getElementById("retry-btn");
+    const kbHint = document.getElementById("kb-hint");
+
+    // ============================================================================
+    // HELPERS
+    // ============================================================================
+    function formatNum(index) {
+      return String(index + 1).padStart(2, "0");
+    }
+
+    function getActiveFrame() {
+      return frames[activeSlot];
+    }
+
+    function postToScene(message) {
+      const frame = getActiveFrame();
+      if (frame && frame.contentWindow) {
+        try {
+          frame.contentWindow.postMessage(message, "*");
+        } catch (err) {
+          // Ignore postMessage errors if frame is unloading
+        }
+      }
+    }
+
+    function saveSceneIndex(index) {
+      try {
+        localStorage.setItem(STORAGE_KEY, String(index));
+      } catch (err) {
+        // Ignore storage errors (e.g. strict file:// privacy settings)
+      }
+    }
+
+    function loadSavedSceneIndex() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw !== null) {
+          const parsed = parseInt(raw, 10);
+          if (!Number.isNaN(parsed) && parsed >= 0 && parsed < SCENES.length) {
+            return parsed;
+          }
+        }
+      } catch (err) {
+        // Ignore storage errors
+      }
+      return 0;
+    }
+
+    function parseHashIndex() {
+      const hash = window.location.hash.replace(/^#/, "").trim();
+      if (!hash) return null;
+      const num = parseInt(hash, 10);
+      if (!Number.isNaN(num) && num >= 1 && num <= SCENES.length) {
+        return num - 1;
+      }
+      return null;
+    }
+
+    // ============================================================================
+    // DAY / NIGHT MODE UI
+    // ============================================================================
+    function updateModeUI(mode) {
+      currentMode = mode === "day" ? "day" : "night";
+      document.body.setAttribute("data-mode", currentMode);
+
+      if (currentMode === "day") {
+        // Sun icon
+        modeIcon.innerHTML = `
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        `;
+      } else {
+        // Moon icon
+        modeIcon.innerHTML = `
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        `;
+      }
+    }
+
+    function triggerToggleMode() {
+      // Optimistically flip icon/glow, and sync if scene responds with modeChanged
+      updateModeUI(currentMode === "day" ? "night" : "day");
+      postToScene({ type: "toggleMode" });
+    }
+
+    // ============================================================================
+    // DROPDOWN RENDERING & OPEN/CLOSE
+    // ============================================================================
+    function renderDropdownList(filterText = "") {
+      const query = filterText.trim().toLowerCase();
+      sceneListEl.innerHTML = "";
+
+      let matchCount = 0;
+
+      SCENES.forEach((scene, idx) => {
+        const numStr = formatNum(idx);
+        const searchable = `${numStr} ${idx + 1} ${scene.name} ${scene.description} ${scene.file}`.toLowerCase();
+        if (query && !searchable.includes(query)) {
+          return;
+        }
+
+        matchCount++;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "scene-row" + (idx === currentIndex ? " is-active" : "");
+        btn.setAttribute("role", "option");
+        btn.setAttribute("aria-selected", idx === currentIndex ? "true" : "false");
+        btn.style.setProperty("--row-accent", scene.accent);
+
+        btn.innerHTML = `
+          <span class="scene-swatch" aria-hidden="true"></span>
+          <span class="scene-row-num">${numStr}</span>
+          <div class="scene-row-text">
+            <div class="scene-row-title"></div>
+            <div class="scene-row-desc"></div>
+          </div>
+        `;
+
+        btn.querySelector(".scene-row-title").textContent = scene.name;
+        btn.querySelector(".scene-row-desc").textContent = scene.description;
+
+        btn.addEventListener("click", () => {
+          closeDropdown();
+          loadScene(idx);
+        });
+
+        sceneListEl.appendChild(btn);
+      });
+
+      if (matchCount === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty-results";
+        empty.textContent = "No matching scenes found.";
+        sceneListEl.appendChild(empty);
+      }
+    }
+
+    function openDropdown() {
+      if (isDropdownOpen) return;
+      isDropdownOpen = true;
+      selectorBtn.setAttribute("aria-expanded", "true");
+      dropdownPanel.classList.add("is-open");
+
+      searchInput.value = "";
+      renderDropdownList("");
+
+      // Pause active scene while blurred dropdown is open
+      postToScene({ type: "pause" });
+
+      // Scroll active item into view
+      const activeRow = sceneListEl.querySelector(".scene-row.is-active");
+      if (activeRow) {
+        activeRow.scrollIntoView({ block: "nearest" });
+      }
+    }
+
+    function closeDropdown() {
+      if (!isDropdownOpen) return;
+      isDropdownOpen = false;
+      selectorBtn.setAttribute("aria-expanded", "false");
+      dropdownPanel.classList.remove("is-open");
+      searchInput.blur();
+
+      // Resume active scene when dropdown closes
+      postToScene({ type: "resume" });
+    }
+
+    function toggleDropdown() {
+      if (isDropdownOpen) {
+        closeDropdown();
+      } else {
+        openDropdown();
+      }
+    }
+
+    // ============================================================================
+    // SCENE LOADING & IFRAME LIFECYCLE
+    // ============================================================================
+    function showLoadingOverlay(scene) {
+      loadingSceneNameEl.textContent = scene.name;
+      statusOverlay.classList.remove("is-error");
+      statusOverlay.classList.add("is-visible");
+    }
+
+    function showErrorOverlay(scene) {
+      errorFilenameEl.textContent = scene.file;
+      statusOverlay.classList.add("is-error");
+      statusOverlay.classList.add("is-visible");
+    }
+
+    function hideOverlay() {
+      statusOverlay.classList.remove("is-visible");
+      statusOverlay.classList.remove("is-error");
+    }
+
+    function loadScene(index, { forceReload = false } = {}) {
+      if (index < 0 || index >= SCENES.length) return;
+      if (index === currentIndex && !forceReload) return;
+
+      const token = ++transitionToken;
+      const scene = SCENES[index];
+      const prevSlot = activeSlot;
+      const nextSlot = activeSlot === 0 ? 1 : 0;
+      const oldFrame = frames[prevSlot];
+      const newFrame = frames[nextSlot];
+
+      currentIndex = index;
+      activeSlot = nextSlot;
+
+      // Update selector UI & theme accent
+      document.documentElement.style.setProperty("--scene-accent", scene.accent);
+      currentSceneNumEl.textContent = formatNum(index);
+      currentSceneNameEl.textContent = scene.name;
+      document.title = `${formatNum(index)} · ${scene.name} — Voxel Scene Browser`;
+
+      // Persist in URL hash and localStorage
+      const targetHash = `#${index + 1}`;
+      if (window.location.hash !== targetHash) {
+        try {
+          history.replaceState(null, "", targetHash);
+        } catch (err) {
+          window.location.hash = targetHash;
+        }
+      }
+      saveSceneIndex(index);
+
+      // Refresh active highlight if dropdown was rendered
+      renderDropdownList(searchInput.value);
+
+      // Show loading spinner
+      showLoadingOverlay(scene);
+
+      // Clear any pending timers
+      if (loadTimer) {
+        clearTimeout(loadTimer);
+        loadTimer = null;
+      }
+
+      // Fade out old iframe and unload its WebGL context first
+      oldFrame.classList.remove("is-visible");
+      oldFrame.onload = null;
+      oldFrame.onerror = null;
+
+      // Unload old iframe to free WebGL context before loading the new scene
+      oldFrame.src = "about:blank";
+
+      // Prepare new iframe
+      newFrame.classList.remove("is-visible");
+
+      const handleFailure = () => {
+        if (token !== transitionToken) return;
+        clearTimeout(loadTimer);
+        newFrame.onload = null;
+        newFrame.onerror = null;
+        showErrorOverlay(scene);
+      };
+
+      newFrame.onerror = handleFailure;
+
+      newFrame.onload = () => {
+        if (token !== transitionToken) return;
+        clearTimeout(loadTimer);
+
+        // If running over http/https (same-origin), check for standard 404 pages
+        if (window.location.protocol !== "file:") {
+          try {
+            const doc = newFrame.contentDocument;
+            if (doc && doc.title && /404|not found|error/i.test(doc.title)) {
+              handleFailure();
+              return;
+            }
+          } catch (err) {}
+        }
+
+        newFrame.classList.add("is-visible");
+        hideOverlay();
+
+        // If dropdown happens to be open when load finishes, pause the scene
+        if (isDropdownOpen) {
+          postToScene({ type: "pause" });
+        }
+      };
+
+      // Fallback timeout if file fails silently
+      loadTimer = setTimeout(() => {
+        if (token !== transitionToken) return;
+        handleFailure();
+      }, LOAD_TIMEOUT_MS);
+
+      // Start loading the scene file
+      newFrame.src = scene.file;
+    }
+
+    function stepScene(delta) {
+      const nextIndex = (currentIndex + delta + SCENES.length) % SCENES.length;
+      loadScene(nextIndex);
+    }
+
+    // ============================================================================
+    // EVENT LISTENERS
+    // ============================================================================
+    selectorBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleDropdown();
+    });
+
+    modeBtn.addEventListener("click", () => {
+      triggerToggleMode();
+    });
+
+    retryBtn.addEventListener("click", () => {
+      loadScene(currentIndex, { forceReload: true });
+    });
+
+    searchInput.addEventListener("input", () => {
+      renderDropdownList(searchInput.value);
+    });
+
+    // Close dropdown when clicking outside HUD
+    document.addEventListener("pointerdown", (e) => {
+      if (isDropdownOpen && !hudRoot.contains(e.target)) {
+        closeDropdown();
+      }
+    });
+
+    // Listen for messages from the active scene iframe
+    window.addEventListener("message", (e) => {
+      const data = e.data;
+      if (!data || typeof data !== "object") return;
+
+      if (data.type === "modeChanged" && (data.mode === "day" || data.mode === "night")) {
+        updateModeUI(data.mode);
+      }
+    });
+
+    // Sync with URL hash changes (e.g. browser back/forward or manual hash edit)
+    window.addEventListener("hashchange", () => {
+      const hashIdx = parseHashIndex();
+      if (hashIdx !== null && hashIdx !== currentIndex) {
+        loadScene(hashIdx);
+      }
+    });
+
+    // Keyboard navigation & shortcuts
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && isDropdownOpen) {
+        e.preventDefault();
+        closeDropdown();
+        return;
+      }
+
+      // Do not hijack keys while typing in the search filter
+      if (document.activeElement === searchInput) {
+        return;
+      }
+
+      // Ignore shortcuts with Ctrl / Alt / Meta modifiers
+      if (e.ctrlKey || e.altKey || e.metaKey) {
+        return;
+      }
+
+      if (e.key === "ArrowLeft" || e.key === "[") {
+        e.preventDefault();
+        stepScene(-1);
+      } else if (e.key === "ArrowRight" || e.key === "]") {
+        e.preventDefault();
+        stepScene(1);
+      } else if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        triggerToggleMode();
+      } else if (/^[1-9]$/.test(e.key)) {
+        const targetIdx = parseInt(e.key, 10) - 1;
+        if (targetIdx < SCENES.length) {
+          e.preventDefault();
+          closeDropdown();
+          loadScene(targetIdx);
+        }
+      }
+    });
+
+    // ============================================================================
+    // INITIALIZATION
+    // ============================================================================
+    function init() {
+      updateModeUI("night");
+
+      // Determine starting scene: URL hash > localStorage > Scene 1 (index 0)
+      const hashIndex = parseHashIndex();
+      const initialIndex = hashIndex !== null ? hashIndex : loadSavedSceneIndex();
+
+      loadScene(initialIndex);
+
+      // Fade out bottom-left keyboard hint after 5 seconds
+      setTimeout(() => {
+        kbHint.classList.add("is-hidden");
+      }, 5000);
+    }
+
+    init();
+  </script>
+</body>
+</html>
