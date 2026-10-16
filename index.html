@@ -699,14 +699,20 @@
     // Add new scenes by adding a single object line to this array.
     // ============================================================================
     const SCENES = [
-      { file: "Scenes/scene-01-room.html",     name: "Cozy Fumo Room",     description: "The classic shelf, desk and CRT setup",   accent: "#ff7eb6" },
-      { file: "Scenes/scene-02-kotatsu.html",  name: "Winter Kotatsu",     description: "Snowy night warmth under the blanket",    accent: "#7ec8ff" },
-      { file: "Scenes/scene-03-matsuri.html",  name: "Summer Festival",    description: "Stalls, lanterns and fireworks",          accent: "#ffb347" },
-      { file: "Scenes/scene-04-shrine.html",   name: "Hakurei Shrine",     description: "Shrine grounds on a Gensokyo hillside",   accent: "#ff5c5c" },
-      { file: "Scenes/scene-05-mansion.html",  name: "Scarlet Tea Party",  description: "Tea time in the Scarlet Devil Mansion",   accent: "#c77dff" },
-      { file: "Scenes/scene-06-danmaku.html",  name: "Danmaku Showdown",   description: "A tiny fumo bullet-hell battle",          accent: "#48cae4" },
-      { file: "Scenes/scene-07-arcade.html",   name: "Fumo Claw Machine",  description: "An arcade of plush prizes",               accent: "#06d6a0" },
-      { file: "Scenes/scene-08-workshop.html", name: "Fumo Workshop",      description: "Where fumo get sewn and stuffed",         accent: "#ffd166" }
+      { file: "Scenes/scene-01-room.html",     name: "Cozy Fumo Room",     description: "The classic shelf, desk and CRT setup",    accent: "#ff7eb6" },
+      { file: "Scenes/scene-02-kotatsu.html",  name: "Winter Kotatsu",     description: "Snowy night warmth under the blanket",     accent: "#7ec8ff" },
+      { file: "Scenes/scene-03-matsuri.html",  name: "Summer Festival",    description: "Stalls, lanterns and fireworks",           accent: "#ffb347" },
+      { file: "Scenes/scene-04-shrine.html",   name: "Hakurei Shrine",     description: "Shrine grounds on a Gensokyo hillside",    accent: "#ff5c5c" },
+      { file: "Scenes/scene-05-mansion.html",  name: "Scarlet Tea Party",  description: "Tea time in the Scarlet Devil Mansion",    accent: "#c77dff" },
+      { file: "Scenes/scene-06-danmaku.html",  name: "Danmaku Showdown",   description: "A tiny fumo bullet-hell battle",           accent: "#48cae4" },
+      { file: "Scenes/scene-07-arcade.html",   name: "Fumo Claw Machine",  description: "An arcade of plush prizes",                accent: "#06d6a0" },
+      { file: "Scenes/scene-08-workshop.html", name: "Fumo Workshop",      description: "Where fumo get sewn and stuffed",          accent: "#ffd166" },
+      { file: "Scenes/scene-09-bamboo.html",   name: "Bamboo Forest",      description: "A peaceful forest filled with bamboo",     accent: "#ff9f1c" },
+      { file: "Scenes/scene-10-onsen.html",    name: "Mountain Onsen",     description: "A serene hot spring in the mountains",     accent: "#90caf9" },
+      { file: "Scenes/scene-11-moon.html",     name: "Lunar Base",         description: "A base on the moon",                       accent: "#c9c9c9" },
+      { file: "Scenes/scene-12-gensokyo.html", name: "Gensokyo Map",       description: "A map of the Gensokyo region",             accent: "#ff7eb6" },
+      { file: "Scenes/scene-13-bottle.html",   name: "Cirno In A Bottle",  description: "Baka in a bottle",                         accent: "#7ec8ff" },
+      { file: "Scenes/scene-14-sorcery.html",   name: "Cursed Courtyard",  description: "Fumo sorcerers vs curses, domain and all", accent: "#7b61ff" }
     ];
 
     // ============================================================================
@@ -961,13 +967,24 @@
       document.title = `${formatNum(index)} · ${scene.name} — Voxel Scene Browser`;
 
       // Persist in URL hash and localStorage
+      // const targetHash = `#${index + 1}`;
+      // if (window.location.hash !== targetHash) {
+      //   try {
+      //     history.replaceState(null, "", targetHash);
+      //   } catch (err) {
+      //     window.location.hash = targetHash;
+      //   }
+      // }
       const targetHash = `#${index + 1}`;
-      if (window.location.hash !== targetHash) {
+      if (window.location.protocol !== "file:") {
         try {
           history.replaceState(null, "", targetHash);
         } catch (err) {
           window.location.hash = targetHash;
         }
+      } else {
+        // On file://, set hash only if you want bookmarks without triggering replaceState errors
+        window.location.hash = targetHash;
       }
       saveSceneIndex(index);
 
@@ -1008,21 +1025,9 @@
         if (token !== transitionToken) return;
         clearTimeout(loadTimer);
 
-        // If running over http/https (same-origin), check for standard 404 pages
-        if (window.location.protocol !== "file:") {
-          try {
-            const doc = newFrame.contentDocument;
-            if (doc && doc.title && /404|not found|error/i.test(doc.title)) {
-              handleFailure();
-              return;
-            }
-          } catch (err) {}
-        }
-
         newFrame.classList.add("is-visible");
         hideOverlay();
 
-        // If dropdown happens to be open when load finishes, pause the scene
         if (isDropdownOpen) {
           postToScene({ type: "pause" });
         }
