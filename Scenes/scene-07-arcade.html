@@ -1,0 +1,3399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Fumo Claw Machine — Retro Voxel Arcade</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js r128 + OrbitControls + Post-Processing (UnrealBloomPass) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #110d24;
+    }
+    h1, .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.80);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      box-shadow: 0 10px 28px -6px rgba(20, 15, 45, 0.22), 0 2px 6px rgba(20, 15, 45, 0.1);
+      transition: background 0.45s ease, color 0.45s ease, border-color 0.45s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    body.night-ui .glass-panel {
+      background: rgba(22, 18, 44, 0.82);
+      border-color: rgba(236, 72, 153, 0.35);
+      color: #f5f3ff;
+      box-shadow: 0 10px 32px -6px rgba(0, 0, 0, 0.65), 0 0 18px rgba(236, 72, 153, 0.2);
+    }
+    .ui-btn {
+      cursor: pointer;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active, .ui-btn.is-pressed {
+      transform: translateY(1px) scale(0.95);
+    }
+    .dpad-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.65);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      box-shadow: 0 3px 0 rgba(0, 0, 0, 0.12);
+      cursor: pointer;
+      transition: transform 0.08s ease, background 0.15s ease;
+      touch-action: none;
+    }
+    body.night-ui .dpad-btn {
+      background: rgba(45, 38, 82, 0.85);
+      border-color: rgba(167, 139, 250, 0.35);
+      box-shadow: 0 3px 0 rgba(10, 8, 24, 0.7);
+      color: #f3e8ff;
+    }
+    .dpad-btn:hover {
+      background: rgba(255, 255, 255, 0.9);
+    }
+    body.night-ui .dpad-btn:hover {
+      background: rgba(68, 56, 120, 0.95);
+    }
+    .dpad-btn:active, .dpad-btn.is-pressed {
+      transform: translateY(2px);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.15);
+    }
+    .drop-btn {
+      background: linear-gradient(135deg, #ec4899 0%, #f43f5e 100%);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      box-shadow: 0 4px 0 #be123c, 0 6px 16px rgba(244, 63, 94, 0.4);
+      transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.15s ease;
+      touch-action: none;
+    }
+    .drop-btn:hover {
+      filter: brightness(1.08);
+    }
+    .drop-btn:active, .drop-btn.is-pressed {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 #be123c, 0 3px 8px rgba(244, 63, 94, 0.3);
+    }
+    #fumo-tooltip {
+      pointer-events: none;
+      transition: opacity 0.16s ease, transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.08);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.18);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.15);
+      border-bottom-color: rgba(255, 255, 255, 0.28);
+    }
+  </style>
+</head>
+<body class="text-slate-800 night-ui">
+  <div id="canvas-container"></div>
+
+  <!-- Top-Right Controls: Status Badge, Prizes Won, Squeeze All, Reset, Sound (Top-Left kept clear for Hub) -->
+  <div class="fixed top-4 right-4 z-20 flex flex-wrap items-center justify-end gap-2">
+    <!-- Active / Claw Status Indicator -->
+    <div id="fumo-badge" class="glass-panel rounded-2xl px-3.5 py-2 text-xs font-semibold hidden items-center gap-2">
+      <span id="fumo-badge-dot" class="w-2.5 h-2.5 rounded-full inline-block bg-pink-500"></span>
+      <span id="fumo-badge-name">Cirno Fumo</span>
+      <span id="fumo-badge-status" class="opacity-75 ml-1">In Machine</span>
+    </div>
+
+    <!-- Prizes Won Counter -->
+    <div class="glass-panel rounded-2xl px-3.5 py-2 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <span class="text-base leading-none">🎟️</span>
+      <span class="font-display">Won: <span id="prize-count" class="text-pink-500 font-bold">0</span></span>
+    </div>
+
+    <!-- Squeeze All Button -->
+    <button id="btn-squeeze-all" title="Squeeze All Fumos!"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2 flex items-center gap-1.5 text-xs sm:text-sm font-semibold">
+      <span class="text-base leading-none">✨</span>
+      <span class="hidden md:inline">Squeeze All</span>
+    </button>
+
+    <!-- Reset Fumos Button -->
+    <button id="btn-reset" title="Restock Claw Machine & Reset Plushies (R)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2 flex items-center gap-1.5 text-xs sm:text-sm font-semibold">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+      <span class="hidden sm:inline">Reset</span>
+    </button>
+
+    <!-- Sound Toggle Button -->
+    <button id="btn-sound" title="Toggle Arcade & Plush Sound Effects (M)"
+      class="glass-panel ui-btn rounded-2xl p-2 flex items-center justify-center">
+      <svg id="icon-sound-on" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+      </svg>
+      <svg id="icon-sound-off" class="w-5 h-5 hidden opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <line x1="23" y1="9" x2="17" y2="15"></line>
+        <line x1="17" y1="9" x2="23" y2="15"></line>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Floating Cursor Tooltip for Hovered Fumo -->
+  <div id="fumo-tooltip" class="fixed z-30 opacity-0 px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold flex items-center gap-2 shadow-lg">
+    <span id="tooltip-emoji">🕹️</span>
+    <span id="tooltip-text">Cirno Fumo</span>
+  </div>
+
+  <!-- Bottom-Center Playable Claw Machine Controls -->
+  <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 w-max max-w-[96vw]">
+    <div class="glass-panel rounded-3xl px-4 py-2.5 flex items-center gap-3 sm:gap-4 shadow-xl">
+      <!-- On-Screen Arrow Buttons (D-Pad) -->
+      <div class="flex items-center gap-1.5">
+        <button id="claw-left" class="dpad-btn" title="Move Claw Left (Left Arrow / A)" aria-label="Move Claw Left">◀</button>
+        <div class="flex flex-col gap-1.5">
+          <button id="claw-up" class="dpad-btn" title="Move Claw Back (Up Arrow / W)" aria-label="Move Claw Back">▲</button>
+          <button id="claw-down" class="dpad-btn" title="Move Claw Forward (Down Arrow / S)" aria-label="Move Claw Forward">▼</button>
+        </div>
+        <button id="claw-right" class="dpad-btn" title="Move Claw Right (Right Arrow / D)" aria-label="Move Claw Right">▶</button>
+      </div>
+
+      <!-- Drop Claw Button -->
+      <div class="flex flex-col items-center">
+        <button id="claw-drop" class="drop-btn rounded-2xl px-4 py-3 font-display font-bold text-xs sm:text-sm tracking-wide flex items-center gap-2">
+          <span>🕹️ DROP CLAW</span>
+          <kbd class="bg-black/20 text-white border-black/30 hidden sm:inline-block">Space</kbd>
+        </button>
+        <span id="claw-status-text" class="text-[11px] font-semibold opacity-75 mt-1">
+          Arrows / WASD to aim • Click outside Fumos to squeeze or throw
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 1. PROCEDURAL WEB AUDIO SYNTHESIZER (Plush Squeaks, Claw Whir, Win Jingle)
+    // ============================================================================
+    class ArcadeSoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playSqueeze(pitchMultiplier = 1.0) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+
+          const osc1 = this.ctx.createOscillator();
+          const gain1 = this.ctx.createGain();
+          osc1.type = 'sine';
+          const baseFreq = (520 + Math.random() * 80) * pitchMultiplier;
+          osc1.frequency.setValueAtTime(baseFreq, now);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.085);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.16);
+
+          gain1.gain.setValueAtTime(0.001, now);
+          gain1.gain.linearRampToValueAtTime(0.10, now + 0.025);
+          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+
+          osc1.connect(gain1);
+          gain1.connect(this.ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.18);
+
+          const osc2 = this.ctx.createOscillator();
+          const gain2 = this.ctx.createGain();
+          osc2.type = 'triangle';
+          osc2.frequency.setValueAtTime(baseFreq * 1.1, now + 0.11);
+          osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.65, now + 0.21);
+
+          gain2.gain.setValueAtTime(0.001, now + 0.11);
+          gain2.gain.linearRampToValueAtTime(0.075, now + 0.13);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+          osc2.connect(gain2);
+          gain2.connect(this.ctx.destination);
+          osc2.start(now + 0.11);
+          osc2.stop(now + 0.25);
+        } catch (e) {}
+      }
+
+      playBounce(intensity = 0.5) {
+        if (!this.enabled || intensity < 0.08) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const vol = Math.min(0.12, intensity * 0.10);
+
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          const startFreq = 115 + Math.min(80, intensity * 35);
+          osc.frequency.setValueAtTime(startFreq, now);
+          osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+
+      playPickup() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(280, now);
+          osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+
+      playClawServo(freq = 220, dur = 0.07) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(freq, now);
+          osc.frequency.linearRampToValueAtTime(freq * 1.12, now + dur);
+          gain.gain.setValueAtTime(0.025, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + dur + 0.01);
+        } catch (e) {}
+      }
+
+      playWinFanfare() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+          notes.forEach((f, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            const t0 = now + idx * 0.085;
+            osc.frequency.setValueAtTime(f, t0);
+            gain.gain.setValueAtTime(0.001, t0);
+            gain.gain.linearRampToValueAtTime(0.11, t0 + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.28);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(t0);
+            osc.stop(t0 + 0.3);
+          });
+        } catch (e) {}
+      }
+    }
+
+    const soundFX = new ArcadeSoundEngine();
+
+    // ============================================================================
+    // 2. COLOR & VOXEL HELPER UTILITIES
+    // ============================================================================
+    const tempColor = new THREE.Color();
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+
+    function voxelHash(x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    }
+
+    function varyColor(hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
+      tempColor.set(hexOrString);
+      const h = voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      tempColor.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return tempColor.clone();
+    }
+
+    function createSoftVoxelGeometry(size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    }
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        tempQuat.identity();
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    // ============================================================================
+    // 3. SCENE, CAMERA, RENDERER & POST-PROCESSING SETUP
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#0c0a1d');
+    scene.fog = new THREE.FogExp2('#0c0a1d', 0.0085);
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.5, 130);
+    camera.position.set(14.5, 11.8, 19.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.72,
+        0.55,
+        0.65
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (err) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0.0, 4.2, -0.5);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.48;
+    controls.minPolarAngle = Math.PI * 0.06;
+    controls.minDistance = 7.5;
+    controls.maxDistance = 38;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.42;
+
+    let lastUserInteractionTime = performance.now();
+    const recordInteraction = () => {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+    };
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 4. LIGHTING & MATERIALS (Capped Dynamic Lights for High Performance)
+    // ============================================================================
+    // 1. Hemisphere ambient bounce
+    const hemiLight = new THREE.HemisphereLight(0xfff5e4, 0x2b1d42, 0.55);
+    hemiLight.position.set(0, 22, 0);
+    scene.add(hemiLight);
+
+    // 2. Front-Left Window Directional Light (Warm Sunlight in Day -> Cool Moonlight in Night)
+    const windowDirLight = new THREE.DirectionalLight(0xfff1d0, 1.35);
+    windowDirLight.position.set(-19, 15, 4);
+    windowDirLight.target.position.set(0, 2, 0);
+    scene.add(windowDirLight.target);
+    windowDirLight.castShadow = true;
+    windowDirLight.shadow.mapSize.width = 2048;
+    windowDirLight.shadow.mapSize.height = 2048;
+    windowDirLight.shadow.camera.near = 2;
+    windowDirLight.shadow.camera.far = 45;
+    const dCam = 14.5;
+    windowDirLight.shadow.camera.left = -dCam;
+    windowDirLight.shadow.camera.right = dCam;
+    windowDirLight.shadow.camera.top = dCam;
+    windowDirLight.shadow.camera.bottom = -dCam;
+    windowDirLight.shadow.bias = -0.0006;
+    windowDirLight.shadow.radius = 2.2;
+    scene.add(windowDirLight);
+
+    // 3. Claw Machine Interior Overhead Point Light (Casts soft shadows through the prize pile!)
+    const clawInteriorLight = new THREE.PointLight(0xfff0f8, 1.15, 13, 1.5);
+    clawInteriorLight.position.set(0.0, 7.6, -1.0);
+    clawInteriorLight.castShadow = true;
+    clawInteriorLight.shadow.mapSize.width = 1024;
+    clawInteriorLight.shadow.mapSize.height = 1024;
+    clawInteriorLight.shadow.bias = -0.001;
+    scene.add(clawInteriorLight);
+
+    // 4. Arcade Row & DDR Neon Point Light (Left/Back)
+    const arcadeRowLight = new THREE.PointLight(0x38bdf8, 0.85, 16, 1.6);
+    arcadeRowLight.position.set(-5.5, 5.2, -5.5);
+    scene.add(arcadeRowLight);
+
+    // 5. Ticket Counter & Neon Sign Point Light (Right/Back)
+    const counterNeonLight = new THREE.PointLight(0xf43f5e, 0.85, 16, 1.6);
+    counterNeonLight.position.set(6.5, 5.8, -4.5);
+    scene.add(counterNeonLight);
+
+    // Shared Materials
+    const plushMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.92,
+      metalness: 0.02
+    });
+
+    const arcadeSolidMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.78,
+      metalness: 0.08
+    });
+
+    // Reflective carpet/floor tiles material ( becomes glossier at night )
+    const arcadeFloorMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.35,
+      metalness: 0.22
+    });
+
+    const chromeMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.16,
+      metalness: 0.88
+    });
+
+    const cabinetGlassMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xe0f2fe,
+      transparent: true,
+      opacity: 0.24,
+      roughness: 0.08,
+      metalness: 0.05,
+      depthWrite: false
+    });
+
+    const translucentIceMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.85,
+      roughness: 0.15,
+      metalness: 0.05,
+      emissive: new THREE.Color(0x38bdf8),
+      emissiveIntensity: 0.35
+    });
+
+    const crystalWingMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.2,
+      metalness: 0.1,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 0.42
+    });
+
+    const neonPinkMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0xff2a85),
+      emissiveIntensity: 1.4,
+      roughness: 0.2
+    });
+
+    const neonCyanMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0x00f5d4),
+      emissiveIntensity: 1.4,
+      roughness: 0.2
+    });
+
+    const neonGoldMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0xfee440),
+      emissiveIntensity: 1.3,
+      roughness: 0.2
+    });
+
+    const screenEmissiveMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0x80ffdb),
+      emissiveIntensity: 1.1,
+      roughness: 0.2
+    });
+
+    // ============================================================================
+    // 5. VOXEL ARCADE ARCHITECTURE, CLAW MACHINE, CABINETS & PROPS
+    // ============================================================================
+    const RV = 0.25; // 1 Room Voxel = 0.25 world units
+    const furnitureColliders = []; // AABBs for outside plushies
+
+    function addCollider(minX, minY, minZ, maxX, maxY, maxZ, name = 'prop') {
+      furnitureColliders.push({
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        name
+      });
+    }
+
+    const floorVoxels = [];
+    const solidVoxels = [];
+    const chromeVoxels = [];
+    const glassVoxels = [];
+    const neonPinkVoxels = [];
+    const neonCyanVoxels = [];
+    const neonGoldVoxels = [];
+
+    function pushVoxel(list, rx, ry, rz, colorHex, variance = 0.03, sx = 1, sy = 1, sz = 1) {
+      list.push({
+        x: rx,
+        y: ry,
+        z: rz,
+        color: varyColor(colorHex, rx, ry, rz, variance),
+        sx, sy, sz
+      });
+    }
+
+    function pushBoxVoxels(list, x0, y0, z0, x1, y1, z1, colorFnOrHex, variance = 0.03) {
+      for (let x = x0; x <= x1; x++) {
+        for (let y = y0; y <= y1; y++) {
+          for (let z = z0; z <= z1; z++) {
+            if (x > x0 && x < x1 && y > y0 && y < y1 && z > z0 && z < z1) continue;
+            const c = typeof colorFnOrHex === 'function' ? colorFnOrHex(x, y, z) : colorFnOrHex;
+            if (c) pushVoxel(list, x + 0.5, y + 0.5, z + 0.5, c, variance);
+          }
+        }
+      }
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5A. PATTERNED RETRO ARCADE CARPET, WALLS, FRONT WINDOW & NEON SIGNS
+    // ----------------------------------------------------------------------------
+    function buildArcadeRoom() {
+      // Patterned Retro Arcade Carpet: rx [-42..41], rz [-40..41] (top surface at Y = 0)
+      for (let x = -42; x <= 41; x++) {
+        for (let z = -40; z <= 41; z++) {
+          const isBorder = (x === -42 || x === 41 || z === -40 || z === 41);
+          // Classic 90s bowling/arcade carpet pattern: deep cosmic indigo with neon geometric motifs
+          const gx = ((x + 80) % 12);
+          const gz = ((z + 80) % 12);
+          let col = '#191332'; // Deep indigo carpet base
+          if ((x + z) % 2 === 0) col = '#1d1639';
+
+          // Geometric planet/ring/zigzag confetti pattern on carpet
+          if (gx === 6 && gz === 6) col = '#f72585'; // Neon pink star center
+          else if (Math.abs(gx - 6) + Math.abs(gz - 6) === 2) col = '#4cc9f0'; // Cyan diamond ring
+          else if (gx === 2 && gz >= 2 && gz <= 4) col = '#fee440'; // Yellow squiggle
+          else if (gz === 9 && gx >= 8 && gx <= 10) col = '#7209b7'; // Purple bar
+          else if ((x * 13 + z * 7) % 37 === 0) col = '#00f5d4'; // Mint fleck
+
+          pushVoxel(floorVoxels, x + 0.5, -0.5, z + 0.5, col, 0.02);
+          if (isBorder) {
+            pushVoxel(solidVoxels, x + 0.5, -1.5, z + 0.5, '#0f0a1c', 0.01);
+          }
+        }
+      }
+
+      // Left Wall (rx = -42, ry = 0..46, rz = -40..41) with Large Arcade Front Window Cutout
+      // Window cutout: rz from 4 to 32, ry from 10 to 36
+      for (let y = 0; y <= 46; y++) {
+        for (let z = -40; z <= 41; z++) {
+          const inWindow = (z >= 4 && z <= 32 && y >= 10 && y <= 36);
+          if (inWindow) continue;
+
+          let wallCol = '#1e1836'; // Dark arcade wall
+          if (y <= 2) wallCol = '#100c20'; // Baseboard
+          else if (y === 3) wallCol = '#f72585'; // Lower neon pink trim stripe
+          else if (y <= 14) wallCol = (z % 4 === 0) ? '#151028' : '#1b1532'; // Wainscoting
+          else if (y === 15) wallCol = '#00f5d4'; // Mid cyan trim stripe
+          else if (y >= 45) wallCol = '#100c20';
+
+          if (y === 3) {
+            pushVoxel(neonPinkVoxels, -41.3, y + 0.5, z + 0.5, '#ff2a85', 0.01, 0.4, 0.8, 1);
+          } else if (y === 15 && (z < 4 || z > 32)) {
+            pushVoxel(neonCyanVoxels, -41.3, y + 0.5, z + 0.5, '#00f5d4', 0.01, 0.4, 0.8, 1);
+          }
+          pushVoxel(solidVoxels, -41.8, y + 0.5, z + 0.5, wallCol, 0.02);
+        }
+      }
+
+      // Window Frame & Mullions on Left Wall
+      for (let z = 3; z <= 33; z++) {
+        pushVoxel(chromeVoxels, -41.2, 9.5, z + 0.5, '#64748b', 0.01);
+        pushVoxel(chromeVoxels, -41.2, 37.5, z + 0.5, '#64748b', 0.01);
+      }
+      for (let y = 10; y <= 36; y++) {
+        pushVoxel(chromeVoxels, -41.2, y + 0.5, 3.5, '#64748b', 0.01);
+        pushVoxel(chromeVoxels, -41.2, y + 0.5, 18.5, '#64748b', 0.01);
+        pushVoxel(chromeVoxels, -41.2, y + 0.5, 33.5, '#64748b', 0.01);
+      }
+      // Neon "OPEN 24H" sign hanging inside the Arcade Window (rz 10..16, ry 22..27)
+      for (let z = 10; z <= 16; z++) {
+        for (let y = 22; y <= 27; y++) {
+          const isRim = (z === 10 || z === 16 || y === 22 || y === 27);
+          if (isRim) {
+            pushVoxel(neonPinkVoxels, -40.5, y + 0.5, z + 0.5, '#ff2a85', 0.01, 0.4, 0.8, 0.8);
+          } else if (y === 24 || y === 25) {
+            pushVoxel(neonCyanVoxels, -40.5, y + 0.5, z + 0.5, '#00f5d4', 0.01, 0.4, 0.7, 0.7);
+          }
+        }
+      }
+
+      // Back Wall (rz = -40, ry = 0..46, rx = -41..41)
+      for (let y = 0; y <= 46; y++) {
+        for (let x = -41; x <= 41; x++) {
+          let wallCol = '#1e1836';
+          if (y <= 2) wallCol = '#100c20';
+          else if (y <= 14) wallCol = (x % 4 === 0) ? '#151028' : '#1b1532';
+          else if (y >= 45) wallCol = '#100c20';
+
+          if (y === 3) {
+            pushVoxel(neonPinkVoxels, x + 0.5, y + 0.5, -39.3, '#ff2a85', 0.01, 1, 0.8, 0.4);
+          } else if (y === 15) {
+            pushVoxel(neonCyanVoxels, x + 0.5, y + 0.5, -39.3, '#00f5d4', 0.01, 1, 0.8, 0.4);
+          }
+          pushVoxel(solidVoxels, x + 0.5, y + 0.5, -39.8, wallCol, 0.02);
+        }
+      }
+
+      // --- GLOWING NEON SIGNS ON BACK & LEFT WALLS ---
+      // 1. Giant Neon "FUMO ARCADE" Marquee + Yin-Yang Orb on Back Wall (rx -14..14, ry 34..42, rz -39)
+      for (let x = -15; x <= 15; x++) {
+        for (let y = 34; y <= 42; y++) {
+          const isFrame = (x === -15 || x === 15 || y === 34 || y === 42);
+          if (isFrame) {
+            pushVoxel(neonCyanVoxels, x + 0.5, y + 0.5, -38.8, '#00f5d4', 0.01, 0.9, 0.9, 0.5);
+          } else {
+            pushVoxel(solidVoxels, x + 0.5, y + 0.5, -39.1, '#120d24', 0.01);
+          }
+        }
+      }
+      // Voxel Neon Text/Motifs inside back sign: Star + "FUMO" blocks + Star
+      const signPattern = [
+        "  *  ### # # # #  ###   *  ",
+        " *** #   # # ### #   # *** ",
+        "  *  ##  # # ### #   #  *  ",
+        "     #   ### # #  ###      "
+      ];
+      for (let row = 0; row < signPattern.length; row++) {
+        const line = signPattern[row];
+        for (let col = 0; col < line.length; col++) {
+          const ch = line[col];
+          const gx = -13 + col;
+          const gy = 40 - row * 1.3;
+          if (ch === '#') {
+            pushVoxel(neonPinkVoxels, gx + 0.5, gy, -38.6, '#ff2a85', 0.01, 0.85, 0.95, 0.6);
+          } else if (ch === '*') {
+            pushVoxel(neonGoldVoxels, gx + 0.5, gy, -38.6, '#fee440', 0.01, 0.85, 0.95, 0.6);
+          }
+        }
+      }
+
+      // 2. Neon Space Invader / Pixel Fairy Sign on Left Wall above Arcade Row (rz -32..-20, ry 33..41)
+      const fairyArt = [
+        "  ##   ##  ",
+        " #### #### ",
+        "###########",
+        "### ### ###",
+        "  #######  ",
+        "   ## ##   "
+      ];
+      for (let r = 0; r < fairyArt.length; r++) {
+        for (let c = 0; c < fairyArt[r].length; c++) {
+          if (fairyArt[r][c] === '#') {
+            const targetList = (r <= 1) ? neonCyanVoxels : neonPinkVoxels;
+            const hex = (r <= 1) ? '#00f5d4' : '#ff2a85';
+            pushVoxel(targetList, -40.8, 40 - r * 1.1, -31 + c * 1.1, hex, 0.01, 0.6, 0.9, 0.9);
+          }
+        }
+      }
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5B. CENTERPIECE LARGE GLASS-WALLED FUMO CLAW MACHINE
+    // World Center: X = 0, Z = -1.0 (rx [-11..11] -> X [-2.75..2.75], rz [-14..6] -> Z [-3.5..1.5])
+    // ----------------------------------------------------------------------------
+    // Prize Chute Hole is in the Front-Left Corner inside the cabinet:
+    // Chute X: [-2.45, -1.25], Chute Z: [-0.25, 1.05]
+    const CLAW_BOUNDS = {
+      minX: -2.35,
+      maxX: 2.35,
+      minZ: -3.10,
+      maxZ: 1.05,
+      floorY: 2.75,    // Prize deck floor height
+      ceilingY: 8.20,  // Gantry height
+      chuteMinX: -2.45,
+      chuteMaxX: -1.15,
+      chuteMinZ: -0.35,
+      chuteMaxZ: 1.15,
+      chuteCenterX: -1.80,
+      chuteCenterZ: 0.40
+    };
+
+    function buildClawMachineCabinet() {
+      // 1. Lower Cabinet Base (rx -11..11, ry 0..10 -> Y [0..2.75], rz -14..6 -> Z [-3.5..1.5])
+      for (let x = -11; x <= 11; x++) {
+        for (let y = 0; y <= 10; y++) {
+          for (let z = -14; z <= 6; z++) {
+            // Hollow out the prize chute tunnel & front dispense bay on the front-left!
+            // Chute shaft: rx [-10..-5], rz [-1..5], ry [3..10]
+            const inChuteShaft = (x >= -10 && x <= -5 && z >= -1 && z <= 5 && y >= 3);
+            const inFrontBay = (x >= -10 && x <= -5 && z >= 3 && z <= 6 && y >= 2 && y <= 6);
+            if (inChuteShaft || inFrontBay) continue;
+
+            // Skip hidden interior blocks
+            if (x > -11 && x < 11 && y > 0 && y < 10 && z > -14 && z < 6) {
+              // Keep the inner walls of the chute shaft solid
+              const nearChute = (x >= -11 && x <= -4 && z >= -2 && z <= 6);
+              if (!nearChute) continue;
+            }
+
+            let col = '#f72585'; // Retro hot-pink cabinet body
+            if (y <= 1) col = '#1e1b2e'; // Heavy metal base & casters
+            else if (y === 10) {
+              // Prize deck floor (checkerboard pastel felt!)
+              col = ((x + z) % 2 === 0) ? '#fff0f6' : '#ffd6e7';
+            } else if (Math.abs(x) === 11 && Math.abs(z - (-4)) <= 8 && y >= 3 && y <= 8) {
+              col = '#3a0ca3'; // Deep violet side decal panel
+            } else if (z === 6 && x >= -3 && x <= 9 && y >= 3 && y <= 8) {
+              col = '#4cc9f0'; // Front cyan decal panel
+            }
+            pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, col, 0.02);
+          }
+        }
+      }
+
+      // 2. Interior Glass Prize Chute Guard Walls around the Front-Left Chute Hole (ry 11..14)
+      // Separates the prize pile from tumbling into the chute on its own
+      for (let y = 11; y <= 14; y++) {
+        for (let x = -10; x <= -4; x++) {
+          pushVoxel(chromeVoxels, x + 0.5, y + 0.5, -1.5, '#cbd5e1', 0.01);
+        }
+        for (let z = -1; z <= 5; z++) {
+          pushVoxel(chromeVoxels, -4.5, y + 0.5, z + 0.5, '#cbd5e1', 0.01);
+        }
+      }
+      // Neon rim around top of prize chute
+      for (let x = -10; x <= -4; x++) {
+        pushVoxel(neonCyanVoxels, x + 0.5, 15.2, -1.5, '#00f5d4', 0.01, 1, 0.5, 0.6);
+      }
+      for (let z = -1; z <= 5; z++) {
+        pushVoxel(neonCyanVoxels, -4.5, 15.2, z + 0.5, '#00f5d4', 0.01, 0.6, 0.5, 1);
+      }
+
+      // 3. Front Control Panel Ledge (rz 7..9, rx -10..10, ry 8..10): Joystick, Drop Button & Coin Slot!
+      for (let x = -10; x <= 10; x++) {
+        for (let y = 8; y <= 10; y++) {
+          for (let z = 7; z <= 9; z++) {
+            // Leave prize retrieval opening on the left (rx -10..-5)
+            if (x >= -10 && x <= -5) continue;
+            const c = (y === 10) ? '#e2e8f0' : '#7209b7';
+            pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, c, 0.02);
+          }
+        }
+      }
+      // Coin Slot & Reject Button on front panel (rx 2..4, ry 5..8, rz 6.6)
+      pushVoxel(chromeVoxels, 3.0, 7.0, 6.7, '#94a3b8', 0.01, 1.8, 2.6, 0.5);
+      pushVoxel(neonGoldVoxels, 3.0, 7.4, 6.9, '#ff9e00', 0.01, 0.5, 0.9, 0.4); // Glowing coin return slot
+      // Glowing Pink Drop Button on control deck (rx 4.5, ry 11.2, rz 8.0)
+      pushVoxel(neonPinkVoxels, 4.5, 11.2, 8.0, '#ff2a85', 0.01, 1.6, 0.6, 1.6);
+
+      // 4. Four Chrome & Neon Corner Pillars (ry 11..33 -> Y [2.75..8.5])
+      const corners = [[-11, -14], [11, -14], [-11, 6], [11, 6]];
+      for (const [cx, cz] of corners) {
+        for (let y = 11; y <= 33; y++) {
+          pushVoxel(chromeVoxels, cx + 0.5, y + 0.5, cz + 0.5, '#e2e8f0', 0.01);
+          // Interior vertical LED light tube along each pillar
+          const ledX = cx + (cx < 0 ? 1.1 : -0.1);
+          const ledZ = cz + (cz < 0 ? 1.1 : -0.1);
+          if (y % 2 === 0) {
+            pushVoxel(neonPinkVoxels, ledX, y + 0.5, ledZ, '#ff70a6', 0.01, 0.45, 0.9, 0.45);
+          }
+        }
+      }
+
+      // 5. Glass Walls on All 4 Sides of the Claw Machine (ry 11..33)
+      // Built as crisp translucent glass panels so you can see the plushies clearly
+      for (let y = 11; y <= 33; y += 2) {
+        for (let x = -9; x <= 9; x += 2) {
+          pushVoxel(glassVoxels, x + 0.5, y + 0.5, -13.5, '#bae6fd', 0.01, 2.0, 2.0, 0.2);
+          pushVoxel(glassVoxels, x + 0.5, y + 0.5, 5.5, '#bae6fd', 0.01, 2.0, 2.0, 0.2);
+        }
+        for (let z = -12; z <= 4; z += 2) {
+          pushVoxel(glassVoxels, -10.5, y + 0.5, z + 0.5, '#bae6fd', 0.01, 0.2, 2.0, 2.0);
+          pushVoxel(glassVoxels, 10.5, y + 0.5, z + 0.5, '#bae6fd', 0.01, 0.2, 2.0, 2.0);
+        }
+      }
+
+      // 6. Top Glowing Canopy & "UFO CATCHER" Marquee (ry 34..39 -> Y [8.5..10.0])
+      for (let x = -12; x <= 12; x++) {
+        for (let y = 34; y <= 39; y++) {
+          for (let z = -15; z <= 7; z++) {
+            if (x > -12 && x < 12 && y > 34 && y < 39 && z > -15 && z < 7) continue;
+            // Crown dome taper on top
+            if (y === 39 && (Math.abs(x) === 12 || z === -15 || z === 7)) continue;
+
+            const isMarqueeFront = (z === 7 && y >= 35 && y <= 38 && Math.abs(x) <= 10);
+            const isMarqueeSide = (Math.abs(x) === 12 && y >= 35 && y <= 38 && z >= -12 && z <= 4);
+            if (isMarqueeFront) {
+              if ((x + y) % 3 === 0) {
+                pushVoxel(neonGoldVoxels, x + 0.5, y + 0.5, z + 0.5, '#fee440', 0.01);
+              } else {
+                pushVoxel(neonPinkVoxels, x + 0.5, y + 0.5, z + 0.5, '#ff2a85', 0.01);
+              }
+            } else if (isMarqueeSide) {
+              pushVoxel(neonCyanVoxels, x + 0.5, y + 0.5, z + 0.5, '#00f5d4', 0.01);
+            } else {
+              pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, '#f72585', 0.02);
+            }
+          }
+        }
+      }
+
+      // Register outer Claw Machine AABB for outside plushies so they bounce off the cabinet!
+      addCollider(-2.85, 0, -3.6, 2.85, 9.8, 1.75, 'claw_machine_cabinet');
+      addCollider(-1.2, 0, 1.75, 2.75, 2.8, 2.45, 'claw_control_deck');
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5C. ROW OF RETRO ARCADE CABINETS, STOOLS & DDR DANCE STAGE (Left / Back)
+    // ----------------------------------------------------------------------------
+    const arcadeScreenVoxels = []; // Animated pixel-art screens!
+
+    function buildArcadeCabinetsAndDDR() {
+      // 3 Arcade Cabinets along Back-Left Wall: Z = -8.5 (rz -38..-31), centered at rx = -34, -26, -18
+      const cabConfigs = [
+        { cx: -34, bodyCol: '#3a0ca3', trimCol: '#f72585', gameType: 0 }, // Touhou Danmaku Shooter
+        { cx: -26, bodyCol: '#1d3557', trimCol: '#00f5d4', gameType: 1 }, // Cirno Ice Puzzle 9
+        { cx: -18, bodyCol: '#7209b7', trimCol: '#fee440', gameType: 2 }  // Marisa Star Racer
+      ];
+
+      cabConfigs.forEach((cab, idx) => {
+        const x0 = cab.cx - 3;
+        const x1 = cab.cx + 3;
+        for (let x = x0; x <= x1; x++) {
+          for (let y = 0; y <= 24; y++) {
+            for (let z = -38; z <= -31; z++) {
+              // Carve recessed screen bay & control deck profile
+              if (y >= 11 && y <= 19 && z >= -33 && x > x0 && x < x1) continue;
+              if (y >= 20 && z === -31 && x > x0 && x < x1) {
+                // Glowing top marquee!
+                pushVoxel(idx === 1 ? neonCyanVoxels : neonGoldVoxels, x + 0.5, y + 0.5, z + 0.5, cab.trimCol, 0.01);
+                continue;
+              }
+              const isSideTrim = (x === x0 || x === x1) && (z === -31 || y === 10 || y === 24);
+              const c = isSideTrim ? cab.trimCol : cab.bodyCol;
+              pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, c, 0.02);
+            }
+          }
+        }
+
+        // Control deck joysticks & buttons at y = 11, z = -32..-31
+        pushVoxel(neonPinkVoxels, cab.cx - 1.2, 11.8, -31.5, '#ff2a85', 0.01, 0.6, 1.2, 0.6);
+        pushVoxel(neonCyanVoxels, cab.cx + 1.0, 11.4, -31.5, '#00f5d4', 0.01, 0.6, 0.5, 0.6);
+        pushVoxel(neonGoldVoxels, cab.cx + 1.8, 11.4, -31.5, '#fee440', 0.01, 0.6, 0.5, 0.6);
+
+        // Animated Pixel-Art Screen (x from x0+1 to x1-1, y from 13 to 18, z = -33.2)
+        for (let sx = x0 + 1; sx <= x1 - 1; sx++) {
+          for (let sy = 13; sy <= 18; sy++) {
+            arcadeScreenVoxels.push({
+              x: sx + 0.5,
+              y: sy + 0.5,
+              z: -33.2,
+              lx: sx - (x0 + 1),
+              ly: sy - 13,
+              gameType: cab.gameType,
+              color: new THREE.Color('#141838')
+            });
+          }
+        }
+
+        // Round Arcade Stool in front of each cabinet (rz = -26, rx = cab.cx)
+        pushVoxel(chromeVoxels, cab.cx + 0.5, 2.5, -26.5, '#cbd5e1', 0.01, 0.8, 5.0, 0.8);
+        for (let sx = -1; sx <= 1; sx++) {
+          for (let sz = -1; sz <= 1; sz++) {
+            pushVoxel(solidVoxels, cab.cx + 0.5 + sx * 0.85, 5.5, -26.5 + sz * 0.85, '#f72585', 0.02, 0.95, 1.2, 0.95);
+          }
+        }
+
+        addCollider((x0) * RV, 0, -38 * RV, (x1 + 1) * RV, 6.2, -30.5 * RV, 'arcade_cabinet');
+        addCollider((cab.cx - 1.2) * RV, 0, -28 * RV, (cab.cx + 2.2) * RV, 1.65, -25 * RV, 'arcade_stool');
+      });
+
+      // --- DANCE-GAME PAD (DDR STAGE) in Front-Left Area: X [-8.5..-4.5] -> rx [-34..-18], Z [1.0..5.5] -> rz [4..22] ---
+      // Raised metal dance platform (ry = 0..1 -> top at Y = 0.5)
+      for (let x = -33; x <= -19; x++) {
+        for (let z = 6; z <= 20; z++) {
+          const dx = Math.abs(x - (-26));
+          const dz = Math.abs(z - 13);
+          const isLeftArrow = (x >= -31 && x <= -29 && dz <= 1);
+          const isRightArrow = (x >= -23 && x <= -21 && dz <= 1);
+          const isUpArrow = (z >= 8 && z <= 10 && dx <= 1);
+          const isDownArrow = (z >= 16 && z <= 18 && dx <= 1);
+
+          if (isLeftArrow || isRightArrow) {
+            pushVoxel(neonPinkVoxels, x + 0.5, 1.1, z + 0.5, '#ff2a85', 0.01, 0.95, 0.4, 0.95);
+          } else if (isUpArrow || isDownArrow) {
+            pushVoxel(neonCyanVoxels, x + 0.5, 1.1, z + 0.5, '#00f5d4', 0.01, 0.95, 0.4, 0.95);
+          }
+          const baseCol = ((x + z) % 2 === 0) ? '#334155' : '#1e293b';
+          pushVoxel(chromeVoxels, x + 0.5, 0.5, z + 0.5, baseCol, 0.02);
+        }
+      }
+      // Chrome rear safety bar on DDR pad (rz = 20, rx -31..-21, ry 1..9)
+      for (let y = 1; y <= 8; y++) {
+        pushVoxel(chromeVoxels, -30.5, y + 0.5, 20.2, '#e2e8f0', 0.01, 0.7, 1, 0.7);
+        pushVoxel(chromeVoxels, -21.5, y + 0.5, 20.2, '#e2e8f0', 0.01, 0.7, 1, 0.7);
+      }
+      for (let x = -30; x <= -22; x++) {
+        pushVoxel(chromeVoxels, x + 0.5, 8.5, 20.2, '#e2e8f0', 0.01, 1, 0.7, 0.7);
+      }
+      // DDR Front Speaker & Screen Tower (rz 1..5, rx -32..-20, ry 0..22)
+      pushBoxVoxels(solidVoxels, -32, 0, 1, -20, 22, 4, (x, y, z) => {
+        if (z === 4 && y >= 12 && y <= 18 && x >= -30 && x <= -22) return null;
+        return (y >= 19) ? '#f72585' : '#1e1b2e';
+      });
+      for (let sx = -30; sx <= -22; sx++) {
+        for (let sy = 12; sy <= 18; sy++) {
+          arcadeScreenVoxels.push({
+            x: sx + 0.5,
+            y: sy + 0.5,
+            z: 4.3,
+            lx: sx + 30,
+            ly: sy - 12,
+            gameType: 3, // DDR arrows screen
+            color: new THREE.Color('#1e1b4b')
+          });
+        }
+      }
+      addCollider(-33 * RV, 0, 6 * RV, -18 * RV, 0.5, 21 * RV, 'ddr_pad');
+      addCollider(-32 * RV, 0, 1 * RV, -19 * RV, 5.6, 5 * RV, 'ddr_tower');
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5D. TICKET COUNTER, PRIZE SHELF, VENDING MACHINE, CHANGE MACHINE, PHOTO BOOTH & PROPS
+    // ----------------------------------------------------------------------------
+    function buildCounterAndProps() {
+      // 1. TICKET COUNTER & PRIZE SHELF (Back-Right Corner: rx [18..39], rz [-38..-16])
+      // Counter L-shape desk (rx 18..38, rz -26..-20, ry 0..11 -> top at Y = 3.0)
+      pushBoxVoxels(solidVoxels, 18, 0, -26, 38, 11, -20, (x, y, z) => {
+        if (y === 11) return '#f8fafc'; // Crisp white/lavender countertop
+        if (z === -20 && y >= 3 && y <= 8 && x >= 20 && x <= 36) return '#3a0ca3'; // Glass display front
+        return '#7209b7';
+      });
+      // Neon "TICKETS & PRIZES" trim under counter lip
+      for (let x = 18; x <= 38; x++) {
+        pushVoxel(neonGoldVoxels, x + 0.5, 10.5, -19.6, '#fee440', 0.01, 1, 0.6, 0.5);
+      }
+      // Cash Register & Tray of Golden Arcade Tokens on the Counter (rx 20..25, ry 12)
+      pushBoxVoxels(solidVoxels, 19, 12, -24, 22, 14, -22, '#334155');
+      // Tray of Tokens (rx 24..27, rz -24..-22, ry 12)
+      pushBoxVoxels(solidVoxels, 24, 12, -24, 27, 12, -22, '#1e293b');
+      for (let tx = 24.3; tx <= 26.7; tx += 0.6) {
+        for (let tz = -23.6; tz <= -22.4; tz += 0.6) {
+          pushVoxel(neonGoldVoxels, tx, 12.7, tz, '#ffd166', 0.02, 0.5, 0.4, 0.5);
+        }
+      }
+
+      // Tall Back-Wall Prize Shelf behind Counter (rx 18..38, rz -38..-34, ry 0..32)
+      pushBoxVoxels(solidVoxels, 18, 0, -38, 38, 32, -34, (x, y, z) => {
+        if (z >= -36 && x > 18 && x < 38 && (y % 8 !== 0) && y < 32) return null; // Open shelves
+        return '#4c1d95';
+      });
+      // Mini Voxel Prizes on the Shelf (Candy jars, mini star blocks, game boxes)
+      const prizeCols = ['#ff2a85', '#00f5d4', '#fee440', '#38bdf8', '#a855f7'];
+      for (let s = 1; s <= 2; s++) {
+        const sy = s * 8 + 1;
+        for (let px = 20; px <= 36; px += 4) {
+          const pc = prizeCols[(px + s) % prizeCols.length];
+          pushBoxVoxels(solidVoxels, px, sy, -36, px + 1, sy + 2, -35, pc);
+        }
+      }
+      // Note: Shelf 3 (ry = 24 -> Y = 6.25) has an outside Fumo sitting right on it!
+      addCollider(18 * RV, 0, -26 * RV, 39 * RV, 3.0, -20 * RV, 'ticket_counter');
+      addCollider(18 * RV, 0, -38 * RV, 39 * RV, 6.25, -34 * RV, 'prize_shelf');
+
+      // 2. CHANGE MACHINE ("TOKENS") next to Claw Machine (rx [13..16], rz [-37..-32], ry 0..20)
+      pushBoxVoxels(solidVoxels, 13, 0, -37, 16, 20, -32, (x, y, z) => {
+        if (z === -32 && y >= 10 && y <= 15 && x >= 14 && x <= 15) return '#cbd5e1'; // Metal bill/coin plate
+        return '#e63946';
+      });
+      pushVoxel(neonGoldVoxels, 14.5, 18.5, -31.7, '#fee440', 0.01, 2.8, 1.4, 0.5); // "COINS" header
+      addCollider(13 * RV, 0, -37 * RV, 17 * RV, 5.2, -31.5 * RV, 'change_machine');
+
+      // 3. GLOWING DRINK VENDING MACHINE (Right Side: rx [30..38], rz [-12..-3], ry 0..25)
+      pushBoxVoxels(solidVoxels, 30, 0, -12, 38, 25, -3, (x, y, z) => {
+        if (x === 30 && y >= 7 && y <= 21 && z >= -10 && z <= -5) return '#e0f2fe'; // Bright display window
+        if (x === 30 && y >= 2 && y <= 4 && z >= -10 && z <= -5) return '#0f172a'; // Can pickup flap
+        return '#2563eb';
+      });
+      // Glowing colorful soda/tea cans inside vending display
+      const canColors = ['#ef4444', '#22c55e', '#f59e0b', '#38bdf8', '#ec4899'];
+      for (let row = 0; row < 3; row++) {
+        for (let cz = -10; cz <= -5; cz++) {
+          const cc = canColors[(cz + 20 + row) % canColors.length];
+          pushVoxel(neonCyanVoxels, 29.8, 9 + row * 4.2, cz + 0.5, cc, 0.01, 0.5, 1.5, 0.7);
+        }
+      }
+      addCollider(30 * RV, 0, -12 * RV, 39 * RV, 6.5, -3 * RV, 'vending_machine');
+
+      // 4. PHOTO BOOTH ("PURI-KURA") in Front-Right Area (rx [28..38], rz [4..16], ry 0..26)
+      pushBoxVoxels(solidVoxels, 28, 0, 4, 38, 26, 16, (x, y, z) => {
+        // Curtain doorway on the left side (x === 28, z 6..13, y 0..19)
+        if (x === 28 && z >= 6 && z <= 13 && y <= 19) {
+          if (y <= 4) return null; // Open bottom of curtain where a Fumo peeks out!
+          return (z % 2 === 0) ? '#ff70a6' : '#ff9ebb'; // Striped pink photo booth curtain
+        }
+        return ((y >= 22) ? '#ff70a6' : '#f8fafc');
+      });
+      // Photo strip slot & glowing "PHOTO" sign on side
+      for (let z = 6; z <= 14; z++) {
+        pushVoxel(neonPinkVoxels, 27.7, 23.5, z + 0.5, '#ff2a85', 0.01, 0.5, 1.4, 0.9);
+      }
+      addCollider(28 * RV, 0, 4 * RV, 39 * RV, 6.7, 17 * RV, 'photo_booth');
+
+      // 5. SMALLER PROPS: TRAIL OF GOLDEN TICKETS ON FLOOR & JANITOR MOP BUCKET
+      // Winding trail of connected arcade tickets across the carpet from the Claw Machine & Cabinets!
+      const ticketPath = [
+        [-6, 10], [-5, 11], [-4, 12], [-3, 13], [-2, 13], [-1, 12], [0, 12], [1, 13],
+        [2, 14], [3, 14], [4, 13], [10, 4], [11, 3], [12, 2], [13, 1], [14, 0],
+        [-18, -18], [-17, -17], [-16, -16], [-15, -16], [-14, -15]
+      ];
+      ticketPath.forEach(([tx, tz], i) => {
+        const tCol = (i % 2 === 0) ? '#fbbf24' : '#f59e0b';
+        pushVoxel(solidVoxels, tx + 0.5, 0.15, tz + 0.5, tCol, 0.02, 0.85, 0.25, 0.55);
+      });
+
+      // Yellow Janitor Mop Bucket with Wringer & Wooden Mop (rx [16..19], rz [14..17])
+      pushBoxVoxels(solidVoxels, 16, 0, 14, 19, 4, 17, (x, y, z) => {
+        if (y === 4 && x > 16 && x < 19 && z > 14 && z < 17) return '#38bdf8'; // Soapy blue water inside
+        return '#eab308'; // Classic yellow mop bucket
+      });
+      pushBoxVoxels(solidVoxels, 17, 5, 14, 19, 6, 15, '#ca8a04'); // Wringer hopper
+      // Wooden mop handle leaning out of bucket
+      for (let i = 0; i < 14; i++) {
+        pushVoxel(solidVoxels, 17.5 + i * 0.18, 4.5 + i * 0.85, 15.5 + i * 0.12, '#a16207', 0.02, 0.5, 0.95, 0.5);
+      }
+      addCollider(16 * RV, 0, 14 * RV, 20 * RV, 1.6, 18 * RV, 'mop_bucket');
+    }
+
+    buildArcadeRoom();
+    buildClawMachineCabinet();
+    buildArcadeCabinetsAndDDR();
+    buildCounterAndProps();
+
+    const arcadeGroup = new THREE.Group();
+    scene.add(arcadeGroup);
+
+    const floorMesh = buildVoxelInstancedMesh(floorVoxels, RV, arcadeFloorMaterial, false, true);
+    const solidMesh = buildVoxelInstancedMesh(solidVoxels, RV, arcadeSolidMaterial, true, true);
+    const chromeMesh = buildVoxelInstancedMesh(chromeVoxels, RV, chromeMaterial, true, true);
+    const glassMesh = buildVoxelInstancedMesh(glassVoxels, RV, cabinetGlassMaterial, false, false);
+    const neonPinkMesh = buildVoxelInstancedMesh(neonPinkVoxels, RV, neonPinkMaterial, false, false);
+    const neonCyanMesh = buildVoxelInstancedMesh(neonCyanVoxels, RV, neonCyanMaterial, false, false);
+    const neonGoldMesh = buildVoxelInstancedMesh(neonGoldVoxels, RV, neonGoldMaterial, false, false);
+    const arcadeScreensMesh = buildVoxelInstancedMesh(arcadeScreenVoxels, RV, screenEmissiveMaterial, false, false);
+
+    if (floorMesh) arcadeGroup.add(floorMesh);
+    if (solidMesh) arcadeGroup.add(solidMesh);
+    if (chromeMesh) arcadeGroup.add(chromeMesh);
+    if (glassMesh) arcadeGroup.add(glassMesh);
+    if (neonPinkMesh) arcadeGroup.add(neonPinkMesh);
+    if (neonCyanMesh) arcadeGroup.add(neonCyanMesh);
+    if (neonGoldMesh) arcadeGroup.add(neonGoldMesh);
+    if (arcadeScreensMesh) arcadeGroup.add(arcadeScreensMesh);
+
+    // Exterior Window Backdrop & Volumetric Sunbeams (Left Window)
+    const windowBackdropMat = new THREE.MeshBasicMaterial({ color: 0x090d24 });
+    const windowBackdrop = new THREE.Mesh(new THREE.PlaneGeometry(10.5, 8.5), windowBackdropMat);
+    windowBackdrop.position.set(-11.4, 5.8, 4.5);
+    windowBackdrop.rotation.y = Math.PI / 2;
+    scene.add(windowBackdrop);
+
+    const shaftMat = new THREE.MeshBasicMaterial({
+      color: 0xfff2c2,
+      transparent: true,
+      opacity: 0.0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
+    });
+    const lightShaftGroup = new THREE.Group();
+    for (let s = 0; s < 3; s++) {
+      const shaft = new THREE.Mesh(new THREE.PlaneGeometry(12.5, 2.4), shaftMat);
+      shaft.position.set(-5.8, 5.2 - s * 0.4, 2.2 + s * 2.2);
+      shaft.rotation.z = -0.42;
+      shaft.rotation.x = 0.22;
+      lightShaftGroup.add(shaft);
+    }
+    scene.add(lightShaftGroup);
+
+    // Update Animated Pixel-Art Arcade Screens
+    function updateArcadeScreens(time) {
+      if (!arcadeScreensMesh) return;
+      for (let i = 0; i < arcadeScreenVoxels.length; i++) {
+        const px = arcadeScreenVoxels[i];
+        const x = px.lx;
+        const y = px.ly;
+
+        if (px.gameType === 0) {
+          // Touhou Danmaku Shooter Screen
+          const shipX = 2 + Math.sin(time * 3.0) * 1.6;
+          tempColor.set('#14122e');
+          if (y === 0 && Math.abs(x - shipX) < 0.8) tempColor.set('#ff2a85');
+          else if (y === 5 && Math.abs(x - 2) <= 1) tempColor.set('#fee440');
+          else if (Math.sin(y * 1.4 - time * 6.0 + Math.abs(x - 2)) > 0.65) tempColor.set('#00f5d4');
+        } else if (px.gameType === 1) {
+          // Cirno Ice Block Puzzle
+          const wave = Math.sin(x * 1.3 + y * 0.9 + time * 3.5);
+          tempColor.set(wave > 0.3 ? '#38bdf8' : (wave > -0.3 ? '#1e3a8a' : '#f472b6'));
+        } else if (px.gameType === 2) {
+          // Marisa Star Highway Racer
+          const roadCenter = 2 + Math.sin(time * 2.2 + y * 0.5) * 1.1;
+          if (Math.abs(x - roadCenter) < 0.7 && y === 0) tempColor.set('#fde047');
+          else if (Math.abs(x - roadCenter) <= 1.5) tempColor.set(((y + Math.floor(time * 8)) % 2 === 0) ? '#3b0764' : '#581c87');
+          else tempColor.set('#00f5d4');
+        } else {
+          // DDR Scrolling Arrows Screen
+          const scrollY = (y + Math.floor(time * 6.5)) % 4;
+          tempColor.set(scrollY === 0 ? ((x % 2 === 0) ? '#ff2a85' : '#00f5d4') : '#191336');
+        }
+        arcadeScreensMesh.setColorAt(i, tempColor);
+      }
+      arcadeScreensMesh.instanceColor.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 6. DRIFTING DUST MOTES & CONFETTI / TICKET BURST PARTICLES
+    // ============================================================================
+    const DUST_COUNT = 80;
+    const dustData = [];
+    const dustGeom = new THREE.BoxGeometry(0.065, 0.065, 0.065);
+    const dustMat = new THREE.MeshBasicMaterial({
+      color: 0xfff8dc,
+      transparent: true,
+      opacity: 0.45
+    });
+    const dustMesh = new THREE.InstancedMesh(dustGeom, dustMat, DUST_COUNT);
+    for (let i = 0; i < DUST_COUNT; i++) {
+      dustData.push({
+        x: -9.5 + Math.random() * 19,
+        y: 0.8 + Math.random() * 9.5,
+        z: -8.5 + Math.random() * 17,
+        vx: (Math.random() - 0.5) * 0.22,
+        vy: 0.07 + Math.random() * 0.14,
+        vz: (Math.random() - 0.5) * 0.22,
+        phase: Math.random() * Math.PI * 2,
+        scale: 0.6 + Math.random() * 0.9
+      });
+    }
+    scene.add(dustMesh);
+
+    function updateDustMotes(time, dt) {
+      for (let i = 0; i < DUST_COUNT; i++) {
+        const d = dustData[i];
+        d.x += (d.vx + Math.sin(time * 0.7 + d.phase) * 0.1) * dt;
+        d.y += (d.vy + Math.cos(time * 0.9 + d.phase) * 0.08) * dt;
+        d.z += (d.vz + Math.sin(time * 0.6 + d.phase) * 0.1) * dt;
+        if (d.y > 10.5) d.y = 0.6;
+        if (d.x > 9.5) d.x = -9.5;
+        if (d.x < -9.5) d.x = 9.5;
+        if (d.z > 9.5) d.z = -8.5;
+        if (d.z < -8.5) d.z = 9.5;
+
+        const twinkle = 0.5 + 0.5 * Math.sin(time * 2.5 + d.phase);
+        tempPos.set(d.x, d.y, d.z);
+        tempQuat.setFromEuler(new THREE.Euler(time + d.phase, time * 0.7, 0));
+        const s = d.scale * (0.6 + 0.4 * twinkle);
+        tempScale.set(s, s, s);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        dustMesh.setMatrixAt(i, tempMatrix);
+      }
+      dustMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // Pop / Confetti / Ticket Particles
+    const POP_MAX = 96;
+    const popParticles = [];
+    const popGeom = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+    const popMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const popMesh = new THREE.InstancedMesh(popGeom, popMat, POP_MAX);
+    for (let i = 0; i < POP_MAX; i++) {
+      popParticles.push({
+        active: false,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        life: 0,
+        maxLife: 1,
+        isTicket: false,
+        color: new THREE.Color('#ff85a1')
+      });
+      tempMatrix.makeScale(0, 0, 0);
+      popMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(popMesh);
+
+    function spawnSqueezeParticles(origin, accentHex) {
+      const palette = [accentHex, '#ff2a85', '#fee440', '#00f5d4', '#ffffff'];
+      let spawned = 0;
+      for (let i = 0; i < POP_MAX && spawned < 12; i++) {
+        const p = popParticles[i];
+        if (!p.active) {
+          p.active = true;
+          p.isTicket = false;
+          p.life = 0;
+          p.maxLife = 0.45 + Math.random() * 0.25;
+          p.pos.copy(origin).add(new THREE.Vector3(0, 0.85, 0));
+          const angle = (spawned / 12) * Math.PI * 2 + Math.random() * 0.3;
+          const speed = 2.2 + Math.random() * 2.0;
+          p.vel.set(Math.cos(angle) * speed, 2.5 + Math.random() * 2.2, Math.sin(angle) * speed);
+          p.color.set(palette[spawned % palette.length]);
+          popMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (popMesh.instanceColor) popMesh.instanceColor.needsUpdate = true;
+    }
+
+    // Celebratory Confetti + Golden Arcade Tickets burst when winning a Fumo from the chute!
+    function spawnPrizeWinCelebration(origin) {
+      const confettiPalette = ['#ff2a85', '#00f5d4', '#fee440', '#38bdf8', '#a855f7', '#4ade80'];
+      let spawned = 0;
+      for (let i = 0; i < POP_MAX && spawned < 44; i++) {
+        const p = popParticles[i];
+        if (!p.active) {
+          p.active = true;
+          p.isTicket = (spawned < 14); // 14 golden arcade tickets + 30 rainbow confetti voxels!
+          p.life = 0;
+          p.maxLife = 1.1 + Math.random() * 0.6;
+          p.pos.copy(origin).add(new THREE.Vector3((Math.random() - 0.5) * 0.4, 0.5, (Math.random() - 0.5) * 0.4));
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 2.0 + Math.random() * 4.2;
+          p.vel.set(Math.cos(angle) * speed, 4.2 + Math.random() * 4.5, Math.sin(angle) * speed + 1.5);
+          p.color.set(p.isTicket ? '#fbbf24' : confettiPalette[spawned % confettiPalette.length]);
+          popMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (popMesh.instanceColor) popMesh.instanceColor.needsUpdate = true;
+    }
+
+    function updatePopParticles(dt) {
+      let dirty = false;
+      for (let i = 0; i < POP_MAX; i++) {
+        const p = popParticles[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          popMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= 9.5 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        if (p.pos.y < 0.08) {
+          p.pos.y = 0.08;
+          p.vel.y *= -0.35;
+          p.vel.x *= 0.7;
+          p.vel.z *= 0.7;
+        }
+        const s = 1.0 - (p.life / p.maxLife) * 0.6;
+        tempQuat.setFromEuler(new THREE.Euler(p.life * 7, p.life * 5, p.life * 3));
+        if (p.isTicket) {
+          tempScale.set(s * 1.9, s * 0.35, s * 1.1); // Rectangular arcade ticket shape!
+        } else {
+          tempScale.set(s, s, s);
+        }
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        popMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) popMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 7. TOUHOU FUMO VOXEL PLUSHIE BUILDER (Exact Hollow-Shell + 'ᗜˬᗜ' Craft)
+    // Includes Cirno, Reimu, Marisa, Remilia, Flandre, Youmu, Alice, and Utsuho!
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const fumos = [];
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.emoji = config.emoji || '🎀';
+        this.accentColor = config.accentColor || '#ef4444';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.076 * this.scaleFactor; // Fine voxel size per fumo block
+        this.radius = 0.74 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+
+        // Location state: 'in_machine' | 'chute_falling' | 'outside'
+        this.initialZone = config.zone || 'in_machine';
+        this.zone = this.initialZone;
+        this.stuckAgainstGlass = Boolean(config.stuckAgainstGlass);
+
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+        this.homePitch = config.homePitch || 0;
+        this.homeRoll = config.homeRoll || 0;
+
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = this.homePitch;
+        this.roll = this.homeRoll;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isDragged = false;
+
+        // Stricter solver sleep state for the prize pile
+        this.isSleeping = false;
+        this.sleepTimer = 0.0;
+
+        // Soft-Body Spring States
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        // Scene Hierarchy
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        this.buildCharacterVoxels(config);
+        this.syncTransform(0);
+        scene.add(this.root);
+      }
+
+      wakeUp() {
+        this.isSleeping = false;
+        this.sleepTimer = 0.0;
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingSolidVoxels = [];
+        const wingGlowVoxels = [];
+
+        const skinBase = '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false, sx = 1, sy = 1, sz = 1) => {
+          const seamDarken = (isSeam && ((Math.abs(Math.round(x + y + z)) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z, sx, sy, sz,
+            color: varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // ------------------------------------------------------------------
+        // 1. STUBBY SITTING TORSO (Local y: 0..7, x: -4..4, z: -3..3)
+        // ------------------------------------------------------------------
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain;
+
+              if (y === 1 && z >= 1) col = '#ffffff';
+              if (cfg.hasWhiteApron && z >= 1 && Math.abs(x) <= 2 && y <= 5) {
+                col = '#fcfcfc';
+              }
+              if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                col = '#ffffff';
+                if (Math.abs(x) <= 1 && y === 5) col = cfg.tieColor || '#ef4444';
+              }
+              if (this.id === 'remilia' && z >= 2 && x === 0 && y >= 2 && y <= 6) {
+                col = '#d90429';
+              }
+              if (this.id === 'flandre' && z >= 2 && Math.abs(x) === 1 && y === 4) {
+                col = '#fde047';
+              }
+              // Youmu half-green / half-white vest detail
+              if (this.id === 'youmu' && z >= 2 && x === 1 && y === 4) {
+                col = '#1e293b';
+              }
+              // Alice white capelet over shoulders (y >= 5)
+              if (this.id === 'alice' && y >= 5) {
+                col = (y === 5 && z >= 2 && x === 0) ? '#f43f5e' : '#f8fafc';
+              }
+              // Utsuho (Okuu) Red Hexagon Nuclear Emblem on chest!
+              if (this.id === 'utsuho' && z >= 2 && y >= 4 && y <= 6 && Math.abs(x) <= 1) {
+                col = (x === 0 && y === 5) ? '#ef4444' : '#ffffff';
+              }
+
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        // ------------------------------------------------------------------
+        // 2. SHORT DANGLING ARMS (+ Utsuho Arm Cannon & Alice Mini Shanghai Doll!)
+        // ------------------------------------------------------------------
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || '#ffffff';
+                // Utsuho's right arm (side === 1) has her iconic bronze/dark Arm Cannon (Third Leg Control Rod)!
+                if (this.id === 'utsuho' && side === 1 && y <= -1) {
+                  col = (y === -3) ? '#f59e0b' : '#451a03';
+                } else if (y === -3) {
+                  col = skinBase;
+                } else if (this.id === 'reimu' && y === -1) {
+                  col = '#e63946';
+                }
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        // Utsuho extra Arm Cannon barrel & glowing core on right arm
+        if (this.id === 'utsuho') {
+          for (let cy = -4.2; cy <= -1.2; cy += 0.8) {
+            addPlushVoxel(rightArmVoxels, 0.5, cy, 0, '#78350f', false, 1.5, 0.9, 1.5);
+          }
+          addPlushVoxel(rightArmVoxels, 0.5, -4.6, 0, '#f97316', false, 1.2, 0.6, 1.2);
+        }
+
+        // Alice Margatroid's tiny Shanghai Doll held on her left arm!
+        if (this.id === 'alice') {
+          addPlushVoxel(leftArmVoxels, -0.8, -2.5, 1.6, '#1e3a8a', false, 1.4, 1.5, 1.2); // Mini blue dress
+          addPlushVoxel(leftArmVoxels, -0.8, -1.0, 1.6, '#fde047', false, 1.6, 1.6, 1.5); // Mini blonde head
+          addPlushVoxel(leftArmVoxels, -0.8, 0.1, 1.7, '#ef4444', false, 1.8, 0.6, 1.0);  // Mini red bow
+        }
+
+        // ------------------------------------------------------------------
+        // 3. SHORT SITTING / DANGLING LEGS WITH SHOES
+        // ------------------------------------------------------------------
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = '#ffffff';
+                if (z === 0) col = skinBase;
+                if (z >= 3) col = cfg.shoeColor || '#2b2d42';
+                if (z === 4 && y === 1 && x === 0) col = '#ffffff';
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        // ------------------------------------------------------------------
+        // 4. OVERSIZED ROUND FUMO HEAD, ICONIC 'ᗜˬᗜ' FACE, HAIR & HATS
+        // ------------------------------------------------------------------
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (y === 6) col = '#1f141e';
+                  else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                  else col = cfg.eyeColor;
+                } else if (Math.abs(x) === 4 && y === 3) {
+                  col = blushCol;
+                } else if (y === 2 && Math.abs(x) <= 1) {
+                  col = (x === 0) ? '#e07a7a' : smileCol;
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        // Character-Specific Hair, Headbands, Bows, Hats & Wings:
+        if (this.id === 'reimu') {
+          for (const side of [-1, 1]) {
+            for (let y = -1; y <= 5; y++) {
+              const tubeCol = (y === 5) ? '#e63946' : ((y >= 1 && y <= 4) ? '#ffffff' : cfg.hairColor);
+              addPlushVoxel(headVoxels, side * 6.8, y, 2.2, tubeCol);
+              addPlushVoxel(headVoxels, side * 6.8, y, 3.0, tubeCol);
+            }
+          }
+          for (let bx = -7; bx <= 7; bx++) {
+            const wingHeight = Math.min(4, Math.floor(Math.abs(bx) * 0.7) + 1);
+            for (let by = -wingHeight; by <= wingHeight; by++) {
+              addPlushVoxel(headVoxels, bx, 12.2 + by * 0.75, -1.5 - Math.abs(bx) * 0.15, '#d90429');
+            }
+          }
+        }
+
+        if (this.id === 'cirno') {
+          for (let bx = -6; bx <= 6; bx++) {
+            const h = Math.min(3, Math.floor(Math.abs(bx) * 0.65) + 1);
+            for (let by = -h; by <= h; by++) {
+              addPlushVoxel(headVoxels, bx, 10.5 + by * 0.75, -4.8, '#1d4ed8');
+            }
+          }
+          const wingAngles = [0.45, 0.05, -0.35];
+          for (const side of [-1, 1]) {
+            for (let w = 0; w < 3; w++) {
+              const ang = wingAngles[w];
+              for (let r = 1; r <= 7; r++) {
+                const wx = side * (1.2 + Math.cos(ang) * r * 1.05);
+                const wy = 1.0 + Math.sin(ang) * r * 1.05;
+                const wz = -0.5 - r * 0.15;
+                wingGlowVoxels.push({
+                  x: wx, y: wy, z: wz,
+                  color: varyColor(r > 5 ? '#e0f2fe' : '#38bdf8', wx, wy, wz, 0.02),
+                  sx: 1.1, sy: 0.85, sz: 0.6
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'marisa') {
+          for (let y = -1; y <= 5; y++) {
+            addPlushVoxel(headVoxels, -6.6, y, 2.8, y === 0 ? '#ffffff' : cfg.hairColor);
+          }
+          for (let hx = -10; hx <= 10; hx++) {
+            for (let hz = -10; hz <= 10; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 10.2 && r >= 4.2) {
+                const brimY = 10.2 - hz * 0.22 + Math.sin(Math.atan2(hz, hx) * 4) * 0.4;
+                addPlushVoxel(headVoxels, hx, brimY, hz - 1.2, '#22222b');
+              }
+            }
+          }
+          for (let ch = 0; ch <= 9; ch++) {
+            const coneR = Math.max(0.8, 5.2 - ch * 0.52);
+            for (let hx = -6; hx <= 6; hx++) {
+              for (let hz = -6; hz <= 6; hz++) {
+                const r = Math.hypot(hx, hz);
+                if (r <= coneR && r >= coneR - 1.3) {
+                  const isRibbon = (ch === 1 || ch === 2);
+                  addPlushVoxel(headVoxels, hx, 10.8 + ch * 0.9 - hz * 0.18, hz - 1.5 - ch * 0.28, isRibbon ? '#f8f9fa' : '#22222b');
+                }
+              }
+            }
+          }
+          for (let bx = -3; bx <= 3; bx++) {
+            addPlushVoxel(headVoxels, bx, 11.8, 3.8, '#ffffff');
+            if (Math.abs(bx) >= 1) addPlushVoxel(headVoxels, bx, 12.6, 3.8, '#ffffff');
+          }
+        }
+
+        if (this.id === 'flandre') {
+          for (let py = 2; py <= 7; py++) {
+            addPlushVoxel(headVoxels, -7.2 - (7 - py) * 0.3, py, 0.5, py === 6 ? '#e63946' : cfg.hairColor);
+          }
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -7; hz <= 5; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.8 && r >= 4.8) {
+                addPlushVoxel(headVoxels, hx, 11.2, hz, '#ffe5ec');
+                addPlushVoxel(headVoxels, hx, 12.1, hz * 0.85, '#e63946');
+                addPlushVoxel(headVoxels, hx * 0.8, 12.9, hz * 0.75, '#ffe5ec');
+              }
+            }
+          }
+          const crystalColors = ['#38bdf8', '#3b82f6', '#a855f7', '#ec4899', '#f97316', '#fde047', '#4ade80', '#ef4444'];
+          for (const side of [-1, 1]) {
+            for (let rx = 1; rx <= 9; rx++) {
+              const branchY = 2.5 + (rx <= 4 ? rx * 0.45 : (4 * 0.45 - (rx - 4) * 0.35));
+              wingSolidVoxels.push({
+                x: side * rx, y: branchY, z: -0.5,
+                color: new THREE.Color('#1e1b24'),
+                sx: 0.9, sy: 0.65, sz: 0.65
+              });
+              if (rx % 2 === 0 && rx <= 8) {
+                const cIdx = (side === -1 ? (rx / 2 - 1) : (3 + rx / 2));
+                const cHex = crystalColors[cIdx % 8];
+                for (let cy = -2; cy <= 0; cy++) {
+                  const width = (cy === -1) ? 1.35 : 0.75;
+                  wingGlowVoxels.push({
+                    x: side * (rx + 0.3),
+                    y: branchY - 1.1 + cy * 0.95,
+                    z: -0.5,
+                    color: new THREE.Color(cHex),
+                    sx: width, sy: 0.95, sz: 0.75
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        if (this.id === 'remilia') {
+          for (let hx = -8; hx <= 8; hx++) {
+            for (let hz = -7; hz <= 6; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 7.4 && r >= 4.5) {
+                addPlushVoxel(headVoxels, hx, 11.0, hz, '#ffc2d1');
+                if (r <= 6.4) addPlushVoxel(headVoxels, hx, 12.0, hz, '#d90429');
+                if (r <= 5.5) addPlushVoxel(headVoxels, hx, 13.0, hz, '#ffe5ec');
+              }
+            }
+          }
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 6; wx++) {
+              const topY = 2.0 + Math.sin((wx / 6) * Math.PI) * 2.5;
+              for (let wy = -1; wy <= topY; wy++) {
+                wingSolidVoxels.push({
+                  x: side * wx, y: wy, z: -0.6 - wx * 0.15,
+                  color: varyColor('#2b193d', wx, wy, 0, 0.03)
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'youmu') {
+          // Black side ribbon on right side of silver bob + Floating White Myon Ghost Orb!
+          for (let bx = -5; bx <= -2; bx++) {
+            addPlushVoxel(headVoxels, bx, 10.5, 2.2, '#1e293b');
+            addPlushVoxel(headVoxels, bx, 11.4, 1.8, '#1e293b');
+          }
+          // Glowing white Myon spirit orb floating beside her shoulder
+          for (let gx = -2; gx <= 2; gx++) {
+            for (let gy = -2; gy <= 2; gy++) {
+              for (let gz = -2; gz <= 2; gz++) {
+                if (gx * gx + gy * gy + gz * gz <= 4.5) {
+                  wingGlowVoxels.push({
+                    x: 6.5 + gx * 0.75,
+                    y: 4.5 + gy * 0.75,
+                    z: 2.0 + gz * 0.75,
+                    color: new THREE.Color('#f8fafc'),
+                    sx: 0.9, sy: 0.9, sz: 0.9
+                  });
+                }
+              }
+            }
+          }
+          // Myon tail wisp
+          wingGlowVoxels.push({ x: 8.2, y: 6.2, z: 1.5, color: new THREE.Color('#e2e8f0'), sx: 0.9, sy: 0.9, sz: 0.9 });
+        }
+
+        if (this.id === 'alice') {
+          // Red headband across her blonde hair
+          for (let hx = -6; hx <= 6; hx++) {
+            addPlushVoxel(headVoxels, hx, 11.2, 1.5 - Math.abs(hx) * 0.15, '#e11d48');
+            addPlushVoxel(headVoxels, hx, 11.8, 1.0 - Math.abs(hx) * 0.15, '#e11d48');
+          }
+        }
+
+        if (this.id === 'utsuho') {
+          // Long dark hair flowing down back + Big Green Bow on top-back of head
+          for (let hx = -4; hx <= 4; hx++) {
+            for (let hy = -3; hy <= 1; hy++) {
+              addPlushVoxel(headVoxels, hx, hy, -5.2, cfg.hairColor);
+            }
+          }
+          for (let bx = -6; bx <= 6; bx++) {
+            const h = Math.min(3, Math.floor(Math.abs(bx) * 0.65) + 1);
+            for (let by = -h; by <= h; by++) {
+              addPlushVoxel(headVoxels, bx, 11.5 + by * 0.75, -3.5, '#16a34a');
+            }
+          }
+          // Large Black Raven Wings + Starry Space Cape on Back!
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 7; wx++) {
+              const topY = 2.5 + Math.sin((wx / 7) * Math.PI) * 3.0;
+              for (let wy = -2; wy <= topY; wy++) {
+                wingSolidVoxels.push({
+                  x: side * wx, y: wy, z: -0.8 - wx * 0.12,
+                  color: varyColor('#18181b', wx, wy, 0, 0.03)
+                });
+              }
+            }
+          }
+          // Starry cape interior with glowing stars
+          for (let cx = -4; cx <= 4; cx++) {
+            for (let cy = -3; cy <= 2; cy++) {
+              const isStar = ((cx * 7 + cy * 13) % 5 === 0);
+              if (isStar) {
+                wingGlowVoxels.push({
+                  x: cx * 0.85, y: cy * 0.85, z: -0.2,
+                  color: new THREE.Color('#fde047'),
+                  sx: 0.7, sy: 0.7, sz: 0.5
+                });
+              } else {
+                wingSolidVoxels.push({
+                  x: cx * 0.85, y: cy * 0.85, z: -0.3,
+                  color: new THREE.Color('#1e1b4b'),
+                  sx: 0.9, sy: 0.9, sz: 0.4
+                });
+              }
+            }
+          }
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allFumoRaycastMeshes.push(m);
+          }
+          return m;
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        registerPart(wingSolidVoxels, this.wingsPivot);
+        if (wingGlowVoxels.length > 0) {
+          const wMat = (this.id === 'cirno') ? translucentIceMaterial : crystalWingMaterial;
+          registerPart(wingGlowVoxels, this.wingsPivot, wMat);
+        }
+      }
+
+      squeeze(strength = 1.0) {
+        this.wakeUp();
+        this.squash = Math.max(0.52, this.squash - 0.42 * strength);
+        this.squashVel = -3.5 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 11 * strength;
+        this.limbPitch = -0.65 * strength;
+        this.limbPitchVel = -6.0 * strength;
+        spawnSqueezeParticles(this.pos, this.accentColor);
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      resetToHome() {
+        this.zone = this.initialZone;
+        this.pos.copy(this.homePos);
+        this.vel.set(0, 0, 0);
+        this.yaw = this.homeYaw;
+        this.pitch = this.homePitch;
+        this.roll = this.homeRoll;
+        this.angVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.isSleeping = false;
+        this.sleepTimer = 0.0;
+        this.squeeze(0.75);
+      }
+
+      updateSoftSprings(dt, time) {
+        // 1. Volume-Preserving Squash & Stretch Spring
+        const squashStiff = 210.0;
+        const squashDamp = 11.5;
+        const squashForce = (1.0 - this.squash) * squashStiff - this.squashVel * squashDamp;
+        this.squashVel += squashForce * dt;
+        this.squash += this.squashVel * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash, 0.45, 1.55);
+
+        // 2. Oversized Head Wobble Spring
+        const headStiff = 140.0;
+        const headDamp = 7.5;
+        const idleHeadBob = this.isSleeping ? 0 : Math.sin(time * 2.2 + this.homePos.x) * 0.022;
+        this.headPitchVel += ((idleHeadBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        // 3. Dangling Limb Springs
+        const targetLimbPitch = (this.isDragged || !this.isGrounded) ? 0.58 : 0.0;
+        const limbStiff = 120.0;
+        const limbDamp = 8.0;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * limbStiff - this.limbPitchVel * limbDamp) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * limbStiff - this.limbRollVel * limbDamp) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.8, 0.9);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        // If stuck against the front glass inside the machine, add a hilarious slight front-to-back squish!
+        const glassSquishZ = (this.stuckAgainstGlass && this.zone === 'in_machine' && this.pos.z > 0.55) ? 0.84 : 1.0;
+        this.squashGroup.scale.set(sxz, sy, sxz * glassSquishZ);
+
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+
+        this.leftArmPivot.rotation.set(this.limbPitch, 0, 0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.rightArmPivot.rotation.set(this.limbPitch, 0, -0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+
+        const wingFlutter = Math.sin(time * 3.8 + this.homePos.x) * 0.05 + (1.0 - this.squash) * 0.35;
+        this.wingsPivot.rotation.x = wingFlutter;
+      }
+    }
+
+    // ============================================================================
+    // 8. SPAWN THE PRIZE PILE (INSIDE CLAW MACHINE) & UNEXPECTED OUTSIDE PLUSHIES
+    // ============================================================================
+    const fumoConfigs = [
+      // --- INSIDE CLAW MACHINE PRIZE PILE (9 Plushies) ---
+      {
+        id: 'cirno',
+        name: 'Cirno (Ice Fairy Fumo)',
+        emoji: '❄️',
+        accentColor: '#38bdf8',
+        hairColor: '#7dd3fc',
+        eyeColor: '#0284c7',
+        outfitMain: '#2563eb',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#1e3a8a',
+        hasWhiteApron: false,
+        zone: 'in_machine',
+        homePos: new THREE.Vector3(0.15, 2.80, -1.65),
+        homeYaw: 0.25,
+        pitchAudio: 1.15
+      },
+      {
+        id: 'reimu',
+        name: 'Reimu Hakurei (Miko Fumo)',
+        emoji: '⛩️',
+        accentColor: '#ef4444',
+        hairColor: '#2b1e23',
+        eyeColor: '#991b1b',
+        outfitMain: '#dc2626',
+        sleeveColor: '#ffffff',
+        tieColor: '#facc15',
+        shoeColor: '#451a03',
+        hasWhiteApron: false,
+        zone: 'in_machine',
+        homePos: new THREE.Vector3(1.35, 2.80, -1.85),
+        homeYaw: -0.45,
+        pitchAudio: 1.0
+      },
+      {
+        id: 'marisa',
+        name: 'Marisa Kirisame (Witch Fumo)',
+        emoji: '🌟',
+        accentColor: '#facc15',
+        hairColor: '#fde047',
+        eyeColor: '#ca8a04',
+        outfitMain: '#1f2937',
+        sleeveColor: '#ffffff',
+        tieColor: '#ffffff',
+        shoeColor: '#111827',
+        hasWhiteApron: true,
+        zone: 'in_machine',
+        homePos: new THREE.Vector3(-0.95, 2.80, -2.05),
+        homeYaw: 0.4,
+        pitchAudio: 0.96
+      },
+      {
+        id: 'remilia',
+        name: 'Remilia Scarlet (Vampire Fumo)',
+        emoji: '🦇',
+        accentColor: '#fb7185',
+        hairColor: '#a5b4fc',
+        eyeColor: '#e11d48',
+        outfitMain: '#ffe4e6',
+        sleeveColor: '#ffe4e6',
+        tieColor: '#be123c',
+        shoeColor: '#4c0519',
+        hasWhiteApron: false,
+        zone: 'in_machine',
+        homePos: new THREE.Vector3(0.35, 2.80, -0.45),
+        homeYaw: -0.15,
+        pitchAudio: 1.08
+      },
+      {
+        id: 'flandre',
+        name: 'Flandre Scarlet (Crystal Wings Fumo)',
+        emoji: '🌈',
+        accentColor: '#f43f5e',
+        hairColor: '#fef08a',
+        eyeColor: '#dc2626',
+        outfitMain: '#e11d48',
+        sleeveColor: '#ffffff',
+        tieColor: '#fde047',
+        shoeColor: '#881337',
+        hasWhiteApron: false,
+        zone: 'in_machine',
+        homePos: new THREE.Vector3(1.45, 2.80, -0.45),
+        homeYaw: -0.55,
+        pitchAudio: 1.22
+      },
+      {
+        id: 'youmu',
+        name: 'Youmu Konpaku (Half-Phantom Fumo)',
+        emoji: '⚔️',
+        accentColor: '#34d399',
+        hairColor: '#e2e8f0',
+        eyeColor: '#0f766e',
+        outfitMain: '#047857',
+        sleeveColor: '#ffffff',
+        tieColor: '#1e293b',
+        shoeColor: '#064e3b',
+        hasWhiteApron: false,
+        zone: 'in_machine',
+        homePos: new THREE.Vector3(-0.35, 3.85, -1.35),
+        homeYaw: 0.18,
+        pitchAudio: 1.05
+      },
+      {
+        id: 'alice',
+        name: 'Alice Margatroid (Puppeteer Fumo)',
+        emoji: '🪆',
+        accentColor: '#60a5fa',
+        hairColor: '#fde047',
+        eyeColor: '#1d4ed8',
+        outfitMain: '#2563eb',
+        sleeveColor: '#ffffff',
+        tieColor: '#f43f5e',
+        shoeColor: '#1e3a8a',
+        hasWhiteApron: true,
+        zone: 'in_machine',
+        homePos: new THREE.Vector3(0.85, 3.85, -1.15),
+        homeYaw: -0.25,
+        pitchAudio: 1.02
+      },
+      {
+        id: 'utsuho',
+        name: 'Utsuho Reiuji (Nuclear Raven Fumo)',
+        emoji: '☢️',
+        accentColor: '#f97316',
+        hairColor: '#27201c',
+        eyeColor: '#b91c1c',
+        outfitMain: '#15803d',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#1c1917',
+        hasWhiteApron: false,
+        zone: 'in_machine',
+        homePos: new THREE.Vector3(-1.35, 2.80, -1.25),
+        homeYaw: 0.55,
+        pitchAudio: 0.88
+      },
+      {
+        // UNEXPECTED SPOT 1: Cirno Twin hilariously pressed/stuck right against the front glass of the claw machine!
+        id: 'cirno',
+        name: 'Glass-Squished Cirno Fumo!',
+        emoji: '🧊',
+        accentColor: '#38bdf8',
+        hairColor: '#7dd3fc',
+        eyeColor: '#0284c7',
+        outfitMain: '#2563eb',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#1e3a8a',
+        hasWhiteApron: false,
+        zone: 'in_machine',
+        stuckAgainstGlass: true,
+        homePos: new THREE.Vector3(0.85, 3.35, 0.85),
+        homeYaw: 0.05,
+        homePitch: 0.28,
+        pitchAudio: 1.25
+      },
+
+      // --- UNEXPECTED PLUSHIES OUTSIDE IN THE ARCADE (Click to Squeeze / Drag to Throw!) ---
+      {
+        // UNEXPECTED SPOT 2: Marisa Fumo sitting on the arcade stool playing the Danmaku Arcade Cabinet!
+        id: 'marisa',
+        name: 'Gamer Marisa Fumo (At Cabinet)',
+        emoji: '🕹️',
+        accentColor: '#facc15',
+        hairColor: '#fde047',
+        eyeColor: '#ca8a04',
+        outfitMain: '#1f2937',
+        sleeveColor: '#ffffff',
+        tieColor: '#ffffff',
+        shoeColor: '#111827',
+        hasWhiteApron: true,
+        zone: 'outside',
+        homePos: new THREE.Vector3(-8.35, 1.65, -6.55),
+        homeYaw: Math.PI,
+        pitchAudio: 0.98
+      },
+      {
+        // UNEXPECTED SPOT 3: Utsuho Fumo dancing on the DDR Dance Stage!
+        id: 'utsuho',
+        name: 'DDR Dancer Okuu Fumo',
+        emoji: '💃',
+        accentColor: '#f97316',
+        hairColor: '#27201c',
+        eyeColor: '#b91c1c',
+        outfitMain: '#15803d',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#1c1917',
+        hasWhiteApron: false,
+        zone: 'outside',
+        homePos: new THREE.Vector3(-6.45, 0.50, 3.25),
+        homeYaw: Math.PI,
+        pitchAudio: 0.90
+      },
+      {
+        // UNEXPECTED SPOT 4: Reimu Fumo presiding over the Ticket Counter!
+        id: 'reimu',
+        name: 'Shopkeeper Reimu Fumo (Ticket Counter)',
+        emoji: '🎟️',
+        accentColor: '#ef4444',
+        hairColor: '#2b1e23',
+        eyeColor: '#991b1b',
+        outfitMain: '#dc2626',
+        sleeveColor: '#ffffff',
+        tieColor: '#facc15',
+        shoeColor: '#451a03',
+        hasWhiteApron: false,
+        zone: 'outside',
+        homePos: new THREE.Vector3(7.50, 3.00, -5.65),
+        homeYaw: -0.35,
+        pitchAudio: 1.04
+      },
+      {
+        // UNEXPECTED SPOT 5: Alice Fumo peeking out from under the Photo Booth curtain!
+        id: 'alice',
+        name: 'Photo Booth Alice Fumo',
+        emoji: '📸',
+        accentColor: '#60a5fa',
+        hairColor: '#fde047',
+        eyeColor: '#1d4ed8',
+        outfitMain: '#2563eb',
+        sleeveColor: '#ffffff',
+        tieColor: '#f43f5e',
+        shoeColor: '#1e3a8a',
+        hasWhiteApron: true,
+        zone: 'outside',
+        homePos: new THREE.Vector3(6.85, 0.0, 2.45),
+        homeYaw: -1.35,
+        pitchAudio: 1.10
+      }
+    ];
+
+    fumoConfigs.forEach(cfg => {
+      fumos.push(new VoxelFumo(cfg));
+    });
+
+    // ============================================================================
+    // 9. PLAYABLE CHROME CLAW MECHANISM & SPRING GRIP CONSTRAINT
+    // ============================================================================
+    let prizesWonCount = 0;
+    const prizeCountEl = document.getElementById('prize-count');
+    const clawStatusTextEl = document.getElementById('claw-status-text');
+
+    const clawSystem = {
+      state: 'IDLE', // 'IDLE' | 'DROPPING' | 'CLOSING' | 'ASCENDING' | 'RETURNING' | 'RELEASING'
+      stateTimer: 0,
+      x: 0.25,
+      z: -1.25,
+      y: CLAW_BOUNDS.ceilingY,
+      openAngle: 0.62, // Prong open angle in radians
+      inputX: 0,
+      inputZ: 0,
+      // Spring Grip Joint with maximum force threshold so it can hold or slip!
+      gripTarget: null,
+      gripLocalOffset: new THREE.Vector3(0, 0.55, 0),
+      gripStiffness: 195.0,
+      gripDamping: 16.5,
+      maxGripForce: 70.5, // Force threshold; heavy/wedged/off-center grabs can exceed this and slip!
+      gripQuality: 1.5,
+      slipAccumulator: 0.0,
+
+      // Scene Objects
+      gantryRailZ: new THREE.Group(),
+      carriageGroup: new THREE.Group(),
+      cableMesh: null,
+      clawHeadGroup: new THREE.Group(),
+      prongs: [],
+      joystickPivot: new THREE.Group()
+    };
+
+    function buildClawMechanismVisuals() {
+      // 1. Moving Bridge Rail across X inside top of cabinet (Y = 8.35)
+      const railVoxels = [];
+      for (let x = -20; x <= 20; x++) {
+        pushVoxel(railVoxels, x * 0.5, 0, 0, '#cbd5e1', 0.01, 0.6, 0.6, 0.6);
+      }
+      const railMesh = buildVoxelInstancedMesh(railVoxels, 0.22, chromeMaterial, false, false);
+      clawSystem.gantryRailZ.position.set(0, 8.35, clawSystem.z);
+      if (railMesh) clawSystem.gantryRailZ.add(railMesh);
+      scene.add(clawSystem.gantryRailZ);
+
+      // 2. Overhead Carriage Box
+      const carVoxels = [];
+      for (let x = -2; x <= 2; x++) {
+        for (let z = -2; z <= 2; z++) {
+          pushVoxel(carVoxels, x, 0, z, '#f72585', 0.02);
+        }
+      }
+      const carMesh = buildVoxelInstancedMesh(carVoxels, 0.14, arcadeSolidMaterial, false, false);
+      if (carMesh) clawSystem.carriageGroup.add(carMesh);
+      scene.add(clawSystem.carriageGroup);
+
+      // 3. Spooling Cable Cylinder
+      const cableGeom = new THREE.BoxGeometry(0.07, 1.0, 0.07);
+      clawSystem.cableMesh = new THREE.Mesh(cableGeom, chromeMaterial);
+      scene.add(clawSystem.cableMesh);
+
+      // 4. Chrome Claw Hub + 3 Articulated Prongs
+      const hubVoxels = [];
+      for (let x = -1; x <= 1; x++) {
+        for (let z = -1; z <= 1; z++) {
+          pushVoxel(hubVoxels, x, 0, z, '#e2e8f0', 0.01);
+          pushVoxel(hubVoxels, x * 0.7, 1.0, z * 0.7, '#38bdf8', 0.01);
+        }
+      }
+      const hubMesh = buildVoxelInstancedMesh(hubVoxels, 0.12, chromeMaterial, true, false);
+      if (hubMesh) clawSystem.clawHeadGroup.add(hubMesh);
+
+      // 3 Curved Voxel Prongs arranged at 120-degree intervals
+      for (let p = 0; p < 3; p++) {
+        const angleY = (p / 3) * Math.PI * 2;
+        const prongMount = new THREE.Group();
+        prongMount.rotation.y = angleY;
+        const prongPivot = new THREE.Group();
+        prongPivot.position.set(0.18, -0.05, 0);
+        prongMount.add(prongPivot);
+
+        const pVoxels = [];
+        // Upper outward strut
+        for (let i = 0; i < 4; i++) {
+          pushVoxel(pVoxels, i * 0.65, -i * 0.75, 0, '#e2e8f0', 0.01, 0.9, 1.1, 0.8);
+        }
+        // Lower inward curved hook tip
+        for (let i = 0; i < 4; i++) {
+          const tipCol = (i === 3) ? '#f72585' : '#cbd5e1'; // Rubberized pink grip pads at tips
+          pushVoxel(pVoxels, 1.95 - i * 0.55, -2.8 - i * 0.75, 0, tipCol, 0.01, 0.9, 1.1, 0.9);
+        }
+        const pMesh = buildVoxelInstancedMesh(pVoxels, 0.095, chromeMaterial, true, false);
+        if (pMesh) prongPivot.add(pMesh);
+
+        clawSystem.clawHeadGroup.add(prongMount);
+        clawSystem.prongs.push(prongPivot);
+      }
+      scene.add(clawSystem.clawHeadGroup);
+
+      // 5. Animated Arcade Joystick on the Front Control Panel (X = 0.25, Y = 2.75, Z = 2.0)
+      clawSystem.joystickPivot.position.set(0.25, 2.75, 2.0);
+      const stickVoxels = [
+        { x: 0, y: 1, z: 0, color: new THREE.Color('#cbd5e1'), sx: 0.6, sy: 2.2, sz: 0.6 },
+        { x: 0, y: 2.6, z: 0, color: new THREE.Color('#ff2a85'), sx: 1.7, sy: 1.7, sz: 1.7 }
+      ];
+      const stickMesh = buildVoxelInstancedMesh(stickVoxels, 0.11, neonPinkMaterial, false, false);
+      if (stickMesh) clawSystem.joystickPivot.add(stickMesh);
+      scene.add(clawSystem.joystickPivot);
+    }
+
+    buildClawMechanismVisuals();
+
+    function triggerClawDrop() {
+      if (clawSystem.state !== 'IDLE') return;
+      recordInteraction();
+      clawSystem.state = 'DROPPING';
+      clawSystem.stateTimer = 0;
+      clawSystem.gripTarget = null;
+      clawSystem.slipAccumulator = 0;
+      soundFX.playClawServo(300, 0.12);
+      clawStatusTextEl.textContent = 'Dropping claw...';
+    }
+
+    // Attempt to grab the closest plushie inside the claw reach when prongs close
+    function attemptClawGrab() {
+      const tipPos = new THREE.Vector3(clawSystem.x, clawSystem.y - 0.52, clawSystem.z);
+      let bestFumo = null;
+      let bestDist = 0.92; // Max grab radius
+
+      for (let i = 0; i < fumos.length; i++) {
+        const f = fumos[i];
+        if (f.zone !== 'in_machine') continue;
+        const headCenter = new THREE.Vector3(f.pos.x, f.pos.y + 0.55 * f.scaleFactor, f.pos.z);
+        const dist = tipPos.distanceTo(headCenter);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestFumo = f;
+        }
+      }
+
+      if (bestFumo) {
+        bestFumo.wakeUp();
+        // Wake nearby plushies in the pile so the pile shifts as this one is pulled!
+        fumos.forEach(other => {
+          if (other.zone === 'in_machine' && other.pos.distanceTo(bestFumo.pos) < 1.8) {
+            other.wakeUp();
+          }
+        });
+
+        clawSystem.gripTarget = bestFumo;
+        clawSystem.slipAccumulator = 0;
+        // Horizontal alignment determines how solid the claw's grip is!
+        // Well-centered grabs hold strongly; off-center grabs have lower effective max force and can fumble!
+        const horizMisalign = Math.hypot(clawSystem.x - bestFumo.pos.x, clawSystem.z - bestFumo.pos.z);
+        clawSystem.gripQuality = THREE.MathUtils.clamp(1.18 - horizMisalign * 1.15, 0.42, 1.15);
+
+        bestFumo.squashVel -= 2.5;
+        soundFX.playSqueeze(bestFumo.pitchAudio);
+        updateUIBadge(bestFumo, 'Grabbed by Claw!');
+        clawStatusTextEl.textContent = `Grabbed ${bestFumo.name}! Lifting...`;
+      } else {
+        clawStatusTextEl.textContent = 'Missed! Returning claw...';
+      }
+    }
+
+    // ============================================================================
+    // 10. FIXED-STEP STRICTER PHYSICS SOLVER (8 ITERATIONS, SLEEPING, GRIP JOINT)
+    // ============================================================================
+    const FIXED_DT = 1 / 60;
+    const SOLVER_ITERATIONS = 8;
+    let physicsAccumulator = 0.0;
+
+    function stepClawAndPhysicsFixed(dt, time) {
+      // ----------------------------------------------------------------------
+      // A. FIXED-STEP CLAW STATE MACHINE & MOTION
+      // ----------------------------------------------------------------------
+      clawSystem.stateTimer += dt;
+      const moveSpeed = 2.65;
+
+      if (clawSystem.state === 'IDLE') {
+        if (clawSystem.inputX !== 0 || clawSystem.inputZ !== 0) {
+          recordInteraction();
+          clawSystem.x = THREE.MathUtils.clamp(
+            clawSystem.x + clawSystem.inputX * moveSpeed * dt,
+            CLAW_BOUNDS.minX + 0.25,
+            CLAW_BOUNDS.maxX - 0.25
+          );
+          clawSystem.z = THREE.MathUtils.clamp(
+            clawSystem.z + clawSystem.inputZ * moveSpeed * dt,
+            CLAW_BOUNDS.minZ + 0.25,
+            CLAW_BOUNDS.maxZ - 0.25
+          );
+        }
+        clawSystem.y = THREE.MathUtils.lerp(clawSystem.y, CLAW_BOUNDS.ceilingY, dt * 10);
+        clawSystem.openAngle = THREE.MathUtils.lerp(clawSystem.openAngle, 0.58, dt * 10);
+      }
+      else if (clawSystem.state === 'DROPPING') {
+        clawSystem.openAngle = THREE.MathUtils.lerp(clawSystem.openAngle, 0.72, dt * 12);
+        clawSystem.y -= 3.1 * dt;
+
+        // Check if claw tips touched a plushie in the pile or reached the prize floor
+        let hitPile = false;
+        const tipY = clawSystem.y - 0.52;
+        for (let i = 0; i < fumos.length; i++) {
+          const f = fumos[i];
+          if (f.zone !== 'in_machine') continue;
+          const hDist = Math.hypot(clawSystem.x - f.pos.x, clawSystem.z - f.pos.z);
+          if (hDist < f.radius * 0.92 && tipY <= f.pos.y + f.radius * 1.35) {
+            hitPile = true;
+            f.wakeUp();
+            f.squashVel -= 1.8;
+            break;
+          }
+        }
+
+        if (hitPile || clawSystem.y <= CLAW_BOUNDS.floorY + 0.82) {
+          clawSystem.state = 'CLOSING';
+          clawSystem.stateTimer = 0;
+          soundFX.playClawServo(190, 0.14);
+        }
+      }
+      else if (clawSystem.state === 'CLOSING') {
+        clawSystem.openAngle = THREE.MathUtils.lerp(clawSystem.openAngle, 0.12, dt * 9);
+        if (clawSystem.stateTimer >= 0.42) {
+          attemptClawGrab();
+          clawSystem.state = 'ASCENDING';
+          clawSystem.stateTimer = 0;
+        }
+      }
+      else if (clawSystem.state === 'ASCENDING') {
+        const targetClose = clawSystem.gripTarget ? 0.22 : 0.08;
+        clawSystem.openAngle = THREE.MathUtils.lerp(clawSystem.openAngle, targetClose, dt * 10);
+        clawSystem.y += 2.65 * dt;
+
+        if (clawSystem.y >= CLAW_BOUNDS.ceilingY) {
+          clawSystem.y = CLAW_BOUNDS.ceilingY;
+          // Small mechanical stop jolt at top of ascent (tests the spring grip!)
+          if (clawSystem.gripTarget) {
+            clawSystem.gripTarget.vel.y -= 1.35;
+          }
+          clawSystem.state = 'RETURNING';
+          clawSystem.stateTimer = 0;
+          soundFX.playClawServo(260, 0.12);
+        }
+      }
+      else if (clawSystem.state === 'RETURNING') {
+        const dx = CLAW_BOUNDS.chuteCenterX - clawSystem.x;
+        const dz = CLAW_BOUNDS.chuteCenterZ - clawSystem.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist > 0.06) {
+          const step = Math.min(dist, moveSpeed * 1.05 * dt);
+          clawSystem.x += (dx / dist) * step;
+          clawSystem.z += (dz / dist) * step;
+        } else {
+          clawSystem.x = CLAW_BOUNDS.chuteCenterX;
+          clawSystem.z = CLAW_BOUNDS.chuteCenterZ;
+          clawSystem.state = 'RELEASING';
+          clawSystem.stateTimer = 0;
+          soundFX.playClawServo(340, 0.12);
+        }
+      }
+      else if (clawSystem.state === 'RELEASING') {
+        clawSystem.openAngle = THREE.MathUtils.lerp(clawSystem.openAngle, 0.72, dt * 12);
+        if (clawSystem.gripTarget) {
+          const dropped = clawSystem.gripTarget;
+          dropped.wakeUp();
+          dropped.vel.y = Math.min(dropped.vel.y, -0.5);
+          clawSystem.gripTarget = null;
+          clawStatusTextEl.textContent = 'Dropped into the prize chute!';
+        }
+        if (clawSystem.stateTimer >= 0.55) {
+          clawSystem.state = 'IDLE';
+          clawSystem.stateTimer = 0;
+          clawStatusTextEl.textContent = 'Arrows / WASD to aim • Space to drop claw';
+        }
+      }
+
+      // ----------------------------------------------------------------------
+      // B. SPRING GRIP JOINT CONSTRAINT (With Maximum Force / Slippage)
+      // ----------------------------------------------------------------------
+      if (clawSystem.gripTarget) {
+        const f = clawSystem.gripTarget;
+        f.wakeUp();
+
+        const clawAnchor = new THREE.Vector3(clawSystem.x, clawSystem.y - 0.50, clawSystem.z);
+        const fumoAttach = new THREE.Vector3(
+          f.pos.x,
+          f.pos.y + clawSystem.gripLocalOffset.y * f.scaleFactor,
+          f.pos.z
+        );
+
+        const stretchVec = clawAnchor.clone().sub(fumoAttach);
+        const stretchDist = stretchVec.length();
+
+        // Spring-damper force: F = k * x - c * v
+        const springForce = stretchVec.clone()
+          .multiplyScalar(clawSystem.gripStiffness)
+          .addScaledVector(f.vel, -clawSystem.gripDamping);
+
+        const forceMag = springForce.length();
+        const effectiveMaxForce = clawSystem.maxGripForce * clawSystem.gripQuality;
+
+        // Check if tension exceeds grip limit or if plushie was pulled too far from prongs
+        if (forceMag > effectiveMaxForce) {
+          springForce.multiplyScalar(effectiveMaxForce / forceMag);
+          clawSystem.slipAccumulator += (forceMag - effectiveMaxForce) * dt;
+        } else {
+          clawSystem.slipAccumulator = Math.max(0, clawSystem.slipAccumulator - 4.0 * dt);
+        }
+
+        if (stretchDist > 0.82 || clawSystem.slipAccumulator > 2.6) {
+          // FUMBLED / SLIPPED FROM CLAW!
+          f.vel.y = Math.min(f.vel.y, -1.0);
+          f.angVel.set((Math.random() - 0.5) * 4.5, (Math.random() - 0.5) * 3.0, (Math.random() - 0.5) * 4.5);
+          f.squashVel -= 2.2;
+          soundFX.playBounce(0.6);
+          updateUIBadge(f, 'Slipped from Claw!');
+          clawStatusTextEl.textContent = `Oh no! ${f.name} slipped from the claw!`;
+          clawSystem.gripTarget = null;
+        } else {
+          // Apply spring acceleration to the grabbed plushie
+          f.vel.addScaledVector(springForce, dt);
+          f.vel.multiplyScalar(0.92);
+          // Dangle swing while carried
+          f.limbPitch = 0.65;
+          f.headRollVel += (clawAnchor.x - f.pos.x) * 8.0 * dt;
+          f.headPitchVel += (clawAnchor.z - f.pos.z) * 8.0 * dt;
+          f.pitch = THREE.MathUtils.lerp(f.pitch, THREE.MathUtils.clamp((clawAnchor.z - f.pos.z) * 1.6, -0.35, 0.35), 0.25);
+          f.roll = THREE.MathUtils.lerp(f.roll, THREE.MathUtils.clamp(-(clawAnchor.x - f.pos.x) * 1.6, -0.35, 0.35), 0.25);
+        }
+      }
+
+      // Sync Claw Visual Meshes
+      clawSystem.gantryRailZ.position.z = clawSystem.z;
+      clawSystem.carriageGroup.position.set(clawSystem.x, 8.35, clawSystem.z);
+      clawSystem.clawHeadGroup.position.set(clawSystem.x, clawSystem.y, clawSystem.z);
+      const cableLen = Math.max(0.05, 8.35 - clawSystem.y);
+      clawSystem.cableMesh.scale.y = cableLen;
+      clawSystem.cableMesh.position.set(clawSystem.x, clawSystem.y + cableLen * 0.5, clawSystem.z);
+      for (let p = 0; p < 3; p++) {
+        clawSystem.prongs[p].rotation.z = clawSystem.openAngle;
+      }
+      // Tilt control panel joystick with user input
+      clawSystem.joystickPivot.rotation.z = THREE.MathUtils.lerp(clawSystem.joystickPivot.rotation.z, -clawSystem.inputX * 0.38, dt * 15);
+      clawSystem.joystickPivot.rotation.x = THREE.MathUtils.lerp(clawSystem.joystickPivot.rotation.x, clawSystem.inputZ * 0.38, dt * 15);
+
+      // ----------------------------------------------------------------------
+      // C. INTEGRATE VELOCITIES FOR AWAKE PLUSHIES
+      // ----------------------------------------------------------------------
+      for (let i = 0; i < fumos.length; i++) {
+        const f = fumos[i];
+        f.updateSoftSprings(dt, time);
+
+        if (f.isDragged) continue;
+
+        if (f.zone === 'chute_falling') {
+          // Falling down the prize chute & popping out the front flap into the arcade!
+          f.vel.y -= 22.0 * dt;
+          f.pos.addScaledVector(f.vel, dt);
+          f.yaw += f.angVel.y * dt;
+          f.pitch += f.angVel.x * dt;
+
+          if (f.pos.y <= 0.85) {
+            // Pop out the front dispense bay into the room!
+            f.zone = 'outside';
+            f.pos.set(CLAW_BOUNDS.chuteCenterX, 0.9, 2.15);
+            f.vel.set((Math.random() - 0.5) * 2.2, 4.5, 5.2 + Math.random() * 1.5);
+            f.angVel.set(2.5, (Math.random() - 0.5) * 3.0, 0);
+            f.squeeze(1.15);
+
+            prizesWonCount++;
+            prizeCountEl.textContent = String(prizesWonCount);
+            spawnPrizeWinCelebration(f.pos);
+            soundFX.playWinFanfare();
+            updateUIBadge(f, 'WON PRIZE! 🎉');
+            clawStatusTextEl.textContent = `🎉 You won ${f.name}! Click or drag it in the arcade!`;
+          }
+          continue;
+        }
+
+        // Skip integration if sleeping in the settled prize pile
+        if (f.zone === 'in_machine' && f.isSleeping && clawSystem.gripTarget !== f) {
+          f.vel.set(0, 0, 0);
+          f.angVel.set(0, 0, 0);
+          continue;
+        }
+
+        // Apply Gravity & Damping
+        f.vel.y -= 23.0 * dt;
+        f.vel.multiplyScalar(Math.pow(0.982, dt * 60));
+        f.pos.addScaledVector(f.vel, dt);
+
+        f.yaw += f.angVel.y * dt;
+        f.pitch += f.angVel.x * dt;
+        f.roll += f.angVel.z * dt;
+        f.angVel.multiplyScalar(Math.pow(0.90, dt * 60));
+        f.isGrounded = false;
+      }
+
+      // ----------------------------------------------------------------------
+      // D. 8-ITERATION STRICTER CONSTRAINT & COLLISION SOLVER
+      // ----------------------------------------------------------------------
+      for (let iter = 0; iter < SOLVER_ITERATIONS; iter++) {
+        // 1. Plushie-to-Plushie Collisions (Pile stacking & outside collisions)
+        for (let i = 0; i < fumos.length; i++) {
+          for (let j = i + 1; j < fumos.length; j++) {
+            const a = fumos[i];
+            const b = fumos[j];
+            if (a.zone === 'chute_falling' || b.zone === 'chute_falling') continue;
+            if (a.zone !== b.zone) continue;
+            if (a.isSleeping && b.isSleeping && !a.isDragged && !b.isDragged) continue;
+
+            const minDist = (a.radius + b.radius) * 0.78;
+            const dx = b.pos.x - a.pos.x;
+            const dy = (b.pos.y + b.radius * 0.58) - (a.pos.y + a.radius * 0.58);
+            const dz = b.pos.z - a.pos.z;
+            const distSq = dx * dx + dy * dy + dz * dz;
+
+            if (distSq < minDist * minDist && distSq > 0.00001) {
+              const dist = Math.sqrt(distSq);
+              const nx = dx / dist;
+              const ny = dy / dist;
+              const nz = dz / dist;
+              const overlap = (minDist - dist);
+
+              // Wake sleeping neighbor if hit with noticeable velocity
+              const rvx = b.vel.x - a.vel.x;
+              const rvy = b.vel.y - a.vel.y;
+              const rvz = b.vel.z - a.vel.z;
+              const relSpeed = Math.hypot(rvx, rvy, rvz);
+              if (relSpeed > 0.35) {
+                a.wakeUp();
+                b.wakeUp();
+              }
+
+              const weightA = (a.isDragged || a.isSleeping) ? 0.0 : (b.isDragged || b.isSleeping ? 1.0 : 0.5);
+              const weightB = 1.0 - weightA;
+
+              if (weightA > 0) {
+                a.pos.x -= nx * overlap * weightA;
+                a.pos.y -= ny * overlap * weightA;
+                a.pos.z -= nz * overlap * weightA;
+                if (ny < -0.45) a.isGrounded = true;
+              }
+              if (weightB > 0) {
+                b.pos.x += nx * overlap * weightB;
+                b.pos.y += ny * overlap * weightB;
+                b.pos.z += nz * overlap * weightB;
+                if (ny > 0.45) b.isGrounded = true;
+              }
+
+              const vn = rvx * nx + rvy * ny + rvz * nz;
+              if (vn < 0) {
+                const restitution = (iter === 0 && relSpeed > 1.8) ? 0.28 : 0.0;
+                const imp = -(1.0 + restitution) * vn;
+                if (weightA > 0) {
+                  a.vel.x -= imp * nx * weightA;
+                  a.vel.y -= imp * ny * weightA;
+                  a.vel.z -= imp * nz * weightA;
+                  // Tangential friction so pile settles stably
+                  a.vel.x *= 0.96;
+                  a.vel.z *= 0.96;
+                }
+                if (weightB > 0) {
+                  b.vel.x += imp * nx * weightB;
+                  b.vel.y += imp * ny * weightB;
+                  b.vel.z += imp * nz * weightB;
+                  b.vel.x *= 0.96;
+                  b.vel.z *= 0.96;
+                }
+                if (iter === 0 && imp > 1.8) {
+                  a.squashVel -= Math.min(4.0, imp * 0.45);
+                  b.squashVel -= Math.min(4.0, imp * 0.45);
+                  soundFX.playBounce(imp * 0.06);
+                }
+              }
+            }
+          }
+        }
+
+        // 2. Boundary & Environment Collisions per Zone
+        for (let i = 0; i < fumos.length; i++) {
+          const f = fumos[i];
+          if (f.isDragged || f.zone === 'chute_falling') continue;
+
+          if (f.zone === 'in_machine') {
+            // Check if plushie is over the open Prize Chute Hole!
+            const inChuteHole = (
+              f.pos.x >= CLAW_BOUNDS.chuteMinX &&
+              f.pos.x <= CLAW_BOUNDS.chuteMaxX &&
+              f.pos.z >= CLAW_BOUNDS.chuteMinZ &&
+              f.pos.z <= CLAW_BOUNDS.chuteMaxZ
+            );
+
+            // Chute Interior Guard Wall (height Y = 2.75..3.85) prevents floor plushies from sliding in unless lifted over!
+            const guardMaxX = CLAW_BOUNDS.chuteMaxX + 0.12;
+            const guardMinZ = CLAW_BOUNDS.chuteMinZ - 0.12;
+            if (!inChuteHole && f.pos.y < 3.72) {
+              if (f.pos.z > guardMinZ && f.pos.x < guardMaxX + f.radius * 0.45 && f.pos.x > guardMaxX - 0.3) {
+                f.pos.x = guardMaxX + f.radius * 0.45;
+                if (f.vel.x < 0) f.vel.x *= -0.3;
+              }
+              if (f.pos.x < guardMaxX && f.pos.z > guardMinZ - f.radius * 0.45 && f.pos.z < guardMinZ + 0.3) {
+                f.pos.z = guardMinZ - f.radius * 0.45;
+                if (f.vel.z > 0) f.vel.z *= -0.3;
+              }
+            }
+
+            if (inChuteHole && clawSystem.gripTarget !== f && f.pos.y < 3.65) {
+              // Fell into the Prize Chute!
+              f.zone = 'chute_falling';
+              f.isSleeping = false;
+              f.pos.x = CLAW_BOUNDS.chuteCenterX;
+              f.pos.z = CLAW_BOUNDS.chuteCenterZ;
+              f.vel.set(0, -3.5, 0);
+              continue;
+            }
+
+            // Prize Deck Floor Collision (Y = 2.75)
+            if (!inChuteHole && f.pos.y < CLAW_BOUNDS.floorY) {
+              const impact = -f.vel.y;
+              f.pos.y = CLAW_BOUNDS.floorY;
+              if (iter === 0 && impact > 2.0) {
+                f.vel.y = impact * 0.28;
+                f.squashVel -= Math.min(7.5, impact * 0.75);
+                soundFX.playBounce(impact * 0.07);
+              } else {
+                f.vel.y = 0;
+                f.isGrounded = true;
+              }
+              f.vel.x *= 0.85;
+              f.vel.z *= 0.85;
+            }
+
+            // 4 Glass Walls of the Claw Machine
+            const rMargin = f.radius * 0.58;
+            if (f.pos.x < CLAW_BOUNDS.minX + rMargin) {
+              f.pos.x = CLAW_BOUNDS.minX + rMargin;
+              if (f.vel.x < 0) f.vel.x *= -0.3;
+            } else if (f.pos.x > CLAW_BOUNDS.maxX - rMargin) {
+              f.pos.x = CLAW_BOUNDS.maxX - rMargin;
+              if (f.vel.x > 0) f.vel.x *= -0.3;
+            }
+            if (f.pos.z < CLAW_BOUNDS.minZ + rMargin) {
+              f.pos.z = CLAW_BOUNDS.minZ + rMargin;
+              if (f.vel.z < 0) f.vel.z *= -0.3;
+            } else if (f.pos.z > CLAW_BOUNDS.maxZ - rMargin) {
+              f.pos.z = CLAW_BOUNDS.maxZ - rMargin;
+              if (f.vel.z > 0) f.vel.z *= -0.3;
+            }
+          }
+          else if (f.zone === 'outside') {
+            // Arcade Carpet Floor (Y = 0)
+            if (f.pos.y < 0) {
+              const impact = -f.vel.y;
+              f.pos.y = 0;
+              if (iter === 0 && impact > 1.8) {
+                f.vel.y = impact * 0.40;
+                f.squashVel -= Math.min(9.0, impact * 0.90);
+                f.headPitchVel += (Math.random() - 0.5) * impact * 2.0;
+                soundFX.playBounce(impact * 0.08);
+              } else {
+                f.vel.y = 0;
+                f.isGrounded = true;
+              }
+              f.vel.x *= 0.84;
+              f.vel.z *= 0.84;
+            }
+
+            // Room Outer Bounds
+            const minB = -9.6;
+            const maxB = 9.6;
+            if (f.pos.x < minB) { f.pos.x = minB; f.vel.x = Math.abs(f.vel.x) * 0.45; }
+            if (f.pos.x > maxB) { f.pos.x = maxB; f.vel.x = -Math.abs(f.vel.x) * 0.45; }
+            if (f.pos.z < -9.1) { f.pos.z = -9.1; f.vel.z = Math.abs(f.vel.z) * 0.45; }
+            if (f.pos.z > maxB) { f.pos.z = maxB; f.vel.z = -Math.abs(f.vel.z) * 0.45; }
+
+            // Arcade Cabinets, Counter, DDR Pad, Claw Machine Cabinet AABB Collisions
+            const r = f.radius * 0.72;
+            const centerY = f.pos.y + r;
+
+            for (let k = 0; k < furnitureColliders.length; k++) {
+              const box = furnitureColliders[k];
+              const cx = THREE.MathUtils.clamp(f.pos.x, box.min.x, box.max.x);
+              const cy = THREE.MathUtils.clamp(centerY, box.min.y, box.max.y);
+              const cz = THREE.MathUtils.clamp(f.pos.z, box.min.z, box.max.z);
+
+              const dx = f.pos.x - cx;
+              const dy = centerY - cy;
+              const dz = f.pos.z - cz;
+              const distSq = dx * dx + dy * dy + dz * dz;
+
+              if (distSq < r * r) {
+                const dist = Math.sqrt(distSq);
+                if (centerY >= box.max.y - 0.25 && f.vel.y <= 0.5) {
+                  const impact = -f.vel.y;
+                  f.pos.y = box.max.y;
+                  if (iter === 0 && impact > 2.0) {
+                    f.vel.y = impact * 0.36;
+                    f.squashVel -= Math.min(8.0, impact * 0.80);
+                    soundFX.playBounce(impact * 0.08);
+                  } else {
+                    f.vel.y = 0;
+                    f.isGrounded = true;
+                  }
+                  f.vel.x *= 0.82;
+                  f.vel.z *= 0.82;
+                } else if (dist > 0.0001) {
+                  const nx = dx / dist;
+                  const ny = dy / dist;
+                  const nz = dz / dist;
+                  const pen = r - dist;
+                  f.pos.x += nx * pen;
+                  f.pos.y = Math.max(0, f.pos.y + ny * pen);
+                  f.pos.z += nz * pen;
+
+                  const vn = f.vel.x * nx + f.vel.y * ny + f.vel.z * nz;
+                  if (vn < 0) {
+                    const imp = -vn;
+                    f.vel.x -= 1.38 * vn * nx;
+                    f.vel.y -= 1.38 * vn * ny;
+                    f.vel.z -= 1.38 * vn * nz;
+                    if (iter === 0 && imp > 2.0) {
+                      f.squashVel -= Math.min(5.5, imp * 0.5);
+                      soundFX.playBounce(imp * 0.06);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // ----------------------------------------------------------------------
+      // E. SELF-RIGHTING TORQUE & PILE SLEEP EVALUATION
+      // ----------------------------------------------------------------------
+      for (let i = 0; i < fumos.length; i++) {
+        const f = fumos[i];
+        if (f.isDragged || f.zone === 'chute_falling') continue;
+
+        if (f.isGrounded && clawSystem.gripTarget !== f) {
+          const targetPitch = (f.stuckAgainstGlass && f.zone === 'in_machine' && f.pos.z > 0.55) ? 0.28 : 0.0;
+          f.pitch = THREE.MathUtils.lerp(f.pitch, targetPitch, Math.min(1, dt * 8.5));
+          f.roll = THREE.MathUtils.lerp(f.roll, 0, Math.min(1, dt * 8.5));
+          f.angVel.multiplyScalar(0.75);
+        }
+
+        // Evaluate Sleeping for settled plushies inside the Claw Machine pile
+        if (f.zone === 'in_machine' && clawSystem.gripTarget !== f && f.isGrounded) {
+          const linSpdSq = f.vel.lengthSq();
+          const angSpdSq = f.angVel.lengthSq();
+          if (linSpdSq < 0.012 && angSpdSq < 0.02) {
+            f.sleepTimer += dt;
+            if (f.sleepTimer >= 0.45) {
+              f.isSleeping = true;
+              f.vel.set(0, 0, 0);
+              f.angVel.set(0, 0, 0);
+            }
+          } else {
+            f.sleepTimer = 0;
+            f.isSleeping = false;
+          }
+        }
+      }
+    }
+
+    // ============================================================================
+    // 11. POINTER INTERACTION (Squeeze Any Fumo; Drag & Throw Outside Fumos)
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let hoveredFumo = null;
+    let selectedFumo = null;
+    let isDraggingFumo = false;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+    const badgeEl = document.getElementById('fumo-badge');
+    const badgeDotEl = document.getElementById('fumo-badge-dot');
+    const badgeNameEl = document.getElementById('fumo-badge-name');
+    const badgeStatusEl = document.getElementById('fumo-badge-status');
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function pickFumoUnderPointer() {
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (hits.length > 0 && hits[0].object.userData.fumo) {
+        return { fumo: hits[0].object.userData.fumo, point: hits[0].point };
+      }
+      return null;
+    }
+
+    function updateUIBadge(fumo, statusText) {
+      if (!fumo) {
+        badgeEl.classList.add('hidden');
+        badgeEl.classList.remove('flex');
+        return;
+      }
+      badgeEl.classList.remove('hidden');
+      badgeEl.classList.add('flex');
+      badgeDotEl.style.backgroundColor = fumo.accentColor;
+      badgeNameEl.textContent = fumo.name;
+      badgeStatusEl.textContent = statusText;
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+
+      const hit = pickFumoUnderPointer();
+      if (hit) {
+        selectedFumo = hit.fumo;
+        isDraggingFumo = false;
+
+        // Only lock orbit controls for dragging if the plushie is outside the glass machine!
+        if (selectedFumo.zone === 'outside') {
+          controls.enabled = false;
+          const camDir = new THREE.Vector3();
+          camera.getWorldDirection(camDir);
+          dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), selectedFumo.pos);
+
+          if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+            dragOffset.subVectors(selectedFumo.pos, dragHitPoint);
+          } else {
+            dragOffset.set(0, 0, 0);
+          }
+          dragHistory = [{ pos: selectedFumo.pos.clone(), time: performance.now() }];
+        }
+        updateUIBadge(selectedFumo, selectedFumo.zone === 'outside' ? 'Selected' : 'In Claw Machine');
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      updatePointerNDC(e);
+
+      if (selectedFumo && selectedFumo.zone === 'outside') {
+        recordInteraction();
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          selectedFumo.isDragged = true;
+          selectedFumo.isGrounded = false;
+          selectedFumo.squashVel += 3.2;
+          soundFX.playPickup();
+          updateUIBadge(selectedFumo, 'Dragging — Release to Throw!');
+        }
+
+        if (isDraggingFumo) {
+          raycaster.setFromCamera(pointerNDC, camera);
+          if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+            const targetPos = dragHitPoint.clone().add(dragOffset);
+            targetPos.x = THREE.MathUtils.clamp(targetPos.x, -9.2, 9.2);
+            targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.25, 10.2);
+            targetPos.z = THREE.MathUtils.clamp(targetPos.z, -8.8, 9.2);
+
+            const prevPos = selectedFumo.pos.clone();
+            selectedFumo.pos.lerp(targetPos, 0.55);
+
+            const deltaMove = selectedFumo.pos.clone().sub(prevPos);
+            selectedFumo.headRollVel -= deltaMove.x * 16.0;
+            selectedFumo.headPitchVel += deltaMove.z * 16.0 - deltaMove.y * 10.0;
+            selectedFumo.limbRollVel -= deltaMove.x * 22.0;
+            selectedFumo.roll = THREE.MathUtils.lerp(selectedFumo.roll, THREE.MathUtils.clamp(-deltaMove.x * 1.4, -0.45, 0.45), 0.3);
+            selectedFumo.pitch = THREE.MathUtils.lerp(selectedFumo.pitch, THREE.MathUtils.clamp(deltaMove.z * 1.4, -0.45, 0.45), 0.3);
+
+            const now = performance.now();
+            dragHistory.push({ pos: selectedFumo.pos.clone(), time: now });
+            while (dragHistory.length > 6) dragHistory.shift();
+          }
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      const hit = pickFumoUnderPointer();
+      if (hit) {
+        hoveredFumo = hit.fumo;
+        renderer.domElement.style.cursor = hoveredFumo.zone === 'outside' ? 'grab' : 'pointer';
+        tooltipEmojiEl.textContent = hoveredFumo.emoji;
+        tooltipTextEl.textContent = hoveredFumo.zone === 'in_machine'
+          ? `${hoveredFumo.name} (Use Claw to Win!)`
+          : hoveredFumo.name;
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else {
+        hoveredFumo = null;
+        renderer.domElement.style.cursor = 'default';
+        tooltipEl.style.opacity = '0';
+      }
+    });
+
+    window.addEventListener('pointerup', () => {
+      if (!selectedFumo) return;
+      controls.enabled = true;
+      recordInteraction();
+
+      if (!isDraggingFumo) {
+        // Click without dragging -> Squeeze interaction!
+        // (If inside the machine, tapping the glass makes the plushie jiggle & wake up!)
+        selectedFumo.squeeze(selectedFumo.zone === 'outside' ? 1.0 : 0.75);
+        updateUIBadge(selectedFumo, 'Squeezed! ᗜˬᗜ');
+      } else if (selectedFumo.zone === 'outside') {
+        selectedFumo.isDragged = false;
+        const now = performance.now();
+        while (dragHistory.length > 1 && now - dragHistory[0].time > 140) {
+          dragHistory.shift();
+        }
+        if (dragHistory.length >= 2) {
+          const first = dragHistory[0];
+          const last = dragHistory[dragHistory.length - 1];
+          const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+          const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+          if (throwVel.length() > 22) throwVel.setLength(22);
+          selectedFumo.vel.copy(throwVel);
+
+          const speed = throwVel.length();
+          selectedFumo.angVel.set(
+            throwVel.z * 0.65 + (Math.random() - 0.5) * speed * 0.4,
+            (Math.random() - 0.5) * speed * 0.5,
+            -throwVel.x * 0.65 + (Math.random() - 0.5) * speed * 0.4
+          );
+        } else {
+          selectedFumo.vel.set(0, 0, 0);
+        }
+        updateUIBadge(selectedFumo, 'Thrown!');
+      }
+
+      selectedFumo = null;
+      isDraggingFumo = false;
+      renderer.domElement.style.cursor = hoveredFumo ? 'grab' : 'default';
+    });
+
+    // ============================================================================
+    // 12. CLAW KEYBOARD & ON-SCREEN D-PAD CONTROLS
+    // ============================================================================
+    const keyState = { left: false, right: false, up: false, down: false };
+    const btnLeft = document.getElementById('claw-left');
+    const btnRight = document.getElementById('claw-right');
+    const btnUp = document.getElementById('claw-up');
+    const btnDown = document.getElementById('claw-down');
+    const btnDrop = document.getElementById('claw-drop');
+
+    function syncClawInputAxes() {
+      clawSystem.inputX = (keyState.right ? 1 : 0) - (keyState.left ? 1 : 0);
+      clawSystem.inputZ = (keyState.down ? 1 : 0) - (keyState.up ? 1 : 0);
+      btnLeft.classList.toggle('is-pressed', keyState.left);
+      btnRight.classList.toggle('is-pressed', keyState.right);
+      btnUp.classList.toggle('is-pressed', keyState.up);
+      btnDown.classList.toggle('is-pressed', keyState.down);
+    }
+
+    function bindHoldButton(btn, dirKey) {
+      const startHold = (e) => {
+        e.preventDefault();
+        recordInteraction();
+        keyState[dirKey] = true;
+        syncClawInputAxes();
+      };
+      const endHold = () => {
+        if (keyState[dirKey]) {
+          keyState[dirKey] = false;
+          syncClawInputAxes();
+        }
+      };
+      btn.addEventListener('pointerdown', startHold);
+      window.addEventListener('pointerup', endHold);
+      btn.addEventListener('pointerleave', endHold);
+    }
+
+    bindHoldButton(btnLeft, 'left');
+    bindHoldButton(btnRight, 'right');
+    bindHoldButton(btnUp, 'up');
+    bindHoldButton(btnDown, 'down');
+
+    btnDrop.addEventListener('click', (e) => {
+      e.preventDefault();
+      triggerClawDrop();
+    });
+
+    // ============================================================================
+    // 13. DAY / NIGHT SMOOTH INTERPOLATION (~2 SECONDS) & HUB INTEGRATION
+    // ============================================================================
+    const STORAGE_MODE_KEY = 'voxel_fumo_arcade_mode';
+    let isNightMode = true; // Arcade looks extra magical at night, and smoothly transitions to sunlit day!
+    let dayNightProgress = 1.0; // 0.0 = Day, 1.0 = Night
+    let dayNightTarget = 1.0;
+
+    const daySkyColor = new THREE.Color('#cce6ff');
+    const nightSkyColor = new THREE.Color('#090718');
+
+    const dayBackdropCol = new THREE.Color('#7ec8ff');
+    const nightBackdropCol = new THREE.Color('#06071b');
+
+    const dayWindowLightCol = new THREE.Color('#fff1d0');
+    const nightWindowLightCol = new THREE.Color('#5a78d6');
+
+    const dayHemiSky = new THREE.Color('#fff8eb');
+    const nightHemiSky = new THREE.Color('#2c1d52');
+    const dayHemiGround = new THREE.Color('#b5947b');
+    const nightHemiGround = new THREE.Color('#0f0a1c');
+
+    function notifyParentMode() {
+      const modeStr = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: modeStr }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(night, { immediate = false, playSound = true } = {}) {
+      isNightMode = Boolean(night);
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) {
+        dayNightProgress = dayNightTarget;
+      }
+      document.body.classList.toggle('night-ui', isNightMode);
+
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
+      } catch (e) {}
+
+      if (playSound) {
+        soundFX.playPickup();
+      }
+      notifyParentMode();
+    }
+
+    function toggleDayNight() {
+      setDayNightMode(!isNightMode, { immediate: false, playSound: true });
+    }
+
+    function updateDayNightTransition(dt, elapsed) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.52; // ~2 seconds full transition
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      // 1. Sky Background & Fog
+      scene.background.lerpColors(daySkyColor, nightSkyColor, t);
+      scene.fog.color.copy(scene.background);
+
+      // 2. Window Backdrop & Sunbeams
+      windowBackdropMat.color.lerpColors(dayBackdropCol, nightBackdropCol, t);
+      shaftMat.opacity = THREE.MathUtils.lerp(0.13, 0.02, t);
+      dustMat.opacity = THREE.MathUtils.lerp(0.72, 0.35, t);
+
+      // 3. Sunlight vs. Moonlight through Front Window
+      windowDirLight.color.lerpColors(dayWindowLightCol, nightWindowLightCol, t);
+      windowDirLight.intensity = THREE.MathUtils.lerp(1.45, 0.25, t);
+
+      // 4. Hemisphere Ambient Bounce
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.75, 0.24, t);
+
+      // 5. Arcade Interior Neon & Claw Machine Lights
+      const flicker = 0.96 + 0.04 * Math.sin(elapsed * 18.0) * Math.cos(elapsed * 7.3);
+      clawInteriorLight.intensity = THREE.MathUtils.lerp(0.65, 1.45, t);
+      arcadeRowLight.intensity = THREE.MathUtils.lerp(0.25, 1.15 * flicker, t);
+      counterNeonLight.intensity = THREE.MathUtils.lerp(0.25, 1.15, t);
+
+      // 6. Emissive Neon Signs, Screens & Reflective Floor Sheen
+      neonPinkMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.32, 1.85 * flicker, t);
+      neonCyanMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.32, 1.80, t);
+      neonGoldMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, 1.65, t);
+      screenEmissiveMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.45, 1.55 * flicker, t);
+      translucentIceMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.22, 0.85, t);
+      crystalWingMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.28, 1.25, t);
+
+      arcadeFloorMaterial.roughness = THREE.MathUtils.lerp(0.72, 0.24, t);
+      arcadeFloorMaterial.metalness = THREE.MathUtils.lerp(0.08, 0.32, t);
+
+      // 7. UnrealBloomPass Strength
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.14, 0.76, t);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.85, 0.58, t);
+      }
+    }
+
+    // Top-Right Utility Buttons
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      clawSystem.gripTarget = null;
+      clawSystem.state = 'IDLE';
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 35));
+      updateUIBadge(null, '');
+      clawStatusTextEl.textContent = 'Restocked Claw Machine pile!';
+    });
+
+    document.getElementById('btn-squeeze-all').addEventListener('click', () => {
+      fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.0), idx * 45));
+    });
+
+    const btnSound = document.getElementById('btn-sound');
+    const iconSoundOn = document.getElementById('icon-sound-on');
+    const iconSoundOff = document.getElementById('icon-sound-off');
+    btnSound.addEventListener('click', () => {
+      soundFX.enabled = !soundFX.enabled;
+      iconSoundOn.classList.toggle('hidden', !soundFX.enabled);
+      iconSoundOff.classList.toggle('hidden', soundFX.enabled);
+      if (soundFX.enabled) soundFX.playPickup();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+      const key = e.key.toLowerCase();
+      if (key === 'arrowleft' || key === 'a') {
+        e.preventDefault();
+        recordInteraction();
+        keyState.left = true;
+        syncClawInputAxes();
+      } else if (key === 'arrowright' || key === 'd') {
+        e.preventDefault();
+        recordInteraction();
+        keyState.right = true;
+        syncClawInputAxes();
+      } else if (key === 'arrowup' || key === 'w') {
+        e.preventDefault();
+        recordInteraction();
+        keyState.up = true;
+        syncClawInputAxes();
+      } else if (key === 'arrowdown' || key === 's') {
+        e.preventDefault();
+        recordInteraction();
+        keyState.down = true;
+        syncClawInputAxes();
+      } else if (key === ' ') {
+        e.preventDefault();
+        btnDrop.classList.add('is-pressed');
+        triggerClawDrop();
+      } else if (key === 'n') {
+        e.preventDefault();
+        toggleDayNight();
+      } else if (key === 'r') {
+        document.getElementById('btn-reset').click();
+      } else if (key === 'm') {
+        btnSound.click();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const key = e.key.toLowerCase();
+      if (key === 'arrowleft' || key === 'a') { keyState.left = false; syncClawInputAxes(); }
+      else if (key === 'arrowright' || key === 'd') { keyState.right = false; syncClawInputAxes(); }
+      else if (key === 'arrowup' || key === 'w') { keyState.up = false; syncClawInputAxes(); }
+      else if (key === 'arrowdown' || key === 's') { keyState.down = false; syncClawInputAxes(); }
+      else if (key === ' ') { btnDrop.classList.remove('is-pressed'); }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ============================================================================
+    // 14. MAIN ANIMATION LOOP, PAUSE / RESUME & HUB MESSAGE LISTENER
+    // ============================================================================
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const frameDt = Math.min(0.05, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      const isPlayingClaw = (
+        clawSystem.state !== 'IDLE' ||
+        clawSystem.inputX !== 0 ||
+        clawSystem.inputZ !== 0
+      );
+
+      if (isPlayingClaw) {
+        controls.autoRotate = false;
+        lastUserInteractionTime = now;
+      } else if (!selectedFumo && (now - lastUserInteractionTime > 5000)) {
+        controls.autoRotate = true;
+      }
+
+      controls.update();
+      updateDayNightTransition(frameDt, elapsed);
+      updateArcadeScreens(elapsed);
+      updateDustMotes(elapsed, frameDt);
+      updatePopParticles(frameDt);
+
+      // Fixed-Timestep Physics & Claw Machine Update
+      physicsAccumulator = Math.min(physicsAccumulator + frameDt, FIXED_DT * 3);
+      while (physicsAccumulator >= FIXED_DT) {
+        stepClawAndPhysicsFixed(FIXED_DT, elapsed);
+        physicsAccumulator -= FIXED_DT;
+      }
+
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].syncTransform(elapsed);
+      }
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function pauseRenderLoop() {
+      if (isPaused) return;
+      isPaused = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+
+    function resumeRenderLoop() {
+      if (!isPaused) return;
+      isPaused = false;
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('message', (e) => {
+      const data = e.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'toggleMode') {
+        toggleDayNight();
+      } else if (data.type === 'pause') {
+        pauseRenderLoop();
+      } else if (data.type === 'resume') {
+        resumeRenderLoop();
+      }
+    });
+
+    window.onload = function () {
+      let initialNight = true;
+      try {
+        const saved = localStorage.getItem(STORAGE_MODE_KEY);
+        if (saved === 'day') initialNight = false;
+        else if (saved === 'night') initialNight = true;
+      } catch (e) {}
+
+      setDayNightMode(initialNight, { immediate: true, playSound: false });
+      updateDayNightTransition(0, 0);
+
+      // Initial welcoming bounce on all fumos
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.80;
+          f.squashVel = 1.8;
+          f.headPitchVel = 3.5;
+        }, 100 + idx * 55);
+      });
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>
