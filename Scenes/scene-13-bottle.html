@@ -1,0 +1,2773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Cirno in a Bottle — Voxel Island Beach Diorama</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js r128 + OrbitControls + Post-Processing (UnrealBloomPass) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #0b192c;
+    }
+    h1, .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.78);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      box-shadow: 0 10px 28px -6px rgba(10, 35, 65, 0.18), 0 2px 6px rgba(10, 35, 65, 0.08);
+      transition: background 0.5s ease, color 0.5s ease, border-color 0.5s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    body.night-ui .glass-panel {
+      background: rgba(15, 23, 42, 0.78);
+      border-color: rgba(56, 189, 248, 0.28);
+      color: #e0f2fe;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.6), 0 0 18px rgba(56, 189, 248, 0.16);
+    }
+    .ui-btn {
+      cursor: pointer;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+    #fumo-tooltip {
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.75rem;
+      line-height: 1.2;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.08);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.18);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.14);
+      border-bottom-color: rgba(255, 255, 255, 0.28);
+    }
+  </style>
+</head>
+<body class="text-slate-800">
+  <div id="canvas-container"></div>
+
+  <!-- Top-Right Controls (Top-Left kept completely clear for Hub selector & Day/Night button) -->
+  <div class="fixed top-4 right-4 z-20 flex items-center gap-2.5">
+    <!-- Active / Hovered Fumo Status Badge -->
+    <div id="fumo-badge" class="glass-panel rounded-2xl px-3.5 py-2.5 text-xs font-semibold hidden items-center gap-2 transition-all">
+      <span id="fumo-badge-dot" class="w-2.5 h-2.5 rounded-full inline-block bg-sky-400"></span>
+      <span id="fumo-badge-name">Cirno in a Bottle</span>
+      <span id="fumo-badge-status" class="opacity-70 ml-1">Bobbing</span>
+    </div>
+
+    <!-- Squeeze All Button -->
+    <button id="btn-squeeze-all" title="Squeeze Cirno & Daiyousei! (Space)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <span class="text-base leading-none">❄️</span>
+      <span class="hidden md:inline">Squeeze</span>
+    </button>
+
+    <!-- Wave Surge Button -->
+    <button id="btn-wave-surge" title="Send a Big Tropical Wave! (W)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <span class="text-base leading-none">🌊</span>
+      <span class="hidden md:inline">Big Wave</span>
+    </button>
+
+    <!-- Reset Button -->
+    <button id="btn-reset" title="Reset Bottle, Daiyousei & Boat (R)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+      <span class="hidden sm:inline">Reset</span>
+    </button>
+
+    <!-- Sound Toggle Button -->
+    <button id="btn-sound" title="Toggle Ocean & Plush Sound Effects (M)"
+      class="glass-panel ui-btn rounded-2xl p-2.5 flex items-center justify-center">
+      <svg id="icon-sound-on" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+      </svg>
+      <svg id="icon-sound-off" class="w-5 h-5 hidden opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <line x1="23" y1="9" x2="17" y2="15"></line>
+        <line x1="17" y1="9" x2="23" y2="15"></line>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Floating Cursor Tooltip -->
+  <div id="fumo-tooltip" class="fixed z-30 opacity-0 px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold flex items-center gap-2 shadow-lg">
+    <span id="tooltip-emoji">🍾</span>
+    <span id="tooltip-text">Cirno in a Bottle</span>
+  </div>
+
+  <!-- Bottom HUD Hints (Centered so bottom-left is clear for Hub hint) -->
+  <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none w-max max-w-[94vw]">
+    <div class="glass-panel rounded-2xl px-4 py-2 text-xs font-semibold flex flex-wrap items-center justify-center gap-x-4 gap-y-1 opacity-90">
+      <span>🍾 <b>Click Bottle / Fumo:</b> Squeeze</span>
+      <span>✋ <b>Drag & Release:</b> Toss into Waves or Sand</span>
+      <span>⛵ <b>Arrow Keys / WASD:</b> Sail Boat</span>
+      <span class="hidden sm:inline"><kbd>R</kbd> Reset</span>
+      <span class="hidden md:inline"><kbd>Space</kbd> Squeeze All</span>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 1. PROCEDURAL WEB AUDIO SYNTHESIZER (Plush Squeaks, Splashes, Sand Thuds)
+    // ============================================================================
+    class BeachSoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playSqueeze(pitchMultiplier = 1.12) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+
+          // Chirp 1 (compress)
+          const osc1 = this.ctx.createOscillator();
+          const gain1 = this.ctx.createGain();
+          osc1.type = 'sine';
+          const baseFreq = (540 + Math.random() * 70) * pitchMultiplier;
+          osc1.frequency.setValueAtTime(baseFreq, now);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, now + 0.08);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.15);
+
+          gain1.gain.setValueAtTime(0.001, now);
+          gain1.gain.linearRampToValueAtTime(0.10, now + 0.025);
+          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+
+          osc1.connect(gain1);
+          gain1.connect(this.ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.17);
+
+          // Chirp 2 (pop + icy chime)
+          const osc2 = this.ctx.createOscillator();
+          const gain2 = this.ctx.createGain();
+          osc2.type = 'triangle';
+          osc2.frequency.setValueAtTime(baseFreq * 1.18, now + 0.10);
+          osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.75, now + 0.21);
+
+          gain2.gain.setValueAtTime(0.001, now + 0.10);
+          gain2.gain.linearRampToValueAtTime(0.08, now + 0.12);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+          osc2.connect(gain2);
+          gain2.connect(this.ctx.destination);
+          osc2.start(now + 0.10);
+          osc2.stop(now + 0.25);
+        } catch (e) {}
+      }
+
+      playSplash(intensity = 0.7) {
+        if (!this.enabled || intensity < 0.08) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const dur = Math.min(0.45, 0.18 + intensity * 0.18);
+
+          // White noise filtered water splash
+          const bufferSize = Math.floor(this.ctx.sampleRate * dur);
+          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.38));
+          }
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = buffer;
+
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.setValueAtTime(650, now);
+          filter.frequency.exponentialRampToValueAtTime(1400, now + dur * 0.7);
+          filter.Q.value = 1.6;
+
+          const gain = this.ctx.createGain();
+          const vol = Math.min(0.18, intensity * 0.14);
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+          noise.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.ctx.destination);
+          noise.start(now);
+
+          // Water droplet plop tone
+          const plop = this.ctx.createOscillator();
+          const plopGain = this.ctx.createGain();
+          plop.type = 'sine';
+          plop.frequency.setValueAtTime(240, now + 0.02);
+          plop.frequency.exponentialRampToValueAtTime(580, now + 0.13);
+          plopGain.gain.setValueAtTime(vol * 0.5, now + 0.02);
+          plopGain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+          plop.connect(plopGain);
+          plopGain.connect(this.ctx.destination);
+          plop.start(now + 0.02);
+          plop.stop(now + 0.15);
+        } catch (e) {}
+      }
+
+      playSandThud(intensity = 0.5) {
+        if (!this.enabled || intensity < 0.08) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const vol = Math.min(0.14, intensity * 0.11);
+
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(125 + Math.min(70, intensity * 30), now);
+          osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+
+      playPickup() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(300, now);
+          osc.frequency.exponentialRampToValueAtTime(470, now + 0.085);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.095);
+        } catch (e) {}
+      }
+    }
+
+    const soundFX = new BeachSoundEngine();
+
+    // ============================================================================
+    // 2. COLOR & VOXEL HELPER UTILITIES (Matching room.html Fumo & Diorama Standard)
+    // ============================================================================
+    const tempColor = new THREE.Color();
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    const tempEuler = new THREE.Euler();
+
+    function voxelHash(x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    }
+
+    function varyColor(hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
+      tempColor.set(hexOrString);
+      const h = voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      tempColor.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return tempColor.clone();
+    }
+
+    function createSoftVoxelGeometry(size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    }
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        if (v.rx || v.ry || v.rz) {
+          tempEuler.set(v.rx || 0, v.ry || 0, v.rz || 0);
+          tempQuat.setFromEuler(tempEuler);
+        } else {
+          tempQuat.identity();
+        }
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    // ============================================================================
+    // 3. SCENE, CAMERA, RENDERER & POST-PROCESSING SETUP
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#80d4ff');
+    scene.fog = new THREE.FogExp2('#80d4ff', 0.0095);
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.5, 160);
+    camera.position.set(14.5, 9.8, 17.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.06;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.18,
+        0.55,
+        0.82
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (err) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(1.2, 1.4, 0.5);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.475;
+    controls.minPolarAngle = Math.PI * 0.06;
+    controls.minDistance = 6.5;
+    controls.maxDistance = 42;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.42;
+
+    let lastUserInteractionTime = performance.now();
+    const recordInteraction = () => {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+    };
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 4. LIGHTING & MATERIALS (Capped Dynamic Lights for Performance)
+    // ============================================================================
+    // 1. Hemisphere Sky/Beach bounce light
+    const hemiLight = new THREE.HemisphereLight(0xfff9eb, 0x38bdf8, 0.72);
+    hemiLight.position.set(0, 25, 0);
+    scene.add(hemiLight);
+
+    // 2. Main Sun / Moon Directional Light
+    const sunDirLight = new THREE.DirectionalLight(0xfff2cc, 1.32);
+    sunDirLight.position.set(18, 16, -14);
+    sunDirLight.target.position.set(0, 0, 0);
+    scene.add(sunDirLight.target);
+    sunDirLight.castShadow = true;
+    sunDirLight.shadow.mapSize.width = 2048;
+    sunDirLight.shadow.mapSize.height = 2048;
+    sunDirLight.shadow.camera.near = 2;
+    sunDirLight.shadow.camera.far = 55;
+    const dCam = 17.5;
+    sunDirLight.shadow.camera.left = -dCam;
+    sunDirLight.shadow.camera.right = dCam;
+    sunDirLight.shadow.camera.top = dCam;
+    sunDirLight.shadow.camera.bottom = -dCam;
+    sunDirLight.shadow.bias = -0.0005;
+    sunDirLight.shadow.radius = 2.2;
+    scene.add(sunDirLight);
+
+    // 3. Pier Lantern Warm Point Light
+    const pierLanternLight = new THREE.PointLight(0xffaa33, 0.1, 13, 1.6);
+    pierLanternLight.position.set(2.25, 3.3, -4.1);
+    scene.add(pierLanternLight);
+
+    // 4. Beach Campfire Warm Point Light
+    const campfireLight = new THREE.PointLight(0xff6b2b, 0.1, 11, 1.7);
+    campfireLight.position.set(-4.0, 2.2, 4.2);
+    scene.add(campfireLight);
+
+    // 5. Cirno Bottle Cold Fairy Glow Point Light (tracks the bottle!)
+    const cirnoBottleLight = new THREE.PointLight(0x38bdf8, 0.15, 7.5, 1.8);
+    scene.add(cirnoBottleLight);
+
+    // Shared Materials
+    const plushMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.92,
+      metalness: 0.02
+    });
+
+    const islandSolidMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.86,
+      metalness: 0.04
+    });
+
+    const glossyPropMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.28,
+      metalness: 0.12
+    });
+
+    const translucentIceMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.88,
+      roughness: 0.14,
+      metalness: 0.05,
+      transmission: 0.38,
+      emissive: new THREE.Color(0x38bdf8),
+      emissiveIntensity: 0.35
+    });
+
+    const bottleGlassMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xd1fae5,
+      transparent: true,
+      opacity: 0.42,
+      roughness: 0.12,
+      metalness: 0.08,
+      transmission: 0.55,
+      emissive: new THREE.Color(0x34d399),
+      emissiveIntensity: 0.08,
+      depthWrite: false
+    });
+
+    const bottleHighlightMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.78,
+      depthWrite: false
+    });
+
+    const warmEmissiveMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfff3d1,
+      emissive: new THREE.Color(0xff9f1c),
+      emissiveIntensity: 0.4,
+      roughness: 0.2
+    });
+
+    const waterMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.84,
+      roughness: 0.18,
+      metalness: 0.08,
+      emissive: new THREE.Color(0x0284c7),
+      emissiveIntensity: 0.08
+    });
+
+    const foamMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0x38bdf8),
+      emissiveIntensity: 0.12,
+      roughness: 0.55
+    });
+
+    // ============================================================================
+    // 5. TERRAIN & WAVE HEIGHTFIELD FUNCTIONS
+    // ============================================================================
+    const BV = 0.25; // Base island voxel size = 0.25 world units
+    let waveSurgeBoost = 0.0; // Triggered when clicking "Big Wave"
+
+    // Curved shoreline: X < shorelineX(z) is island beach; X > shorelineX(z) is ocean
+    function getShorelineX(z) {
+      return -1.4 + Math.sin(z * 0.24) * 1.9 + Math.cos(z * 0.14) * 1.1;
+    }
+
+    // Continuous terrain surface height Y (in world units) at (x, z)
+    function getTerrainHeight(x, z) {
+      const shoreX = getShorelineX(z);
+      const dx = x - shoreX; // Negative on land, Positive in ocean
+
+      // Volcanic headland in the back-left corner (around x = -8.5, z = -7.5)
+      const distHeadland = Math.hypot(x + 8.5, z + 7.5);
+      let headlandBoost = 0;
+      if (distHeadland < 5.2) {
+        headlandBoost = Math.pow((5.2 - distHeadland) / 5.2, 1.55) * 3.8;
+      }
+
+      // Grassy tropical rise on the island (x < shoreX - 2.5)
+      let islandRise = 0;
+      if (dx < 0) {
+        const inland = -dx;
+        islandRise = Math.min(2.6, inland * 0.28 + Math.sin(x * 0.5) * 0.18 + Math.cos(z * 0.45) * 0.22);
+        // Tide pool depression near (x = -3.8, z = -3.2)
+        const distPool = Math.hypot(x + 3.8, z + 3.2);
+        if (distPool < 1.65) {
+          islandRise -= (1.65 - distPool) * 0.65;
+        }
+      } else {
+        // Sloping sandy seabed into deeper ocean
+        islandRise = -Math.min(2.6, dx * 0.22);
+      }
+
+      return islandRise + headlandBoost;
+    }
+
+    // Layered Sine / Gerstner-style Ocean Wave Height & Surface Normal Slope
+    function getWaveInfo(x, z, time) {
+      const shoreX = getShorelineX(z);
+      const depthFactor = THREE.MathUtils.clamp((x - (shoreX - 1.5)) / 4.5, 0.25, 1.15);
+      const amp = (1.0 + waveSurgeBoost) * depthFactor;
+
+      // Primary rolling swell (travels from +X ocean toward -X beach)
+      const phase1 = x * 0.72 + time * 2.15 + Math.sin(z * 0.32) * 0.7;
+      const w1 = Math.sin(phase1) * 0.26 * amp;
+      const dw1dx = Math.cos(phase1) * 0.72 * 0.26 * amp;
+      const dw1dz = Math.cos(phase1) * Math.cos(z * 0.32) * 0.32 * 0.7 * 0.26 * amp;
+
+      // Secondary cross-chop wave
+      const phase2 = x * 0.45 - z * 0.62 + time * 1.65;
+      const w2 = Math.cos(phase2) * 0.11 * amp;
+      const dw2dx = -Math.sin(phase2) * 0.45 * 0.11 * amp;
+      const dw2dz = Math.sin(phase2) * 0.62 * 0.11 * amp;
+
+      // High-frequency surface ripple
+      const phase3 = x * 1.45 + z * 1.15 - time * 3.1;
+      const w3 = Math.sin(phase3) * 0.045 * amp;
+      const dw3dx = Math.cos(phase3) * 1.45 * 0.045 * amp;
+      const dw3dz = Math.cos(phase3) * 1.15 * 0.045 * amp;
+
+      // Tide cycle (slowly advances and retreats up the wet sand)
+      const tide = Math.sin(time * 0.85) * 0.12;
+
+      const height = 0.05 + w1 + w2 + w3 + tide;
+      const slopeX = dw1dx + dw2dx + dw3dx;
+      const slopeZ = dw1dz + dw2dz + dw3dz;
+      const crestFoam = (Math.sin(phase1) > 0.68) || (Math.cos(phase2) > 0.78);
+
+      return { height, slopeX, slopeZ, crestFoam, tide };
+    }
+
+    // ============================================================================
+    // 6. BUILD VOXEL ISLAND BEACH, PALM TREES, PIER, LIGHTHOUSE & PROPS
+    // ============================================================================
+    const islandVoxels = [];
+    const glossyVoxels = [];
+    const warmGlowVoxels = [];
+    const wetSandVoxels = []; // Dynamically darkened when tide washes over them!
+    const palmFrondVoxels = []; // Animated swaying palm leaves
+    const footprintVoxels = []; // Fade in/out as tide washes over them
+    const propColliders = [];
+
+    function addCollider(minX, minY, minZ, maxX, maxY, maxZ, name = 'prop') {
+      propColliders.push({
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        name
+      });
+    }
+
+    function pushVox(list, gx, gy, gz, hex, variance = 0.035, sx = 1, sy = 1, sz = 1) {
+      list.push({
+        x: gx, y: gy, z: gz,
+        color: varyColor(hex, gx, gy, gz, variance),
+        sx, sy, sz
+      });
+    }
+
+    function buildIslandAndProps() {
+      // 1. SANDY BEACH, GRASSY RISE, VOLCANIC HEADLAND & SEABED
+      // Grid coordinates gx in [-46..46], gz in [-42..42] (World X [-11.5..11.5], Z [-10.5..10.5])
+        for (let gx = -46; gx <= 46; gx++) {
+        for (let gz = -42; gz <= 42; gz++) {
+          const wx = gx * BV;
+          const wz = gz * BV;
+          const surfY = getTerrainHeight(wx, wz);
+          const topGy = Math.round(surfY / BV);
+          const shoreX = getShorelineX(wz);
+
+          // Place them here so both the gy loop and the flower check can access them:
+          const distHeadland = Math.hypot(wx + 8.5, wz + 7.5);
+          const distPool = Math.hypot(wx + 3.8, wz + 3.2);
+
+          const isBorder = (gx === -46 || gx === 46 || gz === -42 || gz === 42);
+          const minGy = isBorder ? -11 : Math.max(-11, topGy - 2);
+
+          for (let gy = minGy; gy <= topGy; gy++) {
+            let col = '#e6c786';
+
+            if (gy < topGy - 1) {
+              col = '#473628'; // Deep earth/rock base
+            } else if (distHeadland < 5.0 && gy > 2) {
+              col = ((gx + gy + gz) % 3 === 0) ? '#334155' : '#475569'; // Dark volcanic basalt rock
+            } else if (distPool < 1.75) {
+              col = '#64748b'; // Volcanic tide pool basin rock
+            } else if (wx < shoreX - 3.0 && gy >= 5) {
+              col = ((gx + gz) % 4 === 0) ? '#4ade80' : '#22c55e'; // Lush tropical grass top
+            } else if (wx > shoreX + 0.8) {
+              col = '#d4b475'; // Submerged seabed sand
+            } else if (Math.abs(wx - shoreX) <= 1.55 && gy === topGy) {
+              // Swash zone wet sand (tracked for dynamic tide darkening!)
+              const baseSandCol = varyColor('#ebd098', gx, gy, gz, 0.03);
+              const wetSandCol = varyColor('#b08d57', gx, gy, gz, 0.025);
+              wetSandVoxels.push({
+                x: gx, y: gy, z: gz,
+                wx, wz,
+                baseColor: baseSandCol,
+                wetColor: wetSandCol,
+                color: baseSandCol.clone()
+              });
+              continue;
+            }
+            pushVox(islandVoxels, gx, gy, gz, col, 0.035);
+          }
+
+          // Tropical shrubs & vibrant hibiscus flowers on the grassy rise
+          if (wx < shoreX - 3.6 && topGy >= 6 && distHeadland > 5.2) {
+            const h = voxelHash(gx, 99, gz);
+            if (h > 0.94) {
+              pushVox(islandVoxels, gx, topGy + 1, gz, '#15803d', 0.04);
+              const flowerCols = ['#f43f5e', '#fbbf24', '#ec4899', '#a855f7'];
+              const fCol = flowerCols[Math.abs(gx + gz) % flowerCols.length];
+              pushVox(islandVoxels, gx, topGy + 2, gz, fCol, 0.02, 0.75, 0.75, 0.75);
+            }
+          }
+        }
+      }
+
+      // 2. STRIPED LIGHTHOUSE ON THE VOLCANIC HEADLAND (around wx = -8.5, wz = -7.5 -> gx = -34, gz = -30)
+      const lhX = -34, lhZ = -30, lhBaseY = 15;
+      for (let y = 0; y <= 18; y++) {
+        const rad = y < 14 ? (3.2 - y * 0.08) : 2.3;
+        for (let dx = -3; dx <= 3; dx++) {
+          for (let dz = -3; dz <= 3; dz++) {
+            const d = Math.hypot(dx, dz);
+            if (d <= rad && d >= rad - 1.2) {
+              let col = (Math.floor(y / 3) % 2 === 0) ? '#ef4444' : '#f8fafc'; // Classic red & white stripes
+              if (y === 14) col = '#1e293b'; // Observation gallery deck
+              if (y >= 15 && y <= 16) {
+                // Glowing lantern room glass
+                pushVox(warmGlowVoxels, lhX + dx, lhBaseY + y, lhZ + dz, '#fef08a', 0.01);
+                continue;
+              }
+              if (y >= 17) col = '#dc2626'; // Conical red roof
+              pushVox(islandVoxels, lhX + dx, lhBaseY + y, lhZ + dz, col, 0.02);
+            }
+          }
+        }
+      }
+      pushVox(islandVoxels, lhX, lhBaseY + 19, lhZ, '#fbbf24', 0.01, 0.6, 1.5, 0.6); // Lightning rod spire
+      addCollider(-9.5, 3.5, -8.5, -7.5, 8.8, -6.5, 'lighthouse');
+
+      // 3. CURVED PALM TREES WITH SWAYING FRONDS & DAIYOUSEI'S COZY HOLLOW
+      function buildPalmTree(baseGx, baseGz, heightVox, curveDx, curveDz, hasHollow = false) {
+        const baseSurfY = Math.round(getTerrainHeight(baseGx * BV, baseGz * BV) / BV);
+        let topX = baseGx, topY = baseSurfY, topZ = baseGz;
+
+        for (let i = 0; i <= heightVox; i++) {
+          const t = i / heightVox;
+          const cx = baseGx + Math.sin(t * Math.PI * 0.5) * curveDx;
+          const cz = baseGz + Math.sin(t * Math.PI * 0.5) * curveDz;
+          const cy = baseSurfY + i;
+          topX = cx; topY = cy; topZ = cz;
+
+          const r = i === 0 ? 1.6 : (i < 4 ? 1.3 : 1.05);
+          for (let dx = -1; dx <= 1; dx++) {
+            for (let dz = -1; dz <= 1; dz++) {
+              if (Math.hypot(dx, dz) <= r) {
+                // Carve a cozy nook on the front (+X/+Z) of the main palm tree for Daiyousei!
+                if (hasHollow && i >= 3 && i <= 6 && dx >= 0 && dz >= 0) continue;
+                const barkCol = (i % 2 === 0) ? '#854d27' : '#6e3d1c';
+                pushVox(islandVoxels, cx + dx * 0.75, cy, cz + dz * 0.75, barkCol, 0.03);
+              }
+            }
+          }
+        }
+
+        // Coconuts under the crown
+        for (const [ox, oz] of [[0.9, 0.4], [-0.8, 0.6], [0.2, -0.9]]) {
+          pushVox(islandVoxels, topX + ox, topY - 0.5, topZ + oz, '#451a03', 0.02, 0.85, 0.85, 0.85);
+        }
+
+        // 7 Arching Swaying Palm Fronds
+        const numFronds = 7;
+        for (let f = 0; f < numFronds; f++) {
+          const angle = (f / numFronds) * Math.PI * 2 + baseGx * 0.3;
+          for (let step = 1; step <= 9; step++) {
+            const reach = step * 0.85;
+            const archY = Math.sin((step / 9) * Math.PI * 0.75) * 2.2 - (step > 5 ? (step - 5) * 0.55 : 0);
+            const fx = topX + Math.cos(angle) * reach;
+            const fz = topZ + Math.sin(angle) * reach;
+            const fy = topY + archY;
+            const leafCol = (step % 2 === 0) ? '#22c55e' : '#16a34a';
+
+            palmFrondVoxels.push({
+              baseX: fx, baseY: fy, baseZ: fz,
+              weight: step / 9,
+              phase: angle + baseGz * 0.2,
+              color: varyColor(leafCol, fx, fy, fz, 0.03),
+              sx: 1.15, sy: 0.55, sz: 1.15
+            });
+            // Side leaflets
+            if (step >= 2 && step <= 8) {
+              const perpX = -Math.sin(angle) * 0.85;
+              const perpZ = Math.cos(angle) * 0.85;
+              palmFrondVoxels.push({
+                baseX: fx + perpX, baseY: fy - 0.3, baseZ: fz + perpZ,
+                weight: (step + 1) / 9,
+                phase: angle + 0.5,
+                color: varyColor('#4ade80', fx + 1, fy, fz, 0.03),
+                sx: 0.9, sy: 0.45, sz: 0.9
+              });
+              palmFrondVoxels.push({
+                baseX: fx - perpX, baseY: fy - 0.3, baseZ: fz - perpZ,
+                weight: (step + 1) / 9,
+                phase: angle - 0.5,
+                color: varyColor('#4ade80', fx - 1, fy, fz, 0.03),
+                sx: 0.9, sy: 0.45, sz: 0.9
+              });
+            }
+          }
+        }
+      }
+
+      // Main Palm Tree with Cozy Hollow at (-5.5, 1.0) -> gx = -22, gz = 4
+      buildPalmTree(-22, 4, 17, 3.5, 1.2, true);
+      addCollider(-5.9, 1.0, 0.6, -4.8, 2.3, 1.5, 'palm_hollow');
+
+      // Second Palm Tree near back beach (-6.2, -2.5) -> gx = -25, gz = -10
+      buildPalmTree(-25, -10, 15, 2.8, -1.8, false);
+
+      // Third Palm Tree on sunny south dune (-5.2, 6.2) -> gx = -21, gz = 25
+      buildPalmTree(-21, 25, 14, 3.2, 2.0, false);
+
+      // 4. SMALL WOODEN DOCK / PIER WITH HANGING GLOWING LANTERN
+      // Extends from gx = -12 to gx = 10 at gz = -18..-14 (World X [-3.0..2.5], Z [-4.5..-3.5], Y = 2.0)
+      for (let gx = -12; gx <= 10; gx++) {
+        // Support pilings every 5 voxels
+        if ((gx + 12) % 5 === 0) {
+          for (let py = -4; py <= 8; py++) {
+            pushVox(islandVoxels, gx, py, -18, '#4a2e1b', 0.02);
+            pushVox(islandVoxels, gx, py, -14, '#4a2e1b', 0.02);
+          }
+        }
+        // Wooden pier planks (with small gaps between planks)
+        for (let gz = -18; gz <= -14; gz++) {
+          const plankCol = (gx % 2 === 0) ? '#8c5836' : '#784828';
+          pushVox(islandVoxels, gx, 7.5, gz, plankCol, 0.03, 0.88, 0.7, 1.0);
+        }
+      }
+      // Lantern Post at tip of Pier (gx = 9, gz = -16, gy = 8..15)
+      for (let ly = 8; ly <= 15; ly++) {
+        pushVox(islandVoxels, 9, ly, -17.8, '#3e2723', 0.02, 0.75, 1.0, 0.75);
+      }
+      for (let armZ = -17.8; armZ <= -16.0; armZ += 0.6) {
+        pushVox(islandVoxels, 9, 15.2, armZ, '#3e2723', 0.02, 0.65, 0.65, 0.8);
+      }
+      // Hanging Glowing Pier Lantern (gx = 9, gy = 13..14, gz = -16)
+      pushVox(islandVoxels, 9, 14.3, -16, '#1e293b', 0.01, 1.3, 0.5, 1.3);
+      pushVox(warmGlowVoxels, 9, 13.3, -16, '#ffea85', 0.01, 1.15, 1.35, 1.15);
+      pushVox(islandVoxels, 9, 12.3, -16, '#1e293b', 0.01, 1.2, 0.4, 1.2);
+      addCollider(-3.0, 1.4, -4.6, 2.6, 2.05, -3.4, 'wooden_pier');
+
+      // 5. BEACH UMBRELLA & STRIPED TOWEL (around wx = -3.6, wz = 2.5 -> gx = -14, gz = 10)
+      // Towel on sand
+      for (let tx = -16; tx <= -10; tx++) {
+        for (let tz = 11; tz <= 15; tz++) {
+          const ty = Math.round(getTerrainHeight(tx * BV, tz * BV) / BV) + 0.35;
+          const stripeCol = (tx % 2 === 0) ? '#38bdf8' : '#ffffff';
+          pushVox(islandVoxels, tx, ty, tz, stripeCol, 0.02, 1.0, 0.4, 1.0);
+        }
+      }
+      // Umbrella pole & red-and-white canopy
+      const umbX = -15, umbZ = 9;
+      const umbBaseY = Math.round(getTerrainHeight(umbX * BV, umbZ * BV) / BV);
+      for (let py = 1; py <= 10; py++) {
+        pushVox(glossyVoxels, umbX, umbBaseY + py, umbZ, '#f8fafc', 0.01, 0.55, 1.0, 0.55);
+      }
+      for (let dx = -5; dx <= 5; dx++) {
+        for (let dz = -5; dz <= 5; dz++) {
+          const r = Math.hypot(dx, dz);
+          if (r <= 5.2) {
+            const domeY = umbBaseY + 10.8 - (r * r) * 0.09;
+            const sector = Math.floor(((Math.atan2(dz, dx) + Math.PI) / (Math.PI * 2)) * 8);
+            const uCol = (sector % 2 === 0) ? '#ef4444' : '#ffffff';
+            pushVox(islandVoxels, umbX + dx, domeY, umbZ + dz, uCol, 0.02);
+          }
+        }
+      }
+      addCollider(-4.8, 0.5, 1.2, -2.6, 3.8, 3.4, 'beach_umbrella');
+
+      // 6. DETAILED VOXEL SANDCASTLE (around wx = -1.9, wz = 4.6 -> gx = -8, gz = 18)
+      const scX = -8, scZ = 18;
+      const scBaseY = Math.round(getTerrainHeight(scX * BV, scZ * BV) / BV);
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          const isCorner = (Math.abs(dx) === 2 && Math.abs(dz) === 2);
+          const isWall = (Math.abs(dx) === 2 || Math.abs(dz) === 2);
+          const h = isCorner ? 4 : (isWall ? 2 : 3);
+          for (let sy = 1; sy <= h; sy++) {
+            pushVox(islandVoxels, scX + dx, scBaseY + sy, scZ + dz, '#dfb976', 0.03);
+          }
+        }
+      }
+      // Tiny red flag on central sandcastle keep
+      pushVox(islandVoxels, scX, scBaseY + 4.2, scZ, '#78350f', 0.01, 0.3, 1.5, 0.3);
+      pushVox(islandVoxels, scX + 0.5, scBaseY + 4.8, scZ, '#ef4444', 0.01, 0.9, 0.6, 0.25);
+
+      // 7. DRIFTWOOD LOG, MESSAGE SIGNPOST, SEASHELLS, STARFISH & CAMPFIRE PIT
+      // Driftwood log near (gx = -10, gz = 26..32)
+      for (let l = 0; l < 7; l++) {
+        const lx = -10 + Math.round(l * 0.4);
+        const lz = 26 + l;
+        const ly = Math.round(getTerrainHeight(lx * BV, lz * BV) / BV) + 0.6;
+        pushVox(islandVoxels, lx, ly, lz, '#7c624c', 0.04, 1.3, 1.1, 1.1);
+      }
+
+      // "Message in a Bottle" wooden signpost at (gx = -12, gz = -8)
+      const spX = -12, spZ = -8;
+      const spY = Math.round(getTerrainHeight(spX * BV, spZ * BV) / BV);
+      for (let y = 1; y <= 6; y++) pushVox(islandVoxels, spX, spY + y, spZ, '#6b4423', 0.02, 0.65, 1, 0.65);
+      for (let bx = -2; bx <= 2; bx++) {
+        pushVox(islandVoxels, spX + bx * 0.7, spY + 5.2, spZ + 0.4, '#a47148', 0.03, 0.8, 1.3, 0.35);
+      }
+
+      // Cozy Campfire Pit on the beach at (wx = -4.0, wz = 4.2 -> gx = -16, gz = 17)
+      const cfX = -16, cfZ = 17;
+      const cfY = Math.round(getTerrainHeight(cfX * BV, cfZ * BV) / BV);
+      for (let a = 0; a < 8; a++) {
+        const ang = (a / 8) * Math.PI * 2;
+        pushVox(islandVoxels, cfX + Math.cos(ang) * 1.6, cfY + 0.5, cfZ + Math.sin(ang) * 1.6, '#64748b', 0.03, 0.9, 0.7, 0.9);
+      }
+      pushVox(islandVoxels, cfX, cfY + 0.5, cfZ, '#451a03', 0.02, 1.8, 0.5, 0.6);
+      pushVox(warmGlowVoxels, cfX, cfY + 1.1, cfZ, '#ff6b2b', 0.02, 1.1, 1.3, 1.1);
+      pushVox(warmGlowVoxels, cfX + 0.3, cfY + 1.9, cfZ - 0.2, '#fde047', 0.02, 0.65, 0.95, 0.65);
+
+      // Starfish & Seashells scattered along the beach
+      const shellSpots = [
+        { x: -6, z: 6, col: '#fb7185', star: true },
+        { x: -5, z: -4, col: '#f472b6', star: false },
+        { x: -7, z: 14, col: '#fb923c', star: true },
+        { x: -4, z: 22, col: '#fde047', star: false },
+        { x: -9, z: -12, col: '#e879f9', star: false }
+      ];
+      shellSpots.forEach(s => {
+        const sy = Math.round(getTerrainHeight(s.x * BV, s.z * BV) / BV) + 0.35;
+        if (s.star) {
+          pushVox(islandVoxels, s.x, sy, s.z, s.col, 0.02, 0.7, 0.35, 0.7);
+          pushVox(islandVoxels, s.x + 0.5, sy, s.z, s.col, 0.02, 0.45, 0.3, 0.45);
+          pushVox(islandVoxels, s.x - 0.5, sy, s.z, s.col, 0.02, 0.45, 0.3, 0.45);
+          pushVox(islandVoxels, s.x, sy, s.z + 0.5, s.col, 0.02, 0.45, 0.3, 0.45);
+          pushVox(islandVoxels, s.x, sy, s.z - 0.5, s.col, 0.02, 0.45, 0.3, 0.45);
+        } else {
+          pushVox(glossyVoxels, s.x, sy, s.z, s.col, 0.02, 0.65, 0.4, 0.65);
+        }
+      });
+
+      // 8. FOOTPRINTS IN THE WET SAND (Fade in/out as waves wash over them!)
+      for (let f = 0; f < 9; f++) {
+        const fz = -6 + f * 3.2;
+        const fx = Math.round((getShorelineX(fz * BV) - 0.6) / BV) + (f % 2 === 0 ? -0.5 : 0.5);
+        const fy = Math.round(getTerrainHeight(fx * BV, fz * BV) / BV) + 0.15;
+        footprintVoxels.push({
+          x: fx, y: fy, z: fz,
+          wx: fx * BV, wz: fz * BV,
+          stepIdx: f,
+          color: new THREE.Color('#8c6d3f')
+        });
+      }
+
+      // 9. DISTANT HORIZON VOXEL ISLANDS
+      for (let ix = -14; ix <= 14; ix++) {
+        const h1 = Math.max(0, Math.round(5 - Math.abs(ix) * 0.42 + Math.sin(ix * 0.6) * 1.2));
+        for (let iy = 0; iy <= h1; iy++) {
+          const c = iy === 0 ? '#eab308' : '#15803d';
+          pushVox(islandVoxels, 78 + iy * 0.2, iy - 1, -35 + ix * 1.6, c, 0.03, 2.2, 1.5, 2.2);
+        }
+      }
+    }
+
+    buildIslandAndProps();
+
+    const worldGroup = new THREE.Group();
+    scene.add(worldGroup);
+
+    const islandMesh = buildVoxelInstancedMesh(islandVoxels, BV, islandSolidMaterial, true, true);
+    const glossyPropMesh = buildVoxelInstancedMesh(glossyVoxels, BV, glossyPropMaterial, true, true);
+    const warmGlowMesh = buildVoxelInstancedMesh(warmGlowVoxels, BV, warmEmissiveMaterial, false, false);
+    const wetSandMesh = buildVoxelInstancedMesh(wetSandVoxels, BV, islandSolidMaterial, false, true);
+    const footprintMesh = buildVoxelInstancedMesh(
+      footprintVoxels.map(f => ({ x: f.x, y: f.y, z: f.z, color: f.color, sx: 0.75, sy: 0.25, sz: 1.15 })),
+      BV,
+      islandSolidMaterial,
+      false,
+      true
+    );
+    const palmFrondMesh = buildVoxelInstancedMesh(
+      palmFrondVoxels.map(p => ({ x: p.baseX, y: p.baseY, z: p.baseZ, color: p.color, sx: p.sx, sy: p.sy, sz: p.sz })),
+      BV,
+      plushMaterial,
+      true,
+      true
+    );
+
+    if (islandMesh) worldGroup.add(islandMesh);
+    if (glossyPropMesh) worldGroup.add(glossyPropMesh);
+    if (warmGlowMesh) worldGroup.add(warmGlowMesh);
+    if (wetSandMesh) worldGroup.add(wetSandMesh);
+    if (footprintMesh) worldGroup.add(footprintMesh);
+    if (palmFrondMesh) worldGroup.add(palmFrondMesh);
+
+    function updatePalmFrondsAndWetSand(time) {
+      // Sway palm leaves in the tropical breeze
+      if (palmFrondMesh) {
+        for (let i = 0; i < palmFrondVoxels.length; i++) {
+          const p = palmFrondVoxels[i];
+          const swayX = Math.sin(time * 1.8 + p.phase) * 0.65 * p.weight;
+          const swayY = Math.cos(time * 2.2 + p.phase) * 0.35 * p.weight;
+          const swayZ = Math.sin(time * 1.4 + p.phase * 1.3) * 0.45 * p.weight;
+          tempPos.set((p.baseX + swayX) * BV, (p.baseY + swayY) * BV, (p.baseZ + swayZ) * BV);
+          tempQuat.identity();
+          tempScale.set(p.sx, p.sy, p.sz);
+          tempMatrix.compose(tempPos, tempQuat, tempScale);
+          palmFrondMesh.setMatrixAt(i, tempMatrix);
+        }
+        palmFrondMesh.instanceMatrix.needsUpdate = true;
+      }
+
+      // Wet sand darkening & fading footprints as the tide washes in and out
+      if (wetSandMesh) {
+        for (let i = 0; i < wetSandVoxels.length; i++) {
+          const ws = wetSandVoxels[i];
+          const wInfo = getWaveInfo(ws.wx, ws.wz, time);
+          const surfH = ws.y * BV;
+          const wetness = THREE.MathUtils.clamp((wInfo.height - (surfH - 0.18)) * 3.5, 0, 1);
+          tempColor.copy(ws.baseColor).lerp(ws.wetColor, wetness);
+          wetSandMesh.setColorAt(i, tempColor);
+        }
+        wetSandMesh.instanceColor.needsUpdate = true;
+      }
+
+      if (footprintMesh) {
+        for (let i = 0; i < footprintVoxels.length; i++) {
+          const fp = footprintVoxels[i];
+          // Cycle footprints appearing and getting washed away by the tide
+          const cycle = (time * 0.45 - fp.stepIdx * 0.25) % 4.0;
+          const vis = cycle > 0 && cycle < 2.6 ? Math.sin((cycle / 2.6) * Math.PI) : 0.0;
+          tempPos.set(fp.x * BV, (fp.y + (vis > 0.05 ? 0 : -2.0)) * BV, fp.z * BV);
+          tempQuat.identity();
+          tempScale.set(0.75 * vis, 0.22, 1.15 * vis);
+          tempMatrix.compose(tempPos, tempQuat, tempScale);
+          footprintMesh.setMatrixAt(i, tempMatrix);
+        }
+        footprintMesh.instanceMatrix.needsUpdate = true;
+      }
+    }
+
+    // ============================================================================
+    // 7. ANIMATED VOXEL OCEAN SURFACE & SHORELINE FOAM
+    // ============================================================================
+    const WV = 0.34; // Ocean voxel column size for smooth 60fps wave grid
+    const waterCells = [];
+    for (let wx = -5.5; wx <= 11.5; wx += WV) {
+      for (let wz = -10.5; wz <= 10.5; wz += WV) {
+        const bedY = getTerrainHeight(wx, wz);
+        const distPool = Math.hypot(wx + 3.8, wz + 3.2);
+        // Include open ocean, swash zone, and the tide pool basin!
+        if (bedY < 0.38 || distPool < 1.55) {
+          waterCells.push({
+            wx, wz, bedY,
+            isTidePool: distPool < 1.55 && wx < getShorelineX(wz) - 1.0
+          });
+        }
+      }
+    }
+
+    const oceanGeom = new THREE.BoxGeometry(WV * 0.98, WV, WV * 0.98);
+    const oceanMesh = new THREE.InstancedMesh(oceanGeom, waterMaterial, waterCells.length);
+    oceanMesh.receiveShadow = true;
+    scene.add(oceanMesh);
+
+    const shallowDayCol = new THREE.Color('#2dd4bf');
+    const midDayCol = new THREE.Color('#0ea5e9');
+    const deepDayCol = new THREE.Color('#1d4ed8');
+    const foamDayCol = new THREE.Color('#ffffff');
+
+    const shallowNightCol = new THREE.Color('#0d9488');
+    const midNightCol = new THREE.Color('#0369a1');
+    const deepNightCol = new THREE.Color('#0f172a');
+    const bioFoamNightCol = new THREE.Color('#38bdf8'); // Glowing bioluminescent shoreline!
+
+    function updateOceanWaves(time, nightProgress) {
+      const shallowCol = tempColor.copy(shallowDayCol).lerp(shallowNightCol, nightProgress);
+      const midCol = new THREE.Color().copy(midDayCol).lerp(midNightCol, nightProgress);
+      const deepCol = new THREE.Color().copy(deepDayCol).lerp(deepNightCol, nightProgress);
+      const crestCol = new THREE.Color().copy(foamDayCol).lerp(bioFoamNightCol, nightProgress * 0.75);
+
+      for (let i = 0; i < waterCells.length; i++) {
+        const cell = waterCells[i];
+        let waveH = 0.42;
+        let isFoam = false;
+
+        if (cell.isTidePool) {
+          waveH = 0.48 + Math.sin(time * 2.5 + cell.wx * 3.0) * 0.025;
+        } else {
+          const info = getWaveInfo(cell.wx, cell.wz, time);
+          waveH = info.height;
+          const depth = waveH - cell.bedY;
+          // Shoreline breaking foam swash + wave crests
+          isFoam = (depth > -0.05 && depth < 0.24) || info.crestFoam;
+        }
+
+        const depth = waveH - cell.bedY;
+        if (depth <= -0.04 && !cell.isTidePool) {
+          // Wave has retreated below sand here
+          tempMatrix.makeScale(0, 0, 0);
+          oceanMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+
+        const sy = Math.max(0.25, Math.min(2.4, (depth + 0.35) / WV));
+        tempPos.set(cell.wx, waveH - (sy * WV * 0.45), cell.wz);
+        tempQuat.identity();
+        tempScale.set(1, sy, 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        oceanMesh.setMatrixAt(i, tempMatrix);
+
+        // Color gradient from shallow turquoise to deep navy + sun/moon glints
+        const c = new THREE.Color();
+        if (isFoam) {
+          c.copy(crestCol);
+        } else {
+          const dNorm = THREE.MathUtils.clamp(depth / 2.2, 0, 1);
+          if (dNorm < 0.45) {
+            c.copy(shallowCol).lerp(midCol, dNorm / 0.45);
+          } else {
+            c.copy(midCol).lerp(deepCol, (dNorm - 0.45) / 0.55);
+          }
+          // Sparkling sun glint / shimmering moon path along Z near the horizon sun/moon
+          const glintBand = Math.abs(cell.wz + 4.5 - cell.wx * 0.35);
+          if (glintBand < 2.2 && Math.sin(cell.wx * 5.3 - time * 6.5 + cell.wz * 4.1) > 0.84) {
+            c.lerp(new THREE.Color(nightProgress > 0.5 ? '#e0f2fe' : '#fef9c3'), 0.75);
+          }
+        }
+        oceanMesh.setColorAt(i, c);
+      }
+      oceanMesh.instanceMatrix.needsUpdate = true;
+      if (oceanMesh.instanceColor) oceanMesh.instanceColor.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 8. TOUHOU FUMO VOXEL PLUSHIE BUILDER (Exact room.html VoxelFumo Standard)
+    // ============================================================================
+    const allInteractiveMeshes = [];
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.emoji = config.emoji || '❄️';
+        this.accentColor = config.accentColor || '#38bdf8';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.082 * this.scaleFactor; // Exact fine voxel size from room.html
+        this.radius = 0.85 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+        this.inBottle = Boolean(config.inBottle);
+
+        // Home resting position & rotation
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+
+        // World physics state
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = false;
+        this.isInWater = false;
+        this.isDragged = false;
+
+        // Soft-body spring states
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        // Scene Hierarchy
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        // Inside-bottle inner plush pivot so Cirno wobbles inside the glass bottle
+        this.plushContainer = new THREE.Group();
+        this.squashGroup.add(this.plushContainer);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.plushContainer.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.plushContainer.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.plushContainer.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.plushContainer.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.plushContainer.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.plushContainer.add(this.wingsPivot);
+
+        this.buildCharacterVoxels(config);
+        if (this.inBottle) {
+          this.buildCorkedGlassBottle();
+        }
+
+        this.syncTransform(0);
+        scene.add(this.root);
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingSolidVoxels = [];
+        const wingGlowVoxels = [];
+
+        const skinBase = '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false) => {
+          const seamDarken = (isSeam && ((Math.abs(x + y + z) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z,
+            color: varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // 1. STUBBY SITTING TORSO (Exact room.html proportions)
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain;
+
+              // White under-skirt ruffle at bottom (y === 1)
+              if (y === 1 && z >= 1) col = '#ffffff';
+              // White pinafore / apron front panel for Daiyousei
+              if (cfg.hasWhiteApron && z >= 1 && Math.abs(x) <= 2 && y <= 5) {
+                col = '#fcfcfc';
+              }
+              // White short-sleeved blouse collar & red ribbon at collar (y >= 5, z >= 2)
+              if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                col = '#ffffff';
+                if (Math.abs(x) <= 1 && y === 5) col = cfg.tieColor || '#ef4444';
+              }
+
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        // 2. SHORT DANGLING ARMS (White short-sleeved blouse + plush hands)
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || '#ffffff';
+                if (y === -3) col = skinBase;
+                else if (this.id === 'cirno' && y === -1) col = '#bae6fd'; // Ice blue sleeve cuff trim
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        // 3. SHORT SITTING / DANGLING LEGS WITH SHOES
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = '#ffffff';
+                if (z === 0) col = skinBase;
+                if (z >= 3) col = cfg.shoeColor || '#1e3a8a';
+                if (z === 4 && y === 1 && x === 0) col = '#ffffff';
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        // 4. OVERSIZED ROUND FUMO HEAD & ICONIC 'ᗜˬᗜ' FACE (Exact room.html shell)
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                // Iconic Fumo Face Plane
+                if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (y === 6) col = '#1f141e'; // Flat upper eyelash bar
+                  else if (y === 5 && Math.abs(x) === 2) col = '#ffffff'; // Eye shine voxel
+                  else col = cfg.eyeColor;
+                } else if (Math.abs(x) === 4 && y === 3) {
+                  col = blushCol;
+                } else if (y === 2 && Math.abs(x) <= 1) {
+                  col = (x === 0) ? '#e07a7a' : smileCol;
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        // Character-Specific Details:
+        if (this.id === 'cirno') {
+          // Large Blue Bow on top/back of her light-blue bob hair
+          for (let bx = -6; bx <= 6; bx++) {
+            const h = Math.min(3, Math.floor(Math.abs(bx) * 0.65) + 1);
+            for (let by = -h; by <= h; by++) {
+              addPlushVoxel(headVoxels, bx, 10.8 + by * 0.75, -4.4, '#1d4ed8');
+            }
+          }
+          // 6 Translucent Ice-Crystal Wings floating behind her (pressed slightly inward to fit inside the glass bottle!)
+          const wingAngles = [0.48, 0.04, -0.38];
+          for (const side of [-1, 1]) {
+            for (let w = 0; w < 3; w++) {
+              const ang = wingAngles[w];
+              for (let r = 1; r <= 6; r++) {
+                const wx = side * (1.1 + Math.cos(ang) * r * 0.92);
+                const wy = 1.0 + Math.sin(ang) * r * 0.95;
+                const wz = -0.3 + (r > 3 ? (r - 3) * 0.22 : 0); // Slight curve matching bottle glass wall
+                wingGlowVoxels.push({
+                  x: wx, y: wy, z: wz,
+                  color: varyColor(r >= 5 ? '#e0f2fe' : '#38bdf8', wx, wy, wz, 0.02),
+                  sx: 1.05, sy: 0.85, sz: 0.62
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'daiyousei') {
+          // Daiyousei's Yellow & White Hair Ribbons + Side Ponytail
+          for (let py = 1; py <= 6; py++) {
+            addPlushVoxel(headVoxels, 6.8, py, 0.8, py === 5 ? '#facc15' : cfg.hairColor);
+          }
+          for (let bx = -5; bx <= 5; bx++) {
+            addPlushVoxel(headVoxels, bx, 11.4, -3.2, Math.abs(bx) <= 1 ? '#ffffff' : '#facc15');
+          }
+          // Translucent Fairy Wings
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 5; wx++) {
+              for (let wy = -1; wy <= 3; wy++) {
+                if (Math.hypot(wx - 2.5, wy - 1) <= 2.8) {
+                  wingGlowVoxels.push({
+                    x: side * wx * 0.95, y: wy * 0.95 + 1.0, z: -0.4,
+                    color: varyColor('#bbf7d0', wx, wy, 0, 0.02),
+                    sx: 0.9, sy: 0.9, sz: 0.5
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allInteractiveMeshes.push(m);
+          }
+          return m;
+        };
+
+        registerPart(bodyVoxels, this.plushContainer);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        registerPart(wingSolidVoxels, this.wingsPivot);
+        if (wingGlowVoxels.length > 0) {
+          registerPart(wingGlowVoxels, this.wingsPivot, translucentIceMaterial);
+        }
+      }
+
+      // Build the Chunky Rounded Corked Glass Bottle + Scroll of Paper around Cirno
+      buildCorkedGlassBottle() {
+        const glassVoxels = [];
+        const solidBottleVoxels = [];
+        const highlightVoxels = [];
+
+        // Small curl of message-in-a-bottle paper tucked beside Cirno inside the bottle
+        for (let py = 0; py <= 6; py++) {
+          solidBottleVoxels.push({
+            x: 5.5, y: py + 0.5, z: 3.2 - py * 0.15,
+            color: varyColor(py === 3 ? '#ef4444' : '#fef3c7', 5, py, 3, 0.02),
+            sx: 1.3, sy: 0.95, sz: 1.3
+          });
+        }
+
+        // Bottle profile from y = -2 (thick rounded glass bottom) up to y = 25 (neck, lip & cork)
+        for (let y = -2; y <= 25; y++) {
+          let outerR = 9.4;
+          let innerR = 8.1;
+          if (y === -2) { outerR = 7.8; innerR = 0; } // Rounded base bottom
+          else if (y === -1) { outerR = 9.0; innerR = 4.5; } // Thick glass punt
+          else if (y <= 15) { outerR = 9.5; innerR = 8.3; } // Main cylindrical belly
+          else if (y <= 19) {
+            // Rounded shoulder taper
+            const t = (y - 15) / 4;
+            outerR = 9.5 * (1 - t) + 4.3 * t;
+            innerR = outerR - 1.25;
+          } else if (y <= 22) {
+            // Bottle neck
+            outerR = 4.2;
+            innerR = 3.0;
+          } else if (y === 23) {
+            // Thickened glass lip rim
+            outerR = 4.9;
+            innerR = 3.0;
+          } else {
+            // Cork stopper (y = 24..25)
+            outerR = 3.7 - (y - 24) * 0.25;
+            innerR = 0;
+          }
+
+          for (let x = -10; x <= 10; x++) {
+            for (let z = -10; z <= 10; z++) {
+              const r = Math.hypot(x, z);
+              if (r > outerR || r < innerR) continue;
+
+              // Cork stopper & rustic twine tie
+              if (y >= 22 && r <= 3.75) {
+                const corkCol = (y === 23 && r >= 2.8) ? '#d6b27c' : '#b47b48';
+                solidBottleVoxels.push({
+                  x, y, z,
+                  color: varyColor(corkCol, x, y, z, 0.035)
+                });
+                continue;
+              }
+
+              // Twine wrapped around the bottle neck (y === 20 || y === 21)
+              if ((y === 20 || y === 21) && r >= outerR - 0.85 && ((x + z + y) % 2 === 0)) {
+                solidBottleVoxels.push({
+                  x: x * 1.04, y, z: z * 1.04,
+                  color: varyColor('#d4a373', x, y, z, 0.03),
+                  sx: 0.9, sy: 0.75, sz: 0.9
+                });
+              }
+
+              // Specular highlight strip on front-left of glass bottle
+              if (x >= -7 && x <= -5 && z >= 5 && y >= 2 && y <= 14 && r >= outerR - 1.1) {
+                highlightVoxels.push({
+                  x, y, z,
+                  color: new THREE.Color('#ffffff')
+                });
+                continue;
+              }
+
+              // Sparse checkerboard sampling on main belly so Cirno is crystal-clear inside,
+              // while keeping solid rings at base, shoulder, and lip for unmistakable bottle silhouette!
+              const isStructuralRing = (y <= 0 || y === 15 || y >= 18 || Math.abs(x) >= outerR - 1.15);
+              if (!isStructuralRing && ((Math.abs(x + y + z) % 2) !== 0)) continue;
+
+              const glassHex = (y <= 0 || y === 23) ? '#6ee7b7' : '#a7f3d0';
+              glassVoxels.push({
+                x, y, z,
+                color: varyColor(glassHex, x, y, z, 0.02)
+              });
+            }
+          }
+        }
+
+        const solidMesh = buildVoxelInstancedMesh(solidBottleVoxels, this.FV, islandSolidMaterial, true, true);
+        const glassMesh = buildVoxelInstancedMesh(glassVoxels, this.FV, bottleGlassMaterial, false, false);
+        const specMesh = buildVoxelInstancedMesh(highlightVoxels, this.FV, bottleHighlightMaterial, false, false);
+
+        if (solidMesh) {
+          solidMesh.userData.fumo = this;
+          this.squashGroup.add(solidMesh);
+          allInteractiveMeshes.push(solidMesh);
+        }
+        if (glassMesh) {
+          glassMesh.userData.fumo = this;
+          this.squashGroup.add(glassMesh);
+          allInteractiveMeshes.push(glassMesh);
+        }
+        if (specMesh) {
+          specMesh.userData.fumo = this;
+          this.squashGroup.add(specMesh);
+        }
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.52, this.squash - 0.42 * strength);
+        this.squashVel = -3.6 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 15 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 12 * strength;
+        this.limbPitch = -0.68 * strength;
+        this.limbPitchVel = -6.2 * strength;
+
+        spawnBurstParticles(this.pos, this.inBottle ? 'ice' : 'pop', 16, this.accentColor);
+        if (this.isInWater) {
+          spawnSplashRing(this.pos.x, this.pos.z, 1.35);
+          soundFX.playSplash(0.45);
+        }
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      resetToHome() {
+        this.pos.copy(this.homePos);
+        this.vel.set(0, 0, 0);
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel.set(0, 0, 0);
+        this.isDragged = false;
+        this.squeeze(0.8);
+      }
+
+      updatePhysics(dt, time) {
+        // 1. Volume-preserving Squash & Stretch Spring
+        const squashStiff = 210.0;
+        const squashDamp = 11.5;
+        this.squashVel += ((1.0 - this.squash) * squashStiff - this.squashVel * squashDamp) * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash + this.squashVel * dt, 0.48, 1.52);
+
+        // 2. Oversized Head Wobble Spring
+        const headStiff = 135.0;
+        const headDamp = 7.2;
+        const idleHeadBob = Math.sin(time * 2.3 + this.homePos.x) * 0.03;
+        this.headPitchVel += ((idleHeadBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.52, 0.52);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.52, 0.52);
+
+        // 3. Dangling Limb Swing Springs (swing against the glass when bottle tilts!)
+        const targetLimbPitch = (this.isDragged || !this.isGrounded) ? (0.35 - this.pitch * 0.85) : 0.0;
+        const targetLimbRoll = -this.roll * 0.95;
+        const limbStiff = 115.0;
+        const limbDamp = 7.5;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * limbStiff - this.limbPitchVel * limbDamp) * dt;
+        this.limbRollVel += ((targetLimbRoll - this.limbRoll) * limbStiff - this.limbRollVel * limbDamp) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.75, 0.85);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.65, 0.65);
+
+        if (this.isDragged) {
+          // Drip water droplets if lifted out of the ocean!
+          if (Math.random() < 0.45) {
+            spawnWaterDrip(this.pos);
+          }
+          this.syncTransform(time);
+          return;
+        }
+
+        // 4. World Gravity, Wave Buoyancy & Terrain/Sand Collision
+        const shoreX = getShorelineX(this.pos.z);
+        const terrainY = getTerrainHeight(this.pos.x, this.pos.z);
+        const waveInfo = getWaveInfo(this.pos.x, this.pos.z, time);
+        const waterDepthHere = waveInfo.height - terrainY;
+        const overWater = waterDepthHere > 0.12;
+
+        if (overWater) {
+          const floatTargetY = waveInfo.height - (this.inBottle ? 0.16 : 0.08);
+          if (this.pos.y <= floatTargetY + 0.35) {
+            // Splash when entering water from a throw!
+            if (!this.isInWater && this.vel.y < -2.2) {
+              const impact = Math.min(1.5, -this.vel.y / 10);
+              spawnSplashRing(this.pos.x, this.pos.z, 1.2 + impact);
+              spawnBurstParticles(this.pos, 'splash', 18, '#e0f2fe');
+              this.squashVel -= Math.min(7.5, -this.vel.y * 0.65);
+              this.headPitchVel += (Math.random() - 0.5) * 10;
+              soundFX.playSplash(impact);
+            }
+            this.isInWater = true;
+            this.isGrounded = false;
+
+            // Spring-damper wave buoyancy with slight inertial lag & gentle bobbing overshoot
+            const buoyForce = (floatTargetY - this.pos.y) * 34.0 - this.vel.y * 5.2;
+            this.vel.y += buoyForce * dt;
+
+            // Gentle wave drift & restoring current toward the cove so the bottle doesn't drift off-screen
+            const targetDriftX = Math.max(shoreX + 1.8, 2.2);
+            this.vel.x += ((targetDriftX - this.pos.x) * 0.35 - Math.sin(time * 2.1) * 0.25) * dt;
+            this.vel.z += ((0.5 - this.pos.z) * 0.18 + Math.cos(time * 1.4) * 0.2) * dt;
+            this.vel.x *= Math.pow(0.92, dt * 60);
+            this.vel.z *= Math.pow(0.92, dt * 60);
+
+            // Pitch & Roll follow local wave slope with inertial lag
+            const targetRoll = -waveInfo.slopeX * 1.35 + Math.sin(time * 2.9 + this.pos.x) * 0.08;
+            const targetPitch = waveInfo.slopeZ * 1.35 + Math.cos(time * 2.4 + this.pos.z) * 0.08;
+            this.angVel.z += ((targetRoll - this.roll) * 26.0 - this.angVel.z * 5.5) * dt;
+            this.angVel.x += ((targetPitch - this.pitch) * 26.0 - this.angVel.x * 5.5) * dt;
+            this.angVel.y *= Math.pow(0.9, dt * 60);
+
+            // Couple bottle tilt into Cirno's head wobble inside the bottle!
+            this.headRollVel += this.angVel.z * 4.5 * dt;
+            this.headPitchVel += this.angVel.x * 4.5 * dt;
+          } else {
+            // In the air above the water
+            this.isInWater = false;
+            this.vel.y -= 22.0 * dt;
+          }
+        } else {
+          // Over sandy beach / island terrain
+          this.isInWater = false;
+          this.vel.y -= 22.0 * dt;
+        }
+
+        // Integrate velocity & angular velocity
+        this.pos.addScaledVector(this.vel, dt);
+        this.yaw += this.angVel.y * dt;
+        this.pitch += this.angVel.x * dt;
+        this.roll += this.angVel.z * dt;
+
+        // Check Furniture / Pier / Palm Hollow Colliders
+        let supportY = terrainY;
+        const r = this.radius * 0.65;
+        for (let i = 0; i < propColliders.length; i++) {
+          const box = propColliders[i];
+          if (
+            this.pos.x >= box.min.x - r && this.pos.x <= box.max.x + r &&
+            this.pos.z >= box.min.z - r && this.pos.z <= box.max.z + r
+          ) {
+            if (this.pos.y >= box.max.y - 0.45 && this.vel.y <= 0.5) {
+              supportY = Math.max(supportY, box.max.y);
+            }
+          }
+        }
+
+        // Land / Sand / Pier Surface Collision
+        if (!this.isInWater && this.pos.y <= supportY) {
+          const impact = -this.vel.y;
+          this.pos.y = supportY;
+          if (impact > 1.8) {
+            this.vel.y = impact * 0.36;
+            this.squashVel -= Math.min(8.5, impact * 0.85);
+            this.headPitchVel += (Math.random() - 0.5) * impact * 2.2;
+            this.headRollVel += (Math.random() - 0.5) * impact * 2.2;
+            // Kick up sand puffs when landing on the beach!
+            spawnBurstParticles(this.pos, 'sand', 14, '#ebd098');
+            soundFX.playSandThud(impact * 0.08);
+            // Roll a little on the sand slope
+            this.vel.x += 0.8;
+            this.angVel.z -= 2.5;
+          } else {
+            this.vel.y = 0;
+            this.isGrounded = true;
+            this.vel.x *= Math.pow(0.80, dt * 60);
+            this.vel.z *= Math.pow(0.80, dt * 60);
+
+            // If resting on wet sand near the swash zone, incoming waves slowly wash the bottle back out!
+            if (this.inBottle && this.pos.x > shoreX - 1.8 && Math.sin(time * 2.15) > 0.25) {
+              this.vel.x += 2.6 * dt;
+              this.angVel.z -= 3.2 * dt;
+              if (Math.random() < 0.15) spawnSplashRing(this.pos.x, this.pos.z, 0.7);
+            }
+          }
+          // Self-righting torque on land
+          this.pitch = THREE.MathUtils.lerp(this.pitch, 0, Math.min(1, dt * 8.5));
+          this.roll = THREE.MathUtils.lerp(this.roll, 0, Math.min(1, dt * 8.5));
+          this.angVel.multiplyScalar(0.82);
+        }
+
+        // Keep within diorama bounds
+        this.pos.x = THREE.MathUtils.clamp(this.pos.x, -9.8, 9.8);
+        this.pos.z = THREE.MathUtils.clamp(this.pos.z, -9.2, 9.2);
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        // Inside the bottle, Cirno shifts & tilts slightly against the glass
+        if (this.inBottle) {
+          this.plushContainer.rotation.z = THREE.MathUtils.clamp(-this.roll * 0.35, -0.22, 0.22);
+          this.plushContainer.rotation.x = THREE.MathUtils.clamp(-this.pitch * 0.35, -0.22, 0.22);
+        }
+
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+        this.leftArmPivot.rotation.set(this.limbPitch, 0, 0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.rightArmPivot.rotation.set(this.limbPitch, 0, -0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+
+        const wingJiggle = Math.sin(time * 4.2 + this.homePos.x) * 0.07 + (1.0 - this.squash) * 0.38;
+        this.wingsPivot.rotation.x = wingJiggle;
+      }
+    }
+
+    // Instantiate Hero Cirno in a Bottle + Daiyousei Napping in the Palm Hollow!
+    const cirnoBottle = new VoxelFumo({
+      id: 'cirno',
+      name: 'Cirno in a Bottle (Ice Fairy Fumo)',
+      emoji: '🍾',
+      accentColor: '#38bdf8',
+      hairColor: '#7dd3fc',
+      eyeColor: '#0284c7',
+      outfitMain: '#2563eb',
+      sleeveColor: '#ffffff',
+      tieColor: '#ef4444',
+      shoeColor: '#1e3a8a',
+      hasWhiteApron: false,
+      inBottle: true,
+      homePos: new THREE.Vector3(2.8, 0.15, 0.8),
+      homeYaw: -0.45,
+      pitchAudio: 1.15
+    });
+
+    const daiyouseiFumo = new VoxelFumo({
+      id: 'daiyousei',
+      name: 'Daiyousei Fumo (Palm Hollow)',
+      emoji: '🌿',
+      accentColor: '#4ade80',
+      hairColor: '#4ade80',
+      eyeColor: '#15803d',
+      outfitMain: '#1d4ed8',
+      sleeveColor: '#ffffff',
+      tieColor: '#facc15',
+      shoeColor: '#1e3a8a',
+      hasWhiteApron: true,
+      scale: 0.78,
+      inBottle: false,
+      homePos: new THREE.Vector3(-5.15, 2.32, 1.05),
+      homeYaw: 0.85,
+      pitchAudio: 1.32
+    });
+
+    const fumos = [cirnoBottle, daiyouseiFumo];
+
+    // ============================================================================
+    // 9. DRIVABLE VOXEL SAILBOAT, CRABS (WITH CIRNO BOW!), MELTING ICE, GULLS & FISH
+    // ============================================================================
+    // 9A. Drivable Voxel Sailboat (Arrow Keys or WASD)
+    const boatGroup = new THREE.Group();
+    scene.add(boatGroup);
+
+    const boatVoxels = [];
+    // Wooden boat hull
+    for (let bx = -5; bx <= 5; bx++) {
+      const halfW = Math.max(1, Math.round(3.2 - Math.pow(Math.abs(bx) / 5, 1.6) * 2.2));
+      for (let bz = -halfW; bz <= halfW; bz++) {
+        for (let by = 0; by <= 2; by++) {
+          if (by >= 1 && Math.abs(bz) < halfW && Math.abs(bx) < 4) continue; // Hollow cockpit
+          const hCol = by === 2 ? '#f8fafc' : (by === 1 ? '#dc2626' : '#78350f');
+          boatVoxels.push({ x: bx, y: by, z: bz, color: varyColor(hCol, bx, by, bz, 0.025) });
+        }
+      }
+    }
+    // Mast & Billowing White/Blue Sail
+    for (let my = 1; my <= 12; my++) {
+      boatVoxels.push({ x: 0, y: my, z: 0, color: new THREE.Color('#5c3a21'), sx: 0.65, sy: 1, sz: 0.65 });
+      if (my >= 3 && my <= 11) {
+        const sailLen = Math.max(1, Math.round((12 - my) * 0.65));
+        for (let sx = -sailLen; sx <= 1; sx++) {
+          const curveZ = Math.sin(((sx + sailLen) / (sailLen + 1)) * Math.PI) * 0.8;
+          const sCol = (my === 4 || my === 5) ? '#38bdf8' : '#ffffff';
+          boatVoxels.push({ x: sx, y: my, z: curveZ, color: varyColor(sCol, sx, my, 0, 0.02), sx: 1, sy: 1, sz: 0.45 });
+        }
+      }
+    }
+    const boatMesh = buildVoxelInstancedMesh(boatVoxels, 0.14, islandSolidMaterial, true, true);
+    boatGroup.add(boatMesh);
+
+    const boatState = {
+      pos: new THREE.Vector3(5.6, 0.1, -3.2),
+      homePos: new THREE.Vector3(5.6, 0.1, -3.2),
+      yaw: 2.3,
+      speed: 0,
+      keys: { up: false, down: false, left: false, right: false }
+    };
+
+    function updateSailboat(dt, time) {
+      const accel = (boatState.keys.up ? 4.2 : 0) - (boatState.keys.down ? 2.8 : 0);
+      boatState.speed += accel * dt;
+      boatState.speed *= Math.pow(0.94, dt * 60);
+
+      if (boatState.keys.left) boatState.yaw += 2.1 * dt;
+      if (boatState.keys.right) boatState.yaw -= 2.1 * dt;
+
+      const nextX = boatState.pos.x + Math.cos(boatState.yaw) * boatState.speed * dt;
+      const nextZ = boatState.pos.z - Math.sin(boatState.yaw) * boatState.speed * dt;
+      const minOceanX = getShorelineX(nextZ) + 1.1;
+
+      boatState.pos.x = THREE.MathUtils.clamp(nextX, minOceanX, 10.2);
+      boatState.pos.z = THREE.MathUtils.clamp(nextZ, -9.2, 9.2);
+
+      const wInfo = getWaveInfo(boatState.pos.x, boatState.pos.z, time);
+      boatState.pos.y = wInfo.height + 0.04;
+
+      boatGroup.position.copy(boatState.pos);
+      boatGroup.rotation.order = 'YXZ';
+      boatGroup.rotation.set(
+        wInfo.slopeZ * 0.9 + Math.sin(time * 2.5) * 0.06,
+        boatState.yaw,
+        -wInfo.slopeX * 0.9 - boatState.speed * 0.04
+      );
+
+      // Spawn foam wake when sailing
+      if (Math.abs(boatState.speed) > 0.35 && Math.random() < 0.55) {
+        const sternX = boatState.pos.x - Math.cos(boatState.yaw) * 0.7;
+        const sternZ = boatState.pos.z + Math.sin(boatState.yaw) * 0.7;
+        spawnWakeParticle(sternX, wInfo.height + 0.05, sternZ);
+      }
+    }
+
+    // 9B. Scuttling Tide-Pool Crabs (One wearing a tiny Cirno-blue bow!)
+    const crabs = [];
+    function createVoxelCrab(homeX, homeZ, hasCirnoBow) {
+      const group = new THREE.Group();
+      const vox = [];
+      // Red crab shell & claws
+      for (let x = -2; x <= 2; x++) {
+        for (let z = -1; z <= 1; z++) {
+          vox.push({ x, y: 1, z, color: varyColor('#ef4444', x, 1, z, 0.03) });
+        }
+      }
+      // Eyes on stalks
+      vox.push({ x: -1, y: 2, z: 1.2, color: new THREE.Color('#1e293b'), sx: 0.5, sy: 0.7, sz: 0.5 });
+      vox.push({ x: 1, y: 2, z: 1.2, color: new THREE.Color('#1e293b'), sx: 0.5, sy: 0.7, sz: 0.5 });
+      // Claws & legs
+      for (const side of [-1, 1]) {
+        vox.push({ x: side * 3, y: 1, z: 1.5, color: new THREE.Color('#dc2626'), sx: 0.9, sy: 0.7, sz: 1.2 });
+        vox.push({ x: side * 2.8, y: 0.4, z: -0.5, color: new THREE.Color('#b91c1c'), sx: 0.8, sy: 0.5, sz: 0.5 });
+      }
+      // Tiny Cirno-blue bow on top of the special crab!
+      if (hasCirnoBow) {
+        for (let bx = -2; bx <= 2; bx++) {
+          vox.push({
+            x: bx * 0.7, y: 2.3, z: -0.2,
+            color: new THREE.Color(bx === 0 ? '#1d4ed8' : '#38bdf8'),
+            sx: 0.75, sy: 0.75 + Math.abs(bx) * 0.25, sz: 0.5
+          });
+        }
+      }
+      const mesh = buildVoxelInstancedMesh(vox, 0.075, islandSolidMaterial, true, true);
+      group.add(mesh);
+      scene.add(group);
+
+      const crabObj = {
+        id: hasCirnoBow ? 'crab_cirno' : 'crab',
+        name: hasCirnoBow ? 'Tide-Pool Crab (Wearing Cirno Bow!)' : 'Tide-Pool Crab',
+        emoji: '🦀',
+        accentColor: '#ef4444',
+        group,
+        homeX, homeZ,
+        jumpY: 0,
+        jumpVel: 0,
+        phase: hasCirnoBow ? 0 : 2.4,
+        squeeze() {
+          this.jumpVel = 4.2;
+          soundFX.playSqueeze(1.45);
+          spawnBurstParticles(this.group.position, 'ice', 10, '#38bdf8');
+        }
+      };
+      mesh.userData.fumo = crabObj;
+      allInteractiveMeshes.push(mesh);
+      crabs.push(crabObj);
+    }
+
+    createVoxelCrab(-3.3, -2.5, true);  // Crab with Cirno's blue bow near tide pool!
+    createVoxelCrab(-4.3, -3.7, false); // Second crab in tide pool
+
+    // 9C. Slowly Melting Ice-Cube Pile beside the Dock (at wx = -1.6, wz = -2.8)
+    const icePileGroup = new THREE.Group();
+    icePileGroup.position.set(-1.6, getTerrainHeight(-1.6, -2.8) + 0.05, -2.8);
+    scene.add(icePileGroup);
+
+    const iceCubes = [
+      { ox: 0, oz: 0, oy: 0.14, size: 0.26 },
+      { ox: 0.24, oz: 0.12, oy: 0.12, size: 0.22 },
+      { ox: -0.20, oz: 0.16, oy: 0.11, size: 0.20 },
+      { ox: 0.05, oz: 0.04, oy: 0.35, size: 0.20 }
+    ];
+    const iceMeshes = iceCubes.map(c => {
+      const m = new THREE.Mesh(createSoftVoxelGeometry(c.size), translucentIceMaterial);
+      m.position.set(c.ox, c.oy, c.oz);
+      m.rotation.y = c.ox * 2.5;
+      icePileGroup.add(m);
+      return { mesh: m, baseY: c.oy };
+    });
+    const puddleMesh = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.03, 0.85), waterMaterial);
+    puddleMesh.position.set(0, 0.02, 0.05);
+    icePileGroup.add(puddleMesh);
+
+    // 9D. Slowly Circling Voxel Seagulls & Jumping School of Fish
+    const seagulls = [];
+    for (let g = 0; g < 4; g++) {
+      const gullGroup = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.12, 0.14), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      const beak = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.06, 0.06), new THREE.MeshBasicMaterial({ color: 0xf59e0b }));
+      beak.position.set(0.18, 0, 0);
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 0.32), new THREE.MeshBasicMaterial({ color: 0xf1f5f9 }));
+      wingL.position.set(0, 0.03, 0.18);
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 0.32), new THREE.MeshBasicMaterial({ color: 0xf1f5f9 }));
+      wingR.position.set(0, 0.03, -0.18);
+      gullGroup.add(body, beak, wingL, wingR);
+      scene.add(gullGroup);
+      seagulls.push({
+        group: gullGroup, wingL, wingR,
+        radius: 6.5 + g * 1.6,
+        height: 6.8 + g * 0.65,
+        speed: 0.38 + g * 0.05,
+        phase: g * 1.6
+      });
+    }
+
+    // Jumping school of fish in the ocean
+    const jumpingFish = [];
+    const fishGeom = new THREE.BoxGeometry(0.22, 0.10, 0.06);
+    const fishMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 0.5, roughness: 0.2 });
+    for (let f = 0; f < 3; f++) {
+      const m = new THREE.Mesh(fishGeom, fishMat);
+      scene.add(m);
+      jumpingFish.push({
+        mesh: m,
+        baseX: 6.5 + f * 0.6,
+        baseZ: 3.2 + f * 0.5,
+        offset: f * 0.22
+      });
+    }
+
+    function updateAmbientLife(time) {
+      // Scuttling crabs
+      for (let i = 0; i < crabs.length; i++) {
+        const c = crabs[i];
+        if (c.jumpY > 0 || c.jumpVel !== 0) {
+          c.jumpVel -= 18.0 * 0.016;
+          c.jumpY = Math.max(0, c.jumpY + c.jumpVel * 0.016);
+          if (c.jumpY === 0) c.jumpVel = 0;
+        }
+        const scuttle = Math.sin(time * 2.2 + c.phase) * 0.55;
+        const cx = c.homeX + scuttle * 0.35;
+        const cz = c.homeZ + Math.cos(time * 1.5 + c.phase) * 0.25;
+        const cy = getTerrainHeight(cx, cz) + 0.06 + c.jumpY + Math.abs(Math.sin(time * 14)) * 0.03;
+        c.group.position.set(cx, cy, cz);
+        c.group.rotation.y = 0.6 + Math.sin(time * 2.2 + c.phase) * 0.2;
+      }
+
+      // Slowly melting & reforming ice-cube pile beside the dock
+      const meltCycle = 0.35 + 0.65 * (0.5 + 0.5 * Math.cos(time * 0.35));
+      iceMeshes.forEach(item => {
+        item.mesh.scale.set(meltCycle, meltCycle, meltCycle);
+        item.mesh.position.y = item.baseY * meltCycle;
+      });
+      const puddleScale = 1.35 - meltCycle * 0.5;
+      puddleMesh.scale.set(puddleScale, 1, puddleScale);
+
+      // Circling seagulls
+      for (let i = 0; i < seagulls.length; i++) {
+        const g = seagulls[i];
+        const ang = time * g.speed + g.phase;
+        const gx = Math.cos(ang) * g.radius;
+        const gz = Math.sin(ang) * g.radius;
+        const gy = g.height + Math.sin(time * 1.5 + g.phase) * 0.35;
+        g.group.position.set(gx, gy, gz);
+        g.group.rotation.y = -ang - Math.PI * 0.5;
+        const flap = Math.sin(time * 7.5 + g.phase) * 0.45;
+        g.wingL.rotation.x = flap;
+        g.wingR.rotation.x = -flap;
+      }
+
+      // Jumping school of fish
+      for (let i = 0; i < jumpingFish.length; i++) {
+        const f = jumpingFish[i];
+        const t = (time * 0.85 - f.offset) % 4.5;
+        if (t > 0 && t < 1.1) {
+          const u = t / 1.1; // 0..1 jump arc
+          const fx = f.baseX + (u - 0.5) * 1.6;
+          const fy = Math.sin(u * Math.PI) * 1.15 - 0.1;
+          f.mesh.visible = true;
+          f.mesh.position.set(fx, fy, f.baseZ);
+          f.mesh.rotation.z = -Math.cos(u * Math.PI) * 0.75;
+        } else {
+          f.mesh.visible = false;
+        }
+      }
+    }
+
+    // ============================================================================
+    // 10. SKY: DRIFTING VOXEL CLOUDS, SUN/MOON, STARFIELD, SHOOTING STARS & LIGHTHOUSE BEAM
+    // ============================================================================
+    // 10A. Drifting Voxel Clouds
+    const clouds = [];
+    const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
+    for (let c = 0; c < 6; c++) {
+      const cGroup = new THREE.Group();
+      const vox = [];
+      for (let x = -3; x <= 3; x++) {
+        for (let z = -2; z <= 2; z++) {
+          for (let y = 0; y <= 1; y++) {
+            if (Math.hypot(x * 0.7, z) + y * 0.8 <= 2.6) {
+              vox.push({ x, y, z, color: new THREE.Color('#ffffff') });
+            }
+          }
+        }
+      }
+      const m = buildVoxelInstancedMesh(vox, 0.42, cloudMat, false, false);
+      cGroup.add(m);
+      cGroup.position.set(-14 + c * 6.5, 9.5 + (c % 3) * 1.1, -12 + (c % 2) * 14);
+      scene.add(cGroup);
+      clouds.push({ group: cGroup, speed: 0.28 + (c % 3) * 0.08 });
+    }
+
+    // 10B. Horizon Sun / Moon Voxel Disc
+    const celestialMat = new THREE.MeshBasicMaterial({ color: 0xfff3b0 });
+    const celestialOrb = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.6, 0.6), celestialMat);
+    celestialOrb.position.set(22, 7.8, -18);
+    celestialOrb.lookAt(0, 2, 0);
+    scene.add(celestialOrb);
+
+    // 10C. Night Starfield & Shooting Star
+    const STAR_COUNT = 160;
+    const starGeom = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+    const starMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.0 });
+    const starMesh = new THREE.InstancedMesh(starGeom, starMat, STAR_COUNT);
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI * 0.42 + 0.08;
+      const r = 38 + Math.random() * 8;
+      tempPos.set(
+        Math.cos(theta) * Math.cos(phi) * r,
+        Math.sin(phi) * r,
+        Math.sin(theta) * Math.cos(phi) * r
+      );
+      tempQuat.identity();
+      const s = 0.6 + Math.random() * 1.1;
+      tempScale.set(s, s, s);
+      tempMatrix.compose(tempPos, tempQuat, tempScale);
+      starMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(starMesh);
+
+    // Occasional Shooting Star at Night
+    const shootingStarMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0 });
+    const shootingStarMesh = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.08, 0.08), shootingStarMat);
+    scene.add(shootingStarMesh);
+    const shootingStar = { active: false, timer: 2.5, t: 0, start: new THREE.Vector3(), dir: new THREE.Vector3() };
+
+    // 10D. Rotating Volumetric Lighthouse Beam (Visible at Night!)
+    const lighthouseBeamPivot = new THREE.Group();
+    lighthouseBeamPivot.position.set(-8.5, 7.6, -7.5);
+    scene.add(lighthouseBeamPivot);
+
+    const beamGeom = new THREE.ConeGeometry(2.2, 22, 16, 1, true);
+    beamGeom.translate(0, -11, 0);
+    beamGeom.rotateX(-Math.PI / 2);
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: 0xfef08a,
+      transparent: true,
+      opacity: 0.0,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    const beamMesh = new THREE.Mesh(beamGeom, beamMat);
+    lighthouseBeamPivot.add(beamMesh);
+
+    // ============================================================================
+    // 11. PARTICLE SYSTEMS: FROST SPARKLES, WATER DRIPS, SPLASHES, SAND PUFFS & RINGS
+    // ============================================================================
+    // 11A. Continuous Frost Sparkles Drifting Off Cirno's Bottle
+    const FROST_COUNT = 55;
+    const frostData = [];
+    const frostGeom = new THREE.BoxGeometry(0.075, 0.075, 0.075);
+    const frostMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.85 });
+    const frostMesh = new THREE.InstancedMesh(frostGeom, frostMat, FROST_COUNT);
+    for (let i = 0; i < FROST_COUNT; i++) {
+      frostData.push({
+        ox: (Math.random() - 0.5) * 1.4,
+        oy: Math.random() * 1.9,
+        oz: (Math.random() - 0.5) * 1.4,
+        speed: 0.35 + Math.random() * 0.45,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+    scene.add(frostMesh);
+
+    function updateFrostSparkles(time, dt) {
+      for (let i = 0; i < FROST_COUNT; i++) {
+        const f = frostData[i];
+        f.oy += f.speed * dt;
+        if (f.oy > 2.2) f.oy = 0.1;
+        const wx = cirnoBottle.pos.x + f.ox + Math.sin(time * 2.4 + f.phase) * 0.15;
+        const wy = cirnoBottle.pos.y + f.oy;
+        const wz = cirnoBottle.pos.z + f.oz + Math.cos(time * 2.1 + f.phase) * 0.15;
+        const s = (1.0 - f.oy / 2.2) * (0.6 + 0.4 * Math.sin(time * 5.0 + f.phase));
+        tempPos.set(wx, wy, wz);
+        tempQuat.setFromEuler(tempEuler.set(time * 2, time * 3, 0));
+        tempScale.set(s, s, s);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        frostMesh.setMatrixAt(i, tempMatrix);
+      }
+      frostMesh.instanceMatrix.needsUpdate = true;
+      cirnoBottleLight.position.set(cirnoBottle.pos.x, cirnoBottle.pos.y + 0.9, cirnoBottle.pos.z);
+    }
+
+    // 11B. Burst Particles (Water Splashes, Sand Puffs, Ice Sparkles, Boat Wake & Drips)
+    const PARTICLE_MAX = 140;
+    const particles = [];
+    const partGeom = new THREE.BoxGeometry(0.11, 0.11, 0.11);
+    const partMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const partMesh = new THREE.InstancedMesh(partGeom, partMat, PARTICLE_MAX);
+    for (let i = 0; i < PARTICLE_MAX; i++) {
+      particles.push({
+        active: false,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        life: 0,
+        maxLife: 1,
+        gravity: 9.8,
+        color: new THREE.Color('#ffffff')
+      });
+      tempMatrix.makeScale(0, 0, 0);
+      partMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(partMesh);
+
+    function spawnBurstParticles(origin, type, count = 14, accentHex = '#38bdf8') {
+      let spawned = 0;
+      for (let i = 0; i < PARTICLE_MAX && spawned < count; i++) {
+        const p = particles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.45 + Math.random() * 0.35;
+          p.pos.copy(origin).add(new THREE.Vector3((Math.random() - 0.5) * 0.4, 0.35, (Math.random() - 0.5) * 0.4));
+          const ang = (spawned / count) * Math.PI * 2 + Math.random() * 0.4;
+          const spd = 1.6 + Math.random() * 2.4;
+          p.vel.set(Math.cos(ang) * spd, 2.2 + Math.random() * 2.6, Math.sin(ang) * spd);
+          p.gravity = type === 'ice' ? 4.5 : 11.5;
+
+          if (type === 'sand') {
+            p.color.set(spawned % 2 === 0 ? '#ebd098' : '#d4b475');
+          } else if (type === 'splash') {
+            p.color.set(spawned % 2 === 0 ? '#ffffff' : '#7dd3fc');
+          } else {
+            const cols = [accentHex, '#e0f2fe', '#ffffff', '#fde047'];
+            p.color.set(cols[spawned % cols.length]);
+          }
+          partMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (partMesh.instanceColor) partMesh.instanceColor.needsUpdate = true;
+    }
+
+    function spawnWaterDrip(origin) {
+      for (let i = 0; i < PARTICLE_MAX; i++) {
+        const p = particles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.55;
+          p.pos.set(origin.x + (Math.random() - 0.5) * 0.65, origin.y + 0.1, origin.z + (Math.random() - 0.5) * 0.65);
+          p.vel.set((Math.random() - 0.5) * 0.4, -0.8, (Math.random() - 0.5) * 0.4);
+          p.gravity = 14.0;
+          p.color.set('#bae6fd');
+          partMesh.setColorAt(i, p.color);
+          if (partMesh.instanceColor) partMesh.instanceColor.needsUpdate = true;
+          break;
+        }
+      }
+    }
+
+    function spawnWakeParticle(x, y, z) {
+      for (let i = 0; i < PARTICLE_MAX; i++) {
+        const p = particles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.65;
+          p.pos.set(x + (Math.random() - 0.5) * 0.25, y, z + (Math.random() - 0.5) * 0.25);
+          p.vel.set((Math.random() - 0.5) * 0.5, 0.3, (Math.random() - 0.5) * 0.5);
+          p.gravity = 1.2;
+          p.color.set('#ffffff');
+          partMesh.setColorAt(i, p.color);
+          if (partMesh.instanceColor) partMesh.instanceColor.needsUpdate = true;
+          break;
+        }
+      }
+    }
+
+    // Expanding Water Splash Rings
+    const splashRings = [];
+    const ringGeom = new THREE.RingGeometry(0.35, 0.52, 24);
+    ringGeom.rotateX(-Math.PI / 2);
+    for (let r = 0; r < 6; r++) {
+      const rMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide });
+      const rMesh = new THREE.Mesh(ringGeom, rMat);
+      rMesh.visible = false;
+      scene.add(rMesh);
+      splashRings.push({ mesh: rMesh, mat: rMat, active: false, life: 0, maxScale: 2.0 });
+    }
+
+    function spawnSplashRing(x, z, scale = 1.4) {
+      for (let i = 0; i < splashRings.length; i++) {
+        const sr = splashRings[i];
+        if (!sr.active) {
+          sr.active = true;
+          sr.life = 0;
+          sr.maxScale = scale;
+          sr.mesh.position.set(x, 0.16, z);
+          sr.mesh.visible = true;
+          break;
+        }
+      }
+    }
+
+    function updateParticlesAndRings(dt, time) {
+      let dirty = false;
+      for (let i = 0; i < PARTICLE_MAX; i++) {
+        const p = particles[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          partMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= p.gravity * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const s = 1.0 - (p.life / p.maxLife);
+        tempQuat.setFromEuler(tempEuler.set(p.life * 6, p.life * 5, 0));
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        partMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) partMesh.instanceMatrix.needsUpdate = true;
+
+      for (let i = 0; i < splashRings.length; i++) {
+        const sr = splashRings[i];
+        if (!sr.active) continue;
+        sr.life += dt * 1.65;
+        if (sr.life >= 1.0) {
+          sr.active = false;
+          sr.mesh.visible = false;
+          continue;
+        }
+        const s = 0.4 + sr.life * sr.maxScale;
+        sr.mesh.scale.set(s, 1, s);
+        const wInfo = getWaveInfo(sr.mesh.position.x, sr.mesh.position.z, time);
+        sr.mesh.position.y = wInfo.height + 0.04;
+        sr.mat.opacity = (1.0 - sr.life) * 0.75;
+      }
+    }
+
+    // ============================================================================
+    // 12. POINTER INTERACTION: CLICK TO SQUEEZE, DRAG TO LIFT & THROW
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let hoveredTarget = null;
+    let selectedTarget = null;
+    let isDraggingTarget = false;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+    const badgeEl = document.getElementById('fumo-badge');
+    const badgeDotEl = document.getElementById('fumo-badge-dot');
+    const badgeNameEl = document.getElementById('fumo-badge-name');
+    const badgeStatusEl = document.getElementById('fumo-badge-status');
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function pickInteractiveTarget() {
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(allInteractiveMeshes, false);
+      if (hits.length > 0 && hits[0].object.userData.fumo) {
+        return { target: hits[0].object.userData.fumo, point: hits[0].point };
+      }
+      return null;
+    }
+
+    function updateUIBadge(target, statusText) {
+      if (!target) {
+        badgeEl.classList.add('hidden');
+        badgeEl.classList.remove('flex');
+        return;
+      }
+      badgeEl.classList.remove('hidden');
+      badgeEl.classList.add('flex');
+      badgeDotEl.style.backgroundColor = target.accentColor || '#38bdf8';
+      badgeNameEl.textContent = target.name;
+      badgeStatusEl.textContent = statusText;
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+
+      const hit = pickInteractiveTarget();
+      if (hit) {
+        selectedTarget = hit.target;
+        isDraggingTarget = false;
+        controls.enabled = false;
+
+        if (selectedTarget instanceof VoxelFumo) {
+          const camDir = new THREE.Vector3();
+          camera.getWorldDirection(camDir);
+          dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), selectedTarget.pos);
+          if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+            dragOffset.subVectors(selectedTarget.pos, dragHitPoint);
+          } else {
+            dragOffset.set(0, 0, 0);
+          }
+          dragHistory = [{ pos: selectedTarget.pos.clone(), time: performance.now() }];
+        }
+        updateUIBadge(selectedTarget, 'Selected');
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      updatePointerNDC(e);
+
+      if (selectedTarget && (selectedTarget instanceof VoxelFumo)) {
+        recordInteraction();
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+
+        if (!isDraggingTarget && moveDist > 6) {
+          isDraggingTarget = true;
+          selectedTarget.isDragged = true;
+          selectedTarget.isGrounded = false;
+          selectedTarget.isInWater = false;
+          selectedTarget.squashVel += 3.0;
+          soundFX.playPickup();
+          updateUIBadge(selectedTarget, 'Dragging — Release to Toss!');
+        }
+
+        if (isDraggingTarget) {
+          raycaster.setFromCamera(pointerNDC, camera);
+          if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+            const targetPos = dragHitPoint.clone().add(dragOffset);
+            targetPos.x = THREE.MathUtils.clamp(targetPos.x, -9.2, 9.5);
+            targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.35, 9.5);
+            targetPos.z = THREE.MathUtils.clamp(targetPos.z, -8.8, 8.8);
+
+            const prevPos = selectedTarget.pos.clone();
+            selectedTarget.pos.lerp(targetPos, 0.55);
+
+            const deltaMove = selectedTarget.pos.clone().sub(prevPos);
+            selectedTarget.headRollVel -= deltaMove.x * 16.0;
+            selectedTarget.headPitchVel += deltaMove.z * 16.0 - deltaMove.y * 10.0;
+            selectedTarget.limbRollVel -= deltaMove.x * 22.0;
+            selectedTarget.roll = THREE.MathUtils.lerp(selectedTarget.roll, THREE.MathUtils.clamp(-deltaMove.x * 1.4, -0.48, 0.48), 0.3);
+            selectedTarget.pitch = THREE.MathUtils.lerp(selectedTarget.pitch, THREE.MathUtils.clamp(deltaMove.z * 1.4, -0.48, 0.48), 0.3);
+
+            const now = performance.now();
+            dragHistory.push({ pos: selectedTarget.pos.clone(), time: now });
+            while (dragHistory.length > 6) dragHistory.shift();
+          }
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      const hit = pickInteractiveTarget();
+      if (hit) {
+        hoveredTarget = hit.target;
+        renderer.domElement.style.cursor = 'grab';
+        tooltipEmojiEl.textContent = hoveredTarget.emoji;
+        tooltipTextEl.textContent = hoveredTarget.name;
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else {
+        hoveredTarget = null;
+        renderer.domElement.style.cursor = 'default';
+        tooltipEl.style.opacity = '0';
+      }
+    });
+
+    window.addEventListener('pointerup', () => {
+      if (!selectedTarget) return;
+      controls.enabled = true;
+      recordInteraction();
+
+      if (!isDraggingTarget) {
+        selectedTarget.squeeze(1.0);
+        updateUIBadge(selectedTarget, 'Squeezed! ᗜˬᗜ');
+      } else if (selectedTarget instanceof VoxelFumo) {
+        selectedTarget.isDragged = false;
+        const now = performance.now();
+        while (dragHistory.length > 1 && now - dragHistory[0].time > 140) {
+          dragHistory.shift();
+        }
+        if (dragHistory.length >= 2) {
+          const first = dragHistory[0];
+          const last = dragHistory[dragHistory.length - 1];
+          const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+          const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+          if (throwVel.length() > 20) throwVel.setLength(20);
+          selectedTarget.vel.copy(throwVel);
+
+          const speed = throwVel.length();
+          selectedTarget.angVel.set(
+            throwVel.z * 0.6 + (Math.random() - 0.5) * speed * 0.35,
+            (Math.random() - 0.5) * speed * 0.45,
+            -throwVel.x * 0.6 + (Math.random() - 0.5) * speed * 0.35
+          );
+        } else {
+          selectedTarget.vel.set(0, 0, 0);
+        }
+        updateUIBadge(selectedTarget, 'Tossed!');
+      }
+
+      selectedTarget = null;
+      isDraggingTarget = false;
+      renderer.domElement.style.cursor = hoveredTarget ? 'grab' : 'default';
+    });
+
+    // ============================================================================
+    // 13. DAY / NIGHT SMOOTH INTERPOLATION (~2 SECONDS) & HUB INTEGRATION
+    // ============================================================================
+    const STORAGE_MODE_KEY = 'voxel_cirno_beach_mode';
+    let isNightMode = false;
+    let dayNightProgress = 0.0; // 0.0 = Day, 1.0 = Night
+    let dayNightTarget = 0.0;
+
+    const daySkyCol = new THREE.Color('#7dd3fc');
+    const nightSkyCol = new THREE.Color('#070b19');
+
+    const daySunCol = new THREE.Color('#fff2cc');
+    const nightMoonCol = new THREE.Color('#93c5fd');
+
+    const dayHemiSky = new THREE.Color('#fff9eb');
+    const nightHemiSky = new THREE.Color('#1e293b');
+    const dayHemiGround = new THREE.Color('#38bdf8');
+    const nightHemiGround = new THREE.Color('#090d16');
+
+    const dayOrbCol = new THREE.Color('#fef08a');
+    const nightOrbCol = new THREE.Color('#e0f2fe');
+
+    const dayCloudCol = new THREE.Color('#ffffff');
+    const nightCloudCol = new THREE.Color('#334155');
+
+    function notifyParentMode() {
+      const modeStr = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: modeStr }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(night, { immediate = false, playSound = true } = {}) {
+      isNightMode = Boolean(night);
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) {
+        dayNightProgress = dayNightTarget;
+      }
+      document.body.classList.toggle('night-ui', isNightMode);
+
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
+      } catch (e) {}
+
+      if (playSound) {
+        soundFX.playPickup();
+      }
+      notifyParentMode();
+    }
+
+    function toggleDayNight() {
+      setDayNightMode(!isNightMode, { immediate: false, playSound: true });
+    }
+
+    function updateDayNightTransition(dt, time) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.52; // ~2 seconds transition
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      // 1. Sky & Fog
+      scene.background.lerpColors(daySkyCol, nightSkyCol, t);
+      scene.fog.color.copy(scene.background);
+
+      // 2. Sun / Moon Light & Horizon Orb
+      sunDirLight.color.lerpColors(daySunCol, nightMoonCol, t);
+      sunDirLight.intensity = THREE.MathUtils.lerp(1.32, 0.42, t);
+      celestialMat.color.lerpColors(dayOrbCol, nightOrbCol, t);
+      cloudMat.color.lerpColors(dayCloudCol, nightCloudCol, t);
+
+      // 3. Hemisphere Bounce Light
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.72, 0.24, t);
+
+      // 4. Night Point Lights (Pier Lantern, Campfire Flicker, Cirno Bottle Cold Glow)
+      pierLanternLight.intensity = THREE.MathUtils.lerp(0.05, 1.55, t);
+      const fireFlicker = 0.85 + 0.3 * Math.sin(time * 11.0) * Math.cos(time * 7.3);
+      campfireLight.intensity = THREE.MathUtils.lerp(0.05, 1.35 * fireFlicker, t);
+      cirnoBottleLight.intensity = THREE.MathUtils.lerp(0.12, 1.25, t);
+
+      // 5. Emissive Materials, Stars, Lighthouse Beam & Bloom
+      warmEmissiveMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.3, 2.4, t);
+      translucentIceMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.25, 1.15, t);
+      bottleGlassMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.05, 0.38, t);
+      waterMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.06, 0.24, t);
+
+      starMat.opacity = THREE.MathUtils.lerp(0.0, 0.92, t);
+      beamMat.opacity = THREE.MathUtils.lerp(0.0, 0.16, t);
+
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.18, 0.72, t);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.84, 0.58, t);
+      }
+
+      // 6. Rotating Lighthouse Beam & Occasional Night Shooting Stars
+      lighthouseBeamPivot.rotation.y = time * 0.65;
+
+      if (t > 0.6) {
+        shootingStar.timer -= dt;
+        if (!shootingStar.active && shootingStar.timer <= 0) {
+          shootingStar.active = true;
+          shootingStar.t = 0;
+          shootingStar.timer = 4.0 + Math.random() * 5.0;
+          shootingStar.start.set(-10 + Math.random() * 20, 16 + Math.random() * 6, -24 - Math.random() * 8);
+          shootingStar.dir.set(14, -7, 4);
+        }
+        if (shootingStar.active) {
+          shootingStar.t += dt * 1.8;
+          if (shootingStar.t >= 1.0) {
+            shootingStar.active = false;
+            shootingStarMat.opacity = 0;
+          } else {
+            shootingStarMesh.position.copy(shootingStar.start).addScaledVector(shootingStar.dir, shootingStar.t);
+            shootingStarMesh.rotation.z = -0.45;
+            shootingStarMat.opacity = Math.sin(shootingStar.t * Math.PI) * 0.95;
+          }
+        }
+      } else {
+        shootingStarMat.opacity = 0;
+      }
+
+      return t;
+    }
+
+    // ============================================================================
+    // 14. UI BUTTONS, KEYBOARD CONTROLS & HUB MESSAGE HANDLERS
+    // ============================================================================
+    document.getElementById('btn-squeeze-all').addEventListener('click', () => {
+      fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 65));
+      crabs[0].squeeze();
+    });
+
+    document.getElementById('btn-wave-surge').addEventListener('click', () => {
+      waveSurgeBoost = 0.85;
+      soundFX.playSplash(0.85);
+      spawnSplashRing(cirnoBottle.pos.x, cirnoBottle.pos.z, 2.2);
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 60));
+      boatState.pos.copy(boatState.homePos);
+      boatState.yaw = 2.3;
+      boatState.speed = 0;
+      updateUIBadge(null, '');
+    });
+
+    const btnSound = document.getElementById('btn-sound');
+    const iconSoundOn = document.getElementById('icon-sound-on');
+    const iconSoundOff = document.getElementById('icon-sound-off');
+    btnSound.addEventListener('click', () => {
+      soundFX.enabled = !soundFX.enabled;
+      iconSoundOn.classList.toggle('hidden', !soundFX.enabled);
+      iconSoundOff.classList.toggle('hidden', soundFX.enabled);
+      if (soundFX.enabled) soundFX.playPickup();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      const key = e.key.toLowerCase();
+
+      if (key === 'n') {
+        e.preventDefault();
+        toggleDayNight();
+      } else if (key === 'r') {
+        document.getElementById('btn-reset').click();
+      } else if (key === ' ') {
+        e.preventDefault();
+        document.getElementById('btn-squeeze-all').click();
+      } else if (key === 'm') {
+        btnSound.click();
+      } else if (key === 'arrowup' || key === 'w') {
+        boatState.keys.up = true;
+      } else if (key === 'arrowdown' || key === 's') {
+        boatState.keys.down = true;
+      } else if (key === 'arrowleft' || key === 'a') {
+        boatState.keys.left = true;
+      } else if (key === 'arrowright' || key === 'd') {
+        boatState.keys.right = true;
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const key = e.key.toLowerCase();
+      if (key === 'arrowup' || key === 'w') boatState.keys.up = false;
+      if (key === 'arrowdown' || key === 's') boatState.keys.down = false;
+      if (key === 'arrowleft' || key === 'a') boatState.keys.left = false;
+      if (key === 'arrowright' || key === 'd') boatState.keys.right = false;
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ============================================================================
+    // 15. MAIN ANIMATION LOOP, PAUSE / RESUME & HUB INTEGRATION
+    // ============================================================================
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.033, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      if (!selectedTarget && (now - lastUserInteractionTime > 4500)) {
+        controls.autoRotate = true;
+      }
+
+      // Decay wave surge boost smoothly
+      if (waveSurgeBoost > 0.001) {
+        waveSurgeBoost *= Math.pow(0.45, dt);
+      } else {
+        waveSurgeBoost = 0;
+      }
+
+      controls.update();
+      const nightMix = updateDayNightTransition(dt, elapsed);
+
+      // Drift voxel clouds slowly across the horizon
+      for (let i = 0; i < clouds.length; i++) {
+        const c = clouds[i];
+        c.group.position.x += c.speed * dt;
+        if (c.group.position.x > 22) c.group.position.x = -22;
+      }
+
+      updateOceanWaves(elapsed, nightMix);
+      updatePalmFrondsAndWetSand(elapsed);
+      updateSailboat(dt, elapsed);
+      updateAmbientLife(elapsed);
+
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].updatePhysics(dt, elapsed);
+      }
+
+      updateFrostSparkles(elapsed, dt);
+      updateParticlesAndRings(dt, elapsed);
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function pauseRenderLoop() {
+      if (isPaused) return;
+      isPaused = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+
+    function resumeRenderLoop() {
+      if (!isPaused) return;
+      isPaused = false;
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('message', (e) => {
+      const data = e.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'toggleMode') {
+        toggleDayNight();
+      } else if (data.type === 'pause') {
+        pauseRenderLoop();
+      } else if (data.type === 'resume') {
+        resumeRenderLoop();
+      }
+    });
+
+    window.onload = function () {
+      let initialNight = false;
+      try {
+        const saved = localStorage.getItem(STORAGE_MODE_KEY);
+        if (saved === 'night') initialNight = true;
+      } catch (e) {}
+
+      setDayNightMode(initialNight, { immediate: true, playSound: false });
+      updateDayNightTransition(0, 0);
+
+      // Welcoming gentle splash & squish on load
+      setTimeout(() => {
+        cirnoBottle.squash = 0.78;
+        cirnoBottle.squashVel = 2.2;
+        spawnSplashRing(cirnoBottle.pos.x, cirnoBottle.pos.z, 1.5);
+      }, 180);
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>

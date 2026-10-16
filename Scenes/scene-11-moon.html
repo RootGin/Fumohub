@@ -1,0 +1,2668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Touhou Fumo Lunar Base — Interactive Voxel Diorama</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js r128 + OrbitControls + Post-Processing (UnrealBloomPass) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #03040a;
+    }
+    h1, .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .glass-panel {
+      background: rgba(240, 245, 255, 0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.72);
+      box-shadow: 0 10px 28px -6px rgba(10, 15, 35, 0.25), 0 2px 6px rgba(10, 15, 35, 0.12);
+      transition: background 0.5s ease, color 0.5s ease, border-color 0.5s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      color: #1e293b;
+    }
+    body.night-ui .glass-panel {
+      background: rgba(16, 22, 46, 0.80);
+      border-color: rgba(120, 165, 255, 0.30);
+      color: #eef4ff;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.65), 0 0 18px rgba(80, 145, 255, 0.18);
+    }
+    .ui-btn {
+      cursor: pointer;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+    #fumo-tooltip {
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.75rem;
+      line-height: 1.2;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.08);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.18);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.14);
+      border-bottom-color: rgba(255, 255, 255, 0.28);
+    }
+  </style>
+</head>
+<body class="text-slate-800">
+  <div id="canvas-container"></div>
+
+  <!-- Top-Right Controls: Active Fumo Badge, Squeeze All, Reset, Sound (Top-Left kept completely clear for Hub) -->
+  <div class="fixed top-4 right-4 z-20 flex items-center gap-2.5">
+    <!-- Active / Hovered Fumo Indicator -->
+    <div id="fumo-badge" class="glass-panel rounded-2xl px-3.5 py-2.5 text-xs font-semibold hidden items-center gap-2 transition-all">
+      <span id="fumo-badge-dot" class="w-2.5 h-2.5 rounded-full inline-block bg-indigo-500"></span>
+      <span id="fumo-badge-name">Reisen Udongein Inaba</span>
+      <span id="fumo-badge-status" class="opacity-70 ml-1">Lunar Low-G</span>
+    </div>
+
+    <!-- Squeeze All Button -->
+    <button id="btn-squeeze-all" title="Squeeze All Lunar Fumos! (Space)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <span class="text-base leading-none">🍡</span>
+      <span class="hidden md:inline">Squeeze All</span>
+    </button>
+
+    <!-- Reset Fumos & Rover Button -->
+    <button id="btn-reset" title="Return Fumos & Rover to Base (R)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+      <span class="hidden sm:inline">Reset Base</span>
+    </button>
+
+    <!-- Sound Toggle Button -->
+    <button id="btn-sound" title="Toggle Plush & Mochi Sound Effects (M)"
+      class="glass-panel ui-btn rounded-2xl p-2.5 flex items-center justify-center">
+      <svg id="icon-sound-on" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+      </svg>
+      <svg id="icon-sound-off" class="w-5 h-5 hidden opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <line x1="23" y1="9" x2="17" y2="15"></line>
+        <line x1="17" y1="9" x2="23" y2="15"></line>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Floating Cursor Tooltip for Hovered Fumo -->
+  <div id="fumo-tooltip" class="fixed z-30 opacity-0 px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold flex items-center gap-2 shadow-lg">
+    <span id="tooltip-emoji">🐇</span>
+    <span id="tooltip-text">Reisen Fumo</span>
+  </div>
+
+  <!-- Bottom HUD Hints -->
+  <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none w-max max-w-[94vw]">
+    <div class="glass-panel rounded-2xl px-4 py-2 text-xs font-semibold flex flex-wrap items-center justify-center gap-x-4 gap-y-1 opacity-90">
+      <span>🖱️ <b>Click Fumo:</b> Squeeze</span>
+      <span>🚀 <b>Drag & Throw:</b> 1/6g Lunar Arc & Footprints</span>
+      <span>🚙 <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> / <kbd>WASD</kbd> <b>Drive Rover</b></span>
+      <span class="hidden sm:inline"><kbd>R</kbd> Reset</span>
+      <span class="hidden md:inline"><kbd>Space</kbd> Squeeze All</span>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 1. PROCEDURAL WEB AUDIO SYNTHESIZER (Soft Plush Squeaks, Lunar Thuds & Mochi)
+    // ============================================================================
+    class PlushSoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) {
+            this.ctx = new AudioCtx();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playSqueeze(pitchMultiplier = 1.0) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+
+          const osc1 = this.ctx.createOscillator();
+          const gain1 = this.ctx.createGain();
+          osc1.type = 'sine';
+          const baseFreq = (520 + Math.random() * 80) * pitchMultiplier;
+          osc1.frequency.setValueAtTime(baseFreq, now);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.085);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.16);
+
+          gain1.gain.setValueAtTime(0.001, now);
+          gain1.gain.linearRampToValueAtTime(0.11, now + 0.025);
+          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+
+          osc1.connect(gain1);
+          gain1.connect(this.ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.18);
+
+          const osc2 = this.ctx.createOscillator();
+          const gain2 = this.ctx.createGain();
+          osc2.type = 'triangle';
+          osc2.frequency.setValueAtTime(baseFreq * 1.1, now + 0.11);
+          osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.65, now + 0.21);
+
+          gain2.gain.setValueAtTime(0.001, now + 0.11);
+          gain2.gain.linearRampToValueAtTime(0.08, now + 0.13);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+          osc2.connect(gain2);
+          gain2.connect(this.ctx.destination);
+          osc2.start(now + 0.11);
+          osc2.stop(now + 0.25);
+        } catch (e) {}
+      }
+
+      playBounce(intensity = 0.5) {
+        if (!this.enabled || intensity < 0.06) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const vol = Math.min(0.13, intensity * 0.11);
+
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          const startFreq = 95 + Math.min(70, intensity * 30);
+          osc.frequency.setValueAtTime(startFreq, now);
+          osc.frequency.exponentialRampToValueAtTime(36, now + 0.11);
+
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.115);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.12);
+        } catch (e) {}
+      }
+
+      playPickup() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(260, now);
+          osc.frequency.exponentialRampToValueAtTime(430, now + 0.10);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.105);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.11);
+        } catch (e) {}
+      }
+    }
+
+    const soundFX = new PlushSoundEngine();
+
+    // ============================================================================
+    // 2. COLOR & VOXEL HELPER UTILITIES
+    // ============================================================================
+    const tempColor = new THREE.Color();
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    const tempEuler = new THREE.Euler();
+
+    function voxelHash(x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    }
+
+    function varyColor(hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
+      tempColor.set(hexOrString);
+      const h = voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      tempColor.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return tempColor.clone();
+    }
+
+    function createSoftVoxelGeometry(size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    }
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        tempQuat.identity();
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    // ============================================================================
+    // 3. SCENE, CAMERA, RENDERER & POST-PROCESSING SETUP
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#04060e');
+    scene.fog = new THREE.FogExp2('#070b19', 0.0055);
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.5, 180);
+    camera.position.set(19.5, 13.0, 22.0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.22,
+        0.55,
+        0.78
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (err) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0.0, 2.5, 0.0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.485;
+    controls.minPolarAngle = Math.PI * 0.06;
+    controls.minDistance = 9;
+    controls.maxDistance = 46;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.38;
+
+    let lastUserInteractionTime = performance.now();
+    const recordInteraction = () => {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+    };
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 4. LIGHTING SETUP (Capped Dynamic Lights for Performance)
+    // ============================================================================
+    // 1. Hemisphere Light (Minimal atmospheric bounce in Day, deep blue Earthshine in Night)
+    const hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x334155, 0.28);
+    hemiLight.position.set(0, 25, 0);
+    scene.add(hemiLight);
+
+    // 2. Primary Lunar Sun / Earthshine Directional Light (Sharp shadows in Day!)
+    const sunDirLight = new THREE.DirectionalLight(0xffffff, 1.85);
+    sunDirLight.position.set(22, 24, 14);
+    sunDirLight.target.position.set(0, 0, 0);
+    scene.add(sunDirLight.target);
+    sunDirLight.castShadow = true;
+    sunDirLight.shadow.mapSize.width = 2048;
+    sunDirLight.shadow.mapSize.height = 2048;
+    sunDirLight.shadow.camera.near = 4;
+    sunDirLight.shadow.camera.far = 65;
+    const dCam = 18.5;
+    sunDirLight.shadow.camera.left = -dCam;
+    sunDirLight.shadow.camera.right = dCam;
+    sunDirLight.shadow.camera.top = dCam;
+    sunDirLight.shadow.camera.bottom = -dCam;
+    sunDirLight.shadow.bias = -0.0005;
+    sunDirLight.shadow.radius = 1.0; // Sharp shadows in Day, softened in Night
+    scene.add(sunDirLight);
+
+    // 3. Habitat Dome Warm Interior Point Light (Glows warmly at night!)
+    const domeLight = new THREE.PointLight(0xffcf77, 0.25, 16, 1.5);
+    domeLight.position.set(-4.25, 2.8, -3.5);
+    domeLight.castShadow = true;
+    domeLight.shadow.mapSize.width = 1024;
+    domeLight.shadow.mapSize.height = 1024;
+    domeLight.shadow.bias = -0.001;
+    scene.add(domeLight);
+
+    // 4. Mochi Machine & Airlock Beacon Point Light
+    const beaconLight = new THREE.PointLight(0x38bdf8, 0.2, 12, 1.7);
+    beaconLight.position.set(2.2, 2.4, 2.0);
+    scene.add(beaconLight);
+
+    // 5. Rover Headlight Point Light (Moves with the drivable Rover!)
+    const roverLight = new THREE.PointLight(0xfef08a, 0.3, 11, 1.6);
+    scene.add(roverLight);
+
+    // Shared Materials
+    const plushMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.92,
+      metalness: 0.02
+    });
+
+    const regolithMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.95,
+      metalness: 0.03
+    });
+
+    const baseTechMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.38,
+      metalness: 0.28
+    });
+
+    const domeGlassMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xdbeafe,
+      transparent: true,
+      opacity: 0.34,
+      roughness: 0.12,
+      metalness: 0.08,
+      transmission: 0.45,
+      emissive: new THREE.Color(0x60a5fa),
+      emissiveIntensity: 0.08
+    });
+
+    const helmetGlassMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xe0f2fe,
+      transparent: true,
+      opacity: 0.40,
+      roughness: 0.1,
+      metalness: 0.05,
+      emissive: new THREE.Color(0x38bdf8),
+      emissiveIntensity: 0.12
+    });
+
+    const emissiveWarmMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfffbeb,
+      emissive: new THREE.Color(0xffb74d),
+      emissiveIntensity: 0.45,
+      roughness: 0.2
+    });
+
+    const emissiveCyanMaterial = new THREE.MeshStandardMaterial({
+      color: 0xe0f2fe,
+      emissive: new THREE.Color(0x38bdf8),
+      emissiveIntensity: 0.55,
+      roughness: 0.2
+    });
+
+    const blinkBeaconMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffccd5,
+      emissive: new THREE.Color(0xff2a55),
+      emissiveIntensity: 1.5,
+      roughness: 0.2
+    });
+
+    const earthMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.55,
+      metalness: 0.05,
+      emissive: new THREE.Color(0x1d4ed8),
+      emissiveIntensity: 0.22
+    });
+
+    // ============================================================================
+    // 5. LUNAR TERRAIN, CRATERS, DOME HABITAT, ROCKET, DISH, SOLAR & PROPS
+    // ============================================================================
+    const RV = 0.25; // 1 Base Voxel = 0.25 world units
+    const furnitureColliders = [];
+
+    function addCollider(minX, minY, minZ, maxX, maxY, maxZ, name = 'prop') {
+      furnitureColliders.push({
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        name
+      });
+    }
+
+    // Crater definitions in world coordinates: { x, z, r, depth }
+    const CRATERS = [
+      { x: -4.2, z: 5.5, r: 2.35, depth: 0.85, name: 'peek_crater' }, // Clownpiece peeks out of here!
+      { x: 6.5,  z: -2.2, r: 2.0,  depth: 0.65, name: 'east_crater' },
+      { x: -8.2, z: -2.5, r: 1.55, depth: 0.55, name: 'west_crater' },
+      { x: 1.2,  z: 7.8,  r: 1.75, depth: 0.60, name: 'south_crater' },
+      { x: -0.8, z: -8.2, r: 1.45, depth: 0.50, name: 'north_crater' }
+    ];
+
+    // Exact lunar terrain surface height at any world (wx, wz)
+    function getLunarSurfaceHeight(wx, wz) {
+      // Flat foundation pad inside the glass habitat dome (centered at -4.25, -3.5, radius 4.2)
+      const dDome = Math.hypot(wx - (-4.25), wz - (-3.5));
+      if (dDome < 4.1) return 0.25;
+
+      // Subtle rolling lunar hills
+      let h = (Math.sin(wx * 0.22) * Math.cos(wz * 0.22) * 0.18) +
+              (Math.sin(wx * 0.48 + 1.2) * 0.08);
+
+      // Carve craters with raised rims and bowl interiors
+      for (let i = 0; i < CRATERS.length; i++) {
+        const c = CRATERS[i];
+        const dist = Math.hypot(wx - c.x, wz - c.z);
+        const norm = dist / c.r;
+        if (norm < 1.32) {
+          if (norm < 0.88) {
+            const bowl = Math.cos((norm / 0.88) * (Math.PI * 0.5));
+            h -= bowl * c.depth;
+          } else {
+            const rimPhase = (norm - 0.88) / 0.44;
+            const rim = Math.sin(rimPhase * Math.PI);
+            h += rim * (c.depth * 0.34);
+          }
+        }
+      }
+      return h;
+    }
+
+    const regolithVoxels = [];
+    const techVoxels = [];
+    const domeGlassVoxels = [];
+    const warmGlowVoxels = [];
+    const cyanGlowVoxels = [];
+    const blinkVoxels = [];
+
+    function pushVoxel(list, rx, ry, rz, colorHex, variance = 0.03, sx = 1, sy = 1, sz = 1) {
+      list.push({
+        x: rx,
+        y: ry,
+        z: rz,
+        color: varyColor(colorHex, rx, ry, rz, variance),
+        sx, sy, sz
+      });
+    }
+
+    function pushBoxVoxels(list, x0, y0, z0, x1, y1, z1, colorFnOrHex, variance = 0.03) {
+      for (let x = x0; x <= x1; x++) {
+        for (let y = y0; y <= y1; y++) {
+          for (let z = z0; z <= z1; z++) {
+            if (x > x0 && x < x1 && y > y0 && y < y1 && z > z0 && z < z1) continue;
+            const c = typeof colorFnOrHex === 'function' ? colorFnOrHex(x, y, z) : colorFnOrHex;
+            if (c) pushVoxel(list, x + 0.5, y + 0.5, z + 0.5, c, variance);
+          }
+        }
+      }
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5A. PALE GRAY VOXEL REGOLITH & CRATERS
+    // ----------------------------------------------------------------------------
+    function buildLunarTerrain() {
+      const R = 48; // 96x96 voxel slab (-12 to +12 world units)
+      for (let rx = -R; rx < R; rx++) {
+        for (let rz = -R; rz < R; rz++) {
+          const wx = (rx + 0.5) * RV;
+          const wz = (rz + 0.5) * RV;
+          const surfY = getLunarSurfaceHeight(wx, wz);
+          const topRy = Math.round(surfY / RV);
+
+          // Determine regolith shade (darker inside crater bowls, pale silver on rims)
+          let regCol = '#cbd5e1';
+          for (let c of CRATERS) {
+            const dist = Math.hypot(wx - c.x, wz - c.z);
+            if (dist < c.r * 0.78) regCol = '#94a3b8';
+            else if (dist < c.r * 1.15) regCol = '#e2e8f0';
+          }
+
+          // Top surface voxel + 1 under-layer so craters never show gaps
+          pushVoxel(regolithVoxels, rx + 0.5, topRy - 0.5, rz + 0.5, regCol, 0.04);
+          pushVoxel(regolithVoxels, rx + 0.5, topRy - 1.5, rz + 0.5, '#64748b', 0.03);
+
+          // Outer diorama crust border
+          if (rx === -R || rx === R - 1 || rz === -R || rz === R - 1) {
+            for (let by = -4; by < topRy - 1; by++) {
+              pushVoxel(regolithVoxels, rx + 0.5, by + 0.5, rz + 0.5, '#475569', 0.025);
+            }
+          }
+        }
+      }
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5B. GLASS-DOMED LUNAR HABITAT, BONSAI GARDEN, AIRLOCK & RABBIT-EAR ANTENNA
+    // ----------------------------------------------------------------------------
+    function buildHabitatDome() {
+      // Dome centered at world (-4.25, 0.25, -3.5) -> rx = -17, rz = -14, radius = 16 voxels (4.0 world units)
+      const cx = -17;
+      const cz = -14;
+      const rad = 16;
+
+      // 1. White metallic base ring, floor tiles & glowing window ports
+      for (let x = cx - rad - 1; x <= cx + rad + 1; x++) {
+        for (let z = cz - rad - 1; z <= cz + rad + 1; z++) {
+          const d = Math.hypot(x - cx, z - cz);
+          if (d <= rad + 0.6) {
+            // Interior floor at ry = 0 (top at Y = 0.25)
+            const isPath = Math.abs(x - cx) <= 2 || Math.abs(z - cz) <= 2;
+            const flrCol = isPath ? '#e2e8f0' : '#f8fafc';
+            pushVoxel(techVoxels, x + 0.5, 0.5, z + 0.5, flrCol, 0.02);
+          }
+          // Base perimeter wall (ry = 1..3), leaving doorway gap on +X side for the airlock
+          const isAirlockGap = (x > cx + rad - 3 && Math.abs(z - cz) <= 3);
+          if (d >= rad - 0.8 && d <= rad + 0.8 && !isAirlockGap) {
+            pushVoxel(techVoxels, x + 0.5, 1.5, z + 0.5, '#cbd5e1', 0.02);
+            // Glowing yellow-warm window strips around the habitat base perimeter
+            const angle = Math.atan2(z - cz, x - cx);
+            if (Math.sin(angle * 8) > 0.2) {
+              pushVoxel(warmGlowVoxels, x + 0.5, 2.5, z + 0.5, '#fde68a', 0.01);
+            } else {
+              pushVoxel(techVoxels, x + 0.5, 2.5, z + 0.5, '#94a3b8', 0.02);
+            }
+            pushVoxel(techVoxels, x + 0.5, 3.5, z + 0.5, '#e2e8f0', 0.02);
+          }
+        }
+      }
+
+      // 2. Geodesic Glass Hemisphere Shell (ry = 4..16)
+      for (let y = 4; y <= rad; y++) {
+        for (let x = cx - rad; x <= cx + rad; x++) {
+          for (let z = cz - rad; z <= cz + rad; z++) {
+            const d3 = Math.sqrt((x - cx) ** 2 + (y - 1) ** 2 + (z - cz) ** 2);
+            const isAirlockOpening = (y <= 8 && x > cx + rad - 4 && Math.abs(z - cz) <= 3);
+            if (isAirlockOpening) continue;
+
+            if (Math.abs(d3 - rad) < 0.72) {
+              // White structural ribs along cardinal meridians and top ring
+              const isRib = (Math.abs(x - cx) <= 0.6 || Math.abs(z - cz) <= 0.6 || y === 15);
+              if (isRib) {
+                pushVoxel(techVoxels, x + 0.5, y + 0.5, z + 0.5, '#f1f5f9', 0.015);
+              } else {
+                pushVoxel(domeGlassVoxels, x + 0.5, y + 0.5, z + 0.5, '#bae6fd', 0.01);
+              }
+            }
+          }
+        }
+      }
+
+      // 3. Rabbit-Ear Antenna on Top of the Habitat Dome! (centered at cx, ry = 17+, cz)
+      pushBoxVoxels(techVoxels, cx - 2, 16, cz - 2, cx + 2, 17, cz + 2, '#f472b6'); // Pink bunny base cap
+      for (const side of [-1, 1]) {
+        for (let h = 0; h < 9; h++) {
+          const earX = cx + side * (1.2 + h * 0.25);
+          const earY = 18 + h;
+          pushVoxel(techVoxels, earX + 0.5, earY + 0.5, cz + 0.5, '#f8fafc', 0.01, 1.3, 1.0, 0.8);
+          if (h >= 2 && h <= 6) {
+            pushVoxel(warmGlowVoxels, earX + 0.5, earY + 0.5, cz + 1.1, '#f472b6', 0.01, 0.7, 0.9, 0.4); // Pink inner ear
+          }
+        }
+        // Blinking red/pink beacon at the tip of each rabbit ear!
+        pushVoxel(blinkVoxels, cx + side * 3.5 + 0.5, 27.5, cz + 0.5, '#ff2a55', 0.01, 1.3, 1.3, 1.3);
+      }
+
+      // 4. Hydroponic Lunar Garden & Sakura Bonsai Inside the Dome!
+      // Raised planter beds inside the dome
+      for (const zSide of [-1, 1]) {
+        const pz = cz + zSide * 7;
+        pushBoxVoxels(techVoxels, cx - 8, 1, pz - 2, cx + 2, 2, pz + 2, (x, y, z) => {
+          if (y === 2 && x > cx - 8 && x < cx + 2 && z > pz - 2 && z < pz + 2) return '#5c3a21'; // Rich soil
+          return '#cbd5e1';
+        });
+        // Tiny lush green plants, carrots & glowing lunar flowers
+        for (let px = cx - 6; px <= cx; px += 3) {
+          pushVoxel(techVoxels, px + 0.5, 3.5, pz + 0.5, '#22c55e', 0.03, 1.2, 1.4, 1.2);
+          pushVoxel(techVoxels, px + 0.5, 4.4, pz + 0.5, '#4ade80', 0.03, 1.6, 0.8, 1.6);
+          pushVoxel(warmGlowVoxels, px + 1.2, 3.6, pz - 0.6, '#fb923c', 0.02, 0.7, 1.1, 0.7); // Space carrots!
+        }
+      }
+
+      // Miniature Lunar Cherry Blossom Tree & Low Tea Table inside Dome center-back
+      // Trunk at (cx - 5, cz)
+      for (let ty = 1; ty <= 7; ty++) {
+        pushVoxel(techVoxels, cx - 5 + (ty > 4 ? 0.5 : 0), ty + 0.5, cz - 1, '#6b4423', 0.02);
+      }
+      // Pink Sakura canopy
+      for (let sx = -3; sx <= 3; sx++) {
+        for (let sy = 6; sy <= 10; sy++) {
+          for (let sz = -3; sz <= 3; sz++) {
+            if (Math.hypot(sx, (sy - 8) * 1.3, sz) <= 3.2) {
+              const sakuraCol = ((sx + sy + sz) % 3 === 0) ? '#fbcfe8' : '#f472b6';
+              pushVoxel(techVoxels, cx - 4.5 + sx, sy + 0.5, cz - 1 + sz, sakuraCol, 0.035);
+            }
+          }
+        }
+      }
+
+      // Low Lunar Pavilion Tea Table inside the Dome (cx + 1..5, cz - 2..2)
+      pushBoxVoxels(techVoxels, cx + 1, 1, cz - 2, cx + 5, 2, cz + 2, '#d4a373');
+      // Tray of Peaches & Tea inside Dome for Toyohime & Yorihime
+      pushVoxel(warmGlowVoxels, cx + 3.0, 3.4, cz - 0.5, '#fda4af', 0.02, 1.1, 1.0, 1.1); // Lunar Peach!
+      pushVoxel(techVoxels, cx + 3.0, 3.3, cz + 1.0, '#fef08a', 0.02, 0.8, 0.9, 0.8); // Teacup
+
+      // 5. Airlock Tunnel on East Side of Dome (rx = -1..4, rz = -17..-11, ry = 1..8)
+      for (let x = -1; x <= 4; x++) {
+        for (let y = 1; y <= 8; y++) {
+          for (let z = -17; z <= -11; z++) {
+            const isFloor = (y === 1);
+            const isWalls = (z === -17 || z === -11 || y === 8);
+            if (isFloor) {
+              pushVoxel(techVoxels, x + 0.5, y + 0.5, z + 0.5, '#64748b', 0.02);
+            } else if (isWalls) {
+              const stripe = (x === 1 || x === 4) ? '#f59e0b' : '#e2e8f0';
+              pushVoxel(techVoxels, x + 0.5, y + 0.5, z + 0.5, stripe, 0.02);
+            }
+          }
+        }
+      }
+      // Glowing cyan airlock doorframe beacon
+      for (let y = 2; y <= 7; y++) {
+        pushVoxel(cyanGlowVoxels, 4.6, y + 0.5, -16.5, '#38bdf8', 0.01, 0.5, 1, 0.6);
+        pushVoxel(cyanGlowVoxels, 4.6, y + 0.5, -11.5, '#38bdf8', 0.01, 0.5, 1, 0.6);
+      }
+
+      // Register Colliders for Dome Table & Airlock Roof (keeping interior open so Fumos inside can be clicked & squeezed!)
+      addCollider(-4.0, 0.25, -4.0, -2.8, 0.80, -2.8, 'dome_tea_table');
+      addCollider(-0.3, 0.25, -4.3, 1.2, 2.25, -2.7, 'airlock_tunnel');
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5C. RETRO LUNAR ROCKET WITH BOARDING LADDER, SATELLITE DISH, SOLAR PANELS & PROPS
+    // ----------------------------------------------------------------------------
+    function buildRocketAndEquipment() {
+      // 1. Lunar Rocket at World (6.75, 0, -5.5) -> rx = 27, rz = -22
+      const rcx = 27;
+      const rcz = -22;
+
+      // Launch pad base plate
+      pushBoxVoxels(techVoxels, rcx - 6, 0, rcz - 6, rcx + 6, 0, rcz + 6, (x, y, z) => {
+        const isEdge = (x === rcx - 6 || x === rcx + 6 || z === rcz - 6 || z === rcz + 6);
+        return isEdge ? '#f59e0b' : '#475569';
+      });
+
+      // Rocket Fuselage (ry = 4..28)
+      for (let y = 4; y <= 28; y++) {
+        // Taper profile (bulbous middle, pointed nosecone)
+        const normY = (y - 4) / 24;
+        const radius = normY < 0.65
+          ? 2.8 + Math.sin((normY / 0.65) * Math.PI) * 1.4
+          : (1.0 - (normY - 0.65) / 0.35) * 3.0 + 0.4;
+
+        for (let x = rcx - 5; x <= rcx + 5; x++) {
+          for (let z = rcz - 5; z <= rcz + 5; z++) {
+            const d = Math.hypot(x - rcx, z - rcz);
+            if (d <= radius && d >= radius - 1.25) {
+              // Red & White Hakurei/Lunar checker pattern on nosecone and tail
+              let col = '#f8fafc';
+              if (y >= 22 || (y >= 6 && y <= 9)) {
+                col = ((x + z + y) % 2 === 0) ? '#ef4444' : '#f8fafc';
+              }
+              // Glowing porthole window on front (-X / +Z facing)
+              if (y >= 15 && y <= 18 && x <= rcx - 2 && Math.abs(z - rcz) <= 1) {
+                pushVoxel(cyanGlowVoxels, x + 0.5, y + 0.5, z + 0.5, '#38bdf8', 0.01);
+              } else {
+                pushVoxel(techVoxels, x + 0.5, y + 0.5, z + 0.5, col, 0.02);
+              }
+            }
+          }
+        }
+      }
+      // Rocket Engine Thruster Bell & Landing Fins
+      pushBoxVoxels(techVoxels, rcx - 2, 1, rcz - 2, rcx + 2, 3, rcz + 2, '#334155');
+      pushVoxel(warmGlowVoxels, rcx + 0.5, 1.2, rcz + 0.5, '#fb923c', 0.01, 2.5, 0.6, 2.5); // Warm engine glow
+      // 4 Swept Red Landing Fins
+      for (const [fx, fz] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+        for (let f = 3; f <= 6; f++) {
+          const finTop = 10 - (f - 3) * 2;
+          for (let y = 1; y <= finTop; y++) {
+            pushVoxel(techVoxels, rcx + fx * f + 0.5, y + 0.5, rcz + fz * f + 0.5, '#dc2626', 0.02);
+          }
+        }
+      }
+      // Rocket Top Blinking Beacon
+      pushVoxel(blinkVoxels, rcx + 0.5, 29.5, rcz + 0.5, '#ff2a55', 0.01, 1.2, 1.5, 1.2);
+
+      // Boarding Ladder on the -X side of the Rocket (rx = rcx - 5, ry = 1..14)
+      for (let ly = 1; ly <= 14; ly++) {
+        const lx = rcx - 5.2 + (ly * 0.08);
+        pushVoxel(techVoxels, lx, ly + 0.5, rcz - 1.2, '#fbbf24', 0.01, 0.45, 1.0, 0.45);
+        pushVoxel(techVoxels, lx, ly + 0.5, rcz + 1.2, '#fbbf24', 0.01, 0.45, 1.0, 0.45);
+        if (ly % 2 === 0) {
+          pushVoxel(techVoxels, lx, ly + 0.5, rcz, '#fbbf24', 0.01, 0.45, 0.45, 2.6);
+        }
+      }
+      addCollider(5.2, 0, -7.0, 8.3, 7.2, -4.0, 'lunar_rocket');
+
+      // 2. Planted Lunar Capital Flag with Rabbit & Crescent Emblem! (World: 2.25, 0, -3.5 -> rx = 9, rz = -14)
+      const fpx = 9;
+      const fpz = -14;
+      pushBoxVoxels(techVoxels, fpx - 1, 0, fpz - 1, fpx + 1, 1, fpz + 1, '#94a3b8');
+      for (let y = 1; y <= 15; y++) {
+        pushVoxel(techVoxels, fpx + 0.5, y + 0.5, fpz + 0.5, '#f8fafc', 0.01, 0.45, 1.0, 0.45);
+      }
+      // Flag banner (rx = 10..17, ry = 10..15) with gold crescent & white bunny silhouette
+      for (let fx = 1; fx <= 8; fx++) {
+        for (let fy = 10; fy <= 15; fy++) {
+          const waveZ = Math.sin(fx * 0.8) * 0.35;
+          let flagCol = '#312e81'; // Royal lunar indigo
+          if (fy === 10 || fy === 15 || fx === 8) flagCol = '#fbbf24'; // Gold trim
+          else if ((fx === 4 || fx === 5) && (fy >= 11 && fy <= 13)) flagCol = '#ffffff'; // Bunny body
+          else if ((fx === 4 || fx === 5) && fy === 14) flagCol = '#fbcfe8'; // Bunny ears
+          else if (fx === 2 && (fy === 12 || fy === 13)) flagCol = '#fde047'; // Crescent moon
+          pushVoxel(techVoxels, fpx + fx + 0.5, fy + 0.5, fpz + 0.5 + waveZ, flagCol, 0.02, 1.0, 1.0, 0.45);
+        }
+      }
+
+      // 3. Solar Panel Array (Back-Center: rx = 2..16, rz = -35..-26)
+      for (const panelX of [4, 13]) {
+        // Support pedestal
+        pushBoxVoxels(techVoxels, panelX + 2, 0, -31, panelX + 3, 4, -30, '#64748b');
+        // Tilted photovoltaic grid
+        for (let px = 0; px <= 6; px++) {
+          for (let pz = -4; pz <= 4; pz++) {
+            const py = 4.5 - pz * 0.42;
+            const isFrame = (px === 0 || px === 6 || pz === -4 || pz === 4 || px === 3);
+            const col = isFrame ? '#cbd5e1' : '#1d4ed8';
+            pushVoxel(techVoxels, panelX + px + 0.5, py, -30 + pz + 0.5, col, 0.02, 1.0, 0.4, 1.0);
+          }
+        }
+      }
+      addCollider(0.8, 0, -8.8, 5.2, 2.0, -6.2, 'solar_arrays');
+
+      // 4. Communications Satellite Dish (Front-Left: World -8.5, 0, 3.0 -> rx = -34, rz = 12)
+      const dcx = -34;
+      const dcz = 12;
+      pushBoxVoxels(techVoxels, dcx - 2, 0, dcz - 2, dcx + 2, 2, dcz + 2, '#64748b');
+      pushBoxVoxels(techVoxels, dcx, 3, dcz, dcx, 7, dcz, '#94a3b8');
+      // Parabolic dish bowl tilted skyward
+      for (let dx = -5; dx <= 5; dx++) {
+        for (let dz = -5; dz <= 5; dz++) {
+          const r = Math.hypot(dx, dz);
+          if (r <= 5.2) {
+            const dishY = 8.0 + (r * r) * 0.14 + (dx + dz) * 0.22;
+            const dishCol = r > 4.2 ? '#f59e0b' : '#f8fafc';
+            pushVoxel(techVoxels, dcx + dx + 0.5, dishY, dcz + dz + 0.5, dishCol, 0.02);
+          }
+        }
+      }
+      // Feed horn + blinking beacon on tip
+      for (let h = 1; h <= 4; h++) {
+        pushVoxel(techVoxels, dcx + h * 0.5 + 0.5, 8.5 + h * 0.9, dcz + h * 0.5 + 0.5, '#cbd5e1', 0.01, 0.5, 0.9, 0.5);
+      }
+      pushVoxel(blinkVoxels, dcx + 3.0, 12.8, dcz + 3.0, '#ff2a55', 0.01, 1.2, 1.2, 1.2);
+      addCollider(-9.8, 0, 1.8, -7.2, 3.2, 4.2, 'satellite_dish');
+
+      // 5. Smaller Props: Oxygen Tanks, Moon-Rock Sample Box, Tray of Dango Mochi & Pre-Stamped Footprints
+      // Oxygen Tanks next to Airlock (rx = 1..3, rz = -20..-18)
+      for (let t = 0; t < 2; t++) {
+        const tx = 1.5 + t * 1.6;
+        for (let ty = 1; ty <= 5; ty++) {
+          const col = ty === 5 ? '#ef4444' : '#38bdf8';
+          pushVoxel(techVoxels, tx, ty + 0.5, -18.5, col, 0.01, 1.2, 1.0, 1.2);
+        }
+      }
+
+      // Moon-Rock Sample Box with Glowing Lunar Crystals (World: 0.5, 0, 4.5 -> rx = 2..6, rz = 17..20)
+      pushBoxVoxels(techVoxels, 2, 1, 17, 6, 3, 20, (x, y, z) => {
+        if (y === 3 && x > 2 && x < 6 && z > 17 && z < 20) return '#334155';
+        return '#f59e0b'; // High-vis yellow sample crate
+      });
+      pushVoxel(cyanGlowVoxels, 3.5, 4.0, 18.5, '#38bdf8', 0.01, 1.1, 1.4, 1.1);
+      pushVoxel(warmGlowVoxels, 4.8, 3.8, 19.0, '#c084fc', 0.01, 1.0, 1.1, 1.0);
+      addCollider(0.4, 0, 4.1, 1.8, 1.1, 5.2, 'sample_box');
+
+      // Low Wooden Tray of Fresh Lunar Mochi next to the Mochi Machine (rx = 12..16, rz = 6..10)
+      pushBoxVoxels(techVoxels, 12, 1, 6, 16, 1, 10, '#9a5b32');
+      // Pyramid of white, pink, and matcha mochi balls!
+      const mochiCols = ['#ffffff', '#fbcfe8', '#bbf7d0'];
+      let mIdx = 0;
+      for (let mx = 13; mx <= 15; mx++) {
+        for (let mz = 7; mz <= 9; mz++) {
+          pushVoxel(warmGlowVoxels, mx + 0.5, 2.3, mz + 0.5, mochiCols[(mIdx++) % 3], 0.01, 0.9, 0.8, 0.9);
+        }
+      }
+      pushVoxel(warmGlowVoxels, 14.5, 3.1, 8.5, '#ffffff', 0.01, 1.0, 0.85, 1.0);
+    }
+
+    buildLunarTerrain();
+    buildHabitatDome();
+    buildRocketAndEquipment();
+
+    const baseGroup = new THREE.Group();
+    scene.add(baseGroup);
+
+    const regolithMesh = buildVoxelInstancedMesh(regolithVoxels, RV, regolithMaterial, false, true);
+    const techMesh = buildVoxelInstancedMesh(techVoxels, RV, baseTechMaterial, true, true);
+    const domeGlassMesh = buildVoxelInstancedMesh(domeGlassVoxels, RV, domeGlassMaterial, false, false);
+    const warmGlowMesh = buildVoxelInstancedMesh(warmGlowVoxels, RV, emissiveWarmMaterial, false, false);
+    const cyanGlowMesh = buildVoxelInstancedMesh(cyanGlowVoxels, RV, emissiveCyanMaterial, false, false);
+    const blinkMesh = buildVoxelInstancedMesh(blinkVoxels, RV, blinkBeaconMaterial, false, false);
+
+    if (regolithMesh) baseGroup.add(regolithMesh);
+    if (techMesh) baseGroup.add(techMesh);
+    if (domeGlassMesh) baseGroup.add(domeGlassMesh);
+    if (warmGlowMesh) baseGroup.add(warmGlowMesh);
+    if (cyanGlowMesh) baseGroup.add(cyanGlowMesh);
+    if (blinkMesh) baseGroup.add(blinkMesh);
+
+    // ============================================================================
+    // 6. RHYTHMIC MOCHI-POUNDING MACHINE, DRIVABLE ROVER & EARTH IN STARRY SKY
+    // ============================================================================
+    // 6A. Rhythmic Automated Mochi-Pounding Machine (World: 2.25, 0, 2.0 -> rx = 9, rz = 8)
+    const mochiMachineGroup = new THREE.Group();
+    mochiMachineGroup.position.set(2.25, getLunarSurfaceHeight(2.25, 2.0), 2.0);
+    scene.add(mochiMachineGroup);
+
+    const mortarVoxels = [];
+    // Traditional wooden Usu mortar + robotic lunar frame
+    for (let y = 0; y <= 4; y++) {
+      for (let x = -2; x <= 2; x++) {
+        for (let z = -2; z <= 2; z++) {
+          const r = Math.hypot(x, z);
+          if (r <= 2.4) {
+            if (y === 4 && r < 1.5) continue; // Bowl cavity
+            const col = (y === 1 || y === 3) ? '#475569' : '#b47b48';
+            pushVoxel(mortarVoxels, x, y + 0.5, z, col, 0.02);
+          }
+        }
+      }
+    }
+    // Side stanchion post for mechanical mallet arm
+    for (let y = 0; y <= 7; y++) {
+      pushVoxel(mortarVoxels, 0, y + 0.5, -3, y % 2 === 0 ? '#f59e0b' : '#334155', 0.02);
+    }
+    const mortarMesh = buildVoxelInstancedMesh(mortarVoxels, RV, baseTechMaterial, true, true);
+    mochiMachineGroup.add(mortarMesh);
+
+    // Squishy White Mochi Dough Ball inside the Mortar
+    const mochiDoughGroup = new THREE.Group();
+    mochiDoughGroup.position.set(0, 4.0 * RV, 0);
+    mochiMachineGroup.add(mochiDoughGroup);
+    const doughVoxels = [];
+    for (let x = -1; x <= 1; x++) {
+      for (let z = -1; z <= 1; z++) {
+        pushVoxel(doughVoxels, x * 0.85, 0.4, z * 0.85, '#ffffff', 0.01, 1.0, 0.9, 1.0);
+      }
+    }
+    const doughMesh = buildVoxelInstancedMesh(doughVoxels, RV, plushMaterial, true, true);
+    mochiDoughGroup.add(doughMesh);
+
+    // Pivoting Mechanical Mallet Arm
+    const malletPivot = new THREE.Group();
+    malletPivot.position.set(0, 7.2 * RV, -3.0 * RV);
+    mochiMachineGroup.add(malletPivot);
+    const malletVoxels = [];
+    for (let z = 0; z <= 3; z++) {
+      pushVoxel(malletVoxels, 0, 0, z, '#cbd5e1', 0.01, 0.65, 0.65, 1.05);
+    }
+    // Heavy wooden Kine mallet head at end of arm
+    for (let y = -2; y <= 1; y++) {
+      pushVoxel(malletVoxels, 0, y, 3.2, y === -2 ? '#fef08a' : '#9a5b32', 0.02, 1.6, 1.0, 1.6);
+    }
+    const malletMesh = buildVoxelInstancedMesh(malletVoxels, RV, baseTechMaterial, true, true);
+    malletPivot.add(malletMesh);
+
+    addCollider(1.5, 0, 1.1, 3.0, 1.8, 2.7, 'mochi_machine');
+
+    function updateMochiMachine(time) {
+      // Rhythmic pounding cycle every ~1.25 seconds
+      const cycle = (time * 2.6) % (Math.PI * 2);
+      const strike = Math.pow(Math.max(0, Math.sin(cycle)), 3); // Sharp down-stroke
+      malletPivot.rotation.x = -0.55 + strike * 0.82;
+
+      // Squish the mochi dough when the mallet hits bottom!
+      const doughSquash = 1.0 - Math.max(0, strike - 0.55) * 1.15;
+      const sxz = 1.0 / Math.sqrt(Math.max(0.45, doughSquash));
+      mochiDoughGroup.scale.set(sxz, doughSquash, sxz);
+    }
+
+    // ----------------------------------------------------------------------------
+    // 6B. DRIVABLE LUNAR ROVER WITH BIG WHEELS (Arrow Keys / WASD + Crater Suspension)
+    // ----------------------------------------------------------------------------
+    const roverState = {
+      pos: new THREE.Vector3(5.2, 0, 4.8),
+      homePos: new THREE.Vector3(5.2, 0, 4.8),
+      yaw: -0.55,
+      homeYaw: -0.55,
+      speed: 0,
+      wheelSpin: 0,
+      pitch: 0,
+      roll: 0,
+      bounceY: 0,
+      bounceVel: 0
+    };
+    roverState.pos.y = getLunarSurfaceHeight(roverState.pos.x, roverState.pos.z);
+
+    const roverGroup = new THREE.Group();
+    scene.add(roverGroup);
+    const roverChassisGroup = new THREE.Group();
+    roverGroup.add(roverChassisGroup);
+
+    const chassisVoxels = [];
+    const headlightVoxels = [];
+    // White & Gold Lunar Rover Chassis (Local voxel coords: x -4..4, z -6..6, y 2..7)
+    for (let x = -4; x <= 4; x++) {
+      for (let z = -6; z <= 6; z++) {
+        // Flatbed deck at y = 2..3
+        const isTrim = (Math.abs(x) === 4 || Math.abs(z) === 6);
+        pushVoxel(chassisVoxels, x, 2.5, z, isTrim ? '#f59e0b' : '#f8fafc', 0.02);
+        // Cabin & Roof Platform (z -2..4, x -3..3, y 4..7 -> Roof at Y = 7.5 * RV = 1.875)
+        if (z >= -2 && z <= 4 && Math.abs(x) <= 3) {
+          pushVoxel(chassisVoxels, x, 7.0, z, '#e2e8f0', 0.02); // Roof platform for Tewi Fumo!
+          if (Math.abs(x) === 3 && (z === -2 || z === 4)) {
+            for (let y = 3; y <= 6; y++) {
+              pushVoxel(chassisVoxels, x, y + 0.5, z, '#64748b', 0.01); // Rollcage pillars
+            }
+          }
+        }
+      }
+    }
+    // Front headlights at z = 6.3
+    pushVoxel(headlightVoxels, -2.5, 3.5, 6.3, '#fef08a', 0.01, 1.3, 1.1, 0.6);
+    pushVoxel(headlightVoxels, 2.5, 3.5, 6.3, '#fef08a', 0.01, 1.3, 1.1, 0.6);
+    // Rear mini antenna on rover
+    for (let y = 3; y <= 9; y++) {
+      pushVoxel(chassisVoxels, -2.5, y + 0.5, -5.5, '#cbd5e1', 0.01, 0.4, 1.0, 0.4);
+    }
+    pushVoxel(blinkVoxels, 5.2 / RV, 999, 0, '#ff0000'); // Placeholder not needed; add glowing tip directly:
+    pushVoxel(headlightVoxels, -2.5, 10.5, -5.5, '#38bdf8', 0.01, 0.9, 0.9, 0.9);
+
+    const roverChassisMesh = buildVoxelInstancedMesh(chassisVoxels, RV, baseTechMaterial, true, true);
+    const roverHeadlightMesh = buildVoxelInstancedMesh(headlightVoxels, RV, emissiveWarmMaterial, false, false);
+    roverChassisGroup.add(roverChassisMesh);
+    roverChassisGroup.add(roverHeadlightMesh);
+
+    // 4 Big Chunky Voxel Rover Wheels
+    const roverWheels = [];
+    const wheelOffsets = [
+      { x: -4.8 * RV, y: 2.0 * RV, z: 4.0 * RV },
+      { x: 4.8 * RV,  y: 2.0 * RV, z: 4.0 * RV },
+      { x: -4.8 * RV, y: 2.0 * RV, z: -4.0 * RV },
+      { x: 4.8 * RV,  y: 2.0 * RV, z: -4.0 * RV }
+    ];
+    const singleWheelVoxels = [];
+    for (let wx = -1; wx <= 1; wx++) {
+      for (let wy = -2; wy <= 2; wy++) {
+        for (let wz = -2; wz <= 2; wz++) {
+          if (Math.abs(wy) === 2 && Math.abs(wz) === 2) continue; // Octagonal wheel profile
+          const isHub = (Math.abs(wy) <= 0 && Math.abs(wz) <= 0 && Math.abs(wx) === 1);
+          const isTread = (Math.abs(wy) === 2 || Math.abs(wz) === 2);
+          const col = isHub ? '#f59e0b' : (isTread ? '#1e293b' : '#334155');
+          pushVoxel(singleWheelVoxels, wx * 0.75, wy * 0.85, wz * 0.85, col, 0.02);
+        }
+      }
+    }
+    for (let w = 0; w < 4; w++) {
+      const wGroup = new THREE.Group();
+      wGroup.position.copy(wheelOffsets[w]);
+      const wMesh = buildVoxelInstancedMesh(singleWheelVoxels, RV, baseTechMaterial, true, true);
+      wGroup.add(wMesh);
+      roverGroup.add(wGroup);
+      roverWheels.push(wGroup);
+    }
+
+    // Track Keyboard Input for Driving the Rover
+    const driveKeys = { up: false, down: false, left: false, right: false };
+
+    function updateRover(dt, time) {
+      const accel = (driveKeys.up ? 5.5 : 0) - (driveKeys.down ? 4.5 : 0);
+      if (accel !== 0) {
+        roverState.speed += accel * dt;
+        recordInteraction();
+      } else {
+        roverState.speed *= Math.pow(0.08, dt);
+      }
+      roverState.speed = THREE.MathUtils.clamp(roverState.speed, -4.5, 6.2);
+
+      // Steering
+      if (Math.abs(roverState.speed) > 0.05 || driveKeys.left || driveKeys.right) {
+        const turnDir = (driveKeys.left ? 1 : 0) - (driveKeys.right ? 1 : 0);
+        if (turnDir !== 0) {
+          const reverseSign = roverState.speed < -0.1 ? -1 : 1;
+          roverState.yaw += turnDir * reverseSign * 1.95 * dt;
+          recordInteraction();
+        }
+      }
+
+      // Move forward along heading
+      const fwdX = Math.sin(roverState.yaw);
+      const fwdZ = Math.cos(roverState.yaw);
+      const nextX = roverState.pos.x + fwdX * roverState.speed * dt;
+      const nextZ = roverState.pos.z + fwdZ * roverState.speed * dt;
+
+      // Avoid driving through the habitat dome or rocket
+      const dDome = Math.hypot(nextX - (-4.25), nextZ - (-3.5));
+      const dRocket = Math.hypot(nextX - 6.75, nextZ - (-5.5));
+      if (dDome > 5.2 && dRocket > 2.6 && Math.abs(nextX) < 10.5 && Math.abs(nextZ) < 10.5) {
+        roverState.pos.x = nextX;
+        roverState.pos.z = nextZ;
+      } else {
+        roverState.speed *= -0.35;
+      }
+
+      // Sample terrain heights at front/back/left/right wheels so the rover pitches & bounces over craters!
+      const rightX = Math.cos(roverState.yaw);
+      const rightZ = -Math.sin(roverState.yaw);
+      const hCenter = getLunarSurfaceHeight(roverState.pos.x, roverState.pos.z);
+      const hFront = getLunarSurfaceHeight(roverState.pos.x + fwdX * 1.1, roverState.pos.z + fwdZ * 1.1);
+      const hBack = getLunarSurfaceHeight(roverState.pos.x - fwdX * 1.1, roverState.pos.z - fwdZ * 1.1);
+      const hLeft = getLunarSurfaceHeight(roverState.pos.x - rightX * 0.9, roverState.pos.z - rightZ * 0.9);
+      const hRight = getLunarSurfaceHeight(roverState.pos.x + rightX * 0.9, roverState.pos.z + rightZ * 0.9);
+
+      const targetY = (hCenter + hFront + hBack) / 3.0;
+      // Springy lunar rover suspension
+      const springF = (targetY - roverState.pos.y) * 95.0 - roverState.bounceVel * 7.5;
+      roverState.bounceVel += springF * dt;
+      roverState.pos.y += roverState.bounceVel * dt;
+
+      const targetPitch = Math.atan2(hBack - hFront, 2.2);
+      const targetRoll = Math.atan2(hLeft - hRight, 1.8);
+      roverState.pitch = THREE.MathUtils.lerp(roverState.pitch, targetPitch, Math.min(1, dt * 10));
+      roverState.roll = THREE.MathUtils.lerp(roverState.roll, targetRoll, Math.min(1, dt * 10));
+
+      roverGroup.position.copy(roverState.pos);
+      roverGroup.rotation.order = 'YXZ';
+      roverGroup.rotation.set(roverState.pitch, roverState.yaw, roverState.roll);
+
+      // Spin wheels & emit lunar dust puffs & wheel tracks when driving
+      roverState.wheelSpin += roverState.speed * dt * 2.4;
+      for (let w = 0; w < 4; w++) {
+        roverWheels[w].rotation.x = roverState.wheelSpin;
+      }
+
+      if (Math.abs(roverState.speed) > 0.6 && Math.random() < 0.45) {
+        const wIdx = Math.random() < 0.5 ? 2 : 3;
+        const wheelWorld = new THREE.Vector3().copy(wheelOffsets[wIdx]).applyMatrix4(roverGroup.matrixWorld);
+        spawnLunarDustBurst(wheelWorld, 2, 0.65);
+        stampFootprint(wheelWorld.x, wheelWorld.z, roverState.yaw);
+      }
+
+      // Position Rover Headlight in front of the Rover
+      roverLight.position.set(
+        roverState.pos.x + fwdX * 2.1,
+        roverState.pos.y + 1.1,
+        roverState.pos.z + fwdZ * 2.1
+      );
+    }
+
+    // ----------------------------------------------------------------------------
+    // 6C. GIANT VOXEL EARTH, DENSE STARFIELD & DISTANT METEOR SHOWER
+    // ----------------------------------------------------------------------------
+    const earthGroup = new THREE.Group();
+    earthGroup.position.set(-24, 18.5, -34);
+    scene.add(earthGroup);
+
+    const earthVoxels = [];
+    const ER = 9; // Voxel sphere radius 9 (diameter 18 blocks)
+    for (let x = -ER; x <= ER; x++) {
+      for (let y = -ER; y <= ER; y++) {
+        for (let z = -ER; z <= ER; z++) {
+          const r = Math.sqrt(x * x + y * y + z * z);
+          if (r <= ER + 0.3 && r >= ER - 1.15) {
+            // Continents, oceans, polar ice caps & swirling white clouds
+            const n1 = Math.sin(x * 0.42 + z * 0.35) + Math.cos(y * 0.38 - x * 0.28);
+            const cloud = Math.sin(x * 0.7 - y * 0.5 + z * 0.6);
+            let eCol = '#1d4ed8'; // Deep ocean blue
+            if (Math.abs(y) >= ER - 1.4) eCol = '#f8fafc'; // Polar ice caps
+            else if (cloud > 1.05) eCol = '#ffffff'; // Swirling clouds
+            else if (n1 > 0.45) eCol = (y > 2) ? '#4ade80' : '#22c55e'; // Lush continents
+            else if (n1 > 0.15) eCol = '#eab308'; // Desert/coast
+            else if (n1 > -0.1) eCol = '#0ea5e9'; // Shallow turquoise seas
+            pushVoxel(earthVoxels, x, y, z, eCol, 0.02);
+          }
+        }
+      }
+    }
+    const earthMesh = buildVoxelInstancedMesh(earthVoxels, 0.48, earthMaterial, false, false);
+    earthGroup.add(earthMesh);
+
+    // Starfield (420 twinkling voxel stars across the sky dome)
+    const STAR_COUNT = 420;
+    const starData = [];
+    const starGeom = new THREE.BoxGeometry(0.18, 0.18, 0.18);
+    const starMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
+    const starMesh = new THREE.InstancedMesh(starGeom, starMat, STAR_COUNT);
+    const starColors = ['#ffffff', '#bae6fd', '#fde68a', '#fbcfe8', '#c7d2fe'];
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI * 0.46; // Upper sky hemisphere
+      const dist = 55 + Math.random() * 25;
+      const sx = Math.cos(theta) * Math.sin(phi) * dist;
+      const sy = Math.cos(phi) * dist + 4;
+      const sz = Math.sin(theta) * Math.sin(phi) * dist;
+      const scale = 0.5 + Math.random() * 1.4;
+      starData.push({ x: sx, y: sy, z: sz, scale, phase: Math.random() * Math.PI * 2 });
+      tempPos.set(sx, sy, sz);
+      tempQuat.identity();
+      tempScale.set(scale, scale, scale);
+      tempMatrix.compose(tempPos, tempQuat, tempScale);
+      starMesh.setMatrixAt(i, tempMatrix);
+      starMesh.setColorAt(i, new THREE.Color(starColors[i % starColors.length]));
+    }
+    scene.add(starMesh);
+
+    // Distant Meteor Shower (6 shooting stars streaking across the high lunar sky)
+    const METEOR_COUNT = 6;
+    const meteors = [];
+    const meteorGeom = new THREE.BoxGeometry(1.8, 0.12, 0.12);
+    const meteorMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.92 });
+    const meteorMesh = new THREE.InstancedMesh(meteorGeom, meteorMat, METEOR_COUNT);
+    for (let i = 0; i < METEOR_COUNT; i++) {
+      meteors.push({
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        timer: Math.random() * 3.5,
+        active: false,
+        life: 0,
+        maxLife: 1.0
+      });
+      tempMatrix.makeScale(0, 0, 0);
+      meteorMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(meteorMesh);
+
+    function updateMeteorsAndSky(time, dt) {
+      earthGroup.rotation.y = time * 0.08;
+      earthGroup.rotation.z = 0.22;
+
+      let dirty = false;
+      for (let i = 0; i < METEOR_COUNT; i++) {
+        const m = meteors[i];
+        if (!m.active) {
+          m.timer -= dt;
+          if (m.timer <= 0) {
+            m.active = true;
+            m.life = 0;
+            m.maxLife = 0.7 + Math.random() * 0.6;
+            const angle = -Math.PI * 0.25 + (Math.random() - 0.5) * 1.2;
+            const r = 42 + Math.random() * 15;
+            m.pos.set(Math.cos(angle) * r, 22 + Math.random() * 16, Math.sin(angle) * r - 12);
+            m.vel.set(-18 - Math.random() * 12, -7 - Math.random() * 5, 6 + (Math.random() - 0.5) * 10);
+          }
+          continue;
+        }
+        dirty = true;
+        m.life += dt;
+        if (m.life >= m.maxLife) {
+          m.active = false;
+          m.timer = 1.2 + Math.random() * 3.8;
+          tempMatrix.makeScale(0, 0, 0);
+          meteorMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        m.pos.addScaledVector(m.vel, dt);
+        const fade = Math.sin((m.life / m.maxLife) * Math.PI);
+        tempQuat.setFromUnitVectors(new THREE.Vector3(1, 0, 0), m.vel.clone().normalize());
+        tempScale.set(fade * 1.6, fade, fade);
+        tempMatrix.compose(m.pos, tempQuat, tempScale);
+        meteorMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) meteorMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 7. BALLISTIC LUNAR DUST ARCS (NO AIR DRAG!) & FOOTPRINT RING BUFFER
+    // ============================================================================
+    const LUNAR_GRAVITY = 4.0; // 1/6th of Earth's 24.0 gravity -> slow, lofty lunar hangtime!
+
+    const DUST_MAX = 140;
+    const lunarDust = [];
+    const dustGeom = new THREE.BoxGeometry(0.10, 0.10, 0.10);
+    const dustMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.9 });
+    const lunarDustMesh = new THREE.InstancedMesh(dustGeom, dustMat, DUST_MAX);
+    for (let i = 0; i < DUST_MAX; i++) {
+      lunarDust.push({
+        active: false,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        life: 0,
+        maxLife: 1.5,
+        scale: 1.0
+      });
+      tempMatrix.makeScale(0, 0, 0);
+      lunarDustMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(lunarDustMesh);
+
+    function spawnLunarDustBurst(origin, count = 14, speedScale = 1.0) {
+      let spawned = 0;
+      for (let i = 0; i < DUST_MAX && spawned < count; i++) {
+        const d = lunarDust[i];
+        if (!d.active) {
+          d.active = true;
+          d.life = 0;
+          d.maxLife = 1.1 + Math.random() * 0.9;
+          const ang = (spawned / count) * Math.PI * 2 + Math.random() * 0.4;
+          const hSpeed = (0.8 + Math.random() * 1.6) * speedScale;
+          const vSpeed = (1.6 + Math.random() * 2.1) * speedScale;
+          d.pos.set(origin.x + Math.cos(ang) * 0.25, origin.y + 0.08, origin.z + Math.sin(ang) * 0.25);
+          // Pure ballistic velocity: zero air resistance!
+          d.vel.set(Math.cos(ang) * hSpeed, vSpeed, Math.sin(ang) * hSpeed);
+          d.scale = 0.6 + Math.random() * 0.85;
+          spawned++;
+        }
+      }
+    }
+
+    function updateBallisticLunarDust(dt) {
+      let dirty = false;
+      for (let i = 0; i < DUST_MAX; i++) {
+        const d = lunarDust[i];
+        if (!d.active) continue;
+        dirty = true;
+        d.life += dt;
+        // Pure vacuum ballistic trajectory (only constant lunar gravity, no air drag!)
+        d.vel.y -= LUNAR_GRAVITY * dt;
+        d.pos.addScaledVector(d.vel, dt);
+
+        const groundY = getLunarSurfaceHeight(d.pos.x, d.pos.z);
+        if (d.pos.y <= groundY || d.life >= d.maxLife) {
+          d.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          lunarDustMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        const s = d.scale * (1.0 - 0.35 * (d.life / d.maxLife));
+        tempEuler.set(d.life * 3.0, d.life * 2.2, 0);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(s, s, s);
+        tempMatrix.compose(d.pos, tempQuat, tempScale);
+        lunarDustMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) lunarDustMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // Lunar Footprints Ring Buffer (Stamps paired boot/plush prints in the regolith!)
+    const FOOTPRINT_MAX = 90;
+    let footprintCursor = 0;
+    const footprintGeom = new THREE.BoxGeometry(0.22, 0.03, 0.34);
+    const footprintMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.98 });
+    const footprintMesh = new THREE.InstancedMesh(footprintGeom, footprintMat, FOOTPRINT_MAX);
+    footprintMesh.receiveShadow = true;
+    for (let i = 0; i < FOOTPRINT_MAX; i++) {
+      tempMatrix.makeScale(0, 0, 0);
+      footprintMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(footprintMesh);
+
+    function stampFootprint(wx, wz, yaw = 0) {
+      // Do not stamp footprints on the indoor dome floor
+      if (Math.hypot(wx - (-4.25), wz - (-3.5)) < 4.0) return;
+
+      for (const side of [-1, 1]) {
+        const idx = footprintCursor % FOOTPRINT_MAX;
+        footprintCursor++;
+        const offsetX = Math.cos(yaw) * side * 0.16;
+        const offsetZ = -Math.sin(yaw) * side * 0.16;
+        const px = wx + offsetX;
+        const pz = wz + offsetZ;
+        const py = getLunarSurfaceHeight(px, pz) + 0.015;
+
+        tempPos.set(px, py, pz);
+        tempEuler.set(0, yaw, 0);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(1, 1, 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        footprintMesh.setMatrixAt(idx, tempMatrix);
+      }
+      footprintMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // Pre-stamp a charming trail of astronaut footprints from the Airlock to the Flag and Mochi Machine
+    for (let s = 0; s < 10; s++) {
+      stampFootprint(1.4 + s * 0.42, -3.2 + Math.sin(s * 0.6) * 0.4, 1.3);
+      stampFootprint(1.5 + s * 0.15, -2.5 + s * 0.45, 0.25);
+    }
+
+    // Squeeze Pop Particles
+    const POP_MAX = 48;
+    const popParticles = [];
+    const popGeom = new THREE.BoxGeometry(0.11, 0.11, 0.11);
+    const popMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const popMesh = new THREE.InstancedMesh(popGeom, popMat, POP_MAX);
+    for (let i = 0; i < POP_MAX; i++) {
+      popParticles.push({ active: false, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, maxLife: 1, color: new THREE.Color('#ff85a1') });
+      tempMatrix.makeScale(0, 0, 0);
+      popMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(popMesh);
+
+    function spawnSqueezeParticles(origin, accentHex) {
+      const palette = [accentHex, '#ff85a1', '#fde047', '#ffffff'];
+      let spawned = 0;
+      for (let i = 0; i < POP_MAX && spawned < 12; i++) {
+        const p = popParticles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.55 + Math.random() * 0.3;
+          p.pos.copy(origin).add(new THREE.Vector3(0, 0.9, 0));
+          const angle = (spawned / 12) * Math.PI * 2 + Math.random() * 0.3;
+          const speed = 1.8 + Math.random() * 1.8;
+          p.vel.set(Math.cos(angle) * speed, 1.8 + Math.random() * 1.8, Math.sin(angle) * speed);
+          p.color.set(palette[spawned % palette.length]);
+          popMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (popMesh.instanceColor) popMesh.instanceColor.needsUpdate = true;
+    }
+
+    function updatePopParticles(dt) {
+      let dirty = false;
+      for (let i = 0; i < POP_MAX; i++) {
+        const p = popParticles[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          popMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= LUNAR_GRAVITY * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const s = 1.0 - (p.life / p.maxLife);
+        tempEuler.set(p.life * 8, p.life * 6, 0);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        popMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) popMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 8. TOUHOU FUMO VOXEL PLUSHIE BUILDER & LUNAR 1/6G SOFT-BODY PHYSICS CLASS
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const fumos = [];
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.emoji = config.emoji || '🐇';
+        this.accentColor = config.accentColor || '#a855f7';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.082 * this.scaleFactor;
+        this.radius = 0.85 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+        this.ridesRover = Boolean(config.ridesRover);
+
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.ridingRoverActive = this.ridesRover;
+
+        // Soft-Body Spring States
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        this.buildCharacterVoxels(config);
+        this.syncTransform(0);
+        scene.add(this.root);
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const helmetGlassVox = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingSolidVoxels = [];
+
+        const skinBase = '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false, sx = 1, sy = 1, sz = 1) => {
+          const seamDarken = (isSeam && ((Math.abs(x + y + z) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z, sx, sy, sz,
+            color: varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // 1. STUBBY SITTING TORSO (Local y: 0..7, x: -4..4, z: -3..3)
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain;
+
+              if (y === 1 && z >= 1) col = '#ffffff';
+              if (cfg.frontTabardColor && z >= 1 && Math.abs(x) <= 2 && y <= 6) {
+                col = cfg.frontTabardColor;
+              }
+              if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                col = '#ffffff';
+                if (Math.abs(x) <= 1 && y === 5) col = cfg.tieColor || '#ef4444';
+              }
+              // Clownpiece stars & stripes motif
+              if (this.id === 'clownpiece' && z >= 1) {
+                if (x < 0) col = ((x + y) % 2 === 0) ? '#ef4444' : '#ffffff';
+                else col = ((x + y) % 3 === 0) ? '#fde047' : '#1d4ed8';
+              }
+
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        // 2. SHORT DANGLING ARMS + CHARACTER HAND PROPS (Feather Fan, Mochi Mallet, Torch)
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || '#ffffff';
+                if (y === -3) col = skinBase;
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        // Yorihime's Feather Fan held in her right hand!
+        if (this.id === 'yorihime') {
+          for (let fy = -1; fy <= 3; fy++) {
+            for (let fz = 1; fz <= 4; fz++) {
+              const fanCol = (fz === 4 || fy === 3) ? '#e0f2fe' : '#f472b6';
+              addPlushVoxel(rightArmVoxels, 1.1, -2.5 + fy * 0.75, fz * 0.85, fanCol);
+            }
+          }
+        }
+
+        // Seiran's Wooden Kine Mochi Mallet held in her right hand!
+        if (this.id === 'seiran') {
+          for (let hz = 1; hz <= 5; hz++) {
+            addPlushVoxel(rightArmVoxels, 0.8, -2.5, hz * 0.85, '#d4a373'); // Handle
+          }
+          for (let mx = -1; mx <= 2; mx++) {
+            for (let my = -1; my <= 1; my++) {
+              addPlushVoxel(rightArmVoxels, 0.8 + mx * 0.85, -2.5 + my * 0.85, 4.5, '#9a5b32'); // Heavy mallet head
+            }
+          }
+        }
+
+        // 3. SHORT SITTING / DANGLING LEGS WITH SHOES
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = '#ffffff';
+                if (z === 0) col = skinBase;
+                if (z >= 3) col = cfg.shoeColor || '#2b2d42';
+                if (z === 4 && y === 1 && x === 0) col = '#ffffff';
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        // 4. OVERSIZED ROUND FUMO HEAD & ICONIC 'ᗜˬᗜ' FACE
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (y === 6) col = '#1f141e';
+                  else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                  else col = cfg.eyeColor;
+                } else if (Math.abs(x) === 4 && y === 3) {
+                  col = blushCol;
+                } else if (y === 2 && Math.abs(x) <= 1) {
+                  col = (x === 0) ? '#e07a7a' : smileCol;
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        // 5. CHARACTER-SPECIFIC HAIRSTYLES, RABBIT EARS, HELMETS & WINGS
+        if (this.id === 'toyohime') {
+          // Blonde side/back ponytail + Frilly White/Pink Hat with Peach ornament
+          for (let py = 1; py <= 7; py++) {
+            addPlushVoxel(headVoxels, 5.5, py, -3.5, cfg.hairColor);
+            addPlushVoxel(headVoxels, 6.2, py, -3.0, cfg.hairColor);
+          }
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -6; hz <= 6; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 7.0 && r >= 4.4) {
+                addPlushVoxel(headVoxels, hx, 11.2, hz, '#ffffff');
+                if (r <= 5.8) addPlushVoxel(headVoxels, hx, 12.1, hz, '#f472b6');
+              }
+            }
+          }
+          // Tiny peach ornament on front-right of hat
+          addPlushVoxel(headVoxels, 4.2, 11.8, 4.5, '#fb7185', false, 1.4, 1.4, 1.4);
+          addPlushVoxel(headVoxels, 4.8, 11.5, 4.5, '#4ade80');
+        }
+
+        if (this.id === 'yorihime') {
+          // High Purple Ponytail tied with a Crisp White Bow at the back of her head!
+          for (let bx = -4; bx <= 4; bx++) {
+            addPlushVoxel(headVoxels, bx, 10.5, -5.2, '#ffffff');
+            if (Math.abs(bx) >= 2) addPlushVoxel(headVoxels, bx, 11.3, -5.2, '#ffffff');
+          }
+          for (let py = 1; py <= 10; py++) {
+            const pz = -6.0 - Math.sin((py / 10) * Math.PI) * 1.6;
+            addPlushVoxel(headVoxels, 0, py + 2.0, pz, cfg.hairColor, false, 1.6, 1.0, 1.3);
+            addPlushVoxel(headVoxels, -1, py + 2.0, pz, cfg.hairColor);
+            addPlushVoxel(headVoxels, 1, py + 2.0, pz, cfg.hairColor);
+          }
+        }
+
+        if (this.id === 'reisen') {
+          // Long flowing lavender locks on sides/back
+          for (const side of [-1, 1]) {
+            for (let y = -2; y <= 4; y++) {
+              addPlushVoxel(headVoxels, side * 6.4, y, -1.5, cfg.hairColor);
+              addPlushVoxel(headVoxels, side * 5.8, y, -3.5, cfg.hairColor);
+            }
+          }
+          // Long Pleated Rabbit Ears Poking Out of the Top of Her Space Helmet!
+          for (const side of [-1, 1]) {
+            for (let ey = 11; ey <= 20; ey++) {
+              const ex = side * (2.6 + (ey - 11) * 0.22);
+              const ez = -0.5 + ((ey % 2 === 0) ? 0.35 : -0.15); // Characteristic Reisen pleated ear crimp!
+              addPlushVoxel(headVoxels, ex, ey, ez, cfg.hairColor, false, 1.35, 1.0, 0.9);
+              if (ey >= 13 && ey <= 18) {
+                addPlushVoxel(headVoxels, ex, ey, ez + 0.65, '#fbcfe8', false, 0.75, 0.9, 0.4);
+              }
+            }
+          }
+          // Translucent Bubble Space Helmet Ring & Glass Visor Shell around her head, with ear-grommet seals!
+          for (let hx = -6; hx <= 6; hx++) {
+            for (let hz = -6; hz <= 6; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r >= 5.2 && r <= 6.8) {
+                addPlushVoxel(headVoxels, hx, 0.2, hz, '#f8fafc'); // White neck seal ring
+              }
+            }
+          }
+          for (let y = 1; y <= 12; y++) {
+            for (let x = -8; x <= 8; x++) {
+              for (let z = -8; z <= 8; z++) {
+                const dist = Math.sqrt(x * x + (y - 6.2) ** 2 + z * z);
+                if (dist >= 7.2 && dist <= 8.0) {
+                  // Sparse glass shell blocks so her cute face shines clearly inside
+                  if ((x + y + z) % 2 === 0) {
+                    helmetGlassVox.push({ x, y, z, color: new THREE.Color('#bae6fd') });
+                  }
+                }
+              }
+            }
+          }
+          // White ear-port collars at top of helmet where her rabbit ears poke out
+          for (const side of [-1, 1]) {
+            addPlushVoxel(headVoxels, side * 2.8, 12.5, -0.5, '#f8fafc', false, 2.2, 0.8, 2.2);
+          }
+        }
+
+        if (this.id === 'seiran') {
+          // Upright Pale-Blue Rabbit Ears!
+          for (const side of [-1, 1]) {
+            for (let ey = 11; ey <= 18; ey++) {
+              const ex = side * (2.5 + (ey - 11) * 0.15);
+              addPlushVoxel(headVoxels, ex, ey, 0.0, cfg.hairColor, false, 1.3, 1.0, 0.9);
+              if (ey >= 12 && ey <= 16) {
+                addPlushVoxel(headVoxels, ex, ey, 0.6, '#fda4af', false, 0.75, 0.9, 0.4);
+              }
+            }
+          }
+        }
+
+        if (this.id === 'sagume') {
+          // Iconic Single White Feathered Wing on her RIGHT side only!
+          for (let wx = 1; wx <= 8; wx++) {
+            const topY = 3.5 + Math.sin((wx / 8) * Math.PI) * 3.0;
+            const botY = -1.5 + (wx * 0.35);
+            for (let wy = Math.floor(botY); wy <= Math.ceil(topY); wy++) {
+              const featherTip = (wy <= botY + 0.8 || wx === 8);
+              wingSolidVoxels.push({
+                x: wx * 0.95,
+                y: wy * 0.9,
+                z: -0.5 - wx * 0.12,
+                color: varyColor(featherTip ? '#e0f2fe' : '#ffffff', wx, wy, 0, 0.025)
+              });
+            }
+          }
+        }
+
+        if (this.id === 'tewi') {
+          // Upright Dark-Haired Bunny Ears for Rover Driver Tewi!
+          for (const side of [-1, 1]) {
+            for (let ey = 11; ey <= 18; ey++) {
+              const ex = side * (2.5 + (ey - 11) * 0.18);
+              addPlushVoxel(headVoxels, ex, ey, 0.2, '#f8fafc', false, 1.3, 1.0, 0.9);
+              if (ey >= 12 && ey <= 16) {
+                addPlushVoxel(headVoxels, ex, ey, 0.8, '#fbcfe8', false, 0.75, 0.9, 0.4);
+              }
+            }
+          }
+        }
+
+        if (this.id === 'clownpiece') {
+          // Jester Cap with Blue/Red/White Stripes & Yellow Pom-Poms
+          for (const side of [-1, 1]) {
+            for (let h = 0; h < 6; h++) {
+              const jx = side * (2.5 + h * 0.75);
+              const jy = 11.2 + Math.sin((h / 5) * Math.PI) * 2.5;
+              const jCol = side === -1 ? ((h % 2 === 0) ? '#ef4444' : '#ffffff') : '#1d4ed8';
+              addPlushVoxel(headVoxels, jx, jy, 0, jCol, false, 1.3, 1.3, 1.3);
+            }
+            // Yellow Pom-Pom at tip
+            addPlushVoxel(headVoxels, side * 7.2, 11.0, 0, '#fde047', false, 1.7, 1.7, 1.7);
+          }
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allFumoRaycastMeshes.push(m);
+          }
+          return m;
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        if (helmetGlassVox.length > 0) {
+          registerPart(helmetGlassVox, this.headPivot, helmetGlassMaterial);
+        }
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        registerPart(wingSolidVoxels, this.wingsPivot);
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.50, this.squash - 0.44 * strength);
+        this.squashVel = -3.6 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 12 * strength;
+        this.limbPitch = -0.68 * strength;
+        this.limbPitchVel = -6.2 * strength;
+        spawnSqueezeParticles(this.pos, this.accentColor);
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      resetToHome() {
+        this.ridingRoverActive = this.ridesRover;
+        if (this.ridesRover) {
+          this.pos.set(roverState.pos.x, roverState.pos.y + 1.88, roverState.pos.z + 0.15);
+          this.yaw = roverState.yaw;
+        } else {
+          this.pos.copy(this.homePos);
+          this.yaw = this.homeYaw;
+        }
+        this.vel.set(0, 0, 0);
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.squeeze(0.75);
+      }
+
+      updatePhysics(dt, time) {
+        // 1. Volume-Preserving Squash & Stretch Spring
+        const squashStiff = 195.0;
+        const squashDamp = 10.5;
+        const squashForce = (1.0 - this.squash) * squashStiff - this.squashVel * squashDamp;
+        this.squashVel += squashForce * dt;
+        this.squash += this.squashVel * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash, 0.45, 1.55);
+
+        // 2. Oversized Head Wobble Spring
+        const headStiff = 135.0;
+        const headDamp = 7.2;
+        const idleHeadBob = Math.sin(time * 2.1 + this.homePos.x) * 0.03;
+        this.headPitchVel += ((idleHeadBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        // 3. Dangling Limb Springs (Float out in 1/6g lunar flight!)
+        const targetLimbPitch = (this.isDragged || !this.isGrounded) ? 0.65 : 0.0;
+        const limbStiff = 110.0;
+        const limbDamp = 7.5;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * limbStiff - this.limbPitchVel * limbDamp) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * limbStiff - this.limbRollVel * limbDamp) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.85, 0.95);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+
+        // 4. If riding on the Rover's roof, follow the Rover's motion & suspension!
+        if (this.ridingRoverActive && !this.isDragged) {
+          const roofOffset = new THREE.Vector3(0, 1.88, 0.1).applyEuler(roverGroup.rotation);
+          this.pos.copy(roverState.pos).add(roofOffset);
+          this.yaw = roverState.yaw;
+          this.pitch = roverState.pitch;
+          this.roll = roverState.roll;
+          this.isGrounded = true;
+          if (Math.abs(roverState.speed) > 0.4) {
+            this.headPitchVel += (Math.random() - 0.5) * Math.abs(roverState.speed) * 0.4;
+          }
+          this.syncTransform(time);
+          return;
+        }
+
+        // 5. Low Lunar Gravity (1/6g) Ballistic Flight & Multi-Bounce Settling
+        if (!this.isDragged) {
+          this.vel.y -= LUNAR_GRAVITY * dt;
+          // Virtually zero air resistance in vacuum!
+          this.vel.x *= Math.pow(0.997, dt * 60);
+          this.vel.z *= Math.pow(0.997, dt * 60);
+
+          this.pos.addScaledVector(this.vel, dt);
+
+          this.yaw += this.angVel.y * dt;
+          this.pitch += this.angVel.x * dt;
+          this.roll += this.angVel.z * dt;
+          this.angVel.multiplyScalar(Math.pow(0.96, dt * 60));
+
+          this.isGrounded = false;
+
+          // Check landing on the Rover Roof!
+          const dRover = Math.hypot(this.pos.x - roverState.pos.x, this.pos.z - roverState.pos.z);
+          const roverRoofY = roverState.pos.y + 1.88;
+          if (dRover < 1.15 && this.pos.y >= roverRoofY - 0.35 && this.pos.y <= roverRoofY + 0.35 && this.vel.y <= 0) {
+            this.pos.y = roverRoofY;
+            this.vel.set(0, 0, 0);
+            this.isGrounded = true;
+            this.ridingRoverActive = true;
+            this.squashVel -= 3.5;
+            soundFX.playBounce(0.5);
+          }
+
+          // Lunar Surface & Crater Terrain Collision
+          const groundY = getLunarSurfaceHeight(this.pos.x, this.pos.z);
+          if (this.pos.y <= groundY) {
+            const impact = -this.vel.y;
+            this.pos.y = groundY;
+
+            // Low gravity + springy plush = multiple lofty bounces before settling!
+            if (impact > 0.42) {
+              this.vel.y = impact * 0.62;
+              this.vel.x *= 0.84;
+              this.vel.z *= 0.84;
+              this.squashVel -= Math.min(8.0, impact * 1.45);
+              this.headPitchVel += (Math.random() - 0.5) * impact * 3.0;
+              this.headRollVel += (Math.random() - 0.5) * impact * 3.0;
+
+              // Emit ballistic lunar dust puff & stamp footprints in regolith!
+              spawnLunarDustBurst(this.pos, Math.min(18, Math.ceil(impact * 4)), Math.min(1.6, 0.5 + impact * 0.25));
+              stampFootprint(this.pos.x, this.pos.z, this.yaw);
+              soundFX.playBounce(impact * 0.14);
+            } else {
+              this.vel.y = 0;
+              this.vel.x *= 0.72;
+              this.vel.z *= 0.72;
+              this.isGrounded = true;
+            }
+          }
+
+          // Keep inside lunar diorama bounds
+          const bound = 10.8;
+          if (this.pos.x < -bound) { this.pos.x = -bound; this.vel.x = Math.abs(this.vel.x) * 0.55; }
+          if (this.pos.x > bound)  { this.pos.x = bound;  this.vel.x = -Math.abs(this.vel.x) * 0.55; }
+          if (this.pos.z < -bound) { this.pos.z = -bound; this.vel.z = Math.abs(this.vel.z) * 0.55; }
+          if (this.pos.z > bound)  { this.pos.z = bound;  this.vel.z = -Math.abs(this.vel.z) * 0.55; }
+
+          // Prop & Furniture AABB Collisions
+          const r = this.radius * 0.72;
+          const centerY = this.pos.y + r;
+
+          for (let i = 0; i < furnitureColliders.length; i++) {
+            const box = furnitureColliders[i];
+            const cx = THREE.MathUtils.clamp(this.pos.x, box.min.x, box.max.x);
+            const cy = THREE.MathUtils.clamp(centerY, box.min.y, box.max.y);
+            const cz = THREE.MathUtils.clamp(this.pos.z, box.min.z, box.max.z);
+
+            const dx = this.pos.x - cx;
+            const dy = centerY - cy;
+            const dz = this.pos.z - cz;
+            const distSq = dx * dx + dy * dy + dz * dz;
+
+            if (distSq < r * r) {
+              const dist = Math.sqrt(distSq);
+              if (centerY >= box.max.y - 0.25 && this.vel.y <= 0.4) {
+                const impact = -this.vel.y;
+                this.pos.y = box.max.y;
+                if (impact > 0.5) {
+                  this.vel.y = impact * 0.55;
+                  this.squashVel -= Math.min(7.5, impact * 1.2);
+                  soundFX.playBounce(impact * 0.12);
+                } else {
+                  this.vel.y = 0;
+                  this.isGrounded = true;
+                }
+                this.vel.x *= 0.80;
+                this.vel.z *= 0.80;
+              } else if (dist > 0.0001) {
+                const nx = dx / dist;
+                const ny = dy / dist;
+                const nz = dz / dist;
+                const pen = r - dist;
+                this.pos.x += nx * pen;
+                this.pos.y = Math.max(groundY, this.pos.y + ny * pen);
+                this.pos.z += nz * pen;
+
+                const vn = this.vel.x * nx + this.vel.y * ny + this.vel.z * nz;
+                if (vn < 0) {
+                  const imp = -vn;
+                  this.vel.x -= 1.5 * vn * nx;
+                  this.vel.y -= 1.5 * vn * ny;
+                  this.vel.z -= 1.5 * vn * nz;
+                  if (imp > 0.8) {
+                    this.squashVel -= Math.min(5.0, imp * 0.7);
+                    soundFX.playBounce(imp * 0.1);
+                  }
+                }
+              }
+            }
+          }
+
+          if (this.isGrounded) {
+            this.pitch = THREE.MathUtils.lerp(this.pitch, 0, Math.min(1, dt * 8.5));
+            this.roll = THREE.MathUtils.lerp(this.roll, 0, Math.min(1, dt * 8.5));
+            this.angVel.multiplyScalar(0.75);
+          }
+        }
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+
+        // Seiran gently swings her mochi mallet when idle!
+        const seiranSwing = (this.id === 'seiran' && this.isGrounded && !this.isDragged)
+          ? Math.sin(time * 5.2) * 0.35
+          : 0;
+
+        this.leftArmPivot.rotation.set(this.limbPitch, 0, 0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.rightArmPivot.rotation.set(this.limbPitch + seiranSwing, 0, -0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+
+        const wingFlutter = Math.sin(time * 3.2 + this.homePos.x) * 0.07 + (1.0 - this.squash) * 0.35;
+        this.wingsPivot.rotation.y = wingFlutter;
+      }
+    }
+
+    // ============================================================================
+    // 9. INSTANTIATE THE 7 LUNAR TOUHOU FUMO CHARACTERS
+    // ============================================================================
+    const fumoConfigs = [
+      {
+        id: 'toyohime',
+        name: 'Watatsuki no Toyohime (Lunar Princess Fumo)',
+        emoji: '🍑',
+        accentColor: '#c084fc',
+        hairColor: '#fde68a',
+        eyeColor: '#6366f1',
+        outfitMain: '#312e81',
+        frontTabardColor: '#f5f3ff',
+        sleeveColor: '#ffffff',
+        tieColor: '#f472b6',
+        shoeColor: '#1e1b4b',
+        // Inside the glass habitat dome enjoying tea & peaches!
+        homePos: new THREE.Vector3(-4.9, 0.25, -4.6),
+        homeYaw: 0.45,
+        pitchAudio: 0.96
+      },
+      {
+        id: 'yorihime',
+        name: 'Watatsuki no Yorihime (Feather Fan Fumo)',
+        emoji: '🪭',
+        accentColor: '#a855f7',
+        hairColor: '#581c87',
+        eyeColor: '#dc2626',
+        outfitMain: '#9f1239',
+        frontTabardColor: '#fce7f3',
+        sleeveColor: '#ffffff',
+        tieColor: '#a855f7',
+        shoeColor: '#4c0519',
+        // Inside the glass habitat dome right beside Toyohime!
+        homePos: new THREE.Vector3(-3.2, 0.25, -4.6),
+        homeYaw: -0.35,
+        pitchAudio: 1.02
+      },
+      {
+        id: 'reisen',
+        name: 'Reisen Udongein Inaba (Space Helmet Fumo)',
+        emoji: '👩‍🚀',
+        accentColor: '#e879f9',
+        hairColor: '#c4b5fd',
+        eyeColor: '#dc2626',
+        outfitMain: '#1e1b4b',
+        frontTabardColor: '#ffffff',
+        sleeveColor: '#1e1b4b',
+        tieColor: '#ef4444',
+        shoeColor: '#111827',
+        // Standing near the planted Lunar Flag with rabbit ears poking out of her space helmet!
+        homePos: new THREE.Vector3(2.8, getLunarSurfaceHeight(2.8, -2.2), -2.2),
+        homeYaw: -0.25,
+        pitchAudio: 1.08
+      },
+      {
+        id: 'seiran',
+        name: 'Seiran (Mochi Mallet Rabbit Fumo)',
+        emoji: '🍡',
+        accentColor: '#38bdf8',
+        hairColor: '#60a5fa',
+        eyeColor: '#e11d48',
+        outfitMain: '#1d4ed8',
+        frontTabardColor: '#93c5fd',
+        sleeveColor: '#1d4ed8',
+        tieColor: '#ef4444',
+        shoeColor: '#1e3a8a',
+        // Standing beside the rhythmic Mochi-Pounding Machine holding her mallet!
+        homePos: new THREE.Vector3(3.85, getLunarSurfaceHeight(3.85, 2.1), 2.1),
+        homeYaw: -0.65,
+        pitchAudio: 1.16
+      },
+      {
+        id: 'sagume',
+        name: 'Sagume Kishin (One-Winged Airlock Fumo)',
+        emoji: '🪽',
+        accentColor: '#94a3b8',
+        hairColor: '#e2e8f0',
+        eyeColor: '#dc2626',
+        outfitMain: '#334155',
+        frontTabardColor: '#f8fafc',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#0f172a',
+        // Standing guard at the Habitat Dome Airlock Entrance!
+        homePos: new THREE.Vector3(1.5, getLunarSurfaceHeight(1.5, -3.5), -3.5),
+        homeYaw: 1.35,
+        pitchAudio: 0.92
+      },
+      {
+        id: 'tewi',
+        name: 'Tewi Inaba (Rover Roof Rider Fumo!)',
+        emoji: '🚙',
+        accentColor: '#f472b6',
+        hairColor: '#27272a',
+        eyeColor: '#dc2626',
+        outfitMain: '#fbcfe8',
+        frontTabardColor: '#ffffff',
+        sleeveColor: '#fbcfe8',
+        tieColor: '#ef4444',
+        shoeColor: '#831843',
+        scale: 0.88,
+        ridesRover: true,
+        // Unexpected Spot #1: Riding on the roof of the drivable Lunar Rover!
+        homePos: new THREE.Vector3(5.2, roverState.pos.y + 1.88, 4.9),
+        homeYaw: -0.55,
+        pitchAudio: 1.28
+      },
+      {
+        id: 'clownpiece',
+        name: 'Clownpiece (Crater Peekaboo Fumo!)',
+        emoji: '🗽',
+        accentColor: '#facc15',
+        hairColor: '#fde047',
+        eyeColor: '#db2777',
+        outfitMain: '#ef4444',
+        frontTabardColor: null,
+        sleeveColor: '#1d4ed8',
+        tieColor: '#fde047',
+        shoeColor: '#991b1b',
+        scale: 0.90,
+        // Unexpected Spot #2: Peeking out of the deep front-left Lunar Crater!
+        homePos: new THREE.Vector3(-4.2, getLunarSurfaceHeight(-4.2, 5.5), 5.5),
+        homeYaw: 0.35,
+        pitchAudio: 1.34
+      }
+    ];
+
+    fumoConfigs.forEach(cfg => {
+      fumos.push(new VoxelFumo(cfg));
+    });
+
+    function resolveFumoToFumoCollisions() {
+      for (let i = 0; i < fumos.length; i++) {
+        for (let j = i + 1; j < fumos.length; j++) {
+          const a = fumos[i];
+          const b = fumos[j];
+          const minDist = (a.radius + b.radius) * 0.78;
+          const dx = b.pos.x - a.pos.x;
+          const dy = (b.pos.y + b.radius * 0.6) - (a.pos.y + a.radius * 0.6);
+          const dz = b.pos.z - a.pos.z;
+          const distSq = dx * dx + dy * dy + dz * dz;
+
+          if (distSq < minDist * minDist && distSq > 0.0001) {
+            const dist = Math.sqrt(distSq);
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const nz = dz / dist;
+            const overlap = (minDist - dist) * 0.5;
+
+            if (!a.isDragged && !a.ridingRoverActive) {
+              a.pos.x -= nx * overlap;
+              a.pos.z -= nz * overlap;
+            }
+            if (!b.isDragged && !b.ridingRoverActive) {
+              b.pos.x += nx * overlap;
+              b.pos.z += nz * overlap;
+            }
+
+            const rvx = b.vel.x - a.vel.x;
+            const rvy = b.vel.y - a.vel.y;
+            const rvz = b.vel.z - a.vel.z;
+            const vn = rvx * nx + rvy * ny + rvz * nz;
+            if (vn < 0) {
+              const imp = -vn * 0.72;
+              if (!a.isDragged && !a.ridingRoverActive) {
+                a.vel.x -= imp * nx;
+                a.vel.y -= imp * ny;
+                a.vel.z -= imp * nz;
+                a.squashVel -= Math.min(5.0, imp * 0.8);
+              }
+              if (!b.isDragged && !b.ridingRoverActive) {
+                b.vel.x += imp * nx;
+                b.vel.y += imp * ny;
+                b.vel.z += imp * nz;
+                b.squashVel -= Math.min(5.0, imp * 0.8);
+              }
+              if (imp > 0.9) soundFX.playBounce(imp * 0.1);
+            }
+          }
+        }
+      }
+    }
+
+    // ============================================================================
+    // 10. POINTER INTERACTION: RAYCASTING, SQUEEZE, PICK UP, DRAG & 1/6G THROW
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let hoveredFumo = null;
+    let selectedFumo = null;
+    let isDraggingFumo = false;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+    const badgeEl = document.getElementById('fumo-badge');
+    const badgeDotEl = document.getElementById('fumo-badge-dot');
+    const badgeNameEl = document.getElementById('fumo-badge-name');
+    const badgeStatusEl = document.getElementById('fumo-badge-status');
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function pickFumoUnderPointer() {
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (hits.length > 0 && hits[0].object.userData.fumo) {
+        return { fumo: hits[0].object.userData.fumo, point: hits[0].point };
+      }
+      return null;
+    }
+
+    function updateUIBadge(fumo, statusText) {
+      if (!fumo) {
+        badgeEl.classList.add('hidden');
+        badgeEl.classList.remove('flex');
+        return;
+      }
+      badgeEl.classList.remove('hidden');
+      badgeEl.classList.add('flex');
+      badgeDotEl.style.backgroundColor = fumo.accentColor;
+      badgeNameEl.textContent = fumo.name;
+      badgeStatusEl.textContent = statusText;
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+
+      const hit = pickFumoUnderPointer();
+      if (hit) {
+        selectedFumo = hit.fumo;
+        isDraggingFumo = false;
+        controls.enabled = false;
+
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), selectedFumo.pos);
+
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          dragOffset.subVectors(selectedFumo.pos, dragHitPoint);
+        } else {
+          dragOffset.set(0, 0, 0);
+        }
+
+        dragHistory = [{ pos: selectedFumo.pos.clone(), time: performance.now() }];
+        updateUIBadge(selectedFumo, 'Selected');
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      updatePointerNDC(e);
+
+      if (selectedFumo) {
+        recordInteraction();
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          selectedFumo.isDragged = true;
+          selectedFumo.isGrounded = false;
+          selectedFumo.ridingRoverActive = false;
+          selectedFumo.squashVel += 3.0;
+          soundFX.playPickup();
+          updateUIBadge(selectedFumo, '1/6g Lift — Release to Launch!');
+        }
+
+        if (isDraggingFumo) {
+          raycaster.setFromCamera(pointerNDC, camera);
+          if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+            const targetPos = dragHitPoint.clone().add(dragOffset);
+            targetPos.x = THREE.MathUtils.clamp(targetPos.x, -10.5, 10.5);
+            targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.35, 12.5);
+            targetPos.z = THREE.MathUtils.clamp(targetPos.z, -10.5, 10.5);
+
+            const prevPos = selectedFumo.pos.clone();
+            selectedFumo.pos.lerp(targetPos, 0.55);
+
+            const deltaMove = selectedFumo.pos.clone().sub(prevPos);
+            selectedFumo.headRollVel -= deltaMove.x * 15.0;
+            selectedFumo.headPitchVel += deltaMove.z * 15.0 - deltaMove.y * 10.0;
+            selectedFumo.limbRollVel -= deltaMove.x * 20.0;
+            selectedFumo.roll = THREE.MathUtils.lerp(selectedFumo.roll, THREE.MathUtils.clamp(-deltaMove.x * 1.4, -0.45, 0.45), 0.3);
+            selectedFumo.pitch = THREE.MathUtils.lerp(selectedFumo.pitch, THREE.MathUtils.clamp(deltaMove.z * 1.4, -0.45, 0.45), 0.3);
+
+            const now = performance.now();
+            dragHistory.push({ pos: selectedFumo.pos.clone(), time: now });
+            while (dragHistory.length > 6) dragHistory.shift();
+          }
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      const hit = pickFumoUnderPointer();
+      if (hit) {
+        hoveredFumo = hit.fumo;
+        renderer.domElement.style.cursor = 'grab';
+        tooltipEmojiEl.textContent = hoveredFumo.emoji;
+        tooltipTextEl.textContent = hoveredFumo.name;
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else {
+        hoveredFumo = null;
+        renderer.domElement.style.cursor = 'default';
+        tooltipEl.style.opacity = '0';
+      }
+    });
+
+    window.addEventListener('pointerup', () => {
+      if (!selectedFumo) return;
+      controls.enabled = true;
+      recordInteraction();
+
+      if (!isDraggingFumo) {
+        selectedFumo.squeeze(1.0);
+        updateUIBadge(selectedFumo, 'Squeezed! ᗜˬᗜ');
+      } else {
+        selectedFumo.isDragged = false;
+        const now = performance.now();
+        while (dragHistory.length > 1 && now - dragHistory[0].time > 140) {
+          dragHistory.shift();
+        }
+        if (dragHistory.length >= 2) {
+          const first = dragHistory[0];
+          const last = dragHistory[dragHistory.length - 1];
+          const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+          // Scale throw velocity for graceful 1/6g lunar arcs with long hangtime
+          const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec).multiplyScalar(0.58);
+          throwVel.y = Math.max(throwVel.y, 2.2); // Gentle upward loft
+          if (throwVel.length() > 11.5) throwVel.setLength(11.5);
+          selectedFumo.vel.copy(throwVel);
+
+          const speed = throwVel.length();
+          selectedFumo.angVel.set(
+            throwVel.z * 0.45 + (Math.random() - 0.5) * speed * 0.35,
+            (Math.random() - 0.5) * speed * 0.4,
+            -throwVel.x * 0.45 + (Math.random() - 0.5) * speed * 0.35
+          );
+        } else {
+          selectedFumo.vel.set(0, 1.2, 0);
+        }
+        updateUIBadge(selectedFumo, 'Lunar Low-G Arc!');
+      }
+
+      selectedFumo = null;
+      isDraggingFumo = false;
+      renderer.domElement.style.cursor = hoveredFumo ? 'grab' : 'default';
+    });
+
+    // ============================================================================
+    // 11. DAY / NIGHT SMOOTH INTERPOLATION (~2 SECONDS) & HUB INTEGRATION
+    // ============================================================================
+    const STORAGE_MODE_KEY = 'voxel_fumo_lunar_mode';
+    let isNightMode = false;
+    let dayNightProgress = 0.0; // 0.0 = Lunar Day, 1.0 = Lunar Night
+    let dayNightTarget = 0.0;
+
+    // Lunar sky is always black starry space, shifting from pitch-black in harsh Day to deep sapphire-black in Earthshine Night
+    const daySkyColor = new THREE.Color('#04050a');
+    const nightSkyColor = new THREE.Color('#020410');
+    const dayFogColor = new THREE.Color('#0c1120');
+    const nightFogColor = new THREE.Color('#050b24');
+
+    const daySunColor = new THREE.Color('#ffffff');     // Harsh white lunar sunlight
+    const nightEarthshineColor = new THREE.Color('#60a5fa'); // Soft blue Earthshine
+
+    const dayHemiSky = new THREE.Color('#dbeafe');
+    const nightHemiSky = new THREE.Color('#1d4ed8');
+    const dayHemiGround = new THREE.Color('#1e293b');
+    const nightHemiGround = new THREE.Color('#090d1f');
+
+    function notifyParentMode() {
+      const modeStr = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: modeStr }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(night, { immediate = false, playSound = true } = {}) {
+      isNightMode = Boolean(night);
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) {
+        dayNightProgress = dayNightTarget;
+      }
+      document.body.classList.toggle('night-ui', isNightMode);
+
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
+      } catch (e) {}
+
+      if (playSound) {
+        soundFX.playPickup();
+      }
+      notifyParentMode();
+    }
+
+    function toggleDayNight() {
+      setDayNightMode(!isNightMode, { immediate: false, playSound: true });
+    }
+
+    function updateDayNightTransition(dt, elapsed) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.52; // ~2 seconds full transition
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      // 1. Sky & Horizon Fog
+      scene.background.lerpColors(daySkyColor, nightSkyColor, t);
+      scene.fog.color.lerpColors(dayFogColor, nightFogColor, t);
+      scene.fog.density = THREE.MathUtils.lerp(0.0045, 0.0085, t);
+
+      // 2. Harsh White Sunlight (Day) -> Soft Blue Earthshine (Night)
+      sunDirLight.color.lerpColors(daySunColor, nightEarthshineColor, t);
+      sunDirLight.intensity = THREE.MathUtils.lerp(1.95, 0.48, t);
+      sunDirLight.shadow.radius = THREE.MathUtils.lerp(0.8, 3.2, t); // Crisp shadows in Day, soft in Night
+
+      // 3. Hemisphere Fill
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.24, 0.42, t);
+
+      // 4. Habitat Dome, Beacon & Rover Headlights
+      domeLight.intensity = THREE.MathUtils.lerp(0.25, 1.85, t);
+      beaconLight.intensity = THREE.MathUtils.lerp(0.15, 1.25, t);
+      roverLight.intensity = THREE.MathUtils.lerp(0.20, 1.65, t);
+
+      // 5. Emissive Materials, Blinking Antenna Beacons & Earth Glow
+      emissiveWarmMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, 2.35, t);
+      emissiveCyanMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.45, 2.15, t);
+      domeGlassMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.04, 0.42, t);
+      earthMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.32, 0.78, t);
+
+      const blinkPulse = 0.5 + 0.5 * Math.sin(elapsed * 5.5);
+      blinkBeaconMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.4, 2.8, t) * (0.35 + 0.65 * blinkPulse);
+
+      // Starfield brightness
+      starMat.opacity = THREE.MathUtils.lerp(0.55, 1.0, t);
+
+      // 6. UnrealBloomPass Strength
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.18, 0.76, t);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.82, 0.58, t);
+      }
+    }
+
+    // UI Button & Keyboard Controls
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      roverState.pos.copy(roverState.homePos);
+      roverState.pos.y = getLunarSurfaceHeight(roverState.pos.x, roverState.pos.z);
+      roverState.yaw = roverState.homeYaw;
+      roverState.speed = 0;
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 45));
+      updateUIBadge(null, '');
+    });
+
+    document.getElementById('btn-squeeze-all').addEventListener('click', () => {
+      fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 55));
+    });
+
+    const btnSound = document.getElementById('btn-sound');
+    const iconSoundOn = document.getElementById('icon-sound-on');
+    const iconSoundOff = document.getElementById('icon-sound-off');
+    btnSound.addEventListener('click', () => {
+      soundFX.enabled = !soundFX.enabled;
+      iconSoundOn.classList.toggle('hidden', !soundFX.enabled);
+      iconSoundOff.classList.toggle('hidden', soundFX.enabled);
+      if (soundFX.enabled) soundFX.playPickup();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      const key = e.key.toLowerCase();
+
+      if (key === 'arrowup' || key === 'w') { driveKeys.up = true; e.preventDefault(); }
+      else if (key === 'arrowdown' || key === 's') { driveKeys.down = true; e.preventDefault(); }
+      else if (key === 'arrowleft' || key === 'a') { driveKeys.left = true; e.preventDefault(); }
+      else if (key === 'arrowright' || key === 'd') { driveKeys.right = true; e.preventDefault(); }
+      else if (key === 'n') {
+        e.preventDefault();
+        toggleDayNight();
+      } else if (key === 'r') {
+        document.getElementById('btn-reset').click();
+      } else if (key === ' ') {
+        e.preventDefault();
+        fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 55));
+      } else if (key === 'm') {
+        btnSound.click();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const key = e.key.toLowerCase();
+      if (key === 'arrowup' || key === 'w') driveKeys.up = false;
+      else if (key === 'arrowdown' || key === 's') driveKeys.down = false;
+      else if (key === 'arrowleft' || key === 'a') driveKeys.left = false;
+      else if (key === 'arrowright' || key === 'd') driveKeys.right = false;
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ============================================================================
+    // 12. MAIN ANIMATION, PAUSE / RESUME & HUB MESSAGE LISTENER
+    // ============================================================================
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.033, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      if (!selectedFumo && !driveKeys.up && !driveKeys.down && !driveKeys.left && !driveKeys.right && (now - lastUserInteractionTime > 4500)) {
+        controls.autoRotate = true;
+      }
+
+      controls.update();
+      updateDayNightTransition(dt, elapsed);
+      updateMochiMachine(elapsed);
+      updateRover(dt, elapsed);
+      updateMeteorsAndSky(elapsed, dt);
+      updateBallisticLunarDust(dt);
+      updatePopParticles(dt);
+
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].updatePhysics(dt, elapsed);
+      }
+      resolveFumoToFumoCollisions();
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function pauseRenderLoop() {
+      if (isPaused) return;
+      isPaused = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+
+    function resumeRenderLoop() {
+      if (!isPaused) return;
+      isPaused = false;
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('message', (e) => {
+      const data = e.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'toggleMode') {
+        toggleDayNight();
+      } else if (data.type === 'pause') {
+        pauseRenderLoop();
+      } else if (data.type === 'resume') {
+        resumeRenderLoop();
+      }
+    });
+
+    window.onload = function () {
+      let initialNight = false;
+      try {
+        const saved = localStorage.getItem(STORAGE_MODE_KEY);
+        if (saved === 'night') initialNight = true;
+      } catch (e) {}
+
+      setDayNightMode(initialNight, { immediate: true, playSound: false });
+      updateDayNightTransition(0, 0);
+
+      // Initial welcoming low-G bounce on all lunar fumos
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.78;
+          f.squashVel = 2.0;
+          f.headPitchVel = 4.0;
+        }, 120 + idx * 70);
+      });
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>

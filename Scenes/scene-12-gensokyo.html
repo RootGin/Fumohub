@@ -1,0 +1,2672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Gensokyo Floating Island — Touhou Fumo Voxel Diorama</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js r128 + OrbitControls + Post-Processing (UnrealBloomPass) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #111324;
+    }
+    h1, .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.78);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      box-shadow: 0 10px 28px -6px rgba(20, 15, 45, 0.18), 0 2px 6px rgba(20, 15, 45, 0.08);
+      transition: background 0.5s ease, color 0.5s ease, border-color 0.5s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    body.night-ui .glass-panel {
+      background: rgba(22, 20, 44, 0.80);
+      border-color: rgba(145, 135, 235, 0.28);
+      color: #f3f0ff;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.55), 0 0 16px rgba(130, 110, 255, 0.15);
+    }
+    .ui-btn {
+      cursor: pointer;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+    #fumo-tooltip {
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.75rem;
+      line-height: 1.2;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.08);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.18);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.14);
+      border-bottom-color: rgba(255, 255, 255, 0.28);
+    }
+  </style>
+</head>
+<body class="text-slate-800">
+  <div id="canvas-container"></div>
+
+  <!-- Top-Right Controls: Active Fumo & Landmark Badge, Squeeze All, Reset, Sound (Top-Left kept completely clear for Hub) -->
+  <div class="fixed top-4 right-4 z-20 flex items-center gap-2.5">
+    <!-- Active / Hovered Fumo & Landmark Reaction Indicator -->
+    <div id="fumo-badge" class="glass-panel rounded-2xl px-3.5 py-2.5 text-xs font-semibold hidden items-center gap-2 transition-all">
+      <span id="fumo-badge-dot" class="w-2.5 h-2.5 rounded-full inline-block bg-rose-500"></span>
+      <span id="fumo-badge-name">Reimu Hakurei</span>
+      <span id="fumo-badge-status" class="opacity-75 ml-1">At Hakurei Shrine</span>
+    </div>
+
+    <!-- Squeeze All Button -->
+    <button id="btn-squeeze-all" title="Squeeze All Fumos! (Space)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <span class="text-base leading-none">✨</span>
+      <span class="hidden md:inline">Squeeze All</span>
+    </button>
+
+    <!-- Reset Fumos Button -->
+    <button id="btn-reset" title="Return Fumos to Their Landmarks (R)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+      <span class="hidden sm:inline">Reset Map</span>
+    </button>
+
+    <!-- Sound Toggle Button -->
+    <button id="btn-sound" title="Toggle Plush Sound Effects (M)"
+      class="glass-panel ui-btn rounded-2xl p-2.5 flex items-center justify-center">
+      <svg id="icon-sound-on" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+      </svg>
+      <svg id="icon-sound-off" class="w-5 h-5 hidden opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <line x1="23" y1="9" x2="17" y2="15"></line>
+        <line x1="17" y1="9" x2="23" y2="15"></line>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Floating Cursor Tooltip for Hovered Fumo -->
+  <div id="fumo-tooltip" class="fixed z-30 opacity-0 px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold flex items-center gap-2 shadow-lg">
+    <span id="tooltip-emoji">⛩️</span>
+    <span id="tooltip-text">Reimu Fumo</span>
+  </div>
+
+  <!-- Bottom Center HUD Hints -->
+  <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none w-max max-w-[94vw]">
+    <div class="glass-panel rounded-2xl px-4 py-2 text-xs font-semibold flex flex-wrap items-center justify-center gap-x-4 gap-y-1 opacity-90">
+      <span>🖱️ <b>Click Fumo:</b> Squeeze</span>
+      <span>🗺️ <b>Drop on Landmark:</b> Special Reaction</span>
+      <span>✋ <b>Drag & Release:</b> Throw</span>
+      <span class="hidden sm:inline"><kbd>R</kbd> Reset Map</span>
+      <span class="hidden md:inline"><kbd>Space</kbd> Squeeze All</span>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 1. PROCEDURAL WEB AUDIO SYNTHESIZER (Squeaks, Boings, Splashes & Chimes)
+    // ============================================================================
+    class PlushSoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playSqueeze(pitchMultiplier = 1.0) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+
+          const osc1 = this.ctx.createOscillator();
+          const gain1 = this.ctx.createGain();
+          osc1.type = 'sine';
+          const baseFreq = (520 + Math.random() * 80) * pitchMultiplier;
+          osc1.frequency.setValueAtTime(baseFreq, now);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.085);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.16);
+
+          gain1.gain.setValueAtTime(0.001, now);
+          gain1.gain.linearRampToValueAtTime(0.11, now + 0.025);
+          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+
+          osc1.connect(gain1);
+          gain1.connect(this.ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.18);
+
+          const osc2 = this.ctx.createOscillator();
+          const gain2 = this.ctx.createGain();
+          osc2.type = 'triangle';
+          osc2.frequency.setValueAtTime(baseFreq * 1.1, now + 0.11);
+          osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.65, now + 0.21);
+
+          gain2.gain.setValueAtTime(0.001, now + 0.11);
+          gain2.gain.linearRampToValueAtTime(0.08, now + 0.13);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+          osc2.connect(gain2);
+          gain2.connect(this.ctx.destination);
+          osc2.start(now + 0.11);
+          osc2.stop(now + 0.25);
+        } catch (e) {}
+      }
+
+      playBounce(intensity = 0.5) {
+        if (!this.enabled || intensity < 0.08) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const vol = Math.min(0.14, intensity * 0.12);
+
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          const startFreq = 115 + Math.min(80, intensity * 35);
+          osc.frequency.setValueAtTime(startFreq, now);
+          osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+
+      playPickup() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(280, now);
+          osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+
+      playLandmarkChime(type = 'shrine') {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const notes = type === 'lake' ? [392, 523, 659] :
+                        type === 'mansion' ? [440, 554, 659] :
+                        type === 'hakugyokurou' ? [587, 740, 880] : [523, 659, 784];
+          notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.065);
+            gain.gain.setValueAtTime(0.001, now + idx * 0.065);
+            gain.gain.linearRampToValueAtTime(0.06, now + idx * 0.065 + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.065 + 0.22);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now + idx * 0.065);
+            osc.stop(now + idx * 0.065 + 0.24);
+          });
+        } catch (e) {}
+      }
+    }
+
+    const soundFX = new PlushSoundEngine();
+
+    // ============================================================================
+    // 2. COLOR & VOXEL HELPER UTILITIES (From room.html Fumo Standard)
+    // ============================================================================
+    const tempColor = new THREE.Color();
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    const tempEuler = new THREE.Euler();
+
+    function voxelHash(x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    }
+
+    function varyColor(hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
+      tempColor.set(hexOrString);
+      const h = voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      tempColor.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return tempColor.clone();
+    }
+
+    function createSoftVoxelGeometry(size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    }
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        tempQuat.identity();
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    // ============================================================================
+    // 3. SCENE, CAMERA, RENDERER & POST-PROCESSING SETUP
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#bde0fe');
+    scene.fog = new THREE.FogExp2('#bde0fe', 0.0095);
+
+    const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.5, 160);
+    camera.position.set(22.0, 17.5, 25.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.06;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.18,
+        0.55,
+        0.82
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (err) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0.0, 2.2, 0.0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.47;
+    controls.minPolarAngle = Math.PI * 0.08;
+    controls.minDistance = 10;
+    controls.maxDistance = 48;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.42;
+
+    let lastUserInteractionTime = performance.now();
+    const recordInteraction = () => {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+    };
+    controls.addEventListener('start', recordInteraction);
+
+    // Master Bobbing Island Group (so the entire Gensokyo floating island bobs gently on the sea of clouds!)
+    const islandMasterGroup = new THREE.Group();
+    scene.add(islandMasterGroup);
+
+    // ============================================================================
+    // 4. LIGHTING & DAY/NIGHT SYSTEM (Capped Dynamic Lights for Performance)
+    // ============================================================================
+    // 1. Hemisphere Sky/Cloud-bounce Light
+    const hemiLight = new THREE.HemisphereLight(0xfff9eb, 0x8ecae6, 0.72);
+    hemiLight.position.set(0, 30, 0);
+    scene.add(hemiLight);
+
+    // 2. Main Sun / Moon Directional Light (Casts soft shadows & drifting cloud shadows across Gensokyo)
+    const sunDirLight = new THREE.DirectionalLight(0xfff2d6, 1.32);
+    sunDirLight.position.set(-18, 28, 14);
+    sunDirLight.castShadow = true;
+    sunDirLight.shadow.mapSize.width = 2048;
+    sunDirLight.shadow.mapSize.height = 2048;
+    sunDirLight.shadow.camera.near = 4;
+    sunDirLight.shadow.camera.far = 65;
+    const sCam = 17.5;
+    sunDirLight.shadow.camera.left = -sCam;
+    sunDirLight.shadow.camera.right = sCam;
+    sunDirLight.shadow.camera.top = sCam;
+    sunDirLight.shadow.camera.bottom = -sCam;
+    sunDirLight.shadow.bias = -0.0005;
+    sunDirLight.shadow.radius = 2.2;
+    scene.add(sunDirLight);
+
+    // 3. Scarlet Devil Mansion Crimson Night Light
+    const mansionLight = new THREE.PointLight(0xff3355, 0.0, 11, 1.6);
+    mansionLight.position.set(-7.2, 3.6, 1.2);
+    islandMasterGroup.add(mansionLight);
+
+    // 4. Human Village & Market Square Warm Lantern Light
+    const villageLight = new THREE.PointLight(0xffaa44, 0.0, 12, 1.5);
+    villageLight.position.set(0.8, 2.8, -1.6);
+    islandMasterGroup.add(villageLight);
+
+    // 5. Hakurei Shrine & Bamboo Lantern Warm Light
+    const shrineLight = new THREE.PointLight(0xff9933, 0.0, 11, 1.5);
+    shrineLight.position.set(7.2, 4.5, -0.5);
+    islandMasterGroup.add(shrineLight);
+
+    // 6. Hakugyokurou Netherworld Cherry Blossom Mystic Glow
+    const sakuraLight = new THREE.PointLight(0xff85c0, 0.1, 12, 1.5);
+    sakuraLight.position.set(6.4, 7.2, -6.8);
+    islandMasterGroup.add(sakuraLight);
+
+    // Shared Materials
+    const plushMaterial = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0.02 });
+    const terrainSolidMaterial = new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0.04 });
+    const glossyPropMaterial = new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.12 });
+    const waterMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.82,
+      roughness: 0.14,
+      metalness: 0.05,
+      transmission: 0.25,
+      emissive: new THREE.Color(0x0284c7),
+      emissiveIntensity: 0.18
+    });
+    const translucentIceMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.86,
+      roughness: 0.15,
+      metalness: 0.05,
+      transmission: 0.35,
+      emissive: new THREE.Color(0x38bdf8),
+      emissiveIntensity: 0.25
+    });
+    const warmWindowMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfff3d1,
+      emissive: new THREE.Color(0xffaa33),
+      emissiveIntensity: 0.25,
+      roughness: 0.2
+    });
+    const scarletGlowMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffccd5,
+      emissive: new THREE.Color(0xff1e42),
+      emissiveIntensity: 0.35,
+      roughness: 0.2
+    });
+    const spiritGlowMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0xa855f7),
+      emissiveIntensity: 0.45,
+      roughness: 0.2
+    });
+    const cloudMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.95,
+      metalness: 0.0,
+      emissive: new THREE.Color(0x3b4268),
+      emissiveIntensity: 0.05
+    });
+
+    // ============================================================================
+    // 5. GENSOKYO FLOATING ISLAND TERRAIN, LANDMARKS & HEIGHTMAP REGISTRY
+    // ============================================================================
+    const MV = 0.28; // 1 Map Voxel = 0.28 world units
+    const GRID_R = 40; // Grid spans -40..40 in X and Z
+    const heightGrid = new Map(); // key: `${gx},${gz}` -> top solid surface Y in world units
+
+    const solidMapVoxels = [];
+    const glossyMapVoxels = [];
+    const waterMapVoxels = [];
+    const warmGlowVoxels = [];
+    const scarletGlowVoxels = [];
+    const spiritGlowVoxels = [];
+    const cloudSeaVoxels = [];
+
+    function pushMapVoxel(list, gx, gy, gz, hex, variance = 0.03, sx = 1, sy = 1, sz = 1, updateHeight = true) {
+      list.push({
+        x: gx,
+        y: gy,
+        z: gz,
+        color: varyColor(hex, gx, gy, gz, variance),
+        sx, sy, sz
+      });
+      if (updateHeight) {
+        const ix = Math.round(gx);
+        const iz = Math.round(gz);
+        const key = `${ix},${iz}`;
+        const worldTopY = (gy + 0.5 * sy) * MV;
+        const prev = heightGrid.get(key);
+        if (prev === undefined || worldTopY > prev) {
+          heightGrid.set(key, worldTopY);
+        }
+      }
+    }
+
+    // River path helper: returns distance to winding river centerline from Youkai Mountain -> Village -> Misty Lake
+    function getRiverDist(gx, gz) {
+      if (gz < -19 || gz > 14) return 999;
+      // River centerline X as a smooth curve of Z
+      let rx;
+      if (gz < -4) {
+        // From (-15, -19) to (-1, -4)
+        const t = (gz - (-19)) / 15;
+        rx = -15 + t * 14 + Math.sin(t * Math.PI) * 2.5;
+      } else {
+        // From (-1, -4) to (-15, 13)
+        const t = (gz - (-4)) / 17;
+        rx = -1 - t * 14 + Math.sin(t * Math.PI) * 2.0;
+      }
+      return Math.abs(gx - rx);
+    }
+
+    // Dirt road helper connecting Village -> Hakurei Shrine, Village -> Bamboo Forest, Village -> Mansion
+    function isOnDirtRoad(gx, gz) {
+      // Road 1: Village (4, -4) to Shrine Stairs (14, -2)
+      if (gx >= 2 && gx <= 15) {
+        const targetZ = -4 + ((gx - 2) / 13) * 2 + Math.sin(gx * 0.4) * 0.8;
+        if (Math.abs(gz - targetZ) <= 1.2) return true;
+      }
+      // Road 2: Village (3, -2) to Bamboo Forest (12, 15)
+      if (gz >= -2 && gz <= 16) {
+        const targetX = 3 + ((gz + 2) / 18) * 9 + Math.sin(gz * 0.35) * 1.1;
+        if (Math.abs(gx - targetX) <= 1.2) return true;
+      }
+      // Road 3: Village (-4, -3) across bridge to Scarlet Devil Mansion (-21, 4)
+      if (gx >= -21 && gx <= -3) {
+        const t = (gx - (-21)) / 18;
+        const targetZ = 4 - t * 7 + Math.sin(t * Math.PI) * 1.5;
+        if (Math.abs(gz - targetZ) <= 1.1) return true;
+      }
+      return false;
+    }
+
+    function buildGensokyoIsland() {
+      // ----------------------------------------------------------------------
+      // 5A. MAIN FLOATING ISLAND TERRAIN & UNDERSIDE ROCKS / ROOTS
+      // ----------------------------------------------------------------------
+      for (let gx = -38; gx <= 36; gx++) {
+        for (let gz = -36; gz <= 34; gz++) {
+          // Organic island silhouette radius
+          const angle = Math.atan2(gz, gx);
+          const maxR = 33.5
+            + Math.sin(angle * 3 + 0.5) * 2.8
+            + Math.cos(angle * 5 - 0.8) * 1.8
+            + (gx < -10 && gz < -10 ? 3.5 : 0); // Bulge for Youkai Mountain
+          const r = Math.hypot(gx, gz * 1.04);
+          if (r > maxR) continue;
+
+          // Compute surface elevation gy
+          let topY = 3 + Math.round(
+            Math.sin(gx * 0.11) * 1.2 +
+            Math.cos(gz * 0.11) * 1.2
+          );
+
+          // 1. Youkai Mountain Range (North-West: gx -34..-6, gz -34..-10)
+          const mDist = Math.hypot((gx + 21) * 0.85, (gz + 23) * 0.95);
+          if (mDist < 15.5) {
+            const mHeight = Math.pow((15.5 - mDist) / 15.5, 1.55) * 22.5;
+            const crag = Math.sin(gx * 0.55) * Math.cos(gz * 0.55) * 1.6;
+            topY = Math.max(topY, Math.round(4 + mHeight + crag));
+          }
+          // Flat lookout ledge for Aya beside the waterfall (gx -13..-9, gz -21..-17)
+          if (gx >= -13 && gx <= -9 && gz >= -21 && gz <= -17) {
+            topY = 9;
+          }
+
+          // 2. Scarlet Devil Mansion Terrace (West: gx -34..-21, gz -3..10)
+          const sdmDist = Math.hypot(gx + 27, gz - 3.5);
+          if (sdmDist < 8.5) {
+            topY = Math.max(topY, 6);
+          }
+
+          // 3. Misty Lake Basin (South-West: center gx -18, gz 14)
+          const lakeDist = Math.hypot((gx + 18) * 0.92, (gz - 14) * 1.05);
+          const riverDist = getRiverDist(gx, gz);
+          const isLake = lakeDist < 9.2;
+          const isRiver = riverDist < 1.65 && !isLake;
+
+          if (isLake) {
+            topY = 0; // Lake bed below water level (gy = 2)
+          } else if (isRiver) {
+            topY = Math.max(1, topY - 2);
+          }
+
+          // 4. Human Village Valley (Center: gx -6..12, gz -13..4)
+          const vilDist = Math.hypot((gx - 3) * 0.85, (gz + 5) * 0.95);
+          if (vilDist < 9.5 && !isRiver) {
+            topY = 3;
+          }
+
+          // 5. Bamboo Forest of the Lost (South-East: gx 2..24, gz 9..29)
+          const bamDist = Math.hypot((gx - 13) * 0.85, (gz - 19) * 0.9);
+          if (bamDist < 10.5) {
+            topY = Math.max(topY, 4 + Math.round(Math.sin(gx * 0.25 + gz * 0.25) * 0.8));
+          }
+
+          // 6. Hakurei Shrine Hilltop (East: center gx 27, gz -1)
+          const shrDist = Math.hypot((gx - 27) * 0.9, (gz + 1) * 0.95);
+          if (shrDist < 9.5) {
+            topY = Math.max(topY, shrDist < 6.8 ? 9 : Math.round(4 + (9.5 - shrDist) * 1.8));
+          }
+
+          // Compute tapering floating-island bottom rock depth
+          const edgeFactor = Math.max(0, 1 - Math.pow(r / maxR, 2.1));
+          const bottomY = -Math.round(
+            2 + edgeFactor * 11.5 +
+            Math.sin(gx * 0.37 + gz * 0.29) * 2.2 +
+            (mDist < 12 ? 3 : 0)
+          );
+
+          // Fill visible surface + cliff layers + bottom floating island underside
+          for (let gy = bottomY; gy <= topY; gy++) {
+            // Only instantiate surface, near-surface cliff shell, or bottom stalactite tips to keep instance count lean
+            const isTop = (gy === topY);
+            const isBottomTip = (gy <= bottomY + 1);
+            const isOuterRim = (r > maxR - 2.2);
+            const isCliffShell = (gy >= topY - 3);
+            if (!isTop && !isBottomTip && !isOuterRim && !isCliffShell) continue;
+
+            let col = '#6b705c'; // Stone default
+            if (isTop) {
+              if (topY >= 19) col = '#f8fafc'; // Snow cap on Youkai Mountain
+              else if (topY >= 13) col = ((gx + gz) % 2 === 0) ? '#64748b' : '#475569'; // Mountain crag rock
+              else if (isLake || isRiver) col = '#d4a373'; // Sandy riverbed / lakebed
+              else if (lakeDist < 10.4) col = '#e9c46a'; // Sandy beach shore
+              else if (isOnDirtRoad(gx, gz)) col = '#b08968'; // Dirt road
+              else if (bamDist < 10.0) col = '#3a5a40'; // Deep mossy bamboo forest floor
+              else if (sdmDist < 8.0) col = '#4a4e69'; // Cobblestone mansion terrace
+              else col = ((gx + gz) % 3 === 0) ? '#70ad47' : '#5c9c38'; // Lush Gensokyo grass
+            } else if (gy >= topY - 1 && topY < 13) {
+              col = '#7f5539'; // Rich dirt layer under grass
+            } else {
+              col = (gy < -5) ? '#3d405b' : '#5c677d'; // Floating rock underside
+            }
+
+            pushMapVoxel(solidMapVoxels, gx, gy, gz, col, 0.035, 1, 1, 1, isTop);
+          }
+
+          // Hanging roots & vines beneath the floating island edges!
+          if (r > maxR * 0.55 && voxelHash(gx, 0, gz) > 0.88) {
+            const rootLen = 2 + Math.floor(voxelHash(gx, 1, gz) * 4);
+            for (let ry = 1; ry <= rootLen; ry++) {
+              pushMapVoxel(
+                solidMapVoxels,
+                gx, bottomY - ry, gz,
+                ry === rootLen ? '#588157' : '#6c584c',
+                0.04, 0.48, 1.0, 0.48, false
+              );
+            }
+          }
+
+          // Fill Misty Lake & Winding River Water Voxels
+          if (isLake) {
+            // Cirno's floating ice floes on the eastern edge of Misty Lake
+            const iceFloe = (Math.hypot(gx + 13, gz - 14) < 2.4) || (Math.hypot(gx + 15, gz - 11) < 1.5);
+            if (iceFloe) {
+              pushMapVoxel(waterMapVoxels, gx, 2.3, gz, '#caf0f8', 0.02, 1, 0.8, 1, true);
+            } else {
+              pushMapVoxel(waterMapVoxels, gx, 1.8, gz, '#38bdf8', 0.02, 1, 0.9, 1, true);
+            }
+          } else if (isRiver) {
+            const rY = Math.max(2.0, topY + 0.6);
+            pushMapVoxel(waterMapVoxels, gx, rY, gz, '#48cae4', 0.02, 1, 0.7, 1, true);
+          }
+        }
+      }
+
+      // Youkai Mountain Waterfall cascading down the cliff at gx = -16..-15, gz = -20..-19 (from gy = 18 down to 4)
+      for (let wy = 4; wy <= 18; wy++) {
+        for (let wx = -16; wx <= -15; wx++) {
+          pushMapVoxel(waterMapVoxels, wx, wy, -19.2, wy % 2 === 0 ? '#90e0ef' : '#48cae4', 0.02, 1.05, 1.05, 0.9, false);
+        }
+      }
+
+      // ----------------------------------------------------------------------
+      // 5B. FLOATING SUB-ISLAND: HAKUGYOKUROU & GIANT SAIGYOU AYAKASHI CHERRY TREE
+      // ----------------------------------------------------------------------
+      for (let gx = 15; gx <= 33; gx++) {
+        for (let gz = -33; gz <= -17; gz++) {
+          const d = Math.hypot((gx - 24) * 0.95, (gz + 25) * 1.05);
+          if (d > 8.8) continue;
+          const topY = 16;
+          const botY = 16 - Math.round(2 + (1 - d / 8.8) * 6.5 + Math.sin(gx * 0.6 + gz * 0.6));
+          for (let gy = botY; gy <= topY; gy++) {
+            let col = '#64748b';
+            if (gy === topY) {
+              col = (d > 7.6) ? '#cbd5e1' : ((gx + gz) % 2 === 0 ? '#f8edeb' : '#fae1dd'); // Pale jade/petal courtyard
+            }
+            pushMapVoxel(solidMapVoxels, gx, gy, gz, col, 0.025, 1, 1, 1, gy === topY);
+          }
+          // Hanging roots under Hakugyokurou
+          if (d > 5.0 && voxelHash(gx, 9, gz) > 0.84) {
+            for (let ry = 1; ry <= 3; ry++) {
+              pushMapVoxel(solidMapVoxels, gx, botY - ry, gz, '#7f5539', 0.03, 0.45, 1, 0.45, false);
+            }
+          }
+        }
+      }
+      // Grand Stairway / Cloud Bridge leading toward Hakugyokurou (gx = 24, gz = -16..-12)
+      for (let s = 0; s < 5; s++) {
+        for (let sx = 23; sx <= 25; sx++) {
+          pushMapVoxel(solidMapVoxels, sx, 11 + s, -12 - s, '#e2e8f0', 0.02, 1, 1, 1, true);
+        }
+      }
+      // Giant Saigyou Ayakashi Cherry Blossom Tree (Center at gx = 25, gz = -27, base gy = 17)
+      // Gnarled trunk & roots
+      for (let ty = 17; ty <= 25; ty++) {
+        const trunkR = ty <= 18 ? 2.1 : (ty <= 22 ? 1.5 : 1.1);
+        for (let tx = 23; tx <= 27; tx++) {
+          for (let tz = -29; tz <= -25; tz++) {
+            if (Math.hypot(tx - 25, tz + 27) <= trunkR) {
+              pushMapVoxel(solidMapVoxels, tx, ty, tz, '#4a2c2a', 0.03, 1, 1, 1, true);
+            }
+          }
+        }
+      }
+      // Huge billowing pink sakura canopy (gy = 24..32)
+      for (let cy = 24; cy <= 32; cy++) {
+        for (let cx = 18; cx <= 32; cx++) {
+          for (let cz = -34; cz <= -20; cz++) {
+            const dist = Math.hypot((cx - 25) * 0.85, (cy - 27.5) * 1.35, (cz + 27) * 0.85);
+            if (dist <= 6.2 && dist >= 3.8 && voxelHash(cx, cy, cz) > 0.18) {
+              const sakuraPalette = ['#ffccd5', '#ffb3c1', '#ff8fa3', '#fff0f3'];
+              const sCol = sakuraPalette[Math.abs(cx + cy + cz) % sakuraPalette.length];
+              pushMapVoxel(solidMapVoxels, cx, cy, cz, sCol, 0.03, 1, 1, 1, true);
+            }
+          }
+        }
+      }
+      // Glowing purple/cyan ghost lanterns around Hakugyokurou
+      for (const [lx, lz] of [[18, -23], [30, -23], [20, -29]]) {
+        pushMapVoxel(solidMapVoxels, lx, 17, lz, '#94a3b8', 0.01, 0.6, 1.2, 0.6, false);
+        pushMapVoxel(spiritGlowVoxels, lx, 18.2, lz, '#e879f9', 0.02, 0.85, 0.85, 0.85, false);
+      }
+
+      // ----------------------------------------------------------------------
+      // 5C. SCARLET DEVIL MANSION & CLOCK TOWER (gx -33..-24, gz -1..8, base gy = 7)
+      // ----------------------------------------------------------------------
+      for (let x = -32; x <= -25; x++) {
+        for (let z = 0; z <= 6; z++) {
+          for (let y = 7; y <= 12; y++) {
+            const isOuter = (x === -32 || x === -25 || z === 0 || z === 6);
+            if (!isOuter) continue;
+            const isWindow = ((y === 9 || y === 11) && ((x + z) % 2 === 0) && x > -32 && x < -25);
+            if (isWindow) {
+              pushMapVoxel(scarletGlowVoxels, x, y, z, '#ff4d6d', 0.02, 1, 1, 1, false);
+            } else {
+              const col = (y === 7 || y === 12) ? '#e2e8f0' : '#9e2a2b'; // White trim & scarlet brick
+              pushMapVoxel(solidMapVoxels, x, y, z, col, 0.025, 1, 1, 1, true);
+            }
+          }
+        }
+      }
+      // Mansion pitched slate roof (gy 13..15)
+      for (let r = 0; r <= 3; r++) {
+        for (let x = -33 + r; x <= -24 - r; x++) {
+          for (let z = -1 + r * 0.5; z <= 7 - r * 0.5; z++) {
+            pushMapVoxel(glossyMapVoxels, x, 13 + r, Math.round(z), '#2b2d42', 0.02, 1, 1, 1, true);
+          }
+        }
+      }
+      // Tall Scarlet Clock Tower (gx -30..-28, gz 1..3, gy 13..22)
+      for (let y = 13; y <= 20; y++) {
+        for (let x = -30; x <= -28; x++) {
+          for (let z = 1; z <= 3; z++) {
+            const isClockFace = (y === 19 && (x === -29 || z === 2) && (x === -28 || x === -30 || z === 1 || z === 3));
+            if (isClockFace) {
+              pushMapVoxel(warmGlowVoxels, x, y, z, '#fff3b0', 0.01, 1.05, 1.05, 1.05, false);
+            } else {
+              pushMapVoxel(solidMapVoxels, x, y, z, '#800f2f', 0.025, 1, 1, 1, true);
+            }
+          }
+        }
+      }
+      // Clock tower spire (gy 21..24)
+      for (let s = 0; s <= 3; s++) {
+        pushMapVoxel(glossyMapVoxels, -29, 21 + s, 2, s === 3 ? '#ffd166' : '#1d1e2c', 0.02, Math.max(0.5, 2.2 - s * 0.55), 1, Math.max(0.5, 2.2 - s * 0.55), true);
+      }
+
+      // ----------------------------------------------------------------------
+      // 5D. HAKUREI SHRINE, TORII GATE, STAIRS & SAKE BARRELS (gx 20..34, gz -7..4, base gy = 10)
+      // ----------------------------------------------------------------------
+      // Stone stairs climbing western slope (gx 14..20, gz -2..0)
+      for (let s = 0; s <= 6; s++) {
+        const sx = 14 + s;
+        const sy = 4 + s;
+        for (let sz = -2; sz <= 0; sz++) {
+          pushMapVoxel(solidMapVoxels, sx, sy, sz, '#94a3b8', 0.02, 1, 1, 1, true);
+        }
+      }
+      // Iconic Red Torii Gate at top of stairs (gx = 21, gz = -4..2, gy = 10..16)
+      for (let y = 10; y <= 15; y++) {
+        pushMapVoxel(glossyMapVoxels, 21, y, -3.5, '#d90429', 0.01, 0.85, 1, 0.85, true);
+        pushMapVoxel(glossyMapVoxels, 21, y, 1.5, '#d90429', 0.01, 0.85, 1, 0.85, true);
+      }
+      for (let z = -5; z <= 3; z++) {
+        pushMapVoxel(glossyMapVoxels, 21, 16, z, '#1e293b', 0.01, 1.1, 0.65, 1.05, true); // Kasagi top black cap
+        pushMapVoxel(glossyMapVoxels, 21, 15.3, z, '#d90429', 0.01, 0.95, 0.8, 1.0, false);
+        if (z >= -4 && z <= 2) {
+          pushMapVoxel(glossyMapVoxels, 21, 13.8, z, '#d90429', 0.01, 0.75, 0.65, 1.0, false);
+        }
+      }
+
+      // Hakurei Shrine Main Building (gx 28..33, gz -5..2, gy 10..14)
+      for (let x = 28; x <= 33; x++) {
+        for (let z = -5; z <= 2; z++) {
+          for (let y = 10; y <= 13; y++) {
+            const isWall = (x === 28 || x === 33 || z === -5 || z === 2);
+            if (!isWall) continue;
+            const col = ((x + z) % 2 === 0) ? '#f8fafc' : '#b91c1c';
+            pushMapVoxel(solidMapVoxels, x, y, z, col, 0.02, 1, 1, 1, true);
+          }
+        }
+      }
+      // Shrine curved roof (gy 14..16)
+      for (let r = 0; r <= 2; r++) {
+        for (let x = 27 + r; x <= 34 - r; x++) {
+          for (let z = -6 + r; z <= 3 - r; z++) {
+            pushMapVoxel(glossyMapVoxels, x, 14 + r, z, '#334155', 0.02, 1, 1, 1, true);
+          }
+        }
+      }
+      // Wooden Offering Box (Saisenbako) in front of shrine (gx = 26.5, gz = -1.5, gy = 10)
+      pushMapVoxel(solidMapVoxels, 26.5, 10.2, -1.5, '#7f5539', 0.02, 1.4, 1.1, 2.0, true);
+      // Shrine Warm Lanterns
+      pushMapVoxel(warmGlowVoxels, 26.5, 12.5, -4.0, '#ffd166', 0.01, 0.8, 1.1, 0.8, false);
+      pushMapVoxel(warmGlowVoxels, 26.5, 12.5, 1.5, '#ffd166', 0.01, 0.8, 1.1, 0.8, false);
+
+      // EASTER EGG 1: Stack of Sake Barrels (Komodaru) beside Hakurei Shrine (gx = 28, gz = -6.8)
+      const barrelCoords = [[28, 10, -6.8], [29.2, 10, -6.8], [28.6, 11.1, -6.8]];
+      barrelCoords.forEach(([bx, by, bz]) => {
+        pushMapVoxel(solidMapVoxels, bx, by, bz, '#e6ccb2', 0.02, 1.05, 1.05, 1.05, true);
+        pushMapVoxel(solidMapVoxels, bx, by + 0.1, bz + 0.1, '#2b9348', 0.02, 0.85, 0.55, 0.9, false); // Straw wrapping band
+      });
+
+      // EASTER EGG 2: Tiny Lake Misty Wooden Boat floating at (gx = -18, gz = 16, gy = 2.4)
+      for (let bx = -19; bx <= -17; bx++) {
+        for (let bz = 15; bz <= 18; bz++) {
+          const isBow = (bz === 15 || bz === 18);
+          if (isBow && bx !== -18) continue;
+          pushMapVoxel(solidMapVoxels, bx, 2.5, bz, '#8d5b3c', 0.02, 0.95, 0.65, 0.95, true);
+        }
+      }
+      // Tiny wooden oar resting on the boat
+      pushMapVoxel(solidMapVoxels, -17.3, 2.8, 16.5, '#d4a373', 0.02, 1.8, 0.25, 0.35, false);
+
+      // ----------------------------------------------------------------------
+      // 5E. HUMAN VILLAGE HOUSES, WOODEN BRIDGE & MARKET SQUARE (gx -5..10, gz -12..3)
+      // ----------------------------------------------------------------------
+      const houses = [
+        { x: -4, z: -10, w: 4, d: 3, roof: '#3d5a80', chimney: true },
+        { x: 5,  z: -11, w: 4, d: 4, roof: '#457b9d', chimney: true },
+        { x: 8,  z: -3,  w: 3, d: 4, roof: '#5c677d', chimney: false },
+        { x: -5, z: 1,   w: 4, d: 3, roof: '#6d597a', chimney: true }
+      ];
+      houses.forEach((h) => {
+        for (let x = h.x; x < h.x + h.w; x++) {
+          for (let z = h.z; z < h.z + h.d; z++) {
+            for (let y = 4; y <= 6; y++) {
+              const isWindow = (y === 5 && (x === h.x + 1 || z === h.z + 1));
+              if (isWindow) {
+                pushMapVoxel(warmGlowVoxels, x, y, z, '#ffea85', 0.01, 1.02, 1.02, 1.02, false);
+              } else {
+                pushMapVoxel(solidMapVoxels, x, y, z, '#f5ebe0', 0.02, 1, 1, 1, true);
+              }
+            }
+            pushMapVoxel(glossyMapVoxels, x, 7, z, h.roof, 0.02, 1.12, 0.85, 1.12, true);
+          }
+        }
+        if (h.chimney) {
+          pushMapVoxel(solidMapVoxels, h.x + 1, 8, h.z + 1, '#6c584c', 0.02, 0.75, 1.3, 0.75, true);
+        }
+      });
+
+      // Market Square Stalls & Glowing Lanterns in center of Village (gx 1..4, gz -7..-5)
+      for (let sx = 1; sx <= 3; sx++) {
+        pushMapVoxel(solidMapVoxels, sx, 4.2, -7.5, '#9c6644', 0.02, 1, 0.8, 1, true); // Counter
+        pushMapVoxel(solidMapVoxels, sx, 5.8, -7.5, sx % 2 === 0 ? '#e63946' : '#f8f9fa', 0.01, 1.05, 0.5, 1.2, true); // Canopy
+      }
+      pushMapVoxel(warmGlowVoxels, 0.5, 5.2, -6.5, '#ffb703', 0.01, 0.7, 0.9, 0.7, false);
+      pushMapVoxel(warmGlowVoxels, 4.2, 5.2, -6.5, '#ffb703', 0.01, 0.7, 0.9, 0.7, false);
+
+      // Small arched wooden bridge over the river in the Village (gx -4..0, gz -4..-3)
+      for (let bx = -4; bx <= 0; bx++) {
+        const archY = 3.2 + (bx === -2 ? 0.45 : (Math.abs(bx + 2) === 1 ? 0.25 : 0));
+        pushMapVoxel(solidMapVoxels, bx, archY, -3.5, '#9c6644', 0.02, 1.05, 0.5, 1.8, true);
+        pushMapVoxel(solidMapVoxels, bx, archY + 0.6, -4.3, '#bc6c25', 0.02, 0.4, 0.7, 0.4, false);
+        pushMapVoxel(solidMapVoxels, bx, archY + 0.6, -2.7, '#bc6c25', 0.02, 0.4, 0.7, 0.4, false);
+      }
+
+      // ----------------------------------------------------------------------
+      // 5F. BAMBOO FOREST OF THE LOST (gx 4..23, gz 10..28)
+      // ----------------------------------------------------------------------
+      for (let gx = 4; gx <= 23; gx += 2) {
+        for (let gz = 10; gz <= 28; gz += 2) {
+          // Leave a cozy clearing around Mokou's spot at (12, 18) and the dirt road
+          if (Math.hypot(gx - 12, gz - 18) < 3.8) continue;
+          if (isOnDirtRoad(gx, gz)) continue;
+          if (voxelHash(gx, 5, gz) > 0.42) {
+            const stalkH = 6 + Math.floor(voxelHash(gx, 2, gz) * 6);
+            const baseH = Math.round((heightGrid.get(`${gx},${gz}`) || (4 * MV)) / MV);
+            for (let by = 1; by <= stalkH; by++) {
+              const isNode = (by % 3 === 0);
+              const bCol = isNode ? '#74c69d' : '#40916c';
+              pushMapVoxel(
+                solidMapVoxels,
+                gx + (voxelHash(gx, 0, gz) - 0.5) * 0.4,
+                baseH + by,
+                gz + (voxelHash(0, gx, gz) - 0.5) * 0.4,
+                bCol, 0.03,
+                isNode ? 0.62 : 0.52, 0.96, isNode ? 0.62 : 0.52,
+                by <= 2
+              );
+              if (by >= stalkH - 1) {
+                pushMapVoxel(solidMapVoxels, gx + 0.5, baseH + by, gz, '#52b788', 0.03, 1.3, 0.45, 0.8, false);
+              }
+            }
+          }
+        }
+      }
+      // Glowing Bamboo Torch Lanterns near Mokou's clearing
+      for (const [tx, tz] of [[9, 16], [15, 20], [10, 21]]) {
+        pushMapVoxel(solidMapVoxels, tx, 5, tz, '#52b788', 0.02, 0.55, 1.2, 0.55, false);
+        pushMapVoxel(warmGlowVoxels, tx, 6.1, tz, '#ff7b00', 0.02, 0.75, 0.85, 0.75, false);
+      }
+
+      // ----------------------------------------------------------------------
+      // 5G. SEA OF CLOUDS SURROUNDING THE FLOATING ISLAND
+      // ----------------------------------------------------------------------
+      const cloudRingPuffs = 34;
+      for (let c = 0; c < cloudRingPuffs; c++) {
+        const ang = (c / cloudRingPuffs) * Math.PI * 2;
+        const rad = 36 + (c % 3) * 4.5 + Math.sin(c * 1.7) * 2.5;
+        const cx = Math.cos(ang) * rad;
+        const cz = Math.sin(ang) * rad;
+        const cy = -7.5 + Math.sin(c * 2.3) * 2.2;
+        const puffW = 3 + (c % 3);
+        for (let px = -puffW; px <= puffW; px++) {
+          for (let pz = -puffW; pz <= puffW; pz++) {
+            for (let py = -1; py <= 1; py++) {
+              if (px * px + pz * pz + py * py * 2.5 <= puffW * puffW) {
+                pushMapVoxel(cloudSeaVoxels, cx + px, cy + py, cz + pz, '#f8fafc', 0.015, 1.05, 0.9, 1.05, false);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    buildGensokyoIsland();
+
+    const solidMapMesh = buildVoxelInstancedMesh(solidMapVoxels, MV, terrainSolidMaterial, true, true);
+    const glossyMapMesh = buildVoxelInstancedMesh(glossyMapVoxels, MV, glossyPropMaterial, true, true);
+    const waterMapMesh = buildVoxelInstancedMesh(waterMapVoxels, MV, waterMaterial, false, true);
+    const warmGlowMesh = buildVoxelInstancedMesh(warmGlowVoxels, MV, warmWindowMaterial, false, false);
+    const scarletGlowMesh = buildVoxelInstancedMesh(scarletGlowVoxels, MV, scarletGlowMaterial, false, false);
+    const spiritGlowMesh = buildVoxelInstancedMesh(spiritGlowVoxels, MV, spiritGlowMaterial, false, false);
+    const cloudSeaMesh = buildVoxelInstancedMesh(cloudSeaVoxels, MV, cloudMaterial, false, true);
+
+    if (solidMapMesh) islandMasterGroup.add(solidMapMesh);
+    if (glossyMapMesh) islandMasterGroup.add(glossyMapMesh);
+    if (waterMapMesh) islandMasterGroup.add(waterMapMesh);
+    if (warmGlowMesh) islandMasterGroup.add(warmGlowMesh);
+    if (scarletGlowMesh) islandMasterGroup.add(scarletGlowMesh);
+    if (spiritGlowMesh) islandMasterGroup.add(spiritGlowMesh);
+    if (cloudSeaMesh) scene.add(cloudSeaMesh); // Sea of clouds stays stationary while the island bobs on it!
+
+    // Helper to query terrain surface height in local islandMasterGroup coordinates
+    function getIslandSurfaceY(wx, wz) {
+      const gx = Math.round(wx / MV);
+      const gz = Math.round(wz / MV);
+      let bestY = null;
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          const val = heightGrid.get(`${gx + dx},${gz + dz}`);
+          if (val !== undefined && (bestY === null || val > bestY)) {
+            bestY = val;
+          }
+        }
+      }
+      return bestY !== null ? bestY : 0.8;
+    }
+
+    // ============================================================================
+    // 6. LANDMARK REGISTRY (For Drop-on-Landmark Detection & Special Reactions)
+    // ============================================================================
+    const LANDMARKS = [
+      {
+        id: 'shrine',
+        name: 'Hakurei Shrine',
+        pos: new THREE.Vector3(24 * MV, 9.5 * MV, -1.5 * MV),
+        radius: 2.6,
+        reactionText: 'Sweeping at Hakurei Shrine! 🧹⛩️',
+        accent: '#ef4444'
+      },
+      {
+        id: 'mansion',
+        name: 'Scarlet Devil Mansion',
+        pos: new THREE.Vector3(-23 * MV, 6.5 * MV, 5.5 * MV),
+        radius: 2.6,
+        reactionText: 'Sipping Scarlet Tea at the Mansion! ☕🦇',
+        accent: '#fb7185'
+      },
+      {
+        id: 'village',
+        name: 'Human Village',
+        pos: new THREE.Vector3(2.5 * MV, 3.5 * MV, -5.5 * MV),
+        radius: 2.8,
+        reactionText: 'Enjoying Sweet Dango in the Village! 🍡🏮',
+        accent: '#60a5fa'
+      },
+      {
+        id: 'mountain',
+        name: 'Youkai Mountain Waterfall',
+        pos: new THREE.Vector3(-11 * MV, 9.5 * MV, -19 * MV),
+        radius: 2.7,
+        reactionText: 'Snapping Tengu Wind Photos by the Waterfall! 📸🍁',
+        accent: '#f97316'
+      },
+      {
+        id: 'bamboo',
+        name: 'Bamboo Forest of the Lost',
+        pos: new THREE.Vector3(12 * MV, 4.5 * MV, 18 * MV),
+        radius: 2.8,
+        reactionText: 'Warming by Phoenix Embers in the Bamboo! 🔥🎍',
+        accent: '#ef4444'
+      },
+      {
+        id: 'hakugyokurou',
+        name: 'Hakugyokurou Cherry Tree',
+        pos: new THREE.Vector3(22.5 * MV, 16.5 * MV, -23.5 * MV),
+        radius: 3.0,
+        reactionText: 'Dancing under Falling Sakura Petals! 🌸👻',
+        accent: '#f472b6'
+      },
+      {
+        id: 'lake',
+        name: 'Misty Lake',
+        pos: new THREE.Vector3(-13.5 * MV, 2.7 * MV, 14 * MV),
+        radius: 3.2,
+        reactionText: 'Splashing & Chilling at Misty Lake! 💦❄️',
+        accent: '#38bdf8'
+      }
+    ];
+
+    // ============================================================================
+    // 7. ANIMATED ENVIRONMENTAL EFFECTS:
+    //    - Drifting Overhead Clouds (Casting Moving Cloud Shadows across Terrain!)
+    //    - Flowing River & Waterfall Mist Particles
+    //    - Chimney Smoke & Swirling Sakura Petals
+    //    - Hovering Voxel Witch Broom
+    // ============================================================================
+    // 7A. Drifting Overhead Clouds that cast real soft shadows across the terrain
+    const driftingClouds = [];
+    const overheadCloudGroup = new THREE.Group();
+    scene.add(overheadCloudGroup);
+
+    for (let i = 0; i < 6; i++) {
+      const cVoxels = [];
+      for (let x = -3; x <= 3; x++) {
+        for (let z = -2; z <= 2; z++) {
+          if (x * x * 0.5 + z * z <= 4.5) {
+            cVoxels.push({ x, y: 0, z, color: new THREE.Color('#ffffff'), sx: 1.3, sy: 0.7, sz: 1.3 });
+          }
+        }
+      }
+      const cMesh = buildVoxelInstancedMesh(cVoxels, 0.45, cloudMaterial, true, false);
+      const startX = -14 + i * 5.5;
+      const startZ = -10 + (i % 3) * 8.5;
+      cMesh.position.set(startX, 11.5 + (i % 2) * 1.2, startZ);
+      overheadCloudGroup.add(cMesh);
+      driftingClouds.push({ mesh: cMesh, speed: 0.42 + (i % 3) * 0.14, phase: i * 1.3 });
+    }
+
+    // 7B. Flowing River Particles & Waterfall Mist
+    const WATER_PARTICLE_COUNT = 95;
+    const waterParticles = [];
+    const waterPartGeom = new THREE.BoxGeometry(0.11, 0.11, 0.11);
+    const waterPartMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.82 });
+    const waterPartMesh = new THREE.InstancedMesh(waterPartGeom, waterPartMat, WATER_PARTICLE_COUNT);
+    islandMasterGroup.add(waterPartMesh);
+
+    for (let i = 0; i < WATER_PARTICLE_COUNT; i++) {
+      const isWaterfall = i < 38;
+      waterParticles.push({
+        isWaterfall,
+        t: Math.random(),
+        offset: (Math.random() - 0.5) * 0.45,
+        speed: isWaterfall ? (0.55 + Math.random() * 0.35) : (0.12 + Math.random() * 0.08),
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+
+    // 7C. Sakura Petals (around Hakugyokurou) & Chimney Smoke (from Human Village)
+    const AMBIENT_COUNT = 90;
+    const ambientParticles = [];
+    const ambGeom = new THREE.BoxGeometry(0.09, 0.09, 0.09);
+    const ambMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
+    const ambMesh = new THREE.InstancedMesh(ambGeom, ambMat, AMBIENT_COUNT);
+    islandMasterGroup.add(ambMesh);
+
+    const chimneyOrigins = [
+      new THREE.Vector3(-3 * MV, 8.5 * MV, -9 * MV),
+      new THREE.Vector3(6 * MV, 8.5 * MV, -10 * MV),
+      new THREE.Vector3(-4 * MV, 8.5 * MV, 2 * MV)
+    ];
+
+    for (let i = 0; i < AMBIENT_COUNT; i++) {
+      const isSakura = i < 55;
+      const pCol = isSakura
+        ? new THREE.Color(i % 2 === 0 ? '#ffb3c1' : '#ffccd5')
+        : new THREE.Color('#e2e8f0');
+      ambMesh.setColorAt(i, pCol);
+      ambientParticles.push({
+        isSakura,
+        chimneyIdx: i % chimneyOrigins.length,
+        t: Math.random(),
+        angle: Math.random() * Math.PI * 2,
+        radius: 0.5 + Math.random() * 2.1,
+        speed: isSakura ? (0.18 + Math.random() * 0.12) : (0.28 + Math.random() * 0.14)
+      });
+    }
+    if (ambMesh.instanceColor) ambMesh.instanceColor.needsUpdate = true;
+
+    // 7D. Flying Voxel Witch Broom (Hovers & Bobs above Gensokyo)
+    const flyingBroomGroup = new THREE.Group();
+    islandMasterGroup.add(flyingBroomGroup);
+    const broomVoxels = [];
+    for (let i = -8; i <= 6; i++) {
+      broomVoxels.push({ x: 0, y: 0, z: i * 0.75, color: new THREE.Color('#8d5b3c'), sx: 0.7, sy: 0.7, sz: 0.9 });
+    }
+    for (let bx = -1; bx <= 1; bx++) {
+      for (let by = -1; by <= 1; by++) {
+        for (let bz = -12; bz <= -8; bz++) {
+          const bCol = (bz === -8) ? '#d90429' : '#f4d35e';
+          broomVoxels.push({ x: bx * 0.65, y: by * 0.65, z: bz * 0.72, color: new THREE.Color(bCol), sx: 0.75, sy: 0.75, sz: 0.85 });
+        }
+      }
+    }
+    const broomMesh = buildVoxelInstancedMesh(broomVoxels, 0.085, plushMaterial, true, true);
+    flyingBroomGroup.add(broomMesh);
+
+    function updateEnvironmentEffects(time, dt) {
+      // 1. Slow bobbing of the whole island on the sea of clouds
+      islandMasterGroup.position.y = Math.sin(time * 0.85) * 0.16;
+
+      // 2. Drifting overhead clouds (casting moving cloud shadows)
+      for (let i = 0; i < driftingClouds.length; i++) {
+        const dc = driftingClouds[i];
+        dc.mesh.position.x += dc.speed * dt;
+        dc.mesh.position.y = 11.5 + Math.sin(time * 0.9 + dc.phase) * 0.25;
+        if (dc.mesh.position.x > 16) dc.mesh.position.x = -16;
+      }
+
+      // 3. Waterfall cascade, mist & flowing river particles
+      for (let i = 0; i < WATER_PARTICLE_COUNT; i++) {
+        const wp = waterParticles[i];
+        wp.t = (wp.t + wp.speed * dt) % 1.0;
+
+        if (wp.isWaterfall) {
+          if (i < 22) {
+            // Falling water droplets down the cliff
+            const wx = (-15.5 + wp.offset * 2.2) * MV;
+            const wy = THREE.MathUtils.lerp(18.5 * MV, 4.2 * MV, wp.t);
+            const wz = (-19.1 + Math.sin(wp.t * 10 + wp.phase) * 0.25) * MV;
+            tempPos.set(wx, wy, wz);
+            tempScale.set(1.1, 1.6, 1.1);
+          } else {
+            // Rising waterfall plunge-pool mist puff!
+            const ang = wp.phase + time * 1.5;
+            const wx = (-15.2 + Math.cos(ang) * (0.6 + wp.t * 1.8)) * MV;
+            const wy = (4.2 + wp.t * 3.8) * MV;
+            const wz = (-18.2 + Math.sin(ang) * (0.6 + wp.t * 1.8)) * MV;
+            tempPos.set(wx, wy, wz);
+            const s = Math.sin(wp.t * Math.PI) * 1.7;
+            tempScale.set(s, s, s);
+          }
+        } else {
+          // Flowing river sparkle along the winding river path
+          const gz = THREE.MathUtils.lerp(-18, 12, wp.t);
+          let gx;
+          if (gz < -4) {
+            const u = (gz + 19) / 15;
+            gx = -15 + u * 14 + Math.sin(u * Math.PI) * 2.5;
+          } else {
+            const u = (gz + 4) / 17;
+            gx = -1 - u * 14 + Math.sin(u * Math.PI) * 2.0;
+          }
+          gx += wp.offset * 2.2;
+          const surfY = getIslandSurfaceY(gx * MV, gz * MV) + 0.06;
+          tempPos.set(gx * MV, surfY, gz * MV);
+          const s = Math.sin(wp.t * Math.PI) * 1.15;
+          tempScale.set(s, 0.6 * s, s);
+        }
+        tempQuat.setFromEuler(tempEuler.set(time * 2, wp.phase, 0));
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        waterPartMesh.setMatrixAt(i, tempMatrix);
+      }
+      waterPartMesh.instanceMatrix.needsUpdate = true;
+
+      // 4. Swirling Sakura Petals at Hakugyokurou & Rising Chimney Smoke in Village
+      for (let i = 0; i < AMBIENT_COUNT; i++) {
+        const ap = ambientParticles[i];
+        ap.t = (ap.t + ap.speed * dt) % 1.0;
+        if (ap.isSakura) {
+          const ang = ap.angle + time * 0.9 + ap.t * 4.0;
+          const px = 24.5 * MV + Math.cos(ang) * ap.radius;
+          const pz = -26.5 * MV + Math.sin(ang) * ap.radius;
+          const py = THREE.MathUtils.lerp(28.5 * MV, 16.6 * MV, ap.t);
+          tempPos.set(px, py, pz);
+          const s = Math.sin(ap.t * Math.PI) * 1.15;
+          tempScale.set(s, s * 0.5, s);
+        } else {
+          const orig = chimneyOrigins[ap.chimneyIdx];
+          const px = orig.x + Math.sin(time * 1.8 + ap.t * 5.0 + ap.angle) * (0.18 * ap.t);
+          const py = orig.y + ap.t * 1.85;
+          const pz = orig.z + Math.cos(time * 1.5 + ap.t * 5.0 + ap.angle) * (0.18 * ap.t);
+          tempPos.set(px, py, pz);
+          const s = Math.sin(ap.t * Math.PI) * (0.7 + ap.t * 1.1);
+          tempScale.set(s, s, s);
+        }
+        tempQuat.setFromEuler(tempEuler.set(time * 3 + ap.angle, time * 2, 0));
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        ambMesh.setMatrixAt(i, tempMatrix);
+      }
+      ambMesh.instanceMatrix.needsUpdate = true;
+
+      // 5. Flying Voxel Broom Hover Path
+      const broomAngle = time * 0.55;
+      const broomRx = 4.2;
+      const broomRz = 3.2;
+      const bx = Math.cos(broomAngle) * broomRx;
+      const bz = Math.sin(broomAngle * 2) * broomRz * 0.55 - 0.8;
+      const by = 6.2 + Math.sin(time * 2.8) * 0.25;
+      const nextAngle = broomAngle + 0.05;
+      const nx = Math.cos(nextAngle) * broomRx;
+      const nz = Math.sin(nextAngle * 2) * broomRz * 0.55 - 0.8;
+
+      flyingBroomGroup.position.set(bx, by, bz);
+      flyingBroomGroup.rotation.y = Math.atan2(nx - bx, nz - bz);
+      flyingBroomGroup.rotation.x = Math.cos(time * 2.8) * 0.08;
+    }
+
+    // ============================================================================
+    // 8. POP & REACTION BURST PARTICLES
+    // ============================================================================
+    const POP_MAX = 72;
+    const popParticles = [];
+    const popGeom = new THREE.BoxGeometry(0.11, 0.11, 0.11);
+    const popMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const popMesh = new THREE.InstancedMesh(popGeom, popMat, POP_MAX);
+    for (let i = 0; i < POP_MAX; i++) {
+      popParticles.push({
+        active: false,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        life: 0,
+        maxLife: 1,
+        color: new THREE.Color('#ff85a1')
+      });
+      tempMatrix.makeScale(0, 0, 0);
+      popMesh.setMatrixAt(i, tempMatrix);
+    }
+    islandMasterGroup.add(popMesh);
+
+    function spawnBurstParticles(origin, paletteHexes, count = 14, upBoost = 2.8) {
+      let spawned = 0;
+      for (let i = 0; i < POP_MAX && spawned < count; i++) {
+        const p = popParticles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.5 + Math.random() * 0.35;
+          p.pos.copy(origin).add(new THREE.Vector3(0, 0.65, 0));
+          const angle = (spawned / count) * Math.PI * 2 + Math.random() * 0.35;
+          const speed = 1.6 + Math.random() * 2.2;
+          p.vel.set(Math.cos(angle) * speed, upBoost + Math.random() * 2.2, Math.sin(angle) * speed);
+          p.color.set(paletteHexes[spawned % paletteHexes.length]);
+          popMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (popMesh.instanceColor) popMesh.instanceColor.needsUpdate = true;
+    }
+
+    function updatePopParticles(dt) {
+      let dirty = false;
+      for (let i = 0; i < POP_MAX; i++) {
+        const p = popParticles[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          popMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= 7.5 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const s = 1.0 - (p.life / p.maxLife);
+        tempQuat.setFromEuler(tempEuler.set(p.life * 8, p.life * 6, 0));
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        popMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) popMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 9. TOUHOU FUMO VOXEL PLUSHIE BUILDER (Exact room.html Standard + 8 Characters)
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const fumos = [];
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.emoji = config.emoji || '🎀';
+        this.accentColor = config.accentColor || '#ef4444';
+        this.scaleFactor = config.scale || 0.78;
+        this.FV = 0.082 * this.scaleFactor; // Fine voxel size per fumo block
+        this.radius = 0.85 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+        this.homeLandmark = config.homeLandmark || '';
+        this.ridingBroom = Boolean(config.ridingBroom);
+
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isDragged = false;
+
+        // Landmark reaction state
+        this.reactionType = null;
+        this.reactionTimer = 0;
+
+        // Soft-Body Spring States
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        // Scene Hierarchy
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        // Reaction Prop Meshes attached to right hand (sweeping broom, teacup, dango skewer)
+        this.reactionProps = {};
+        this.buildCharacterVoxels(config);
+        this.buildReactionProps();
+        this.syncTransform(0);
+        islandMasterGroup.add(this.root);
+      }
+
+      buildReactionProps() {
+        // 1. Mini Sweeping Broom Prop (for Shrine reaction)
+        const broomVox = [];
+        for (let y = -5; y <= 2; y++) {
+          broomVox.push({ x: 0, y, z: 1.5, color: new THREE.Color(y < -2 ? '#e9c46a' : '#8d5b3c'), sx: y < -2 ? 1.5 : 0.55, sy: 0.95, sz: y < -2 ? 1.2 : 0.55 });
+        }
+        const bMesh = buildVoxelInstancedMesh(broomVox, this.FV, plushMaterial, false, false);
+        bMesh.visible = false;
+        this.rightArmPivot.add(bMesh);
+        this.reactionProps.broom = bMesh;
+
+        // 2. Mini Scarlet Teacup Prop (for Mansion reaction)
+        const cupVox = [
+          { x: 0, y: -2.5, z: 2.0, color: new THREE.Color('#ffffff'), sx: 1.8, sy: 1.4, sz: 1.8 },
+          { x: 0, y: -1.9, z: 2.0, color: new THREE.Color('#e63946'), sx: 1.4, sy: 0.5, sz: 1.4 }
+        ];
+        const cMesh = buildVoxelInstancedMesh(cupVox, this.FV, glossyPropMaterial, false, false);
+        cMesh.visible = false;
+        this.rightArmPivot.add(cMesh);
+        this.reactionProps.teacup = cMesh;
+
+        // 3. Tri-Color Dango Skewer Prop (for Village reaction)
+        const dangoVox = [
+          { x: 0, y: -2.0, z: 2.2, color: new THREE.Color('#d4a373'), sx: 0.4, sy: 3.5, sz: 0.4 },
+          { x: 0, y: -1.2, z: 2.2, color: new THREE.Color('#ffccd5'), sx: 1.3, sy: 1.1, sz: 1.3 },
+          { x: 0, y: -0.1, z: 2.2, color: new THREE.Color('#ffffff'), sx: 1.3, sy: 1.1, sz: 1.3 },
+          { x: 0, y: 1.0,  z: 2.2, color: new THREE.Color('#80ed99'), sx: 1.3, sy: 1.1, sz: 1.3 }
+        ];
+        const dMesh = buildVoxelInstancedMesh(dangoVox, this.FV, plushMaterial, false, false);
+        dMesh.visible = false;
+        this.rightArmPivot.add(dMesh);
+        this.reactionProps.dango = dMesh;
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingSolidVoxels = [];
+        const wingGlowVoxels = [];
+
+        const skinBase = '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false) => {
+          const seamDarken = (isSeam && ((Math.abs(x + y + z) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z,
+            color: varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // ------------------------------------------------------------------
+        // 1. STUBBY SITTING TORSO (Local y: 0..7, x: -4..4, z: -3..3)
+        // ------------------------------------------------------------------
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain;
+
+              if (y === 1 && z >= 1) col = '#ffffff';
+              if (cfg.hasWhiteApron && z >= 1 && Math.abs(x) <= 2 && y <= 5) {
+                col = '#fcfcfc';
+              }
+              if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                col = '#ffffff';
+                if (Math.abs(x) <= 1 && y === 5) col = cfg.tieColor || '#ef4444';
+              }
+              if (this.id === 'remilia' && z >= 2 && x === 0 && y >= 2 && y <= 6) {
+                col = '#d90429';
+              }
+              if (this.id === 'mokou') {
+                // Mokou white shirt top + crimson high-waisted suspender trousers
+                if (y >= 5) col = '#f8fafc';
+                else if (z >= 2 && Math.abs(x) === 2) col = '#f8fafc'; // Suspenders
+                else if (z >= 2 && x === 0 && y === 3) col = '#fde047'; // Flame talisman
+              }
+              if (this.id === 'aya' && y >= 4) {
+                col = '#f8fafc'; // Aya crisp white tengu shirt
+                if (z >= 2 && Math.abs(x) <= 1 && y === 5) col = '#dc2626';
+              }
+              if (this.id === 'yuyuko' && z >= 2 && x === 0 && y <= 5) {
+                col = '#fbcfe8'; // Yuyuko kimono trim
+              }
+
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        // ------------------------------------------------------------------
+        // 2. SHORT DANGLING ARMS
+        // ------------------------------------------------------------------
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || '#ffffff';
+                if (y === -3) col = skinBase;
+                else if (this.id === 'reimu' && y === -1) col = '#e63946';
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        // ------------------------------------------------------------------
+        // 3. SHORT SITTING / DANGLING LEGS WITH SHOES
+        // ------------------------------------------------------------------
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = '#ffffff';
+                if (z === 0) col = (this.id === 'mokou') ? '#dc2626' : skinBase;
+                if (z >= 3) col = cfg.shoeColor || '#2b2d42';
+                if (z === 4 && y === 1 && x === 0) col = '#ffffff';
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        // ------------------------------------------------------------------
+        // 4. OVERSIZED ROUND FUMO HEAD & ICONIC 'ᗜˬᗜ' FACE (room.html Shell)
+        // ------------------------------------------------------------------
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (y === 6) col = '#1f141e';
+                  else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                  else col = cfg.eyeColor;
+                } else if (Math.abs(x) === 4 && y === 3) {
+                  col = blushCol;
+                } else if (y === 2 && Math.abs(x) <= 1) {
+                  col = (x === 0) ? '#e07a7a' : smileCol;
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        // ------------------------------------------------------------------
+        // 5. CHARACTER-ACCURATE HATS, BOWS, HAIR & WINGS FOR ALL 8 FUMOS
+        // ------------------------------------------------------------------
+        if (this.id === 'reimu') {
+          for (const side of [-1, 1]) {
+            for (let y = -1; y <= 5; y++) {
+              const tubeCol = (y === 5) ? '#e63946' : ((y >= 1 && y <= 4) ? '#ffffff' : cfg.hairColor);
+              addPlushVoxel(headVoxels, side * 6.8, y, 2.2, tubeCol);
+              addPlushVoxel(headVoxels, side * 6.8, y, 3.0, tubeCol);
+            }
+          }
+          for (let bx = -7; bx <= 7; bx++) {
+            const wingHeight = Math.min(4, Math.floor(Math.abs(bx) * 0.7) + 1);
+            for (let by = -wingHeight; by <= wingHeight; by++) {
+              addPlushVoxel(headVoxels, bx, 12.2 + by * 0.75, -1.5 - Math.abs(bx) * 0.15, '#d90429');
+            }
+          }
+        }
+
+        if (this.id === 'remilia') {
+          for (let hx = -8; hx <= 8; hx++) {
+            for (let hz = -7; hz <= 6; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 7.4 && r >= 4.5) {
+                addPlushVoxel(headVoxels, hx, 11.0, hz, '#ffc2d1');
+                if (r <= 6.4) addPlushVoxel(headVoxels, hx, 12.0, hz, '#d90429');
+                if (r <= 5.5) addPlushVoxel(headVoxels, hx, 13.0, hz, '#ffe5ec');
+              }
+            }
+          }
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 6; wx++) {
+              const topY = 2.0 + Math.sin((wx / 6) * Math.PI) * 2.5;
+              for (let wy = -1; wy <= topY; wy++) {
+                wingSolidVoxels.push({
+                  x: side * wx, y: wy, z: -0.6 - wx * 0.15,
+                  color: varyColor('#2b193d', wx, wy, 0, 0.03)
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'keine') {
+          // Long silver-blue hair cascading down back + side locks
+          for (let lx = -5; lx <= 5; lx++) {
+            for (let ly = -4; ly <= 2; ly++) {
+              addPlushVoxel(headVoxels, lx, ly, -5.6, cfg.hairColor);
+            }
+          }
+          // Iconic Blue Boxy Scholar Hat with flat top brim & gold/red talismans
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -7; hz <= 7; hz++) {
+              if (Math.max(Math.abs(hx), Math.abs(hz)) <= 6.5) {
+                addPlushVoxel(headVoxels, hx, 11.2, hz, '#1e3a8a');
+              }
+              if (Math.max(Math.abs(hx), Math.abs(hz)) <= 4.8) {
+                addPlushVoxel(headVoxels, hx, 12.2, hz, '#1d4ed8');
+                addPlushVoxel(headVoxels, hx, 13.1, hz, hx === 0 || hz === 0 ? '#facc15' : '#1e3a8a');
+              }
+            }
+          }
+          // Dangling red/white talisman ribbons on right side of hat
+          for (let ty = 8; ty <= 11; ty++) {
+            addPlushVoxel(headVoxels, 6.8, ty, 1.5, ty % 2 === 0 ? '#ef4444' : '#ffffff');
+          }
+        }
+
+        if (this.id === 'aya') {
+          // Iconic Red Octagonal Tokin Hat perched on forehead!
+          for (let tx = -2; tx <= 2; tx++) {
+            for (let ty = 10; ty <= 13; ty++) {
+              for (let tz = 3; tz <= 6; tz++) {
+                if (Math.hypot(tx, tz - 4.5) <= 2.3) {
+                  addPlushVoxel(headVoxels, tx, ty, tz, ty === 11 ? '#1e293b' : '#dc2626');
+                }
+              }
+            }
+          }
+          // Glossy Black Crow Tengu Wings
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 6; wx++) {
+              const topY = 2.4 + Math.sin((wx / 6) * Math.PI) * 2.2;
+              for (let wy = -1; wy <= topY; wy++) {
+                wingSolidVoxels.push({
+                  x: side * wx, y: wy, z: -0.5 - wx * 0.12,
+                  color: varyColor('#1e293b', wx, wy, 0, 0.03)
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'mokou') {
+          // Very long flowing white hair down her back with red ribbon bows!
+          for (let lx = -5; lx <= 5; lx++) {
+            for (let ly = -5; ly <= 2; ly++) {
+              const isBow = ((ly === -1 || ly === -4) && Math.abs(lx) === 3);
+              addPlushVoxel(headVoxels, lx, ly, -5.8, isBow ? '#dc2626' : cfg.hairColor);
+            }
+          }
+          // Big Red Hair Ribbon Bow on top-back of Mokou's head
+          for (let bx = -5; bx <= 5; bx++) {
+            for (let by = -2; by <= 2; by++) {
+              if (Math.abs(bx) >= Math.abs(by)) {
+                addPlushVoxel(headVoxels, bx, 11.5 + by * 0.65, -3.8, '#dc2626');
+              }
+            }
+          }
+        }
+
+        if (this.id === 'yuyuko') {
+          // Light-Blue Triangular Ghost Cap (Hitaikakushi) on front/top of head with red crest
+          for (let hx = -6; hx <= 6; hx++) {
+            addPlushVoxel(headVoxels, hx, 10.6, 4.2 - Math.abs(hx) * 0.25, '#bae6fd');
+          }
+          for (let hy = 11; hy <= 14; hy++) {
+            const w = 14 - hy + 1;
+            for (let hx = -w; hx <= w; hx++) {
+              const isCrest = (hx === 0 && (hy === 12 || hy === 13));
+              addPlushVoxel(headVoxels, hx, hy, 3.8 - (hy - 11) * 0.3, isCrest ? '#e11d48' : '#e0f2fe');
+            }
+          }
+          // Two glowing translucent Hitodama spirit wisps floating behind Yuyuko!
+          for (const side of [-1, 1]) {
+            for (let sy = 0; sy <= 2; sy++) {
+              wingGlowVoxels.push({
+                x: side * 6.5, y: 2.5 + sy * 0.85, z: 0.5,
+                color: new THREE.Color(sy === 2 ? '#f0abfc' : '#e879f9'),
+                sx: 1.4 - sy * 0.35, sy: 1.2, sz: 1.4 - sy * 0.35
+              });
+            }
+          }
+        }
+
+        if (this.id === 'cirno') {
+          for (let bx = -6; bx <= 6; bx++) {
+            const h = Math.min(3, Math.floor(Math.abs(bx) * 0.65) + 1);
+            for (let by = -h; by <= h; by++) {
+              addPlushVoxel(headVoxels, bx, 10.5 + by * 0.75, -4.8, '#1d4ed8');
+            }
+          }
+          const wingAngles = [0.45, 0.05, -0.35];
+          for (const side of [-1, 1]) {
+            for (let w = 0; w < 3; w++) {
+              const ang = wingAngles[w];
+              for (let r = 1; r <= 7; r++) {
+                const wx = side * (1.2 + Math.cos(ang) * r * 1.05);
+                const wy = 1.0 + Math.sin(ang) * r * 1.05;
+                const wz = -0.5 - r * 0.15;
+                wingGlowVoxels.push({
+                  x: wx, y: wy, z: wz,
+                  color: varyColor(r > 5 ? '#e0f2fe' : '#38bdf8', wx, wy, wz, 0.02),
+                  sx: 1.1, sy: 0.85, sz: 0.6
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'marisa') {
+          for (let y = -1; y <= 5; y++) {
+            addPlushVoxel(headVoxels, -6.6, y, 2.8, y === 0 ? '#ffffff' : cfg.hairColor);
+          }
+          for (let hx = -10; hx <= 10; hx++) {
+            for (let hz = -10; hz <= 10; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 10.2 && r >= 4.2) {
+                const brimY = 10.2 - hz * 0.22 + Math.sin(Math.atan2(hz, hx) * 4) * 0.4;
+                addPlushVoxel(headVoxels, hx, brimY, hz - 1.2, '#22222b');
+              }
+            }
+          }
+          for (let ch = 0; ch <= 9; ch++) {
+            const coneR = Math.max(0.8, 5.2 - ch * 0.52);
+            for (let hx = -6; hx <= 6; hx++) {
+              for (let hz = -6; hz <= 6; hz++) {
+                const r = Math.hypot(hx, hz);
+                if (r <= coneR && r >= coneR - 1.3) {
+                  const isRibbon = (ch === 1 || ch === 2);
+                  addPlushVoxel(headVoxels, hx, 10.8 + ch * 0.9 - hz * 0.18, hz - 1.5 - ch * 0.28, isRibbon ? '#f8f9fa' : '#22222b');
+                }
+              }
+            }
+          }
+          for (let bx = -3; bx <= 3; bx++) {
+            addPlushVoxel(headVoxels, bx, 11.8, 3.8, '#ffffff');
+            if (Math.abs(bx) >= 1) addPlushVoxel(headVoxels, bx, 12.6, 3.8, '#ffffff');
+          }
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allFumoRaycastMeshes.push(m);
+          }
+          return m;
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        registerPart(wingSolidVoxels, this.wingsPivot);
+        if (wingGlowVoxels.length > 0) {
+          const wMat = (this.id === 'cirno') ? translucentIceMaterial : spiritGlowMaterial;
+          registerPart(wingGlowVoxels, this.wingsPivot, wMat);
+        }
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.52, this.squash - 0.42 * strength);
+        this.squashVel = -3.5 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 11 * strength;
+        this.limbPitch = -0.65 * strength;
+        this.limbPitchVel = -6.0 * strength;
+        spawnBurstParticles(this.pos, [this.accentColor, '#ff85a1', '#fde047', '#ffffff'], 12, 2.5);
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      triggerLandmarkReaction(landmark) {
+        this.reactionType = landmark.id;
+        this.reactionTimer = 3.6;
+        this.vel.set(0, 3.2, 0);
+        this.squash = 0.65;
+        this.squashVel = 3.2;
+
+        // Toggle custom reaction prop in hand
+        this.reactionProps.broom.visible = (landmark.id === 'shrine');
+        this.reactionProps.teacup.visible = (landmark.id === 'mansion');
+        this.reactionProps.dango.visible = (landmark.id === 'village');
+
+        // Spawn landmark-themed particle burst
+        const palettes = {
+          lake: ['#38bdf8', '#bae6fd', '#ffffff', '#0284c7'],
+          shrine: ['#ef4444', '#fde047', '#ffffff'],
+          mansion: ['#fb7185', '#e11d48', '#fda4af'],
+          village: ['#ffccd5', '#ffffff', '#80ed99', '#ffb703'],
+          mountain: ['#a7f3d0', '#38bdf8', '#f97316', '#ffffff'],
+          bamboo: ['#ff7b00', '#ef4444', '#fde047', '#52b788'],
+          hakugyokurou: ['#ffb3c1', '#ffccd5', '#f472b6', '#e879f9']
+        };
+        spawnBurstParticles(this.pos, palettes[landmark.id] || [this.accentColor, '#ffffff'], 18, 3.5);
+        soundFX.playLandmarkChime(landmark.id);
+        updateUIBadge(this, landmark.reactionText);
+      }
+
+      resetToHome() {
+        this.ridingBroom = (this.id === 'marisa');
+        this.reactionType = null;
+        this.reactionTimer = 0;
+        this.reactionProps.broom.visible = false;
+        this.reactionProps.teacup.visible = false;
+        this.reactionProps.dango.visible = false;
+        this.pos.copy(this.homePos);
+        this.vel.set(0, 0, 0);
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.squeeze(0.75);
+      }
+
+      updatePhysics(dt, time) {
+        // 1. Update Squash & Stretch Spring
+        const squashStiff = 210.0;
+        const squashDamp = 11.5;
+        const squashForce = (1.0 - this.squash) * squashStiff - this.squashVel * squashDamp;
+        this.squashVel += squashForce * dt;
+        this.squash += this.squashVel * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash, 0.45, 1.55);
+
+        // 2. Update Head Wobble Spring
+        const headStiff = 140.0;
+        const headDamp = 7.5;
+        const idleHeadBob = Math.sin(time * 2.2 + this.homePos.x) * 0.028;
+        this.headPitchVel += ((idleHeadBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        // 3. Update Dangling Limb Springs
+        const targetLimbPitch = (this.isDragged || !this.isGrounded || this.ridingBroom) ? 0.55 : 0.0;
+        const limbStiff = 120.0;
+        const limbDamp = 8.0;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * limbStiff - this.limbPitchVel * limbDamp) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * limbStiff - this.limbRollVel * limbDamp) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.8, 0.9);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+
+        // 4. Landmark Reaction Animation Timer
+        if (this.reactionTimer > 0) {
+          this.reactionTimer -= dt;
+          if (this.reactionType === 'shrine') {
+            // Sweeping motion!
+            this.limbRoll = Math.sin(time * 14) * 0.45;
+            this.yaw += Math.sin(time * 7) * 0.02;
+          } else if (this.reactionType === 'mansion') {
+            // Sipping scarlet tea motion!
+            this.limbPitch = -0.75 + Math.sin(time * 6) * 0.15;
+            this.headPitch = 0.18 + Math.sin(time * 6) * 0.08;
+          } else if (this.reactionType === 'lake') {
+            // Bobbing & splashing in Misty Lake!
+            this.squash = 1.0 + Math.sin(time * 16) * 0.14;
+            this.yaw += dt * 4.2;
+          } else if (this.reactionType === 'hakugyokurou' || this.reactionType === 'mountain') {
+            // Graceful sakura / tengu spin!
+            this.yaw += dt * 5.2;
+          } else if (this.reactionType === 'village' || this.reactionType === 'bamboo') {
+            this.headRoll = Math.sin(time * 10) * 0.22;
+            this.limbPitch = -0.5 + Math.sin(time * 10) * 0.25;
+          }
+          if (this.reactionTimer <= 0) {
+            this.reactionType = null;
+            this.reactionProps.broom.visible = false;
+            this.reactionProps.teacup.visible = false;
+            this.reactionProps.dango.visible = false;
+          }
+        }
+
+        // 5. Riding the Flying Witch Broom vs. Terrain Gravity & Collision
+        if (this.ridingBroom && !this.isDragged) {
+          this.pos.copy(flyingBroomGroup.position);
+          this.pos.y += 0.12;
+          this.yaw = flyingBroomGroup.rotation.y;
+          this.pitch = flyingBroomGroup.rotation.x;
+          this.roll = Math.sin(time * 2.2) * 0.06;
+          this.isGrounded = false;
+        } else if (!this.isDragged) {
+          this.vel.y -= 22.0 * dt;
+          this.vel.multiplyScalar(Math.pow(0.985, dt * 60));
+          this.pos.addScaledVector(this.vel, dt);
+
+          this.yaw += this.angVel.y * dt;
+          this.pitch += this.angVel.x * dt;
+          this.roll += this.angVel.z * dt;
+          this.angVel.multiplyScalar(Math.pow(0.92, dt * 60));
+
+          this.isGrounded = false;
+
+          // Keep within island map horizontal radius
+          const maxMapR = 9.8;
+          const distFromCenter = Math.hypot(this.pos.x, this.pos.z);
+          if (distFromCenter > maxMapR) {
+            const scaleBack = maxMapR / distFromCenter;
+            this.pos.x *= scaleBack;
+            this.pos.z *= scaleBack;
+            this.vel.x *= -0.5;
+            this.vel.z *= -0.5;
+          }
+
+          // Collide with Gensokyo Terrain Heightmap
+          const groundY = getIslandSurfaceY(this.pos.x, this.pos.z);
+          if (this.pos.y <= groundY) {
+            const impact = -this.vel.y;
+            this.pos.y = groundY;
+            if (impact > 1.8) {
+              this.vel.y = impact * 0.38;
+              this.squashVel -= Math.min(8.5, impact * 0.9);
+              this.headPitchVel += (Math.random() - 0.5) * impact * 1.8;
+              this.headRollVel += (Math.random() - 0.5) * impact * 1.8;
+              soundFX.playBounce(impact * 0.08);
+            } else {
+              this.vel.y = 0;
+              this.isGrounded = true;
+            }
+            this.vel.x *= 0.78;
+            this.vel.z *= 0.78;
+          }
+
+          if (this.isGrounded) {
+            this.pitch = THREE.MathUtils.lerp(this.pitch, 0, Math.min(1, dt * 9.5));
+            this.roll = THREE.MathUtils.lerp(this.roll, 0, Math.min(1, dt * 9.5));
+            this.angVel.multiplyScalar(0.75);
+          }
+        }
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+
+        this.leftArmPivot.rotation.set(this.limbPitch, 0, 0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.rightArmPivot.rotation.set(this.limbPitch, 0, -0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+
+        const wingFlutter = Math.sin(time * 3.8 + this.homePos.x) * 0.06 + (1.0 - this.squash) * 0.35;
+        this.wingsPivot.rotation.x = wingFlutter;
+      }
+    }
+
+    // ============================================================================
+    // 10. INSTANTIATE ALL 8 TOUHOU FUMOS AT THEIR GENSOKYO LANDMARKS
+    // ============================================================================
+    const fumoConfigs = [
+      {
+        id: 'reimu',
+        name: 'Reimu Hakurei (Hakurei Shrine)',
+        emoji: '⛩️',
+        accentColor: '#ef4444',
+        hairColor: '#2b1e23',
+        eyeColor: '#991b1b',
+        outfitMain: '#dc2626',
+        sleeveColor: '#ffffff',
+        tieColor: '#facc15',
+        shoeColor: '#451a03',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(24 * MV, getIslandSurfaceY(24 * MV, -1.5 * MV), -1.5 * MV),
+        homeYaw: -0.9,
+        homeLandmark: 'At Hakurei Shrine',
+        pitchAudio: 1.0
+      },
+      {
+        id: 'remilia',
+        name: 'Remilia Scarlet (Scarlet Devil Mansion)',
+        emoji: '🦇',
+        accentColor: '#fb7185',
+        hairColor: '#a5b4fc',
+        eyeColor: '#e11d48',
+        outfitMain: '#ffe4e6',
+        sleeveColor: '#ffe4e6',
+        tieColor: '#be123c',
+        shoeColor: '#4c0519',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(-23 * MV, getIslandSurfaceY(-23 * MV, 5.5 * MV), 5.5 * MV),
+        homeYaw: 0.75,
+        homeLandmark: 'At Scarlet Devil Mansion',
+        pitchAudio: 1.08
+      },
+      {
+        id: 'keine',
+        name: 'Keine Kamishirasawa (Human Village)',
+        emoji: '📜',
+        accentColor: '#3b82f6',
+        hairColor: '#cbd5e1',
+        eyeColor: '#1d4ed8',
+        outfitMain: '#1e3a8a',
+        sleeveColor: '#ffffff',
+        tieColor: '#16a34a',
+        shoeColor: '#172554',
+        hasWhiteApron: true,
+        homePos: new THREE.Vector3(2.5 * MV, getIslandSurfaceY(2.5 * MV, -5.5 * MV), -5.5 * MV),
+        homeYaw: 0.25,
+        homeLandmark: 'In the Human Village',
+        pitchAudio: 0.94
+      },
+      {
+        id: 'aya',
+        name: 'Aya Shameimaru (Youkai Mountain)',
+        emoji: '🍁',
+        accentColor: '#f97316',
+        hairColor: '#1e293b',
+        eyeColor: '#dc2626',
+        outfitMain: '#1f2937',
+        sleeveColor: '#ffffff',
+        tieColor: '#dc2626',
+        shoeColor: '#111827',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(-11 * MV, getIslandSurfaceY(-11 * MV, -19 * MV), -19 * MV),
+        homeYaw: 0.55,
+        homeLandmark: 'On Youkai Mountain',
+        pitchAudio: 1.12
+      },
+      {
+        id: 'mokou',
+        name: 'Fujiwara no Mokou (Bamboo Forest)',
+        emoji: '🔥',
+        accentColor: '#ef4444',
+        hairColor: '#f1f5f9',
+        eyeColor: '#991b1b',
+        outfitMain: '#dc2626',
+        sleeveColor: '#ffffff',
+        tieColor: '#dc2626',
+        shoeColor: '#450a0a',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(12 * MV, getIslandSurfaceY(12 * MV, 18 * MV), 18 * MV),
+        homeYaw: -0.45,
+        homeLandmark: 'In the Bamboo Forest',
+        pitchAudio: 0.92
+      },
+      {
+        id: 'yuyuko',
+        name: 'Yuyuko Saigyouji (Hakugyokurou)',
+        emoji: '🌸',
+        accentColor: '#f472b6',
+        hairColor: '#fbcfe8',
+        eyeColor: '#db2777',
+        outfitMain: '#38bdf8',
+        sleeveColor: '#e0f2fe',
+        tieColor: '#f472b6',
+        shoeColor: '#0369a1',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(22.5 * MV, getIslandSurfaceY(22.5 * MV, -23.5 * MV), -23.5 * MV),
+        homeYaw: -0.55,
+        homeLandmark: 'At Hakugyokurou',
+        pitchAudio: 1.05
+      },
+      {
+        id: 'cirno',
+        name: 'Cirno (Misty Lake)',
+        emoji: '❄️',
+        accentColor: '#38bdf8',
+        hairColor: '#7dd3fc',
+        eyeColor: '#0284c7',
+        outfitMain: '#2563eb',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#1e3a8a',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(-13.5 * MV, getIslandSurfaceY(-13.5 * MV, 14 * MV), 14 * MV),
+        homeYaw: 0.4,
+        homeLandmark: 'At Misty Lake',
+        pitchAudio: 1.18
+      },
+      {
+        id: 'marisa',
+        name: 'Marisa Kirisame (Flying Broom)',
+        emoji: '🌟',
+        accentColor: '#facc15',
+        hairColor: '#fde047',
+        eyeColor: '#ca8a04',
+        outfitMain: '#1f2937',
+        sleeveColor: '#ffffff',
+        tieColor: '#ffffff',
+        shoeColor: '#111827',
+        hasWhiteApron: true,
+        homePos: new THREE.Vector3(0, 6.3, 0),
+        homeYaw: 0.0,
+        homeLandmark: 'Flying Above Gensokyo',
+        ridingBroom: true,
+        pitchAudio: 0.98
+      }
+    ];
+
+    fumoConfigs.forEach(cfg => {
+      fumos.push(new VoxelFumo(cfg));
+    });
+
+    function resolveFumoToFumoCollisions() {
+      for (let i = 0; i < fumos.length; i++) {
+        for (let j = i + 1; j < fumos.length; j++) {
+          const a = fumos[i];
+          const b = fumos[j];
+          if (a.ridingBroom || b.ridingBroom) continue;
+          const minDist = (a.radius + b.radius) * 0.78;
+          const dx = b.pos.x - a.pos.x;
+          const dy = (b.pos.y + b.radius * 0.6) - (a.pos.y + a.radius * 0.6);
+          const dz = b.pos.z - a.pos.z;
+          const distSq = dx * dx + dy * dy + dz * dz;
+
+          if (distSq < minDist * minDist && distSq > 0.0001) {
+            const dist = Math.sqrt(distSq);
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const nz = dz / dist;
+            const overlap = (minDist - dist) * 0.5;
+
+            if (!a.isDragged) {
+              a.pos.x -= nx * overlap;
+              a.pos.z -= nz * overlap;
+            }
+            if (!b.isDragged) {
+              b.pos.x += nx * overlap;
+              b.pos.z += nz * overlap;
+            }
+
+            const rvx = b.vel.x - a.vel.x;
+            const rvy = b.vel.y - a.vel.y;
+            const rvz = b.vel.z - a.vel.z;
+            const vn = rvx * nx + rvy * ny + rvz * nz;
+            if (vn < 0) {
+              const imp = -vn * 0.68;
+              if (!a.isDragged) {
+                a.vel.x -= imp * nx;
+                a.vel.y -= imp * ny;
+                a.vel.z -= imp * nz;
+                a.squashVel -= Math.min(5.0, imp * 0.6);
+              }
+              if (!b.isDragged) {
+                b.vel.x += imp * nx;
+                b.vel.y += imp * ny;
+                b.vel.z += imp * nz;
+                b.squashVel -= Math.min(5.0, imp * 0.6);
+              }
+              if (imp > 1.5) soundFX.playBounce(imp * 0.07);
+            }
+          }
+        }
+      }
+    }
+
+    // ============================================================================
+    // 11. POINTER INTERACTION: SQUEEZE, DRAG TO LANDMARKS & THROW
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let hoveredFumo = null;
+    let selectedFumo = null;
+    let isDraggingFumo = false;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+    const badgeEl = document.getElementById('fumo-badge');
+    const badgeDotEl = document.getElementById('fumo-badge-dot');
+    const badgeNameEl = document.getElementById('fumo-badge-name');
+    const badgeStatusEl = document.getElementById('fumo-badge-status');
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function pickFumoUnderPointer() {
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (hits.length > 0 && hits[0].object.userData.fumo) {
+        return { fumo: hits[0].object.userData.fumo, point: hits[0].point };
+      }
+      return null;
+    }
+
+    function updateUIBadge(fumo, statusText) {
+      if (!fumo) {
+        badgeEl.classList.add('hidden');
+        badgeEl.classList.remove('flex');
+        return;
+      }
+      badgeEl.classList.remove('hidden');
+      badgeEl.classList.add('flex');
+      badgeDotEl.style.backgroundColor = fumo.accentColor;
+      badgeNameEl.textContent = fumo.name.split(' (')[0];
+      badgeStatusEl.textContent = statusText;
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+
+      const hit = pickFumoUnderPointer();
+      if (hit) {
+        selectedFumo = hit.fumo;
+        isDraggingFumo = false;
+        controls.enabled = false;
+
+        const worldFumoPos = selectedFumo.pos.clone().add(islandMasterGroup.position);
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), worldFumoPos);
+
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          dragOffset.subVectors(selectedFumo.pos, dragHitPoint);
+        } else {
+          dragOffset.set(0, 0, 0);
+        }
+
+        dragHistory = [{ pos: selectedFumo.pos.clone(), time: performance.now() }];
+        updateUIBadge(selectedFumo, selectedFumo.homeLandmark);
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      updatePointerNDC(e);
+
+      if (selectedFumo) {
+        recordInteraction();
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          selectedFumo.isDragged = true;
+          selectedFumo.ridingBroom = false;
+          selectedFumo.isGrounded = false;
+          selectedFumo.squashVel += 3.2;
+          soundFX.playPickup();
+          updateUIBadge(selectedFumo, 'Drop on any Landmark for a Reaction!');
+        }
+
+        if (isDraggingFumo) {
+          raycaster.setFromCamera(pointerNDC, camera);
+          if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+            const targetPos = dragHitPoint.clone().add(dragOffset);
+            targetPos.x = THREE.MathUtils.clamp(targetPos.x, -9.5, 9.5);
+            targetPos.z = THREE.MathUtils.clamp(targetPos.z, -9.5, 9.5);
+            const minTerrainY = getIslandSurfaceY(targetPos.x, targetPos.z) + 0.35;
+            targetPos.y = THREE.MathUtils.clamp(targetPos.y, minTerrainY, 12.0);
+
+            const prevPos = selectedFumo.pos.clone();
+            selectedFumo.pos.lerp(targetPos, 0.55);
+
+            const deltaMove = selectedFumo.pos.clone().sub(prevPos);
+            selectedFumo.headRollVel -= deltaMove.x * 16.0;
+            selectedFumo.headPitchVel += deltaMove.z * 16.0 - deltaMove.y * 10.0;
+            selectedFumo.limbRollVel -= deltaMove.x * 22.0;
+            selectedFumo.roll = THREE.MathUtils.lerp(selectedFumo.roll, THREE.MathUtils.clamp(-deltaMove.x * 1.4, -0.45, 0.45), 0.3);
+            selectedFumo.pitch = THREE.MathUtils.lerp(selectedFumo.pitch, THREE.MathUtils.clamp(deltaMove.z * 1.4, -0.45, 0.45), 0.3);
+
+            // Check if hovering over a landmark to preview its name in the badge
+            let nearLandmark = null;
+            for (const lm of LANDMARKS) {
+              if (Math.hypot(selectedFumo.pos.x - lm.pos.x, selectedFumo.pos.z - lm.pos.z) <= lm.radius) {
+                nearLandmark = lm;
+                break;
+              }
+            }
+            if (nearLandmark) {
+              updateUIBadge(selectedFumo, `Drop at ${nearLandmark.name}!`);
+            }
+
+            const now = performance.now();
+            dragHistory.push({ pos: selectedFumo.pos.clone(), time: now });
+            while (dragHistory.length > 6) dragHistory.shift();
+          }
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      const hit = pickFumoUnderPointer();
+      if (hit) {
+        hoveredFumo = hit.fumo;
+        renderer.domElement.style.cursor = 'grab';
+        tooltipEmojiEl.textContent = hoveredFumo.emoji;
+        tooltipTextEl.textContent = hoveredFumo.name;
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else {
+        hoveredFumo = null;
+        renderer.domElement.style.cursor = 'default';
+        tooltipEl.style.opacity = '0';
+      }
+    });
+
+    window.addEventListener('pointerup', () => {
+      if (!selectedFumo) return;
+      controls.enabled = true;
+      recordInteraction();
+
+      if (!isDraggingFumo) {
+        selectedFumo.squeeze(1.0);
+        updateUIBadge(selectedFumo, 'Squeezed! ᗜˬᗜ');
+      } else {
+        selectedFumo.isDragged = false;
+        const now = performance.now();
+        while (dragHistory.length > 1 && now - dragHistory[0].time > 140) {
+          dragHistory.shift();
+        }
+
+        let throwVel = new THREE.Vector3();
+        if (dragHistory.length >= 2) {
+          const first = dragHistory[0];
+          const last = dragHistory[dragHistory.length - 1];
+          const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+          throwVel.subVectors(last.pos, first.pos).divideScalar(dtSec);
+          if (throwVel.length() > 20) throwVel.setLength(20);
+        }
+
+        // Check if dropped near the flying broom first!
+        if (selectedFumo.pos.distanceTo(flyingBroomGroup.position) < 1.8 && throwVel.length() < 6.0) {
+          selectedFumo.ridingBroom = true;
+          selectedFumo.squeeze(0.9);
+          updateUIBadge(selectedFumo, 'Riding the Flying Witch Broom! 🧹🌟');
+        } else {
+          // Check if dropped onto any of the 7 Landmarks with gentle release
+          let matchedLandmark = null;
+          if (throwVel.length() < 8.5) {
+            for (const lm of LANDMARKS) {
+              if (Math.hypot(selectedFumo.pos.x - lm.pos.x, selectedFumo.pos.z - lm.pos.z) <= lm.radius) {
+                matchedLandmark = lm;
+                break;
+              }
+            }
+          }
+
+          if (matchedLandmark) {
+            selectedFumo.pos.x = matchedLandmark.pos.x + (Math.random() - 0.5) * 0.4;
+            selectedFumo.pos.z = matchedLandmark.pos.z + (Math.random() - 0.5) * 0.4;
+            selectedFumo.pos.y = getIslandSurfaceY(selectedFumo.pos.x, selectedFumo.pos.z) + 0.15;
+            selectedFumo.triggerLandmarkReaction(matchedLandmark);
+          } else {
+            selectedFumo.vel.copy(throwVel);
+            const speed = throwVel.length();
+            selectedFumo.angVel.set(
+              throwVel.z * 0.65 + (Math.random() - 0.5) * speed * 0.4,
+              (Math.random() - 0.5) * speed * 0.5,
+              -throwVel.x * 0.65 + (Math.random() - 0.5) * speed * 0.4
+            );
+            updateUIBadge(selectedFumo, 'Tumbling across Gensokyo!');
+          }
+        }
+      }
+
+      selectedFumo = null;
+      isDraggingFumo = false;
+      renderer.domElement.style.cursor = hoveredFumo ? 'grab' : 'default';
+    });
+
+    // ============================================================================
+    // 12. DAY / NIGHT SMOOTH INTERPOLATION (~2 SECONDS) & HUB INTEGRATION
+    // ============================================================================
+    const STORAGE_MODE_KEY = 'voxel_gensokyo_map_mode';
+    let isNightMode = false;
+    let dayNightProgress = 0.0; // 0.0 = Day, 1.0 = Night
+    let dayNightTarget = 0.0;
+
+    // Starry Sky Field for Night Mode
+    const STAR_COUNT = 160;
+    const starGeom = new THREE.BoxGeometry(0.18, 0.18, 0.18);
+    const starMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.0 });
+    const starMesh = new THREE.InstancedMesh(starGeom, starMat, STAR_COUNT);
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI * 0.44 + 0.05;
+      const r = 55 + Math.random() * 15;
+      tempPos.set(
+        r * Math.sin(phi) * Math.cos(theta),
+        r * Math.cos(phi),
+        r * Math.sin(phi) * Math.sin(theta)
+      );
+      tempQuat.identity();
+      const s = 0.6 + Math.random() * 1.1;
+      tempScale.set(s, s, s);
+      tempMatrix.compose(tempPos, tempQuat, tempScale);
+      starMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(starMesh);
+
+    const daySkyColor = new THREE.Color('#bde0fe');
+    const nightSkyColor = new THREE.Color('#090b1a');
+
+    const daySunLightCol = new THREE.Color('#fff2d6');
+    const nightMoonLightCol = new THREE.Color('#6b8afd');
+
+    const dayHemiSky = new THREE.Color('#fff9eb');
+    const nightHemiSky = new THREE.Color('#1f244d');
+    const dayHemiGround = new THREE.Color('#8ecae6');
+    const nightHemiGround = new THREE.Color('#0c0f24');
+
+    function notifyParentMode() {
+      const modeStr = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: modeStr }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(night, { immediate = false, playSound = true } = {}) {
+      isNightMode = Boolean(night);
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) {
+        dayNightProgress = dayNightTarget;
+      }
+      document.body.classList.toggle('night-ui', isNightMode);
+
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
+      } catch (e) {}
+
+      if (playSound) soundFX.playPickup();
+      notifyParentMode();
+    }
+
+    function toggleDayNight() {
+      setDayNightMode(!isNightMode, { immediate: false, playSound: true });
+    }
+
+    function updateDayNightTransition(dt) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.52; // ~2 seconds full transition
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      scene.background.lerpColors(daySkyColor, nightSkyColor, t);
+      scene.fog.color.copy(scene.background);
+
+      sunDirLight.color.lerpColors(daySunLightCol, nightMoonLightCol, t);
+      sunDirLight.intensity = THREE.MathUtils.lerp(1.32, 0.42, t);
+
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.72, 0.28, t);
+
+      // Night Landmark Point Lights
+      mansionLight.intensity = THREE.MathUtils.lerp(0.05, 1.45, t);
+      villageLight.intensity = THREE.MathUtils.lerp(0.05, 1.35, t);
+      shrineLight.intensity = THREE.MathUtils.lerp(0.05, 1.25, t);
+      sakuraLight.intensity = THREE.MathUtils.lerp(0.12, 1.15, t);
+
+      // Emissive Materials & Starfield
+      warmWindowMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.22, 2.35, t);
+      scarletGlowMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.28, 2.55, t);
+      spiritGlowMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, 1.95, t);
+      translucentIceMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.22, 0.85, t);
+      waterMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.15, 0.45, t);
+      cloudMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.04, 0.22, t);
+      starMat.opacity = THREE.MathUtils.lerp(0.0, 0.9, t);
+
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.16, 0.72, t);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.84, 0.60, t);
+      }
+    }
+
+    // Button & Keyboard Event Listeners
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 45));
+      updateUIBadge(null, '');
+    });
+
+    document.getElementById('btn-squeeze-all').addEventListener('click', () => {
+      fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 55));
+    });
+
+    const btnSound = document.getElementById('btn-sound');
+    const iconSoundOn = document.getElementById('icon-sound-on');
+    const iconSoundOff = document.getElementById('icon-sound-off');
+    btnSound.addEventListener('click', () => {
+      soundFX.enabled = !soundFX.enabled;
+      iconSoundOn.classList.toggle('hidden', !soundFX.enabled);
+      iconSoundOff.classList.toggle('hidden', soundFX.enabled);
+      if (soundFX.enabled) soundFX.playPickup();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      const key = e.key.toLowerCase();
+      if (key === 'n') {
+        e.preventDefault();
+        toggleDayNight();
+      } else if (key === 'r') {
+        fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 45));
+      } else if (key === ' ') {
+        e.preventDefault();
+        fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 55));
+      } else if (key === 'm') {
+        btnSound.click();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ============================================================================
+    // 13. MAIN ANIMATION LOOP, PAUSE / RESUME & HUB MESSAGE LISTENER
+    // ============================================================================
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.033, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      if (!selectedFumo && (now - lastUserInteractionTime > 4500)) {
+        controls.autoRotate = true;
+      }
+
+      controls.update();
+      updateDayNightTransition(dt);
+      updateEnvironmentEffects(elapsed, dt);
+      updatePopParticles(dt);
+
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].updatePhysics(dt, elapsed);
+      }
+      resolveFumoToFumoCollisions();
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function pauseRenderLoop() {
+      if (isPaused) return;
+      isPaused = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+
+    function resumeRenderLoop() {
+      if (!isPaused) return;
+      isPaused = false;
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('message', (e) => {
+      const data = e.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'toggleMode') {
+        toggleDayNight();
+      } else if (data.type === 'pause') {
+        pauseRenderLoop();
+      } else if (data.type === 'resume') {
+        resumeRenderLoop();
+      }
+    });
+
+    window.onload = function () {
+      let initialNight = false;
+      try {
+        const saved = localStorage.getItem(STORAGE_MODE_KEY);
+        if (saved === 'night') initialNight = true;
+      } catch (e) {}
+
+      setDayNightMode(initialNight, { immediate: true, playSound: false });
+      updateDayNightTransition(0);
+
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.78;
+          f.squashVel = 2.0;
+          f.headPitchVel = 4.0;
+        }, 120 + idx * 65);
+      });
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>
