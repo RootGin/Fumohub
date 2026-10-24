@@ -713,7 +713,10 @@
       { file: "Scenes/scene-12-gensokyo.html", name: "Gensokyo Map",       description: "A map of the Gensokyo region",             accent: "#ff7eb6" },
       { file: "Scenes/scene-13-bottle.html",   name: "Cirno In A Bottle",  description: "Baka in a bottle",                         accent: "#7ec8ff" },
       { file: "Scenes/scene-14-sorcery.html",  name: "Cursed Courtyard",   description: "Fumo sorcerers vs curses, domain and all", accent: "#7b61ff" },
-      { file: "Scenes/scene-15-triple-domain.html", name: "Triple Domain", description: "Three fumo, three domains, one legendary cutscene", accent: "#ff3d81" }
+      { file: "Scenes/scene-15-triple-domain.html", name: "Triple Domain", description: "Three fumo, three domains, one legendary cutscene", accent: "#ff3d81" },
+      { file: "Scenes/scene-16-halloween.html", name: "Netherworld Halloween", description: "Trick-or-treat at Hakugyokurou", accent: "#ff8c1a" },
+      { file: "Scenes/scene-17-yatai.html", name: "Midnight Yatai", description: "Ramen and yakitori in the rain", accent: "#ff7043" },
+      { file: "Scenes/scene-18-ryokan.html", name: "Onsen Ryokan", description: "Fumo staff tending a steamy mountain inn", accent: "#4dd0c8" }
     ];
 
     // ============================================================================
@@ -835,6 +838,7 @@
       // Optimistically flip icon/glow, and sync if scene responds with modeChanged
       updateModeUI(currentMode === "day" ? "night" : "day");
       postToScene({ type: "toggleMode" });
+      postToScene({ type: "setMode", mode: currentMode });
     }
 
     // ============================================================================
@@ -1001,15 +1005,7 @@
         loadTimer = null;
       }
 
-      // Fade out old iframe and unload its WebGL context first
-      oldFrame.classList.remove("is-visible");
-      oldFrame.onload = null;
-      oldFrame.onerror = null;
-
-      // Unload old iframe to free WebGL context before loading the new scene
-      oldFrame.src = "about:blank";
-
-      // Prepare new iframe
+      // Prepare new iframe (keep oldFrame visible during load for seamless cross-fade)
       newFrame.classList.remove("is-visible");
 
       const handleFailure = () => {
@@ -1037,12 +1033,34 @@
           } catch (err) {}
         }
 
+        // Synchronize current hub mode (day/night) with newly loaded scene
+        try {
+          if (newFrame.contentWindow) {
+            newFrame.contentWindow.postMessage({ type: "setMode", mode: currentMode }, "*");
+          }
+        } catch (err) {}
+
+        // Cross-fade: reveal new frame and begin fading out old frame
         newFrame.classList.add("is-visible");
+        oldFrame.classList.remove("is-visible");
         hideOverlay();
 
         if (isDropdownOpen) {
           postToScene({ type: "pause" });
         }
+
+        // Cleanly dispose WebGL & audio resources on oldFrame after CSS fade completes (400ms)
+        setTimeout(() => {
+          if (token !== transitionToken) return;
+          try {
+            if (oldFrame.contentWindow) {
+              oldFrame.contentWindow.postMessage({ type: "destroy" }, "*");
+            }
+          } catch (err) {}
+          oldFrame.onload = null;
+          oldFrame.onerror = null;
+          oldFrame.src = "about:blank";
+        }, 400);
       };
 
       // Fallback timeout if file fails silently

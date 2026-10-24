@@ -17,7 +17,9 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+  <script src="../Shared/fumo-core.js"></script>
 
+  <link rel="stylesheet" href="../Shared/fumo-scene.css">
   <style>
     /* Stand-in utility styles replacing Tailwind CDN */
     .fixed { position: fixed; }
@@ -387,7 +389,7 @@
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(getOptimalPixelRatio());
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputEncoding = THREE.sRGBEncoding;
@@ -2816,16 +2818,23 @@
     }
 
     // Listen for messages from the parent scene browser hub
-    window.addEventListener('message', (e) => {
-      const data = e.data;
-      if (!data || typeof data !== 'object') return;
-      if (data.type === 'toggleMode') {
-        toggleDayNight();
-      } else if (data.type === 'pause') {
-        pauseRenderLoop();
-      } else if (data.type === 'resume') {
-        resumeRenderLoop();
-      }
+    // Lifecycle management: Day/Night sync, pause/resume on tab visibility, and WebGL resource cleanup on destroy
+    const _sceneLifecycle = new FumoSceneLifecycle({
+      renderer,
+      scene,
+      composer: typeof composer !== 'undefined' ? composer : null,
+      audio: typeof soundFX !== 'undefined' ? soundFX : (typeof audio !== 'undefined' ? audio : null),
+      onToggleMode: typeof toggleDayNight === 'function' ? toggleDayNight : null,
+      onSetMode: (mode) => {
+        if (typeof setDayNightMode === 'function') {
+          setDayNightMode(mode === 'night', { immediate: false });
+        } else if (typeof toggleDayNight === 'function') {
+          const isNight = document.body.classList.contains('night-ui');
+          if (isNight !== (mode === 'night')) toggleDayNight();
+        }
+      },
+      onPause: typeof pauseRenderLoop === 'function' ? pauseRenderLoop : (typeof pauseScene === 'function' ? pauseScene : null),
+      onResume: typeof resumeRenderLoop === 'function' ? resumeRenderLoop : (typeof resumeScene === 'function' ? resumeScene : null)
     });
 
     window.onload = function () {

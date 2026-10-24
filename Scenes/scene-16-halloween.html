@@ -1,0 +1,3143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Hakugyokurou Halloween Party — Touhou Fumo Voxel Diorama</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js r128 + OrbitControls + Post-Processing (UnrealBloomPass) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #130924;
+    }
+    h1, .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .glass-panel {
+      background: rgba(242, 238, 248, 0.80);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      color: #2b1d3d;
+      box-shadow: 0 10px 28px -6px rgba(20, 10, 40, 0.25), 0 2px 6px rgba(20, 10, 40, 0.12);
+      transition: background 0.5s ease, color 0.5s ease, border-color 0.5s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    body.night-ui .glass-panel {
+      background: rgba(24, 15, 44, 0.80);
+      border-color: rgba(249, 115, 22, 0.34);
+      color: #fdf2f8;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.65), 0 0 18px rgba(249, 115, 22, 0.16);
+    }
+    .ui-btn {
+      cursor: pointer;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+    #fumo-tooltip {
+      pointer-events: none;
+      transition: opacity 0.16s ease, transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.1);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.2);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.14);
+      border-bottom-color: rgba(255, 255, 255, 0.28);
+    }
+    @keyframes candyPop {
+      0% { transform: scale(1); }
+      45% { transform: scale(1.26); }
+      100% { transform: scale(1); }
+    }
+    .candy-pop {
+      animation: candyPop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+  </style>
+</head>
+<body class="night-ui">
+  <div id="canvas-container"></div>
+
+  <!-- Top-Right Controls (Top-Left kept completely empty for Hub integration) -->
+  <div class="fixed top-4 right-4 z-20 flex items-center gap-2.5">
+    <!-- Active / Hovered Entity Status Badge -->
+    <div id="fumo-badge" class="glass-panel rounded-2xl px-3.5 py-2 text-xs font-semibold hidden items-center gap-2 transition-all">
+      <span id="fumo-badge-dot" class="w-2.5 h-2.5 rounded-full inline-block bg-orange-400"></span>
+      <span id="fumo-badge-name">Yuyuko Saigyouji</span>
+      <span id="fumo-badge-status" class="opacity-75 ml-1">Party Host</span>
+    </div>
+
+    <!-- Ghost Parade Button (G) -->
+    <button id="btn-parade" title="Trigger Ghost Parade! (G)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <span class="text-base leading-none">👻</span>
+      <span class="hidden md:inline">Ghost Parade</span>
+      <kbd class="hidden sm:inline-block">G</kbd>
+    </button>
+
+    <!-- Squeeze All Button (Space) -->
+    <button id="btn-squeeze-all" title="Squeeze All Fumos! (Space)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <span class="text-base leading-none">✨</span>
+      <span class="hidden md:inline">Squeeze All</span>
+    </button>
+
+    <!-- Reset Fumos Button (R) -->
+    <button id="btn-reset" title="Return Fumos to Party Spots (R)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+      <span class="hidden sm:inline">Reset</span>
+    </button>
+  </div>
+
+  <!-- Bottom-Right Candy Counter & Mute Toggle -->
+  <div class="fixed bottom-4 right-4 z-20 flex items-center gap-2.5">
+    <!-- Candy Counter Pill -->
+    <div id="candy-pill" class="glass-panel rounded-2xl px-4 py-2 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <span class="text-base leading-none">🍬</span>
+      <span>Candy:</span>
+      <span id="candy-count" class="font-display text-base text-orange-400">0</span>
+    </div>
+
+    <!-- Sound Mute Toggle Button (M) -->
+    <button id="btn-sound" title="Toggle Spooky Sound & Music (M)"
+      class="glass-panel ui-btn rounded-2xl p-2.5 flex items-center justify-center">
+      <svg id="icon-sound-on" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+      </svg>
+      <svg id="icon-sound-off" class="w-5 h-5 hidden opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <line x1="23" y1="9" x2="17" y2="15"></line>
+        <line x1="17" y1="9" x2="23" y2="15"></line>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Bottom-Center Interactive Hints -->
+  <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none w-max max-w-[92vw] hidden lg:block">
+    <div class="glass-panel rounded-2xl px-4 py-2 text-xs font-semibold flex items-center gap-4 opacity-90">
+      <span>🎃 <b>Click Pumpkin:</b> Chomp & Spit Candy</span>
+      <span>👻 <b>Click Ghost Orb:</b> Split in Two</span>
+      <span>ᗜˬᗜ <b>Click/Drag Fumo:</b> Squeeze or Throw to Scoop Candy</span>
+      <span><kbd>G</kbd> Ghost Parade</span>
+    </div>
+  </div>
+
+  <!-- Floating Cursor Tooltip -->
+  <div id="fumo-tooltip" class="fixed z-30 opacity-0 px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold flex items-center gap-2 shadow-lg">
+    <span id="tooltip-emoji">🎃</span>
+    <span id="tooltip-text">Yuyuko Fumo</span>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 1. PROCEDURAL WEB AUDIO SYNTHESIZER
+    // ============================================================================
+    const STORAGE_MUTE_KEY = 'hakugyokurou_halloween_muted';
+    const STORAGE_MODE_KEY = 'hakugyokurou_halloween_mode';
+    const STORAGE_CANDY_KEY = 'hakugyokurou_halloween_candy';
+
+    class HalloweenSoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+        this.isPaused = false;
+        this.unlocked = false;
+        this.masterGain = null;
+        this.windGain = null;
+        this.melodyStep = 0;
+        this.nextNoteTime = 0;
+        this.nextCreakTime = 0;
+
+        try {
+          const savedMute = localStorage.getItem(STORAGE_MUTE_KEY);
+          if (savedMute === 'true') this.muted = true;
+        } catch (e) {}
+      }
+
+      unlock() {
+        if (this.unlocked && this.ctx) {
+          if (!this.isPaused && this.ctx.state === 'suspended') {
+            try { this.ctx.resume(); } catch (e) {}
+          }
+          return;
+        }
+        try {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtx) return;
+          this.ctx = new AudioCtx();
+          this.masterGain = this.ctx.createGain();
+          this.masterGain.gain.value = this.muted ? 0.0 : 0.85;
+          this.masterGain.connect(this.ctx.destination);
+
+          this.startWindBed();
+          this.unlocked = true;
+          this.nextNoteTime = this.ctx.currentTime + 0.4;
+          this.nextCreakTime = this.ctx.currentTime + 5.0;
+        } catch (e) {}
+      }
+
+      setMuted(mute) {
+        this.muted = Boolean(mute);
+        try {
+          localStorage.setItem(STORAGE_MUTE_KEY, this.muted ? 'true' : 'false');
+        } catch (e) {}
+        if (this.masterGain && this.ctx) {
+          try {
+            this.masterGain.gain.setTargetAtTime(this.muted ? 0.0 : 0.85, this.ctx.currentTime, 0.06);
+          } catch (e) {}
+        }
+      }
+
+      suspend() {
+        this.isPaused = true;
+        if (this.ctx && this.ctx.state === 'running') {
+          try { this.ctx.suspend(); } catch (e) {}
+        }
+      }
+
+      resume() {
+        this.isPaused = false;
+        if (this.ctx && this.ctx.state === 'suspended') {
+          try { this.ctx.resume(); } catch (e) {}
+        }
+      }
+
+      startWindBed() {
+        if (!this.ctx || !this.masterGain) return;
+        try {
+          const bufferSize = this.ctx.sampleRate * 3;
+          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+          }
+
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = buffer;
+          noise.loop = true;
+
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.value = 290;
+          filter.Q.value = 4.5;
+
+          const lfo = this.ctx.createOscillator();
+          const lfoGain = this.ctx.createGain();
+          lfo.frequency.value = 0.14;
+          lfoGain.gain.value = 140;
+          lfo.connect(lfoGain);
+          lfoGain.connect(filter.frequency);
+          lfo.start();
+
+          this.windGain = this.ctx.createGain();
+          this.windGain.gain.value = 0.032;
+
+          noise.connect(filter);
+          filter.connect(this.windGain);
+          this.windGain.connect(this.masterGain);
+          noise.start();
+        } catch (e) {}
+      }
+
+      updateScheduler() {
+        if (!this.unlocked || !this.ctx || this.muted || this.isPaused) return;
+        try {
+          const now = this.ctx.currentTime;
+          const melodyFreqs = [
+            440.00, 523.25, 659.25, 622.25, 587.33, 523.25, 440.00, 392.00,
+            440.00, 523.25, 783.99, 698.46, 659.25, 523.25, 493.88, 415.30
+          ];
+
+          if (now >= this.nextNoteTime) {
+            const freq = melodyFreqs[this.melodyStep % melodyFreqs.length];
+            this.playCelestaNote(freq, 0.026);
+            if (this.melodyStep % 4 === 0) {
+              this.playCelestaNote(freq * 0.5, 0.018);
+            }
+            this.melodyStep++;
+            const stepDur = (this.melodyStep % 4 === 0) ? 0.56 : 0.36;
+            this.nextNoteTime = now + stepDur;
+          }
+
+          if (now >= this.nextCreakTime) {
+            if (Math.random() < 0.55) {
+              this.playCreakyDoor();
+            } else {
+              this.playBell(0.035);
+            }
+            this.nextCreakTime = now + 9.0 + Math.random() * 7.0;
+          }
+        } catch (e) {}
+      }
+
+      playCelestaNote(freq, volume = 0.025) {
+        if (!this.ctx || this.muted) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const over = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+
+          osc.type = 'sine';
+          over.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now);
+          over.frequency.setValueAtTime(freq * 2.0, now);
+
+          const overGain = this.ctx.createGain();
+          overGain.gain.value = 0.25;
+
+          gain.gain.setValueAtTime(0.0005, now);
+          gain.gain.linearRampToValueAtTime(volume, now + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.0005, now + 0.75);
+
+          osc.connect(gain);
+          over.connect(overGain);
+          overGain.connect(gain);
+          gain.connect(this.masterGain);
+
+          osc.start(now);
+          over.start(now);
+          osc.stop(now + 0.78);
+          over.stop(now + 0.78);
+        } catch (e) {}
+      }
+
+      playSqueeze(pitchMultiplier = 1.0) {
+        this.unlock();
+        if (!this.ctx || this.muted) return;
+        try {
+          const now = this.ctx.currentTime;
+          const baseFreq = (520 + Math.random() * 80) * pitchMultiplier;
+
+          const osc1 = this.ctx.createOscillator();
+          const gain1 = this.ctx.createGain();
+          osc1.type = 'sine';
+          osc1.frequency.setValueAtTime(baseFreq, now);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.085);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.16);
+          gain1.gain.setValueAtTime(0.001, now);
+          gain1.gain.linearRampToValueAtTime(0.11, now + 0.025);
+          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+          osc1.connect(gain1);
+          gain1.connect(this.masterGain);
+          osc1.start(now);
+          osc1.stop(now + 0.18);
+
+          const osc2 = this.ctx.createOscillator();
+          const gain2 = this.ctx.createGain();
+          osc2.type = 'triangle';
+          osc2.frequency.setValueAtTime(baseFreq * 1.1, now + 0.11);
+          osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.65, now + 0.21);
+          gain2.gain.setValueAtTime(0.001, now + 0.11);
+          gain2.gain.linearRampToValueAtTime(0.08, now + 0.13);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+          osc2.connect(gain2);
+          gain2.connect(this.masterGain);
+          osc2.start(now + 0.11);
+          osc2.stop(now + 0.25);
+        } catch (e) {}
+      }
+
+      playBounce(intensity = 0.5) {
+        if (!this.ctx || this.muted || intensity < 0.08) return;
+        try {
+          const now = this.ctx.currentTime;
+          const vol = Math.min(0.13, intensity * 0.11);
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(115 + Math.min(80, intensity * 35), now);
+          osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+
+      playPickup() {
+        this.unlock();
+        if (!this.ctx || this.muted) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(280, now);
+          osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+
+      playChomp() {
+        this.unlock();
+        if (!this.ctx || this.muted) return;
+        try {
+          const now = this.ctx.currentTime;
+          for (let b = 0; b < 2; b++) {
+            const t0 = now + b * 0.085;
+            const osc = this.ctx.createOscillator();
+            const filter = this.ctx.createBiquadFilter();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(210 - b * 35, t0);
+            osc.frequency.exponentialRampToValueAtTime(58, t0 + 0.075);
+
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(650, t0);
+            filter.frequency.exponentialRampToValueAtTime(160, t0 + 0.075);
+
+            gain.gain.setValueAtTime(0.001, t0);
+            gain.gain.linearRampToValueAtTime(0.14, t0 + 0.012);
+            gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.08);
+
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t0);
+            osc.stop(t0 + 0.085);
+          }
+        } catch (e) {}
+      }
+
+      playGhostOooh(pitchScale = 1.0) {
+        this.unlock();
+        if (!this.ctx || this.muted) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const vib = this.ctx.createOscillator();
+          const vibGain = this.ctx.createGain();
+          const gain = this.ctx.createGain();
+
+          osc.type = 'sine';
+          const base = (540 + Math.random() * 140) * pitchScale;
+          osc.frequency.setValueAtTime(base * 0.85, now);
+          osc.frequency.exponentialRampToValueAtTime(base * 1.25, now + 0.22);
+          osc.frequency.exponentialRampToValueAtTime(base * 0.92, now + 0.55);
+
+          vib.frequency.value = 11.5;
+          vibGain.gain.value = 34;
+          vib.connect(vibGain);
+          vibGain.connect(osc.frequency);
+
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.11, now + 0.06);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.58);
+
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          osc.start(now);
+          vib.start(now);
+          osc.stop(now + 0.6);
+          vib.stop(now + 0.6);
+        } catch (e) {}
+      }
+
+      playCandyScoop() {
+        this.unlock();
+        if (!this.ctx || this.muted) return;
+        try {
+          const now = this.ctx.currentTime;
+          const notes = [783.99, 987.77, 1174.66];
+          notes.forEach((f, i) => {
+            const t0 = now + i * 0.045;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(f, t0);
+            gain.gain.setValueAtTime(0.001, t0);
+            gain.gain.linearRampToValueAtTime(0.075, t0 + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.16);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t0);
+            osc.stop(t0 + 0.17);
+          });
+        } catch (e) {}
+      }
+
+      playBell(vol = 0.09) {
+        this.unlock();
+        if (!this.ctx || this.muted) return;
+        try {
+          const now = this.ctx.currentTime;
+          const partials = [220, 440, 659.25, 932.33];
+          partials.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now);
+            const pVol = vol / (idx + 1);
+            gain.gain.setValueAtTime(0.001, now);
+            gain.gain.linearRampToValueAtTime(pVol, now + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0005, now + 2.2 / (idx * 0.5 + 1));
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(now);
+            osc.stop(now + 2.3);
+          });
+        } catch (e) {}
+      }
+
+      playCreakyDoor() {
+        if (!this.ctx || this.muted) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const filter = this.ctx.createBiquadFilter();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(92, now);
+          osc.frequency.linearRampToValueAtTime(138, now + 0.25);
+          osc.frequency.linearRampToValueAtTime(78, now + 0.52);
+
+          filter.type = 'bandpass';
+          filter.frequency.value = 420;
+          filter.Q.value = 6.0;
+
+          gain.gain.setValueAtTime(0.0005, now);
+          gain.gain.linearRampToValueAtTime(0.022, now + 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.0005, now + 0.55);
+
+          osc.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.masterGain);
+          osc.start(now);
+          osc.stop(now + 0.58);
+        } catch (e) {}
+      }
+    }
+
+    const soundFX = new HalloweenSoundEngine();
+
+    // ============================================================================
+    // 2. COLOR & VOXEL HELPER UTILITIES
+    // ============================================================================
+    const tempColor = new THREE.Color();
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    const tempEuler = new THREE.Euler();
+
+    function voxelHash(x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    }
+
+    function varyColor(hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
+      tempColor.set(hexOrString);
+      const h = voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      tempColor.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return tempColor.clone();
+    }
+
+    function createSoftVoxelGeometry(size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    }
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        tempQuat.identity();
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    // ============================================================================
+    // 3. SCENE, CAMERA, RENDERER & POST-PROCESSING SETUP
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#140a29');
+    scene.fog = new THREE.FogExp2('#140a29', 0.0145);
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.5, 140);
+    camera.position.set(18.5, 13.5, 22.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.72,
+        0.58,
+        0.60
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (err) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0.0, 4.0, -1.5);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.48;
+    controls.minPolarAngle = Math.PI * 0.08;
+    controls.minDistance = 9;
+    controls.maxDistance = 42;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.42;
+
+    let lastUserInteractionTime = performance.now();
+    const recordInteraction = () => {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+      soundFX.unlock();
+    };
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 4. LIGHTING & MATERIALS (Capped Dynamic Lights for Performance)
+    // ============================================================================
+    const hemiLight = new THREE.HemisphereLight(0xb8a5d6, 0x2b1d3d, 0.45);
+    hemiLight.position.set(0, 25, 0);
+    scene.add(hemiLight);
+
+    const mainDirLight = new THREE.DirectionalLight(0xff9e5e, 0.88);
+    mainDirLight.position.set(-14, 18, -16);
+    mainDirLight.target.position.set(0, 2, 0);
+    scene.add(mainDirLight.target);
+    mainDirLight.castShadow = true;
+    mainDirLight.shadow.mapSize.width = 2048;
+    mainDirLight.shadow.mapSize.height = 2048;
+    mainDirLight.shadow.camera.near = 2;
+    mainDirLight.shadow.camera.far = 52;
+    const dCam = 16.5;
+    mainDirLight.shadow.camera.left = -dCam;
+    mainDirLight.shadow.camera.right = dCam;
+    mainDirLight.shadow.camera.top = dCam;
+    mainDirLight.shadow.camera.bottom = -dCam;
+    mainDirLight.shadow.bias = -0.0006;
+    mainDirLight.shadow.radius = 2.2;
+    scene.add(mainDirLight);
+
+    const treeLight = new THREE.PointLight(0xf472b6, 1.35, 19, 1.5);
+    treeLight.position.set(-4.8, 7.8, -2.5);
+    scene.add(treeLight);
+
+    const manorLight = new THREE.PointLight(0xff9233, 1.25, 18, 1.5);
+    manorLight.position.set(3.5, 5.2, -5.8);
+    scene.add(manorLight);
+
+    const stairsLight = new THREE.PointLight(0xff7b00, 1.35, 17, 1.5);
+    stairsLight.position.set(0.0, 3.2, 6.8);
+    scene.add(stairsLight);
+
+    const plushMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.92,
+      metalness: 0.02
+    });
+
+    const stoneWoodMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.85,
+      metalness: 0.05
+    });
+
+    const glossyFoodMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.25,
+      metalness: 0.10
+    });
+
+    const sakuraPetalMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0xff75b5),
+      emissiveIntensity: 0.95,
+      roughness: 0.3
+    });
+
+    const fallingSakuraMaterial = sakuraPetalMaterial.clone();
+
+    const shojiGlowMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfff3d6,
+      emissive: new THREE.Color(0xff9b3d),
+      emissiveIntensity: 1.35,
+      roughness: 0.3
+    });
+
+    const pumpkinFlameMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfff7cc,
+      emissive: new THREE.Color(0xff7700),
+      emissiveIntensity: 2.1,
+      roughness: 0.15
+    });
+
+    const ghostOrbMaterial = new THREE.MeshStandardMaterial({
+      color: 0xe0f2fe,
+      emissive: new THREE.Color(0x67e8f9),
+      emissiveIntensity: 1.65,
+      transparent: true,
+      opacity: 0.88,
+      roughness: 0.15
+    });
+
+    const crystalWingMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.2,
+      metalness: 0.1,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 0.75
+    });
+
+    const translucentIceMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.85,
+      roughness: 0.15,
+      metalness: 0.05,
+      transmission: 0.35,
+      emissive: new THREE.Color(0x7dd3fc),
+      emissiveIntensity: 0.55
+    });
+
+    // ============================================================================
+    // 5. HAKUGYOKUROU COURTYARD, STONE STAIRCASE, GATE, MANOR, CHERRY TREE & BANQUET
+    // ============================================================================
+    const RV = 0.25;
+    const furnitureColliders = [];
+
+    function addCollider(minX, minY, minZ, maxX, maxY, maxZ, name = 'prop') {
+      furnitureColliders.push({
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        name
+      });
+    }
+
+    function getGroundHeightAt(x, z) {
+      if (z > 4.25) {
+        const t = THREE.MathUtils.clamp((z - 4.25) / 6.0, 0, 1);
+        const stepIdx = Math.floor(t * 8);
+        return Math.max(0, 2.0 - stepIdx * 0.25);
+      }
+      return 2.0;
+    }
+
+    const solidWorldVoxels = [];
+    const glossyWorldVoxels = [];
+    const petalWorldVoxels = [];
+    const shojiWorldVoxels = [];
+    const lanternGlowVoxels = [];
+
+    function pushVoxel(list, rx, ry, rz, colorHex, variance = 0.03, sx = 1, sy = 1, sz = 1) {
+      list.push({
+        x: rx,
+        y: ry,
+        z: rz,
+        color: varyColor(colorHex, rx, ry, rz, variance),
+        sx, sy, sz
+      });
+    }
+
+    function pushBoxVoxels(list, x0, y0, z0, x1, y1, z1, colorFnOrHex, variance = 0.03) {
+      for (let x = x0; x <= x1; x++) {
+        for (let y = y0; y <= y1; y++) {
+          for (let z = z0; z <= z1; z++) {
+            if (x > x0 && x < x1 && y > y0 && y < y1 && z > z0 && z < z1) continue;
+            const c = typeof colorFnOrHex === 'function' ? colorFnOrHex(x, y, z) : colorFnOrHex;
+            if (c) pushVoxel(list, x, y, z, c, variance);
+          }
+        }
+      }
+    }
+
+    function buildCourtyardAndStairs() {
+      for (let x = -42; x <= 42; x++) {
+        for (let z = -42; z <= 17; z++) {
+          const isSteppingStone = (Math.abs(x) <= 7 && (z % 4 === 0 || z % 4 === 1));
+          const isTileSeam = ((x + 42) % 6 === 0) || ((z + 42) % 6 === 0);
+          let col = '#4a4458';
+          if (isSteppingStone) col = isTileSeam ? '#59536b' : '#766f8a';
+          else if ((x * 13 + z * 7) % 23 === 0) col = '#3c4f42';
+          else if (isTileSeam) col = '#393445';
+
+          pushVoxel(solidWorldVoxels, x + 0.5, 7.5, z + 0.5, col, 0.03);
+          if (z === 17 && Math.abs(x) > 12) {
+            for (let y = 0; y <= 7; y++) {
+              pushVoxel(solidWorldVoxels, x + 0.5, y + 0.5, z + 0.5, y === 7 ? '#655e78' : '#433d52', 0.03);
+            }
+          }
+          if (x === -42 || x === 42 || z === -42) {
+            for (let y = 4; y <= 6; y++) {
+              pushVoxel(solidWorldVoxels, x + 0.5, y + 0.5, z + 0.5, '#2d2838', 0.02);
+            }
+          }
+        }
+      }
+
+      for (const side of [-1, 1]) {
+        for (let x = side * 13; side === -1 ? x >= -41 : x <= 41; x += side) {
+          pushVoxel(solidWorldVoxels, x + 0.5, 8.5, 17.5, '#68617a', 0.02);
+          if (x % 6 === 0) {
+            pushVoxel(solidWorldVoxels, x + 0.5, 9.5, 17.5, '#7c7491', 0.02);
+          }
+        }
+      }
+
+      for (let step = 0; step < 8; step++) {
+        const zStart = 18 + step * 3;
+        const zEnd = zStart + 2;
+        const yTop = 7 - step;
+        for (let x = -14; x <= 14; x++) {
+          for (let z = zStart; z <= zEnd; z++) {
+            const isBalustrade = Math.abs(x) >= 12;
+            const hMax = isBalustrade ? yTop + 2 : yTop;
+            for (let y = 0; y <= hMax; y++) {
+              if (y < yTop && z < zEnd && Math.abs(x) < 12) continue;
+              const col = isBalustrade
+                ? (y === hMax ? '#7d7594' : '#575066')
+                : ((x + z) % 5 === 0 ? '#5c556e' : '#6c6580');
+              pushVoxel(solidWorldVoxels, x + 0.5, y + 0.5, z + 0.5, col, 0.03);
+            }
+          }
+        }
+      }
+
+      for (let x = -42; x <= 42; x++) {
+        if (Math.abs(x) <= 14) continue;
+        for (let z = 18; z <= 41; z++) {
+          const col = ((x + z) % 7 === 0) ? '#35453b' : '#3a3447';
+          pushVoxel(solidWorldVoxels, x + 0.5, 0.5, z + 0.5, col, 0.03);
+        }
+      }
+    }
+
+    function buildGateAndLanterns() {
+      for (const side of [-1, 1]) {
+        const px0 = side === -1 ? -11 : 10;
+        const px1 = side === -1 ? -10 : 11;
+        pushBoxVoxels(solidWorldVoxels, px0, 8, 14, px1, 10, 17, '#524b61');
+        pushBoxVoxels(solidWorldVoxels, px0, 11, 15, px1, 27, 16, '#5e2129');
+      }
+
+      pushBoxVoxels(solidWorldVoxels, -13, 23, 15, 13, 24, 16, '#5e2129');
+      pushBoxVoxels(solidWorldVoxels, -14, 27, 14, 14, 28, 17, '#3d1922');
+
+      for (let x = -17; x <= 17; x++) {
+        const curveLift = Math.pow(Math.abs(x) / 14, 2.2) * 2.2;
+        for (let z = 12; z <= 19; z++) {
+          const distZ = Math.abs(z - 15.5);
+          const yRoof = Math.round(29 + (3.8 - distZ * 0.85) + curveLift);
+          const isRidge = (distZ < 0.8);
+          const tileCol = isRidge ? '#d4a359' : ((x % 2 === 0) ? '#282338' : '#322c45');
+          pushVoxel(solidWorldVoxels, x + 0.5, yRoof + 0.5, z + 0.5, tileCol, 0.025);
+        }
+      }
+
+      for (const lx of [-8, 8]) {
+        pushVoxel(solidWorldVoxels, lx, 22.5, 15.5, '#1e1b24', 0.01, 0.5, 1.2, 0.5);
+        for (let ly = 19; ly <= 21; ly++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            for (let dz = -1; dz <= 1; dz++) {
+              if (Math.abs(dx) === 1 && Math.abs(dz) === 1) continue;
+              pushVoxel(lanternGlowVoxels, lx + dx * 0.75, ly + 0.5, 15.5 + dz * 0.75, '#ff9e3b', 0.02);
+            }
+          }
+        }
+        pushVoxel(solidWorldVoxels, lx, 18.4, 15.5, '#1e1b24', 0.01, 1.2, 0.6, 1.2);
+      }
+
+      addCollider(-3.0, 2.0, 3.4, -2.2, 7.0, 4.4, 'gate_pillar_left');
+      addCollider(2.2, 2.0, 3.4, 3.0, 7.0, 4.4, 'gate_pillar_right');
+    }
+
+    function buildHakugyokurouManor() {
+      pushBoxVoxels(solidWorldVoxels, -14, 8, -40, 38, 11, -22, (x, y, z) => {
+        if (y === 11) return ((x + z) % 3 === 0) ? '#7a4e32' : '#8a5a3a';
+        if (y === 8 && (x % 6 === 0)) return '#423d52';
+        return '#523420';
+      }, 0.025);
+      addCollider(-3.5, 2.0, -10.0, 9.5, 3.0, -5.5, 'manor_veranda');
+
+      pushBoxVoxels(solidWorldVoxels, 6, 8, -21, 16, 9, -20, '#7a4e32');
+      pushBoxVoxels(solidWorldVoxels, 6, 8, -19, 16, 8, -19, '#6e452b');
+
+      for (let x = -12; x <= 36; x++) {
+        for (let y = 12; y <= 25; y++) {
+          const isPillar = ((x + 12) % 8 === 0) || y === 12 || y === 25 || y === 24;
+          if (isPillar) {
+            pushVoxel(solidWorldVoxels, x + 0.5, y + 0.5, -26.5, '#4a2c1a', 0.02);
+          } else {
+            const isLattice = (x % 2 === 0 && y % 3 === 0);
+            if (isLattice) {
+              pushVoxel(solidWorldVoxels, x + 0.5, y + 0.5, -26.3, '#5c3822', 0.01, 0.5, 0.5, 0.5);
+            }
+            pushVoxel(shojiWorldVoxels, x + 0.5, y + 0.5, -26.6, '#ffdfa8', 0.02);
+          }
+        }
+      }
+
+      for (let z = -39; z <= -26; z++) {
+        for (let y = 12; y <= 25; y++) {
+          const wallCol = (y === 12 || y === 25 || z % 6 === 0) ? '#4a2c1a' : '#e6dec8';
+          pushVoxel(solidWorldVoxels, -11.5, y + 0.5, z + 0.5, wallCol, 0.02);
+          pushVoxel(solidWorldVoxels, 36.5, y + 0.5, z + 0.5, wallCol, 0.02);
+        }
+      }
+
+      for (let x = -16; x <= 40; x++) {
+        const edgeCurve = Math.pow(Math.max(0, Math.abs(x - 12) - 22) / 6, 1.8) * 1.6;
+        for (let z = -41; z <= -20; z++) {
+          const distCenterZ = Math.abs(z - (-30.5));
+          const roofH = Math.round(26 + (10.5 - distCenterZ * 0.85) + edgeCurve);
+          const isGoldTrim = (distCenterZ < 0.8 || z === -20 || x === -16 || x === 40);
+          const rCol = isGoldTrim ? '#eab308' : ((x % 2 === 0) ? '#252136' : '#2f2a42');
+          pushVoxel(solidWorldVoxels, x + 0.5, roofH + 0.5, z + 0.5, rCol, 0.025);
+        }
+      }
+
+      for (let x = -10; x <= 34; x += 6) {
+        pushVoxel(lanternGlowVoxels, x + 0.5, 23.5, -22.5, '#ff7b00', 0.02, 1.4, 1.2, 1.4);
+      }
+
+      addCollider(-3.2, 3.0, -10.0, 9.2, 8.5, -6.5, 'manor_building');
+    }
+
+    function buildSaigyouAyakashiTree() {
+      const tx = -19;
+      const tz = -12;
+
+      for (let y = 8; y <= 26; y++) {
+        const progress = (y - 8) / 18;
+        const trunkRad = 4.6 - progress * 2.1 + (y < 11 ? (11 - y) * 1.1 : 0);
+        const twistX = Math.sin(y * 0.25) * 1.2;
+        const twistZ = Math.cos(y * 0.22) * 1.0;
+
+        for (let dx = -7; dx <= 7; dx++) {
+          for (let dz = -7; dz <= 7; dz++) {
+            const angle = Math.atan2(dz, dx);
+            const rootButtress = (y <= 12) ? Math.sin(angle * 5) * 1.4 : 0;
+            const r = Math.hypot(dx - twistX, dz - twistZ);
+            if (r <= trunkRad + rootButtress && r >= trunkRad - 1.6) {
+              const barkCol = ((dx + y + dz) % 3 === 0) ? '#3b2338' : '#4d2e46';
+              pushVoxel(solidWorldVoxels, tx + dx + 0.5, y + 0.5, tz + dz + 0.5, barkCol, 0.035);
+            }
+          }
+        }
+      }
+
+      for (let dx = -5; dx <= 5; dx++) {
+        for (let dz = -5; dz <= 5; dz++) {
+          const r = Math.hypot(dx, dz);
+          if (r <= 4.8 && r >= 3.5) {
+            pushVoxel(solidWorldVoxels, tx + dx + 0.5, 15.0, tz + dz + 0.5, '#f5ebe0', 0.02);
+            if ((dx + dz) % 3 === 0) {
+              pushVoxel(solidWorldVoxels, tx + dx + 0.5, 13.8, tz + dz + 0.5, '#ffffff', 0.01, 0.6, 1.4, 0.6);
+            }
+          }
+        }
+      }
+
+      const canopyClusters = [
+        { cx: tx,      cy: 33, cz: tz,      rx: 11, ry: 6, rz: 11 },
+        { cx: tx - 9,  cy: 29, cz: tz + 5,  rx: 8,  ry: 5, rz: 8 },
+        { cx: tx + 9,  cy: 30, cz: tz + 4,  rx: 8,  ry: 5, rz: 8 },
+        { cx: tx - 6,  cy: 31, cz: tz - 8,  rx: 8,  ry: 5, rz: 8 },
+        { cx: tx + 7,  cy: 28, cz: tz - 6,  rx: 7,  ry: 4, rz: 7 },
+        { cx: tx + 2,  cy: 37, cz: tz + 1,  rx: 8,  ry: 5, rz: 8 }
+      ];
+
+      const candyColors = ['#f97316', '#a855f7', '#38bdf8', '#fde047', '#4ade80'];
+
+      canopyClusters.forEach((cl, cIdx) => {
+        for (let s = 0; s <= 10; s++) {
+          const t = s / 10;
+          const bx = THREE.MathUtils.lerp(tx, cl.cx, t);
+          const by = THREE.MathUtils.lerp(24, cl.cy - 1, t);
+          const bz = THREE.MathUtils.lerp(tz, cl.cz, t);
+          pushVoxel(solidWorldVoxels, bx, by, bz, '#3b2338', 0.03, 1.6, 1.6, 1.6);
+        }
+
+        for (let x = -cl.rx; x <= cl.rx; x++) {
+          for (let y = -cl.ry; y <= cl.ry; y++) {
+            for (let z = -cl.rz; z <= cl.rz; z++) {
+              const norm = (x * x) / (cl.rx * cl.rx) + (y * y) / (cl.ry * cl.ry) + (z * z) / (cl.rz * cl.rz);
+              if (norm <= 1.0 && norm >= 0.62) {
+                const h = voxelHash(cl.cx + x, cl.cy + y, cl.cz + z);
+                if (h > 0.32) {
+                  const pCol = h > 0.78 ? '#ffd6ec' : (h > 0.52 ? '#ff85c0' : '#d946ef');
+                  pushVoxel(petalWorldVoxels, cl.cx + x + 0.5, cl.cy + y + 0.5, cl.cz + z + 0.5, pCol, 0.04);
+                }
+              }
+            }
+          }
+        }
+
+        for (let dx = -cl.rx + 2; dx <= cl.rx - 2; dx += 3) {
+          for (let dz = -cl.rz + 2; dz <= cl.rz - 2; dz += 3) {
+            if ((dx * dx) / (cl.rx * cl.rx) + (dz * dz) / (cl.rz * cl.rz) > 0.75) continue;
+            const h = voxelHash(dx + cIdx * 11, 99, dz);
+            const dripLen = 3 + Math.floor(h * 5);
+            const wx = cl.cx + dx + 0.5;
+            const wz = cl.cz + dz + 0.5;
+            const startY = cl.cy - cl.ry + 1;
+
+            for (let d = 0; d < dripLen; d++) {
+              pushVoxel(petalWorldVoxels, wx, startY - d, wz, d % 2 === 0 ? '#ffa6d2' : '#f472b6', 0.03, 0.72, 0.9, 0.72);
+            }
+
+            if ((Math.abs(dx + dz) % 2) === 0) {
+              const cCol = candyColors[Math.abs(dx * 3 + dz + cIdx) % candyColors.length];
+              const tipY = startY - dripLen;
+              pushVoxel(solidWorldVoxels, wx, tipY + 0.4, wz, '#f8fafc', 0.01, 0.25, 0.9, 0.25);
+              pushVoxel(lanternGlowVoxels, wx, tipY - 0.3, wz, cCol, 0.02, 1.35, 1.15, 1.35);
+            }
+          }
+        }
+      });
+
+      addCollider(-5.8, 2.0, -4.1, -3.7, 7.5, -1.9, 'cherry_tree_trunk');
+    }
+
+    function buildBanquetTable() {
+      pushBoxVoxels(solidWorldVoxels, 7, 8, -8, 8, 11, -7, '#4a2c1a');
+      pushBoxVoxels(solidWorldVoxels, 28, 8, -8, 29, 11, -7, '#4a2c1a');
+      pushBoxVoxels(solidWorldVoxels, 7, 8, -3, 8, 11, -2, '#4a2c1a');
+      pushBoxVoxels(solidWorldVoxels, 28, 8, -3, 29, 11, -2, '#4a2c1a');
+
+      for (let x = 6; x <= 30; x++) {
+        for (let z = -9; z <= -1; z++) {
+          let tCol = '#7c4d2f';
+          if (z >= -7 && z <= -3) {
+            tCol = ((x + z) % 2 === 0) ? '#581c87' : '#ea580c';
+          }
+          pushVoxel(solidWorldVoxels, x + 0.5, 12.5, z + 0.5, tCol, 0.025);
+        }
+      }
+      addCollider(1.5, 2.0, -2.3, 7.6, 3.25, -0.2, 'banquet_table');
+
+      for (let x = 15; x <= 21; x++) {
+        for (let z = -8; z <= -2; z++) {
+          const dist = Math.hypot(x - 18, z - (-5));
+          if (dist <= 3.3) {
+            const isCrust = dist >= 2.4;
+            const pieCol = isCrust ? '#d99b66' : '#ea580c';
+            pushVoxel(glossyWorldVoxels, x + 0.5, 13.4, z + 0.5, pieCol, 0.025, 1, 0.9, 1);
+            if (isCrust) {
+              pushVoxel(solidWorldVoxels, x + 0.5, 13.9, z + 0.5, '#e6b17e', 0.02, 0.85, 0.5, 0.85);
+            }
+          }
+        }
+      }
+      pushVoxel(glossyWorldVoxels, 18.5, 14.3, -4.5, '#fffdf9', 0.01, 1.8, 1.2, 1.8);
+      pushVoxel(glossyWorldVoxels, 18.5, 15.1, -4.5, '#ff9e00', 0.01, 0.8, 0.8, 0.8);
+
+      pushBoxVoxels(solidWorldVoxels, 9, 13, -7, 13, 13, -3, '#1e1b24');
+      const dangoCols = ['#f472b6', '#ffffff', '#4ade80', '#fb923c', '#a855f7'];
+      for (let s = 0; s < 3; s++) {
+        for (let b = 0; b < 3; b++) {
+          const dCol = dangoCols[(s + b) % dangoCols.length];
+          pushVoxel(glossyWorldVoxels, 10.0 + b * 1.1, 13.9 + s * 0.35, -5.8 + s * 0.9, dCol, 0.02, 0.95, 0.95, 0.95);
+        }
+      }
+
+      pushBoxVoxels(glossyWorldVoxels, 24, 13, -7, 27, 14, -4, '#1f2937');
+      const sweetCols = ['#38bdf8', '#f43f5e', '#facc15', '#a855f7', '#4ade80'];
+      for (let cx = 24; cx <= 27; cx++) {
+        for (let cz = -7; cz <= -4; cz++) {
+          const sc = sweetCols[Math.abs(cx * 3 + cz) % sweetCols.length];
+          pushVoxel(lanternGlowVoxels, cx + 0.5, 15.0, cz + 0.5, sc, 0.02, 0.85, 0.85, 0.85);
+        }
+      }
+
+      for (let x = 31; x <= 36; x++) {
+        for (let z = -7; z <= -2; z++) {
+          for (let y = 8; y <= 12; y++) {
+            const dx = x - 33.5;
+            const dz = z - (-4.5);
+            const r = Math.hypot(dx, dz);
+            if (r <= 2.9 && r >= 1.75) {
+              if (z >= -3 && y >= 10 && Math.abs(dx) <= 1.2) continue;
+              const ribCol = ((x + z) % 2 === 0) ? '#ea580c' : '#f97316';
+              pushVoxel(solidWorldVoxels, x + 0.5, y + 0.5, z + 0.5, ribCol, 0.03);
+            }
+          }
+        }
+      }
+      addCollider(7.7, 2.0, -1.8, 9.1, 3.1, -0.5, 'giant_hollow_pumpkin');
+    }
+
+    buildCourtyardAndStairs();
+    buildGateAndLanterns();
+    buildHakugyokurouManor();
+    buildSaigyouAyakashiTree();
+    buildBanquetTable();
+
+    const worldGroup = new THREE.Group();
+    scene.add(worldGroup);
+
+    const solidWorldMesh = buildVoxelInstancedMesh(solidWorldVoxels, RV, stoneWoodMaterial, true, true);
+    const glossyWorldMesh = buildVoxelInstancedMesh(glossyWorldVoxels, RV, glossyFoodMaterial, true, true);
+    const petalWorldMesh = buildVoxelInstancedMesh(petalWorldVoxels, RV, sakuraPetalMaterial, true, true);
+    const shojiWorldMesh = buildVoxelInstancedMesh(shojiWorldVoxels, RV, shojiGlowMaterial, false, false);
+    const lanternGlowMesh = buildVoxelInstancedMesh(lanternGlowVoxels, RV, pumpkinFlameMaterial, false, false);
+
+    if (solidWorldMesh) worldGroup.add(solidWorldMesh);
+    if (glossyWorldMesh) worldGroup.add(glossyWorldMesh);
+    if (petalWorldMesh) worldGroup.add(petalWorldMesh);
+    if (shojiWorldMesh) worldGroup.add(shojiWorldMesh);
+    if (lanternGlowMesh) worldGroup.add(lanternGlowMesh);
+
+    // ============================================================================
+    // 6. HUGE HARVEST MOON IN THE SKY & UPSIDE-DOWN VOXEL BAT ON THE GATE
+    // ============================================================================
+    const moonGroup = new THREE.Group();
+    moonGroup.position.set(-18.0, 17.5, -24.0);
+    moonGroup.lookAt(0, 5, 0);
+    scene.add(moonGroup);
+
+    const moonVoxels = [];
+    for (let x = -9; x <= 9; x++) {
+      for (let y = -9; y <= 9; y++) {
+        const r = Math.hypot(x, y);
+        if (r <= 9.2) {
+          const isCrater = ((x + 3) * (x + 3) + (y - 2) * (y - 2) < 7) || ((x - 4) * (x - 4) + (y + 3) * (y + 3) < 5);
+          const mCol = isCrater ? '#fb923c' : '#fed7aa';
+          moonVoxels.push({ x, y, z: 0, color: varyColor(mCol, x, y, 0, 0.02) });
+        }
+      }
+    }
+    const moonMaterial = new THREE.MeshBasicMaterial({ color: 0xffb76b });
+    const moonMesh = buildVoxelInstancedMesh(moonVoxels, 0.42, moonMaterial, false, false);
+    if (moonMesh) moonGroup.add(moonMesh);
+
+    const batGroup = new THREE.Group();
+    batGroup.position.set(0.0, 5.72, 3.88);
+    scene.add(batGroup);
+
+    const batBodyVoxels = [
+      { x: -1, y: 2, z: 0, color: '#475569' },
+      { x: 1,  y: 2, z: 0, color: '#475569' },
+      { x: 0, y: 1, z: 0, color: '#1e1b2e' },
+      { x: -1, y: 0, z: 0, color: '#2b2440' },
+      { x: 0, y: 0, z: 0, color: '#2b2440' },
+      { x: 1, y: 0, z: 0, color: '#2b2440' },
+      { x: 0, y: -1, z: 0, color: '#1e1b2e' },
+      { x: -1, y: -2, z: 0, color: '#1e1b2e' },
+      { x: 1,  y: -2, z: 0, color: '#1e1b2e' },
+      { x: -0.6, y: -0.8, z: 0.7, color: '#ef4444', sx: 0.5, sy: 0.5, sz: 0.5 },
+      { x: 0.6,  y: -0.8, z: 0.7, color: '#ef4444', sx: 0.5, sy: 0.5, sz: 0.5 },
+      { x: -0.3, y: -0.2, z: 0.7, color: '#ffffff', sx: 0.35, sy: 0.45, sz: 0.35 },
+      { x: 0.3,  y: -0.2, z: 0.7, color: '#ffffff', sx: 0.35, sy: 0.45, sz: 0.35 }
+    ];
+    const batLeftWingVoxels = [];
+    const batRightWingVoxels = [];
+    for (let wx = 1; wx <= 4; wx++) {
+      for (let wy = -1; wy <= 1; wy++) {
+        batLeftWingVoxels.push({ x: -wx, y: wy, z: -0.2, color: '#31254d' });
+        batRightWingVoxels.push({ x: wx,  y: wy, z: -0.2, color: '#31254d' });
+      }
+    }
+    const batBodyMesh = buildVoxelInstancedMesh(batBodyVoxels, 0.095, plushMaterial, true, true);
+    const batLeftWingPivot = new THREE.Group();
+    const batRightWingPivot = new THREE.Group();
+    const batLWMesh = buildVoxelInstancedMesh(batLeftWingVoxels, 0.095, plushMaterial, true, true);
+    const batRWMesh = buildVoxelInstancedMesh(batRightWingVoxels, 0.095, plushMaterial, true, true);
+    if (batBodyMesh) batGroup.add(batBodyMesh);
+    if (batLWMesh) batLeftWingPivot.add(batLWMesh);
+    if (batRWMesh) batRightWingPivot.add(batRWMesh);
+    batGroup.add(batLeftWingPivot, batRightWingPivot);
+
+    // ============================================================================
+    // 7. INTERACTIVE JACK-O'-LANTERNS (Click to Chomp & Spit Out Candy!)
+    // ============================================================================
+    const allPumpkinRaycastMeshes = [];
+    const pumpkins = [];
+
+    class InteractivePumpkin {
+      constructor(pos, yaw = 0, scale = 1.0) {
+        this.pos = pos.clone();
+        this.yaw = yaw;
+        this.scale = scale;
+        this.chompTimer = 0;
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+
+        this.root = new THREE.Group();
+        this.root.position.copy(pos);
+        this.root.rotation.y = yaw;
+        scene.add(this.root);
+
+        this.bottomGroup = new THREE.Group();
+        this.jawTopPivot = new THREE.Group();
+        this.jawTopPivot.position.set(0, 0.42 * scale, -0.28 * scale);
+        this.root.add(this.bottomGroup, this.jawTopPivot);
+
+        const PV = 0.09 * scale;
+        const bottomVox = [];
+        const topVox = [];
+        const flameVox = [];
+
+        for (let x = -3; x <= 3; x++) {
+          for (let z = -3; z <= 3; z++) {
+            const r = Math.hypot(x, z);
+            if (r > 3.4) continue;
+            for (let y = 0; y <= 2; y++) {
+              if (y === 2 && z >= 2 && (Math.abs(x) === 1)) continue;
+              const isInside = (r < 2.2 && y >= 1);
+              if (isInside) {
+                if (y === 1 && Math.abs(x) <= 1 && Math.abs(z) <= 1) {
+                  flameVox.push({ x, y: y + 0.5, z, color: '#ffae00' });
+                }
+                continue;
+              }
+              const col = ((x + z) % 2 === 0) ? '#ea580c' : '#f97316';
+              bottomVox.push({ x, y: y + 0.5, z, color: varyColor(col, x, y, z, 0.03) });
+            }
+          }
+        }
+
+        for (let x = -3; x <= 3; x++) {
+          for (let z = -3; z <= 3; z++) {
+            const r = Math.hypot(x, z);
+            if (r > 3.4) continue;
+            for (let y = 0; y <= 3; y++) {
+              if (y === 3 && r > 2.5) continue;
+              if (z >= 2 && y === 1 && (Math.abs(x) === 1 || Math.abs(x) === 2)) {
+                flameVox.push({ x, y: y + 3.0, z: z - 0.3, color: '#fde047' });
+                continue;
+              }
+              if (y === 0 && z >= 2 && x === 0) continue;
+              if (r < 2.1 && y < 3) continue;
+              const col = ((x + z) % 2 === 0) ? '#ea580c' : '#f97316';
+              topVox.push({ x, y: y + 0.3, z: z + 3.0, color: varyColor(col, x, y + 3, z, 0.03) });
+            }
+          }
+        }
+        topVox.push({ x: 0, y: 4.2, z: 3.0, color: '#15803d' });
+        topVox.push({ x: 0.4, y: 5.0, z: 2.7, color: '#166534' });
+
+        const bMesh = buildVoxelInstancedMesh(bottomVox, PV, stoneWoodMaterial, true, true);
+        const fMesh = buildVoxelInstancedMesh(flameVox, PV, pumpkinFlameMaterial, false, false);
+        const tMesh = buildVoxelInstancedMesh(topVox, PV, stoneWoodMaterial, true, true);
+
+        [bMesh, fMesh, tMesh].forEach(m => {
+          if (m) m.userData.pumpkin = this;
+          if (m) allPumpkinRaycastMeshes.push(m);
+        });
+
+        if (bMesh) this.bottomGroup.add(bMesh);
+        if (fMesh) this.bottomGroup.add(fMesh);
+        if (tMesh) this.jawTopPivot.add(tMesh);
+      }
+
+      chompAndSpitCandy() {
+        this.chompTimer = 0.65;
+        this.squash = 0.68;
+        this.squashVel = 4.5;
+        soundFX.playChomp();
+
+        const forward = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
+        const mouthOrigin = this.pos.clone().add(new THREE.Vector3(0, 0.48 * this.scale, 0)).addScaledVector(forward, 0.35);
+        spawnCandiesFromPumpkin(mouthOrigin, forward, 4);
+        spawnSparkleParticles(mouthOrigin, '#fb923c');
+      }
+
+      update(dt, time) {
+        const stiff = 190;
+        const damp = 10;
+        this.squashVel += ((1.0 - this.squash) * stiff - this.squashVel * damp) * dt;
+        this.squash += this.squashVel * dt;
+
+        const sy = THREE.MathUtils.clamp(this.squash, 0.55, 1.45);
+        const sxz = 1.0 / Math.sqrt(sy);
+        this.root.scale.set(sxz, sy, sxz);
+
+        if (this.chompTimer > 0) {
+          this.chompTimer = Math.max(0, this.chompTimer - dt);
+          const jawAngle = Math.abs(Math.sin(this.chompTimer * 24.0)) * 0.72;
+          this.jawTopPivot.rotation.x = -jawAngle;
+        } else {
+          this.jawTopPivot.rotation.x = -Math.abs(Math.sin(time * 1.8 + this.pos.x)) * 0.05;
+        }
+      }
+    }
+
+    const pumpkinSpots = [
+      { pos: new THREE.Vector3(-3.25, 0.75, 9.2), yaw: 0.35, scale: 1.0 },
+      { pos: new THREE.Vector3(3.25,  0.75, 9.2), yaw: -0.35, scale: 1.0 },
+      { pos: new THREE.Vector3(-3.25, 1.50, 7.0), yaw: 0.30, scale: 1.05 },
+      { pos: new THREE.Vector3(3.25,  1.50, 7.0), yaw: -0.30, scale: 1.05 },
+      { pos: new THREE.Vector3(-3.25, 2.25, 4.8), yaw: 0.20, scale: 1.1 },
+      { pos: new THREE.Vector3(3.25,  2.25, 4.8), yaw: -0.20, scale: 1.1 },
+      { pos: new THREE.Vector3(-2.2, 2.0, -1.2),  yaw: 0.65, scale: 1.15 },
+      { pos: new THREE.Vector3(-7.5, 2.0, 1.8),   yaw: 0.85, scale: 1.05 },
+      { pos: new THREE.Vector3(1.1,  2.0, -4.8),  yaw: 0.15, scale: 1.05 },
+      { pos: new THREE.Vector3(6.8,  2.0, 2.2),   yaw: -0.65, scale: 1.1 }
+    ];
+    pumpkinSpots.forEach(p => {
+      pumpkins.push(new InteractivePumpkin(p.pos, p.yaw, p.scale));
+    });
+
+    // ============================================================================
+    // 8. POOLED PHYSICAL CANDIES & SPARKLE PARTICLES
+    // ============================================================================
+    let candyScore = 0;
+    const candyCountEl = document.getElementById('candy-count');
+    const candyPillEl = document.getElementById('candy-pill');
+
+    try {
+      const savedCandy = parseInt(localStorage.getItem(STORAGE_CANDY_KEY), 10);
+      if (!isNaN(savedCandy) && savedCandy >= 0) {
+        candyScore = savedCandy;
+        candyCountEl.textContent = String(candyScore);
+      }
+    } catch (e) {}
+
+    function incrementCandyScore(amount = 1) {
+      candyScore += amount;
+      candyCountEl.textContent = String(candyScore);
+      candyPillEl.classList.remove('candy-pop');
+      void candyPillEl.offsetWidth;
+      candyPillEl.classList.add('candy-pop');
+      try {
+        localStorage.setItem(STORAGE_CANDY_KEY, String(candyScore));
+      } catch (e) {}
+      soundFX.playCandyScoop();
+    }
+
+    const CANDY_POOL_MAX = 42;
+    const candyPool = [];
+    const candyGeom = new THREE.BoxGeometry(0.24, 0.16, 0.16);
+    const candyMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0xff88cc),
+      emissiveIntensity: 0.35,
+      roughness: 0.25
+    });
+    const candyInstancedMesh = new THREE.InstancedMesh(candyGeom, candyMat, CANDY_POOL_MAX);
+    candyInstancedMesh.castShadow = true;
+    scene.add(candyInstancedMesh);
+
+    const candyPalette = ['#f97316', '#ec4899', '#a855f7', '#38bdf8', '#fde047', '#4ade80'];
+    for (let i = 0; i < CANDY_POOL_MAX; i++) {
+      const initColor = new THREE.Color(candyPalette[i % candyPalette.length]);
+      candyPool.push({
+        active: false,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        rot: new THREE.Euler(),
+        age: 0,
+        color: initColor
+      });
+      tempMatrix.makeScale(0, 0, 0);
+      candyInstancedMesh.setMatrixAt(i, tempMatrix);
+      candyInstancedMesh.setColorAt(i, initColor);
+    }
+    candyInstancedMesh.instanceMatrix.needsUpdate = true;
+    if (candyInstancedMesh.instanceColor) candyInstancedMesh.instanceColor.needsUpdate = true;
+
+    function spawnCandiesFromPumpkin(origin, forwardDir, count = 4) {
+      let spawned = 0;
+      for (let i = 0; i < CANDY_POOL_MAX && spawned < count; i++) {
+        const c = candyPool[i];
+        if (!c.active || c.age > 12.0) {
+          c.active = true;
+          c.age = 0;
+          c.pos.copy(origin);
+          const spreadAngle = (Math.random() - 0.5) * 1.1;
+          const speed = 2.8 + Math.random() * 3.2;
+          const dirX = forwardDir.x * Math.cos(spreadAngle) - forwardDir.z * Math.sin(spreadAngle);
+          const dirZ = forwardDir.x * Math.sin(spreadAngle) + forwardDir.z * Math.cos(spreadAngle);
+          c.vel.set(dirX * speed, 4.2 + Math.random() * 2.5, dirZ * speed);
+          c.rot.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+          c.color.set(candyPalette[Math.floor(Math.random() * candyPalette.length)]);
+          candyInstancedMesh.setColorAt(i, c.color);
+          spawned++;
+        }
+      }
+      if (candyInstancedMesh.instanceColor) candyInstancedMesh.instanceColor.needsUpdate = true;
+    }
+
+    spawnCandiesFromPumpkin(new THREE.Vector3(0, 2.6, 2.0), new THREE.Vector3(0, 0, -1), 5);
+
+    const POP_MAX = 64;
+    const popParticles = [];
+    const popGeom = new THREE.BoxGeometry(0.11, 0.11, 0.11);
+    const popMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const popMesh = new THREE.InstancedMesh(popGeom, popMat, POP_MAX);
+    for (let i = 0; i < POP_MAX; i++) {
+      const c = new THREE.Color('#ff85a1');
+      popParticles.push({ active: false, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, maxLife: 1, color: c });
+      tempMatrix.makeScale(0, 0, 0);
+      popMesh.setMatrixAt(i, tempMatrix);
+      popMesh.setColorAt(i, c);
+    }
+    popMesh.instanceMatrix.needsUpdate = true;
+    if (popMesh.instanceColor) popMesh.instanceColor.needsUpdate = true;
+    scene.add(popMesh);
+
+    function spawnSparkleParticles(origin, accentHex) {
+      const palette = [accentHex, '#fb923c', '#fde047', '#f472b6', '#ffffff'];
+      let spawned = 0;
+      for (let i = 0; i < POP_MAX && spawned < 12; i++) {
+        const p = popParticles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.45 + Math.random() * 0.25;
+          p.pos.copy(origin).add(new THREE.Vector3(0, 0.65, 0));
+          const angle = (spawned / 12) * Math.PI * 2 + Math.random() * 0.3;
+          const speed = 2.0 + Math.random() * 2.2;
+          p.vel.set(Math.cos(angle) * speed, 2.4 + Math.random() * 2.2, Math.sin(angle) * speed);
+          p.color.set(palette[spawned % palette.length]);
+          popMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (popMesh.instanceColor) popMesh.instanceColor.needsUpdate = true;
+    }
+
+    function updatePopParticles(dt) {
+      let dirty = false;
+      for (let i = 0; i < POP_MAX; i++) {
+        const p = popParticles[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          popMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= 7.5 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const s = 1.0 - (p.life / p.maxLife);
+        tempEuler.set(p.life * 8, p.life * 6, 0);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        popMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) popMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 9. FLOATING GHOST ORBS (Click to Split in Two! Press G for Ghost Parade!)
+    // ============================================================================
+    const allGhostOrbMeshes = [];
+    const ghostOrbs = [];
+    const MAX_GHOST_ORBS = 26;
+    let ghostParadeTimer = 0.0;
+
+    function createGhostOrbMeshGroup(colorHex = '#67e8f9') {
+      const group = new THREE.Group();
+      const vox = [];
+      for (let x = -2; x <= 2; x++) {
+        for (let y = -2; y <= 3; y++) {
+          for (let z = -2; z <= 2; z++) {
+            const r = Math.hypot(x, z);
+            if (y <= 1 && r <= 2.1) {
+              vox.push({ x, y, z, color: colorHex });
+            } else if (y === 2 && r <= 1.3) {
+              vox.push({ x, y, z: z + 0.4, color: '#ffffff' });
+            } else if (y === 3 && r <= 0.6) {
+              vox.push({ x, y, z: z + 0.9, color: '#ffffff' });
+            }
+          }
+        }
+      }
+      const m = buildVoxelInstancedMesh(vox, 0.085, ghostOrbMaterial, false, false);
+      if (m) {
+        group.add(m);
+        allGhostOrbMeshes.push(m);
+      }
+      return { group, mesh: m };
+    }
+
+    function spawnGhostOrb(centerPos, orbitRadius, baseHeight, phase, scale = 1.0, colorHex = '#67e8f9') {
+      if (ghostOrbs.length >= MAX_GHOST_ORBS) return null;
+      const { group, mesh } = createGhostOrbMeshGroup(colorHex);
+      scene.add(group);
+      const orb = {
+        group,
+        mesh,
+        center: centerPos.clone(),
+        orbitRadius,
+        baseHeight,
+        phase,
+        speed: 0.65 + Math.random() * 0.45,
+        scale,
+        pos: centerPos.clone(),
+        vel: new THREE.Vector3(),
+        wobbleTimer: 0.4,
+        colorHex
+      };
+      if (mesh) mesh.userData.ghostOrb = orb;
+      ghostOrbs.push(orb);
+      return orb;
+    }
+
+    const initialOrbSeeds = [
+      { c: new THREE.Vector3(-4.7, 5.2, -3.0), r: 3.4, h: 5.2, p: 0.0, col: '#67e8f9' },
+      { c: new THREE.Vector3(-4.7, 6.8, -3.0), r: 4.5, h: 6.8, p: 2.1, col: '#f472b6' },
+      { c: new THREE.Vector3(2.5,  4.5, -2.0), r: 3.0, h: 4.5, p: 1.2, col: '#a855f7' },
+      { c: new THREE.Vector3(-1.5, 3.8, 5.5),  r: 2.8, h: 3.8, p: 3.4, col: '#67e8f9' },
+      { c: new THREE.Vector3(5.5,  5.5, -4.5), r: 2.6, h: 5.5, p: 4.5, col: '#fde047' },
+      { c: new THREE.Vector3(-6.8, 4.2, 1.5),  r: 2.4, h: 4.2, p: 5.2, col: '#67e8f9' },
+      { c: new THREE.Vector3(0.0,  6.4, 2.2),  r: 3.6, h: 6.4, p: 0.8, col: '#c084fc' },
+      { c: new THREE.Vector3(4.2,  3.9, 1.8),  r: 2.5, h: 3.9, p: 2.8, col: '#67e8f9' }
+    ];
+    initialOrbSeeds.forEach(s => {
+      spawnGhostOrb(s.c, s.r, s.h, s.p, 1.0, s.col);
+    });
+
+    function splitGhostOrb(orb) {
+      soundFX.playGhostOooh(1.0 / Math.max(0.6, orb.scale));
+      spawnSparkleParticles(orb.pos, orb.colorHex);
+      orb.wobbleTimer = 0.65;
+
+      const newScale = Math.max(0.58, orb.scale * 0.84);
+      orb.scale = newScale;
+      orb.vel.set((Math.random() - 0.5) * 4.5, 2.2, (Math.random() - 0.5) * 4.5);
+
+      if (ghostOrbs.length < MAX_GHOST_ORBS) {
+        const twin = spawnGhostOrb(
+          orb.center.clone(),
+          orb.orbitRadius + (Math.random() - 0.5) * 1.4,
+          orb.baseHeight + (Math.random() - 0.5) * 0.9,
+          orb.phase + 0.65,
+          newScale,
+          orb.colorHex
+        );
+        if (twin) {
+          twin.pos.copy(orb.pos);
+          twin.vel.set(-orb.vel.x, 2.6, -orb.vel.z);
+        }
+      }
+    }
+
+    function triggerGhostParade() {
+      ghostParadeTimer = 8.0;
+      soundFX.playBell(0.11);
+      soundFX.playGhostOooh(1.15);
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.65;
+          f.squashVel = -3.0;
+          f.vel.y = Math.max(f.vel.y, 3.8);
+          f.isGrounded = false;
+          spawnSparkleParticles(f.pos, f.accentColor);
+        }, idx * 45);
+      });
+    }
+
+    function updateGhostOrbs(dt, time) {
+      const inParade = ghostParadeTimer > 0;
+      if (inParade) {
+        ghostParadeTimer = Math.max(0, ghostParadeTimer - dt);
+      }
+
+      const treeCenterX = -4.75;
+      const treeCenterZ = -3.0;
+
+      for (let i = 0; i < ghostOrbs.length; i++) {
+        const o = ghostOrbs[i];
+        let targetX, targetY, targetZ;
+
+        if (inParade) {
+          const angle = time * 2.8 + (i / ghostOrbs.length) * Math.PI * 2;
+          const rad = 2.8 + (i % 3) * 1.45 + Math.sin(time * 3 + i) * 0.5;
+          targetX = treeCenterX + Math.cos(angle) * rad;
+          targetZ = treeCenterZ + Math.sin(angle) * rad;
+          targetY = 3.8 + ((i * 0.45 + time * 1.5) % 5.5);
+        } else {
+          const angle = time * o.speed + o.phase;
+          targetX = o.center.x + Math.cos(angle) * o.orbitRadius;
+          targetZ = o.center.z + Math.sin(angle * 0.8) * (o.orbitRadius * 0.75);
+          targetY = o.baseHeight + Math.sin(time * 1.8 + o.phase) * 0.55;
+        }
+
+        o.vel.multiplyScalar(Math.pow(0.90, dt * 60));
+        o.pos.x = THREE.MathUtils.lerp(o.pos.x, targetX, dt * 3.5) + o.vel.x * dt;
+        o.pos.y = THREE.MathUtils.lerp(o.pos.y, targetY, dt * 3.5) + o.vel.y * dt;
+        o.pos.z = THREE.MathUtils.lerp(o.pos.z, targetZ, dt * 3.5) + o.vel.z * dt;
+
+        let s = o.scale * (1.0 + Math.sin(time * 4.5 + o.phase) * 0.08);
+        if (o.wobbleTimer > 0) {
+          o.wobbleTimer = Math.max(0, o.wobbleTimer - dt);
+          s *= 1.0 + Math.sin(o.wobbleTimer * 28.0) * 0.28;
+        }
+
+        o.group.position.copy(o.pos);
+        o.group.scale.set(s, s, s);
+        o.group.rotation.y = Math.atan2(targetX - o.pos.x, targetZ - o.pos.z);
+        o.group.rotation.z = Math.sin(time * 3.2 + o.phase) * 0.18;
+      }
+    }
+
+    // ============================================================================
+    // 10. DRIFTING GLOWING SAKURA PETALS IN THE WIND
+    // ============================================================================
+    const PETAL_COUNT = 95;
+    const fallingPetals = [];
+    const petalGeom = new THREE.BoxGeometry(0.09, 0.03, 0.09);
+    const fallingPetalMesh = new THREE.InstancedMesh(petalGeom, fallingSakuraMaterial, PETAL_COUNT);
+    const petalCols = ['#ffd6ec', '#ff85c0', '#f472b6', '#e879f9'];
+    for (let i = 0; i < PETAL_COUNT; i++) {
+      fallingPetals.push({
+        x: -10 + Math.random() * 20,
+        y: 2.0 + Math.random() * 9.5,
+        z: -10 + Math.random() * 20,
+        vx: 0.25 + Math.random() * 0.35,
+        vy: -0.35 - Math.random() * 0.35,
+        vz: 0.15 + Math.random() * 0.25,
+        phase: Math.random() * Math.PI * 2,
+        scale: 0.7 + Math.random() * 0.7
+      });
+      tempMatrix.identity();
+      fallingPetalMesh.setMatrixAt(i, tempMatrix);
+      fallingPetalMesh.setColorAt(i, new THREE.Color(petalCols[i % petalCols.length]));
+    }
+    fallingPetalMesh.instanceMatrix.needsUpdate = true;
+    if (fallingPetalMesh.instanceColor) fallingPetalMesh.instanceColor.needsUpdate = true;
+    scene.add(fallingPetalMesh);
+
+    function updateFallingPetals(time, dt) {
+      const swirlBoost = ghostParadeTimer > 0 ? 2.6 : 1.0;
+      for (let i = 0; i < PETAL_COUNT; i++) {
+        const p = fallingPetals[i];
+        p.x += (p.vx * swirlBoost + Math.sin(time * 1.1 + p.phase) * 0.35) * dt;
+        p.y += p.vy * dt;
+        p.z += (p.vz * swirlBoost + Math.cos(time * 0.9 + p.phase) * 0.35) * dt;
+
+        if (p.y < 0.3) p.y = 10.5;
+        if (p.x > 10.5) p.x = -10.0;
+        if (p.z > 10.5) p.z = -10.0;
+
+        tempPos.set(p.x, p.y, p.z);
+        tempEuler.set(time * 1.8 + p.phase, time * 1.2, Math.sin(time + p.phase));
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(p.scale, p.scale, p.scale);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        fallingPetalMesh.setMatrixAt(i, tempMatrix);
+      }
+      fallingPetalMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 11. TOUHOU FUMO VOXEL PLUSHIE BUILDER & SOFT-BODY PHYSICS CLASS
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const fumos = [];
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.emoji = config.emoji || '🎃';
+        this.accentColor = config.accentColor || '#f97316';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.082 * this.scaleFactor;
+        this.radius = 0.85 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isDragged = false;
+
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        this.companionGroup = null;
+
+        this.buildCharacterVoxels(config);
+        this.syncTransform(0);
+        scene.add(this.root);
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingSolidVoxels = [];
+        const wingGlowVoxels = [];
+        const emissivePropVoxels = [];
+
+        const skinBase = this.id === 'cirno' ? '#eef7ff' : '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false) => {
+          const seamDarken = (isSeam && ((Math.abs(x + y + z) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z,
+            color: varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // 1. STUBBY SITTING TORSO
+        for (let y = 0; y <= 7; y++) {
+          const isPumpkinSuit = (this.id === 'remilia');
+          const rMax = isPumpkinSuit
+            ? (y === 0 || y === 7 ? 3.8 : 4.9)
+            : ((y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12));
+
+          for (let x = -5; x <= 5; x++) {
+            for (let z = -4; z <= 4; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain;
+
+              if (this.id === 'bedsheet_ghost') {
+                col = '#f8fafc';
+              } else if (isPumpkinSuit) {
+                col = (y === 7) ? '#16a34a' : (((x + z) % 2 === 0) ? '#ea580c' : '#f97316');
+                if (z >= 3 && y === 4 && Math.abs(x) === 1) col = '#1e1b24';
+              } else if (this.id === 'cirno') {
+                col = '#f8fafc';
+                if (z >= 2 && x === 0 && (y === 2 || y === 4)) col = '#1e293b';
+                if (y === 6) col = '#38bdf8';
+              } else {
+                if (y === 1 && z >= 1) col = '#ffffff';
+                if (cfg.hasWhiteApron && z >= 1 && Math.abs(x) <= 2 && y <= 5) {
+                  col = '#fcfcfc';
+                }
+                if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                  col = '#ffffff';
+                  if (Math.abs(x) <= 1 && y === 5) col = cfg.tieColor || '#ef4444';
+                }
+                if (this.id === 'flandre' && z >= 2 && Math.abs(x) === 1 && y === 4) {
+                  col = '#fde047';
+                }
+                if (this.id === 'yuyuko' && z >= 2 && x === 0 && y <= 6) {
+                  col = '#f472b6';
+                }
+              }
+
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        if (this.id === 'marisa') {
+          for (let y = 1; y <= 9; y++) {
+            for (let x = -5; x <= 5; x++) {
+              if (y >= 7 && Math.abs(x) > 4) continue;
+              const capeCol = (y >= 7 || Math.abs(x) === 5) ? '#be123c' : '#18181b';
+              addPlushVoxel(bodyVoxels, x, y, -3.2, capeCol);
+            }
+          }
+        }
+
+        // 2. SHORT DANGLING ARMS & HANDHELD PROPS
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || '#ffffff';
+                if (y === -3) col = skinBase;
+                else if (this.id === 'reimu' && y === -1) col = '#a855f7';
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        if (this.id === 'yuyuko') {
+          for (let fx = -2; fx <= 2; fx++) {
+            for (let fy = 0; fy <= 2; fy++) {
+              addPlushVoxel(rightArmVoxels, 0.8 + fx * 0.6, -2.5 + fy * 0.65, 1.8, fy === 2 ? '#f472b6' : '#38bdf8');
+            }
+          }
+          for (let px = -1; px <= 1; px++) {
+            for (let py = -5; py <= -3; py++) {
+              for (let pz = 0; pz <= 2; pz++) {
+                emissivePropVoxels.push({ x: -4.2 + px * 0.8, y: 6.2 + py * 0.8, z: 0.5 + pz * 0.8, color: '#ff7b00' });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'youmu') {
+          for (let s = -4; s <= 9; s++) {
+            addPlushVoxel(wingSolidVoxels, -2.5 + s * 0.55, 2.0 + s * 0.65, -0.5, s < -1 ? '#1e293b' : '#e2e8f0');
+          }
+          for (let s = -3; s <= 6; s++) {
+            addPlushVoxel(wingSolidVoxels, 2.5 - s * 0.45, 1.5 + s * 0.55, -0.8, s < 0 ? '#065f46' : '#cbd5e1');
+          }
+        }
+
+        if (this.id === 'flandre') {
+          for (let bx = -1; bx <= 1; bx++) {
+            for (let by = -5; by <= -3; by++) {
+              for (let bz = 0; bz <= 2; bz++) {
+                const c = (by === -3 && bx === 0 && bz === 1) ? '#fde047' : '#f97316';
+                addPlushVoxel(leftArmVoxels, bx * 0.85, by * 0.85, 1.2 + bz * 0.85, c);
+              }
+            }
+          }
+        }
+
+        // 3. SHORT SITTING / DANGLING LEGS WITH SHOES
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = '#ffffff';
+                if (z === 0) col = skinBase;
+                if (z >= 3) col = cfg.shoeColor || '#2b2d42';
+                if (z === 4 && y === 1 && x === 0) col = '#ffffff';
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        // 4. OVERSIZED ROUND FUMO HEAD, ICONIC 'ᗜˬᗜ' FACE, HAIR & HALLOWEEN HATS
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+
+              if (this.id === 'bedsheet_ghost') {
+                col = '#f8fafc';
+                if (z >= 5 && (Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (y === 6) col = '#1f141e';
+                  else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                  else col = cfg.eyeColor;
+                } else if (z >= 5 && y === 2 && Math.abs(x) <= 1) {
+                  col = '#1e293b';
+                }
+                addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+                continue;
+              }
+
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (y === 6) col = '#1f141e';
+                  else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                  else col = cfg.eyeColor;
+                } else if (Math.abs(x) === 4 && y === 3) {
+                  col = blushCol;
+                } else if (y === 2 && Math.abs(x) <= 1) {
+                  if (this.id === 'marisa' && Math.abs(x) === 1) col = '#ffffff';
+                  else col = (x === 0) ? '#e07a7a' : smileCol;
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        if (this.id === 'yuyuko') {
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -6; hz <= 5; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.8 && r >= 4.5) {
+                addPlushVoxel(headVoxels, hx, 11.2, hz, '#e0f2fe');
+                if (r <= 5.8) addPlushVoxel(headVoxels, hx, 12.2, hz, '#bae6fd');
+              }
+            }
+          }
+          for (let ty = 0; ty <= 4; ty++) {
+            const w = 4 - ty;
+            for (let tx = -w; tx <= w; tx++) {
+              const isCrest = (tx === 0 && (ty === 1 || ty === 2));
+              addPlushVoxel(headVoxels, tx, 9.5 + ty * 0.85, 4.8 - ty * 0.2, isCrest ? '#38bdf8' : '#ffffff');
+            }
+          }
+        }
+
+        if (this.id === 'youmu') {
+          for (let by = -1; by <= 2; by++) {
+            for (let bx = -1; bx <= 1; bx++) {
+              addPlushVoxel(headVoxels, -5.2 + bx * 0.6, 9.8 + by * 0.7, 2.2, '#18181b');
+            }
+          }
+          this.companionGroup = new THREE.Group();
+          const myonVox = [];
+          for (let mx = -2; mx <= 2; mx++) {
+            for (let my = -2; my <= 3; my++) {
+              for (let mz = -2; mz <= 2; mz++) {
+                if (Math.hypot(mx, mz) <= (my <= 1 ? 2.1 : 1.1)) {
+                  myonVox.push({ x: mx, y: my, z: mz, color: '#f8fafc' });
+                }
+              }
+            }
+          }
+          const myonMesh = buildVoxelInstancedMesh(myonVox, this.FV * 0.95, ghostOrbMaterial, false, false);
+          if (myonMesh) {
+            myonMesh.userData.fumo = this;
+            this.companionGroup.add(myonMesh);
+            allFumoRaycastMeshes.push(myonMesh);
+          }
+          this.squashGroup.add(this.companionGroup);
+        }
+
+        if (this.id === 'reimu') {
+          for (const side of [-1, 1]) {
+            for (let y = -1; y <= 5; y++) {
+              addPlushVoxel(headVoxels, side * 6.8, y, 2.5, y === 5 ? '#f97316' : '#ffffff');
+            }
+          }
+          for (let bx = -7; bx <= 7; bx++) {
+            addPlushVoxel(headVoxels, bx, 11.2, -3.5, '#d90429');
+          }
+          for (let hx = -9; hx <= 9; hx++) {
+            for (let hz = -9; hz <= 9; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 9.4 && r >= 4.2) {
+                addPlushVoxel(headVoxels, hx, 10.6 - hz * 0.15, hz - 0.8, '#3b0764');
+              }
+            }
+          }
+          for (let ch = 0; ch <= 8; ch++) {
+            const coneR = Math.max(0.8, 4.8 - ch * 0.5);
+            for (let hx = -5; hx <= 5; hx++) {
+              for (let hz = -5; hz <= 5; hz++) {
+                const r = Math.hypot(hx, hz);
+                if (r <= coneR && r >= coneR - 1.3) {
+                  let hCol = '#2e1065';
+                  if (ch === 1) hCol = (Math.abs(hx) <= 1 && hz > 0) ? '#facc15' : '#f97316';
+                  addPlushVoxel(headVoxels, hx, 11.2 + ch * 0.85, hz - 1.0 - ch * 0.25, hCol);
+                }
+              }
+            }
+          }
+        }
+
+        if (this.id === 'marisa') {
+          for (let y = -1; y <= 5; y++) {
+            addPlushVoxel(headVoxels, -6.6, y, 2.8, y === 0 ? '#be123c' : cfg.hairColor);
+          }
+          for (let hx = -3; hx <= 3; hx++) {
+            for (let hz = -3; hz <= 3; hz++) {
+              if (Math.hypot(hx, hz) <= 3.2) {
+                addPlushVoxel(headVoxels, hx, 11.5, hz, '#18181b');
+                addPlushVoxel(headVoxels, hx * 0.8, 12.4, hz * 0.8, '#be123c');
+                addPlushVoxel(headVoxels, hx * 0.8, 13.3, hz * 0.8, '#18181b');
+              }
+            }
+          }
+        }
+
+        if (this.id === 'cirno') {
+          for (let hx = -4; hx <= 4; hx++) {
+            for (let hz = -4; hz <= 4; hz++) {
+              if (Math.hypot(hx, hz) <= 4.2) {
+                addPlushVoxel(headVoxels, hx, 11.2, hz, '#f8fafc');
+                if (Math.hypot(hx, hz) <= 3.0) {
+                  addPlushVoxel(headVoxels, hx, 12.2, hz, '#38bdf8');
+                  addPlushVoxel(headVoxels, hx, 13.2, hz, '#f8fafc');
+                }
+              }
+            }
+          }
+          addPlushVoxel(headVoxels, 0, 12.2, 3.8, '#f97316');
+          const wingAngles = [0.45, 0.05, -0.35];
+          for (const side of [-1, 1]) {
+            for (let w = 0; w < 3; w++) {
+              const ang = wingAngles[w];
+              for (let r = 1; r <= 7; r++) {
+                const wx = side * (1.2 + Math.cos(ang) * r * 1.05);
+                const wy = 1.0 + Math.sin(ang) * r * 1.05;
+                const wz = -0.5 - r * 0.15;
+                wingGlowVoxels.push({
+                  x: wx, y: wy, z: wz,
+                  color: varyColor(r > 5 ? '#ffffff' : '#7dd3fc', wx, wy, wz, 0.02),
+                  sx: 1.1, sy: 0.85, sz: 0.6
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'remilia') {
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -6; hz <= 6; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.8 && r >= 4.2) {
+                addPlushVoxel(headVoxels, hx, 11.0, hz, '#f97316');
+                if (r <= 5.5) addPlushVoxel(headVoxels, hx, 12.0, hz, '#ea580c');
+              }
+            }
+          }
+          addPlushVoxel(headVoxels, 0, 13.2, 0, '#16a34a');
+          addPlushVoxel(headVoxels, 0.6, 14.0, -0.4, '#15803d');
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 6; wx++) {
+              const topY = 2.0 + Math.sin((wx / 6) * Math.PI) * 2.5;
+              for (let wy = -1; wy <= topY; wy++) {
+                wingSolidVoxels.push({
+                  x: side * wx, y: wy, z: -0.6 - wx * 0.15,
+                  color: varyColor('#2b193d', wx, wy, 0, 0.03)
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'flandre') {
+          for (let py = 2; py <= 7; py++) {
+            addPlushVoxel(headVoxels, -7.2 - (7 - py) * 0.3, py, 0.5, py === 6 ? '#e63946' : cfg.hairColor);
+          }
+          for (const side of [-1, 1]) {
+            for (let h = 0; h < 4; h++) {
+              addPlushVoxel(headVoxels, side * (3.2 + h * 0.35), 11.0 + h * 0.85, 2.0 - h * 0.2, '#dc2626');
+            }
+          }
+          for (let t = 1; t <= 5; t++) {
+            wingSolidVoxels.push({ x: t * 0.4, y: -2.0 + t * 0.5, z: -0.5 - t * 0.6, color: new THREE.Color('#dc2626') });
+          }
+          const crystalColors = ['#38bdf8', '#3b82f6', '#a855f7', '#ec4899', '#f97316', '#fde047', '#4ade80', '#ef4444'];
+          for (const side of [-1, 1]) {
+            for (let rx = 1; rx <= 9; rx++) {
+              const branchY = 2.5 + (rx <= 4 ? rx * 0.45 : (4 * 0.45 - (rx - 4) * 0.35));
+              wingSolidVoxels.push({
+                x: side * rx, y: branchY, z: -0.5,
+                color: new THREE.Color('#1e1b24'),
+                sx: 0.9, sy: 0.65, sz: 0.65
+              });
+              if (rx % 2 === 0 && rx <= 8) {
+                const cIdx = (side === -1 ? (rx / 2 - 1) : (3 + rx / 2));
+                const cHex = crystalColors[cIdx % 8];
+                for (let cy = -2; cy <= 0; cy++) {
+                  const width = (cy === -1) ? 1.35 : 0.75;
+                  wingGlowVoxels.push({
+                    x: side * (rx + 0.3),
+                    y: branchY - 1.1 + cy * 0.95,
+                    z: -0.5,
+                    color: new THREE.Color(cHex),
+                    sx: width, sy: 0.95, sz: 0.75
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        if (this.id === 'pumpkin_fumo') {
+          for (let hx = -5; hx <= 5; hx++) {
+            for (let hz = -5; hz <= 5; hz++) {
+              if (Math.hypot(hx, hz) <= 5.2) {
+                addPlushVoxel(headVoxels, hx, 11.2, hz, '#f97316');
+              }
+            }
+          }
+          addPlushVoxel(headVoxels, 0, 12.4, 0, '#15803d');
+          addPlushVoxel(headVoxels, 0, 13.3, 0, '#15803d');
+        }
+
+        if (this.id === 'bedsheet_ghost') {
+          for (let bx = -3; bx <= 3; bx++) {
+            addPlushVoxel(headVoxels, bx, 12.2, 0, Math.abs(bx) <= 1 ? '#a855f7' : '#f97316');
+          }
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allFumoRaycastMeshes.push(m);
+          }
+          return m;
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        registerPart(wingSolidVoxels, this.wingsPivot);
+        if (wingGlowVoxels.length > 0) {
+          const wMat = (this.id === 'cirno') ? translucentIceMaterial : crystalWingMaterial;
+          registerPart(wingGlowVoxels, this.wingsPivot, wMat);
+        }
+        if (emissivePropVoxels.length > 0) {
+          registerPart(emissivePropVoxels, this.squashGroup, pumpkinFlameMaterial);
+        }
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.52, this.squash - 0.42 * strength);
+        this.squashVel = -3.5 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 11 * strength;
+        this.limbPitch = -0.65 * strength;
+        this.limbPitchVel = -6.0 * strength;
+        spawnSparkleParticles(this.pos, this.accentColor);
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      resetToHome() {
+        this.pos.copy(this.homePos);
+        this.vel.set(0, 0, 0);
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.squeeze(0.75);
+      }
+
+      updatePhysics(dt, time) {
+        const squashStiff = 210.0;
+        const squashDamp = 11.5;
+        const squashForce = (1.0 - this.squash) * squashStiff - this.squashVel * squashDamp;
+        this.squashVel += squashForce * dt;
+        this.squash += this.squashVel * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash, 0.45, 1.55);
+
+        const headStiff = 140.0;
+        const headDamp = 7.5;
+        const idleHeadBob = Math.sin(time * 2.2 + this.homePos.x) * 0.025;
+        this.headPitchVel += ((idleHeadBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        const targetLimbPitch = (this.isDragged || !this.isGrounded) ? 0.58 : 0.0;
+        const limbStiff = 120.0;
+        const limbDamp = 8.0;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * limbStiff - this.limbPitchVel * limbDamp) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * limbStiff - this.limbRollVel * limbDamp) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.8, 0.9);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+
+        if (!this.isDragged) {
+          this.vel.y -= 24.0 * dt;
+          this.vel.multiplyScalar(Math.pow(0.985, dt * 60));
+          this.pos.addScaledVector(this.vel, dt);
+
+          this.yaw += this.angVel.y * dt;
+          this.pitch += this.angVel.x * dt;
+          this.roll += this.angVel.z * dt;
+          this.angVel.multiplyScalar(Math.pow(0.92, dt * 60));
+
+          this.isGrounded = false;
+
+          const floorY = getGroundHeightAt(this.pos.x, this.pos.z);
+          if (this.pos.y < floorY) {
+            const impact = -this.vel.y;
+            this.pos.y = floorY;
+            if (impact > 1.8) {
+              this.vel.y = impact * 0.42;
+              this.squashVel -= Math.min(9.0, impact * 0.95);
+              this.headPitchVel += (Math.random() - 0.5) * impact * 2.0;
+              this.headRollVel += (Math.random() - 0.5) * impact * 2.0;
+              soundFX.playBounce(impact * 0.08);
+            } else {
+              this.vel.y = 0;
+              this.isGrounded = true;
+            }
+            this.vel.x *= 0.82;
+            this.vel.z *= 0.82;
+          }
+
+          const minBound = -9.6;
+          const maxBound = 9.6;
+          if (this.pos.x < minBound) { this.pos.x = minBound; this.vel.x = Math.abs(this.vel.x) * 0.48; }
+          else if (this.pos.x > maxBound) { this.pos.x = maxBound; this.vel.x = -Math.abs(this.vel.x) * 0.48; }
+          if (this.pos.z < minBound) { this.pos.z = minBound; this.vel.z = Math.abs(this.vel.z) * 0.48; }
+          else if (this.pos.z > maxBound) { this.pos.z = maxBound; this.vel.z = -Math.abs(this.vel.z) * 0.48; }
+
+          const r = this.radius * 0.72;
+          const centerY = this.pos.y + r;
+
+          for (let i = 0; i < furnitureColliders.length; i++) {
+            const box = furnitureColliders[i];
+            const cx = THREE.MathUtils.clamp(this.pos.x, box.min.x, box.max.x);
+            const cy = THREE.MathUtils.clamp(centerY, box.min.y, box.max.y);
+            const cz = THREE.MathUtils.clamp(this.pos.z, box.min.z, box.max.z);
+
+            const dx = this.pos.x - cx;
+            const dy = centerY - cy;
+            const dz = this.pos.z - cz;
+            const distSq = dx * dx + dy * dy + dz * dz;
+
+            if (distSq < r * r) {
+              const dist = Math.sqrt(distSq);
+              if (centerY >= box.max.y - 0.25 && this.vel.y <= 0.5) {
+                const impact = -this.vel.y;
+                this.pos.y = box.max.y;
+                if (impact > 2.0) {
+                  this.vel.y = impact * 0.38;
+                  this.squashVel -= Math.min(8.5, impact * 0.85);
+                  this.headPitchVel += (Math.random() - 0.5) * impact * 1.8;
+                  soundFX.playBounce(impact * 0.08);
+                } else {
+                  this.vel.y = 0;
+                  this.isGrounded = true;
+                }
+                this.vel.x *= 0.80;
+                this.vel.z *= 0.80;
+              } else if (dist > 0.0001) {
+                const nx = dx / dist;
+                const ny = dy / dist;
+                const nz = dz / dist;
+                const pen = r - dist;
+                this.pos.x += nx * pen;
+                this.pos.y = Math.max(floorY, this.pos.y + ny * pen);
+                this.pos.z += nz * pen;
+
+                const vn = this.vel.x * nx + this.vel.y * ny + this.vel.z * nz;
+                if (vn < 0) {
+                  const imp = -vn;
+                  this.vel.x -= 1.42 * vn * nx;
+                  this.vel.y -= 1.42 * vn * ny;
+                  this.vel.z -= 1.42 * vn * nz;
+                  if (imp > 2.0) {
+                    this.squashVel -= Math.min(6.0, imp * 0.55);
+                    soundFX.playBounce(imp * 0.06);
+                  }
+                }
+              }
+            }
+          }
+
+          if (this.isGrounded) {
+            this.pitch = THREE.MathUtils.lerp(this.pitch, 0, Math.min(1, dt * 9.5));
+            this.roll = THREE.MathUtils.lerp(this.roll, 0, Math.min(1, dt * 9.5));
+            this.angVel.multiplyScalar(0.75);
+          }
+        }
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+
+        this.leftArmPivot.rotation.set(this.limbPitch, 0, 0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.rightArmPivot.rotation.set(this.limbPitch, 0, -0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+
+        const wingFlutter = Math.sin(time * 3.8 + this.homePos.x) * 0.06 + (1.0 - this.squash) * 0.35;
+        this.wingsPivot.rotation.x = wingFlutter;
+
+        if (this.companionGroup) {
+          const mAngle = time * 1.8;
+          this.companionGroup.position.set(
+            Math.cos(mAngle) * 1.15,
+            0.85 + Math.sin(time * 3.2) * 0.18,
+            Math.sin(mAngle) * 1.05
+          );
+          this.companionGroup.rotation.y = -mAngle;
+        }
+      }
+    }
+
+    // ============================================================================
+    // 12. INSTANTIATE THE 9 HALLOWEEN PARTY FUMO CHARACTERS
+    // ============================================================================
+    const fumoConfigs = [
+      {
+        id: 'yuyuko',
+        name: 'Yuyuko Saigyouji (Netherworld Host Fumo)',
+        emoji: '🌸',
+        accentColor: '#f472b6',
+        hairColor: '#f9a8d4',
+        eyeColor: '#db2777',
+        outfitMain: '#93c5fd',
+        sleeveColor: '#dbeafe',
+        tieColor: '#ec4899',
+        shoeColor: '#4c1d95',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(2.5, 3.0, -5.8),
+        homeYaw: 0.08,
+        pitchAudio: 0.95
+      },
+      {
+        id: 'youmu',
+        name: 'Youmu Konpaku & Myon (Half-Phantom Fumo)',
+        emoji: '⚔️',
+        accentColor: '#34d399',
+        hairColor: '#e2e8f0',
+        eyeColor: '#0f766e',
+        outfitMain: '#047857',
+        sleeveColor: '#ffffff',
+        tieColor: '#1e293b',
+        shoeColor: '#064e3b',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(-1.3, 2.0, 2.2),
+        homeYaw: 0.35,
+        pitchAudio: 1.08
+      },
+      {
+        id: 'reimu',
+        name: 'Reimu Hakurei (Witch Costume Fumo)',
+        emoji: '🧙‍♀️',
+        accentColor: '#a855f7',
+        hairColor: '#2b1e23',
+        eyeColor: '#991b1b',
+        outfitMain: '#581c87',
+        sleeveColor: '#ffffff',
+        tieColor: '#f97316',
+        shoeColor: '#3b0764',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(2.8, 2.0, 0.55),
+        homeYaw: -0.45,
+        pitchAudio: 1.0
+      },
+      {
+        id: 'marisa',
+        name: 'Marisa Kirisame (Vampire Costume Fumo)',
+        emoji: '🧛‍♀️',
+        accentColor: '#e11d48',
+        hairColor: '#fde047',
+        eyeColor: '#ca8a04',
+        outfitMain: '#18181b',
+        sleeveColor: '#ffffff',
+        tieColor: '#e11d48',
+        shoeColor: '#09090b',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(1.5, 2.0, 2.6),
+        homeYaw: -0.35,
+        pitchAudio: 0.96
+      },
+      {
+        id: 'cirno',
+        name: 'Cirno (Snowman-Ghost Costume Fumo)',
+        emoji: '⛄',
+        accentColor: '#38bdf8',
+        hairColor: '#7dd3fc',
+        eyeColor: '#0284c7',
+        outfitMain: '#f8fafc',
+        sleeveColor: '#ffffff',
+        tieColor: '#38bdf8',
+        shoeColor: '#1e3a8a',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(-2.6, 2.0, -2.0),
+        homeYaw: 0.55,
+        pitchAudio: 1.16
+      },
+      {
+        id: 'remilia',
+        name: 'Remilia Scarlet (Pumpkin Costume Fumo)',
+        emoji: '🎃',
+        accentColor: '#f97316',
+        hairColor: '#a5b4fc',
+        eyeColor: '#e11d48',
+        outfitMain: '#f97316',
+        sleeveColor: '#ffe4e6',
+        tieColor: '#16a34a',
+        shoeColor: '#4c0519',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(6.2, 3.25, -1.2),
+        homeYaw: -0.55,
+        pitchAudio: 1.06
+      },
+      {
+        id: 'flandre',
+        name: 'Flandre Scarlet (Little Devil & Candy Bucket)',
+        emoji: '😈',
+        accentColor: '#f43f5e',
+        hairColor: '#fef08a',
+        eyeColor: '#dc2626',
+        outfitMain: '#be123c',
+        sleeveColor: '#ffffff',
+        tieColor: '#fde047',
+        shoeColor: '#881337',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(5.2, 2.0, 0.75),
+        homeYaw: -0.25,
+        pitchAudio: 1.22
+      },
+      {
+        id: 'pumpkin_fumo',
+        name: 'Surprise Koishi (Hiding in Hollow Pumpkin!)',
+        emoji: '🍬',
+        accentColor: '#fb923c',
+        hairColor: '#86efac',
+        eyeColor: '#0d9488',
+        outfitMain: '#facc15',
+        sleeveColor: '#ffffff',
+        tieColor: '#15803d',
+        shoeColor: '#1e293b',
+        hasWhiteApron: false,
+        scale: 0.72,
+        homePos: new THREE.Vector3(8.4, 2.25, -1.1),
+        homeYaw: -0.40,
+        pitchAudio: 1.38
+      },
+      {
+        id: 'bedsheet_ghost',
+        name: 'Spooky Bedsheet Ghost Fumo',
+        emoji: '👻',
+        accentColor: '#e2e8f0',
+        hairColor: '#f8fafc',
+        eyeColor: '#6366f1',
+        outfitMain: '#f8fafc',
+        sleeveColor: '#f8fafc',
+        tieColor: '#f97316',
+        shoeColor: '#334155',
+        hasWhiteApron: false,
+        scale: 0.88,
+        homePos: new THREE.Vector3(-2.1, 3.0, -6.0),
+        homeYaw: 0.35,
+        pitchAudio: 1.28
+      }
+    ];
+
+    fumoConfigs.forEach(cfg => {
+      fumos.push(new VoxelFumo(cfg));
+    });
+
+    function resolveFumoToFumoCollisions() {
+      for (let i = 0; i < fumos.length; i++) {
+        for (let j = i + 1; j < fumos.length; j++) {
+          const a = fumos[i];
+          const b = fumos[j];
+          const minDist = (a.radius + b.radius) * 0.78;
+          const dx = b.pos.x - a.pos.x;
+          const dy = (b.pos.y + b.radius * 0.6) - (a.pos.y + a.radius * 0.6);
+          const dz = b.pos.z - a.pos.z;
+          const distSq = dx * dx + dy * dy + dz * dz;
+
+          if (distSq < minDist * minDist && distSq > 0.0001) {
+            const dist = Math.sqrt(distSq);
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const nz = dz / dist;
+            const overlap = (minDist - dist) * 0.5;
+
+            if (!a.isDragged) {
+              a.pos.x -= nx * overlap;
+              a.pos.z -= nz * overlap;
+            }
+            if (!b.isDragged) {
+              b.pos.x += nx * overlap;
+              b.pos.z += nz * overlap;
+            }
+
+            const rvx = b.vel.x - a.vel.x;
+            const rvy = b.vel.y - a.vel.y;
+            const rvz = b.vel.z - a.vel.z;
+            const vn = rvx * nx + rvy * ny + rvz * nz;
+            if (vn < 0) {
+              const imp = -vn * 0.68;
+              if (!a.isDragged) {
+                a.vel.x -= imp * nx;
+                a.vel.y -= imp * ny;
+                a.vel.z -= imp * nz;
+                a.squashVel -= Math.min(5.0, imp * 0.6);
+              }
+              if (!b.isDragged) {
+                b.vel.x += imp * nx;
+                b.vel.y += imp * ny;
+                b.vel.z += imp * nz;
+                b.squashVel -= Math.min(5.0, imp * 0.6);
+              }
+              if (imp > 1.5) soundFX.playBounce(imp * 0.07);
+            }
+          }
+        }
+      }
+    }
+
+    function updateCandiesAndScooping(dt, time) {
+      let dirty = false;
+      for (let i = 0; i < CANDY_POOL_MAX; i++) {
+        const c = candyPool[i];
+        if (!c.active) continue;
+        dirty = true;
+        c.age += dt;
+
+        c.vel.y -= 18.0 * dt;
+        c.pos.addScaledVector(c.vel, dt);
+
+        const groundY = getGroundHeightAt(c.pos.x, c.pos.z) + 0.12;
+        if (c.pos.y <= groundY) {
+          c.pos.y = groundY;
+          if (Math.abs(c.vel.y) > 1.2) {
+            c.vel.y = -c.vel.y * 0.45;
+          } else {
+            c.vel.y = 0;
+          }
+          c.vel.x *= 0.82;
+          c.vel.z *= 0.82;
+        }
+
+        let scoopedBy = null;
+        for (let fIdx = 0; fIdx < fumos.length; fIdx++) {
+          const f = fumos[fIdx];
+          const dx = f.pos.x - c.pos.x;
+          const dy = (f.pos.y + 0.4) - c.pos.y;
+          const dz = f.pos.z - c.pos.z;
+          const dist = Math.hypot(dx, dy, dz);
+
+          if (dist < 1.05) {
+            scoopedBy = f;
+            break;
+          } else if (dist < 2.35 && c.age > 0.35) {
+            c.pos.x += (dx / dist) * 3.2 * dt;
+            c.pos.z += (dz / dist) * 3.2 * dt;
+          }
+        }
+
+        if (scoopedBy) {
+          c.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          candyInstancedMesh.setMatrixAt(i, tempMatrix);
+          scoopedBy.squash = 0.76;
+          scoopedBy.squashVel = -2.2;
+          scoopedBy.headPitchVel += 6.0;
+          spawnSparkleParticles(scoopedBy.pos, '#fde047');
+          incrementCandyScore(1);
+          updateUIBadge(scoopedBy, 'Scooped Candy! 🍬');
+          continue;
+        }
+
+        tempPos.set(c.pos.x, c.pos.y + Math.sin(time * 4 + i) * 0.03, c.pos.z);
+        tempEuler.set(c.rot.x, c.rot.y + time * 2.2, c.rot.z);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(1, 1, 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        candyInstancedMesh.setMatrixAt(i, tempMatrix);
+      }
+
+      if (dirty) candyInstancedMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 13. POINTER INTERACTION: FUMOS, JACK-O'-LANTERNS & GHOST ORBS
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let selectedFumo = null;
+    let isDraggingFumo = false;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+    const badgeEl = document.getElementById('fumo-badge');
+    const badgeDotEl = document.getElementById('fumo-badge-dot');
+    const badgeNameEl = document.getElementById('fumo-badge-name');
+    const badgeStatusEl = document.getElementById('fumo-badge-status');
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function pickInteractiveEntity() {
+      raycaster.setFromCamera(pointerNDC, camera);
+
+      const fumoHits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      const pumpkinHits = raycaster.intersectObjects(allPumpkinRaycastMeshes, false);
+      const orbHits = raycaster.intersectObjects(allGhostOrbMeshes, false);
+
+      let best = null;
+      const checkHit = (hits, type) => {
+        if (hits.length > 0) {
+          if (!best || hits[0].distance < best.distance) {
+            best = { type, hit: hits[0], distance: hits[0].distance };
+          }
+        }
+      };
+
+      checkHit(fumoHits, 'fumo');
+      checkHit(pumpkinHits, 'pumpkin');
+      checkHit(orbHits, 'orb');
+      return best;
+    }
+
+    function updateUIBadge(fumo, statusText) {
+      if (!fumo) {
+        badgeEl.classList.add('hidden');
+        badgeEl.classList.remove('flex');
+        return;
+      }
+      badgeEl.classList.remove('hidden');
+      badgeEl.classList.add('flex');
+      badgeDotEl.style.backgroundColor = fumo.accentColor;
+      badgeNameEl.textContent = fumo.name;
+      badgeStatusEl.textContent = statusText;
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+
+      const picked = pickInteractiveEntity();
+      if (!picked) return;
+
+      if (picked.type === 'fumo') {
+        selectedFumo = picked.hit.object.userData.fumo;
+        isDraggingFumo = false;
+        controls.enabled = false;
+
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), selectedFumo.pos);
+
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          dragOffset.subVectors(selectedFumo.pos, dragHitPoint);
+        } else {
+          dragOffset.set(0, 0, 0);
+        }
+
+        dragHistory = [{ pos: selectedFumo.pos.clone(), time: performance.now() }];
+        updateUIBadge(selectedFumo, 'Selected');
+      } else if (picked.type === 'pumpkin') {
+        const pumpkin = picked.hit.object.userData.pumpkin;
+        if (pumpkin) {
+          pumpkin.chompAndSpitCandy();
+        }
+      } else if (picked.type === 'orb') {
+        const orb = picked.hit.object.userData.ghostOrb;
+        if (orb) {
+          splitGhostOrb(orb);
+        }
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      updatePointerNDC(e);
+
+      if (selectedFumo) {
+        recordInteraction();
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          selectedFumo.isDragged = true;
+          selectedFumo.isGrounded = false;
+          selectedFumo.squashVel += 3.2;
+          soundFX.playPickup();
+          updateUIBadge(selectedFumo, 'Dragging — Release to Throw!');
+        }
+
+        if (isDraggingFumo) {
+          raycaster.setFromCamera(pointerNDC, camera);
+          if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+            const targetPos = dragHitPoint.clone().add(dragOffset);
+            targetPos.x = THREE.MathUtils.clamp(targetPos.x, -9.2, 9.2);
+            targetPos.y = THREE.MathUtils.clamp(targetPos.y, getGroundHeightAt(targetPos.x, targetPos.z) + 0.2, 11.0);
+            targetPos.z = THREE.MathUtils.clamp(targetPos.z, -9.2, 9.2);
+
+            const prevPos = selectedFumo.pos.clone();
+            selectedFumo.pos.lerp(targetPos, 0.55);
+
+            const deltaMove = selectedFumo.pos.clone().sub(prevPos);
+            selectedFumo.headRollVel -= deltaMove.x * 16.0;
+            selectedFumo.headPitchVel += deltaMove.z * 16.0 - deltaMove.y * 10.0;
+            selectedFumo.limbRollVel -= deltaMove.x * 22.0;
+            selectedFumo.roll = THREE.MathUtils.lerp(selectedFumo.roll, THREE.MathUtils.clamp(-deltaMove.x * 1.4, -0.45, 0.45), 0.3);
+            selectedFumo.pitch = THREE.MathUtils.lerp(selectedFumo.pitch, THREE.MathUtils.clamp(deltaMove.z * 1.4, -0.45, 0.45), 0.3);
+
+            const now = performance.now();
+            dragHistory.push({ pos: selectedFumo.pos.clone(), time: now });
+            while (dragHistory.length > 6) dragHistory.shift();
+          }
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      const picked = pickInteractiveEntity();
+      if (picked) {
+        if (picked.type === 'fumo') {
+          const f = picked.hit.object.userData.fumo;
+          renderer.domElement.style.cursor = 'grab';
+          tooltipEmojiEl.textContent = f.emoji;
+          tooltipTextEl.textContent = f.name;
+        } else if (picked.type === 'pumpkin') {
+          renderer.domElement.style.cursor = 'pointer';
+          tooltipEmojiEl.textContent = '🎃';
+          tooltipTextEl.textContent = 'Jack-o\'-Lantern (Click to Chomp Candy!)';
+        } else if (picked.type === 'orb') {
+          renderer.domElement.style.cursor = 'pointer';
+          tooltipEmojiEl.textContent = '👻';
+          tooltipTextEl.textContent = 'Ghost Orb (Click to Split!)';
+        }
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else {
+        renderer.domElement.style.cursor = 'default';
+        tooltipEl.style.opacity = '0';
+      }
+    });
+
+    window.addEventListener('pointerup', () => {
+      if (!selectedFumo) return;
+      controls.enabled = true;
+      recordInteraction();
+
+      if (!isDraggingFumo) {
+        selectedFumo.squeeze(1.0);
+        updateUIBadge(selectedFumo, 'Squeezed! ᗜˬᗜ');
+      } else {
+        selectedFumo.isDragged = false;
+        const now = performance.now();
+        while (dragHistory.length > 1 && now - dragHistory[0].time > 140) {
+          dragHistory.shift();
+        }
+        if (dragHistory.length >= 2) {
+          const first = dragHistory[0];
+          const last = dragHistory[dragHistory.length - 1];
+          const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+          const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+          if (throwVel.length() > 22) throwVel.setLength(22);
+          selectedFumo.vel.copy(throwVel);
+
+          const speed = throwVel.length();
+          selectedFumo.angVel.set(
+            throwVel.z * 0.65 + (Math.random() - 0.5) * speed * 0.4,
+            (Math.random() - 0.5) * speed * 0.5,
+            -throwVel.x * 0.65 + (Math.random() - 0.5) * speed * 0.4
+          );
+        } else {
+          selectedFumo.vel.set(0, 0, 0);
+        }
+        updateUIBadge(selectedFumo, 'Thrown!');
+      }
+
+      selectedFumo = null;
+      isDraggingFumo = false;
+    });
+
+    // ============================================================================
+    // 14. DAY / NIGHT SMOOTH INTERPOLATION (~2 SECONDS) & HUB INTEGRATION
+    // ============================================================================
+    let isNightMode = true;
+    let dayNightProgress = 1.0;
+    let dayNightTarget = 1.0;
+
+    const daySkyColor = new THREE.Color('#9ea4b8');
+    const nightSkyColor = new THREE.Color('#130924');
+
+    const dayMoonCol = new THREE.Color('#d8dce8');
+    const nightMoonCol = new THREE.Color('#ff9b42');
+
+    const dayDirLightCol = new THREE.Color('#dce2f0');
+    const nightDirLightCol = new THREE.Color('#ff9d5c');
+
+    const dayHemiSky = new THREE.Color('#cfd6e6');
+    const nightHemiSky = new THREE.Color('#4c3073');
+    const dayHemiGround = new THREE.Color('#645e73');
+    const nightHemiGround = new THREE.Color('#1a102b');
+
+    function notifyParentMode() {
+      const modeStr = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: modeStr }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(night, { immediate = false, playSound = true } = {}) {
+      isNightMode = Boolean(night);
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) {
+        dayNightProgress = dayNightTarget;
+      }
+      document.body.classList.toggle('night-ui', isNightMode);
+
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
+      } catch (e) {}
+
+      if (playSound) {
+        soundFX.playPickup();
+      }
+      notifyParentMode();
+    }
+
+    function toggleDayNight() {
+      setDayNightMode(!isNightMode, { immediate: false, playSound: true });
+    }
+
+    function updateDayNightTransition(dt, time) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.52;
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      const paradeBoost = ghostParadeTimer > 0 ? 1.55 : 1.0;
+      const flicker = 0.92 + 0.08 * Math.sin(time * 11.0) * Math.cos(time * 7.3);
+
+      scene.background.lerpColors(daySkyColor, nightSkyColor, t);
+      scene.fog.color.copy(scene.background);
+      scene.fog.density = THREE.MathUtils.lerp(0.019, 0.014, t);
+
+      moonMaterial.color.lerpColors(dayMoonCol, nightMoonCol, t);
+      const moonScale = THREE.MathUtils.lerp(0.78, 1.08, t);
+      moonGroup.scale.set(moonScale, moonScale, moonScale);
+
+      mainDirLight.color.lerpColors(dayDirLightCol, nightDirLightCol, t);
+      mainDirLight.intensity = THREE.MathUtils.lerp(1.15, 0.72, t);
+
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.75, 0.36, t);
+
+      treeLight.intensity = THREE.MathUtils.lerp(0.35, 1.45, t) * paradeBoost;
+      manorLight.intensity = THREE.MathUtils.lerp(0.25, 1.35, t) * flicker;
+      stairsLight.intensity = THREE.MathUtils.lerp(0.30, 1.45, t) * flicker;
+
+      const petalIntensity = THREE.MathUtils.lerp(0.32, 1.15, t) * paradeBoost;
+      sakuraPetalMaterial.emissiveIntensity = petalIntensity;
+      fallingSakuraMaterial.emissiveIntensity = petalIntensity;
+      shojiGlowMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.28, 1.55, t) * flicker;
+      pumpkinFlameMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.55, 2.35, t) * flicker;
+      ghostOrbMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.65, 1.85, t) * paradeBoost;
+      crystalWingMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, 1.15, t);
+      translucentIceMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.25, 0.75, t);
+
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.18, 0.76, t) * (ghostParadeTimer > 0 ? 1.2 : 1.0);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.82, 0.56, t);
+      }
+    }
+
+    // ============================================================================
+    // 15. UI BUTTONS, KEYBOARD SHORTCUTS & HUB MESSAGE LISTENERS
+    // ============================================================================
+    document.getElementById('btn-parade').addEventListener('click', () => {
+      recordInteraction();
+      triggerGhostParade();
+    });
+
+    document.getElementById('btn-squeeze-all').addEventListener('click', () => {
+      recordInteraction();
+      fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 55));
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      recordInteraction();
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 45));
+      updateUIBadge(null, '');
+    });
+
+    const btnSound = document.getElementById('btn-sound');
+    const iconSoundOn = document.getElementById('icon-sound-on');
+    const iconSoundOff = document.getElementById('icon-sound-off');
+
+    function syncSoundIcons() {
+      iconSoundOn.classList.toggle('hidden', soundFX.muted);
+      iconSoundOff.classList.toggle('hidden', !soundFX.muted);
+    }
+    syncSoundIcons();
+
+    btnSound.addEventListener('click', () => {
+      soundFX.unlock();
+      soundFX.setMuted(!soundFX.muted);
+      syncSoundIcons();
+      if (!soundFX.muted) soundFX.playPickup();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      soundFX.unlock();
+
+      const key = e.key.toLowerCase();
+      if (key === 'n') {
+        e.preventDefault();
+        toggleDayNight();
+      } else if (key === 'g') {
+        e.preventDefault();
+        triggerGhostParade();
+      } else if (key === 'r') {
+        fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 45));
+      } else if (key === ' ') {
+        e.preventDefault();
+        fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 55));
+      } else if (key === 'm') {
+        e.preventDefault();
+        btnSound.click();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ============================================================================
+    // 16. MAIN ANIMATION LOOP & PAUSE / RESUME LIFECYCLE
+    // ============================================================================
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.033, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      if (!selectedFumo && (now - lastUserInteractionTime > 4500)) {
+        controls.autoRotate = true;
+      }
+
+      controls.update();
+      soundFX.updateScheduler();
+      updateDayNightTransition(dt, elapsed);
+
+      const batFlap = Math.sin(elapsed * 6.5) * 0.35;
+      batLeftWingPivot.rotation.y = batFlap;
+      batRightWingPivot.rotation.y = -batFlap;
+      batGroup.rotation.z = Math.sin(elapsed * 2.1) * 0.08;
+
+      for (let i = 0; i < pumpkins.length; i++) {
+        pumpkins[i].update(dt, elapsed);
+      }
+      updateGhostOrbs(dt, elapsed);
+      updateFallingPetals(elapsed, dt);
+      updatePopParticles(dt);
+      updateCandiesAndScooping(dt, elapsed);
+
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].updatePhysics(dt, elapsed);
+      }
+      resolveFumoToFumoCollisions();
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function pauseRenderLoop() {
+      if (isPaused) return;
+      isPaused = true;
+      soundFX.suspend();
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+
+    function resumeRenderLoop() {
+      if (!isPaused) return;
+      isPaused = false;
+      soundFX.resume();
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('message', (e) => {
+      const data = e.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'toggleMode') {
+        toggleDayNight();
+      } else if (data.type === 'pause') {
+        pauseRenderLoop();
+      } else if (data.type === 'resume') {
+        resumeRenderLoop();
+      }
+    });
+
+    window.onload = function () {
+      let initialNight = true;
+      try {
+        const saved = localStorage.getItem(STORAGE_MODE_KEY);
+        if (saved === 'day') initialNight = false;
+        else if (saved === 'night') initialNight = true;
+      } catch (e) {}
+
+      setDayNightMode(initialNight, { immediate: true, playSound: false });
+      updateDayNightTransition(0, 0);
+
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.78;
+          f.squashVel = 2.0;
+          f.headPitchVel = 4.0;
+        }, 120 + idx * 65);
+      });
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,3008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Fumo Mountain Onsen — Voxel Hot Spring Inn</title>
+
+  <!-- Fonts & Tailwind for crisp HUD styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Shared Hub Scene Stylesheet -->
+  <link rel="stylesheet" href="../fumo-scene.css" />
+
+  <!-- 1. Three.js r128 + Post-Processing Addons FIRST -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <!-- 2. Shared Fumo Core Library SECOND (reads THREE at load time) -->
+  <script src="../fumo-core.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #131824;
+    }
+    .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .glass-panel {
+      background: rgba(255, 252, 245, 0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.72);
+      color: #2d231e;
+      box-shadow: 0 10px 28px -6px rgba(35, 22, 12, 0.2), 0 2px 6px rgba(35, 22, 12, 0.08);
+      transition: background 0.5s ease, color 0.5s ease, border-color 0.5s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    body.night-ui .glass-panel {
+      background: rgba(22, 24, 42, 0.82);
+      border-color: rgba(251, 191, 36, 0.28);
+      color: #fef3c7;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.6), 0 0 18px rgba(245, 158, 11, 0.14);
+    }
+    .ui-btn {
+      cursor: pointer;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+    #fumo-tooltip {
+      pointer-events: none;
+      transition: opacity 0.16s ease, transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    /* Floating Guest Mood Bubbles */
+    #mood-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 15;
+      overflow: hidden;
+    }
+    .mood-bubble {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      pointer-events: auto;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.92);
+      color: #1e293b;
+      border: 2px solid #38bdf8;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+      transition: transform 0.18s ease, border-color 0.2s ease, background 0.2s ease;
+      white-space: nowrap;
+    }
+    body.night-ui .mood-bubble {
+      background: rgba(24, 27, 48, 0.92);
+      color: #fffbeb;
+    }
+    .mood-bubble:hover {
+      transform: translate(-50%, -108%) scale(1.1);
+    }
+    .mood-bubble.is-grumpy {
+      border-color: #ef4444;
+      animation: grumpyPulse 0.7s infinite alternate ease-in-out;
+    }
+    .mood-bubble.is-being-served {
+      border-color: #22c55e;
+    }
+    @keyframes grumpyPulse {
+      0% { transform: translate(-50%, -100%) scale(0.96); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+      100% { transform: translate(-50%, -108%) scale(1.09); box-shadow: 0 0 12px 3px rgba(239, 68, 68, 0.55); }
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.09);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.18);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.14);
+      border-bottom-color: rgba(255, 255, 255, 0.28);
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- Projected Guest Mood Icons Layer -->
+  <div id="mood-layer"></div>
+
+  <!-- Top-Right Action Bar (Top-Left kept 100% clear for Hub selector & Day/Night button) -->
+  <div class="fixed top-4 right-4 z-20 flex flex-wrap items-center justify-end gap-2 max-w-[65vw]">
+    <!-- Selected Staff / Dispatch Status Badge -->
+    <div id="dispatch-badge" class="glass-panel rounded-2xl px-3.5 py-2 text-xs font-semibold flex items-center gap-2">
+      <span id="dispatch-dot" class="w-2.5 h-2.5 rounded-full inline-block bg-amber-500 animate-pulse"></span>
+      <span id="dispatch-text">Click a Staff Fumo, then a Guest to serve!</span>
+    </div>
+
+    <!-- Ring Front-Desk Bell Button (S) -->
+    <button id="btn-bell" title="Ring Komachi's Boat Bell — Summon Staff! (S)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2 flex items-center gap-1.5 text-xs font-semibold">
+      <span>🔔</span>
+      <span class="hidden sm:inline">Ring Bell</span>
+      <kbd class="hidden md:inline-block">S</kbd>
+    </button>
+
+    <!-- Boiler Valve Temperature Button -->
+    <button id="btn-boiler" title="Turn Boiler Valve to Adjust Bath Temperature"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2 flex items-center gap-1.5 text-xs font-semibold">
+      <span id="temp-emoji">♨️</span>
+      <span id="temp-label">42°C Warm</span>
+    </button>
+
+    <!-- Reset Fumos Button (R) -->
+    <button id="btn-reset" title="Return All Fumos to Posts (R)"
+      class="glass-panel ui-btn rounded-2xl px-3 py-2 flex items-center gap-1.5 text-xs font-semibold">
+      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+      <span class="hidden md:inline">Reset</span>
+    </button>
+  </div>
+
+  <!-- Bottom-Right Satisfaction Meter, Served Counter & Mute Toggle -->
+  <div class="fixed bottom-4 right-4 z-20 flex items-center gap-2.5">
+    <!-- Inn Satisfaction & Served Counter -->
+    <div class="glass-panel rounded-2xl px-4 py-2.5 flex items-center gap-3.5">
+      <div>
+        <div class="flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-wider opacity-80">
+          <span>♨️ Inn Satisfaction</span>
+          <span id="satisfaction-pct" class="font-display text-xs">88%</span>
+        </div>
+        <div class="w-32 sm:w-40 h-2.5 bg-black/15 rounded-full overflow-hidden mt-1 p-0.5">
+          <div id="satisfaction-bar" class="h-full rounded-full transition-all duration-300 bg-gradient-to-r from-amber-400 to-emerald-400" style="width: 88%;"></div>
+        </div>
+      </div>
+
+      <div class="h-7 w-px bg-current opacity-15"></div>
+
+      <div class="text-center">
+        <div class="text-[10px] font-bold uppercase tracking-wider opacity-75">Served</div>
+        <div id="served-count" class="font-display font-bold text-base leading-tight text-amber-500">0</div>
+      </div>
+    </div>
+
+    <!-- Mute / Sound Toggle Button (M) -->
+    <button id="btn-mute" title="Toggle Onsen Sound & Koto Melody (M)"
+      class="glass-panel ui-btn rounded-2xl p-3 flex items-center justify-center">
+      <svg id="icon-sound-on" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+      </svg>
+      <svg id="icon-sound-off" class="w-5 h-5 hidden opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <line x1="23" y1="9" x2="17" y2="15"></line>
+        <line x1="17" y1="9" x2="23" y2="15"></line>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Floating Cursor Tooltip -->
+  <div id="fumo-tooltip" class="fixed z-30 opacity-0 px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold flex items-center gap-2 shadow-lg">
+    <span id="tooltip-emoji">♨️</span>
+    <span id="tooltip-text">Reimu Fumo</span>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 0. SAFE FALLBACKS IF OPENED OUTSIDE SHARED FOLDER + SHARED CORE BINDINGS
+    // ============================================================================
+    const _voxelHash = (typeof voxelHash === 'function') ? voxelHash : function (x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    };
+
+    const _varyColor = (typeof varyColor === 'function') ? varyColor : function (hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
+      const c = new THREE.Color(hexOrString);
+      const h = _voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      c.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return c;
+    };
+
+    const _createSoftVoxelGeometry = (typeof createSoftVoxelGeometry === 'function') ? createSoftVoxelGeometry : function (size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    };
+
+    const _getOptimalPixelRatio = (typeof getOptimalPixelRatio === 'function') ? getOptimalPixelRatio : function () {
+      return Math.min(window.devicePixelRatio || 1, 2);
+    };
+
+    const BasePlushSoundEngine = (typeof PlushSoundEngine !== 'undefined') ? PlushSoundEngine : class {
+      constructor() { this.ctx = null; this.enabled = true; }
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+      }
+      playSqueeze(pitchMultiplier = 1.0) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc1 = this.ctx.createOscillator();
+          const gain1 = this.ctx.createGain();
+          osc1.type = 'sine';
+          const baseFreq = (520 + Math.random() * 80) * pitchMultiplier;
+          osc1.frequency.setValueAtTime(baseFreq, now);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.085);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.16);
+          gain1.gain.setValueAtTime(0.001, now);
+          gain1.gain.linearRampToValueAtTime(0.1, now + 0.025);
+          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+          osc1.connect(gain1); gain1.connect(this.ctx.destination);
+          osc1.start(now); osc1.stop(now + 0.18);
+        } catch (e) {}
+      }
+      playBounce(intensity = 0.5) {
+        if (!this.enabled || intensity < 0.08) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(120 + Math.min(80, intensity * 35), now);
+          osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+          gain.gain.setValueAtTime(Math.min(0.12, intensity * 0.1), now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(gain); gain.connect(this.ctx.destination);
+          osc.start(now); osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+      playPickup() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(280, now);
+          osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(gain); gain.connect(this.ctx.destination);
+          osc.start(now); osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+    };
+
+    // ============================================================================
+    // 1. EXTENDED ONSEN SOUND ENGINE (Splash, Bell, Shishi-Odoshi, Koto, Stream)
+    // ============================================================================
+    class OnsenSoundEngine extends BasePlushSoundEngine {
+      constructor() {
+        super();
+        this.noiseBuffer = null;
+      }
+
+      ensureNoiseBuffer() {
+        if (!this.ctx || this.noiseBuffer) return;
+        const sr = this.ctx.sampleRate;
+        const buffer = this.ctx.createBuffer(1, sr * 1.5, sr);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+        this.noiseBuffer = buffer;
+      }
+
+      // Water splash when a Fumo lands in a pool
+      playSplash(intensity = 0.8) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          this.ensureNoiseBuffer();
+          const now = this.ctx.currentTime;
+
+          // Filtered noise burst for water spray
+          const src = this.ctx.createBufferSource();
+          src.buffer = this.noiseBuffer;
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.setValueAtTime(650, now);
+          filter.frequency.exponentialRampToValueAtTime(1600, now + 0.14);
+          filter.frequency.exponentialRampToValueAtTime(420, now + 0.38);
+          filter.Q.value = 1.8;
+
+          const gain = this.ctx.createGain();
+          const vol = Math.min(0.18, 0.06 + intensity * 0.1);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(vol, now + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+
+          src.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.ctx.destination);
+          src.start(now);
+          src.stop(now + 0.44);
+
+          // Water droplet "bloop"
+          const osc = this.ctx.createOscillator();
+          const bGain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(240, now + 0.05);
+          osc.frequency.exponentialRampToValueAtTime(620, now + 0.18);
+          bGain.gain.setValueAtTime(0.001, now + 0.05);
+          bGain.gain.linearRampToValueAtTime(vol * 0.55, now + 0.08);
+          bGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+          osc.connect(bGain);
+          bGain.connect(this.ctx.destination);
+          osc.start(now + 0.05);
+          osc.stop(now + 0.22);
+        } catch (e) {}
+      }
+
+      // Komachi's front-desk boat bell (metallic resonant chime)
+      playBell() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const partials = [1046.5, 1568.0, 2489.0];
+          partials.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now);
+            gain.gain.setValueAtTime(0.001, now);
+            gain.gain.linearRampToValueAtTime(0.09 / (idx + 1), now + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.0008, now + 1.1 - idx * 0.2);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 1.15);
+          });
+        } catch (e) {}
+      }
+
+      // Shishi-odoshi bamboo clack on stone + pouring water trickle
+      playShishiOdoshi() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+
+          // Hollow bamboo "kon!" clack
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(420, now);
+          osc.frequency.exponentialRampToValueAtTime(165, now + 0.055);
+          gain.gain.setValueAtTime(0.13, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.075);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.08);
+
+          // Secondary woody resonance
+          const osc2 = this.ctx.createOscillator();
+          const gain2 = this.ctx.createGain();
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(790, now);
+          osc2.frequency.exponentialRampToValueAtTime(340, now + 0.045);
+          gain2.gain.setValueAtTime(0.07, now);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+          osc2.connect(gain2);
+          gain2.connect(this.ctx.destination);
+          osc2.start(now);
+          osc2.stop(now + 0.065);
+
+          this.playPourWater(0.5);
+        } catch (e) {}
+      }
+
+      // Soft pouring water & bubbling
+      playPourWater(scale = 1.0) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          this.ensureNoiseBuffer();
+          const now = this.ctx.currentTime;
+
+          const src = this.ctx.createBufferSource();
+          src.buffer = this.noiseBuffer;
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.setValueAtTime(980, now);
+          filter.frequency.linearRampToValueAtTime(1320, now + 0.25);
+          filter.Q.value = 3.5;
+
+          const gain = this.ctx.createGain();
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.035 * scale, now + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+          src.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.ctx.destination);
+          src.start(now);
+          src.stop(now + 0.36);
+        } catch (e) {}
+      }
+
+      // Gentle Japanese Yo / Miyako-bushi pentatonic Koto pluck
+      playKotoPluck() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          // Japanese In/Yo scale notes (D4, E4, G4, A4, B4, D5, E5, G5)
+          const scale = [293.66, 329.63, 392.00, 440.00, 493.88, 587.33, 659.25, 783.99];
+          const freq = scale[Math.floor(Math.random() * scale.length)];
+
+          const osc = this.ctx.createOscillator();
+          const filter = this.ctx.createBiquadFilter();
+          const gain = this.ctx.createGain();
+
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(freq, now);
+
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(freq * 4.5, now);
+          filter.frequency.exponentialRampToValueAtTime(freq * 1.1, now + 0.65);
+
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.035, now + 0.012);
+          gain.gain.exponentialRampToValueAtTime(0.0005, now + 0.9);
+
+          osc.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.95);
+        } catch (e) {}
+      }
+
+      // Soft night cricket chirp
+      playCricket() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          for (let c = 0; c < 3; c++) {
+            const t0 = now + c * 0.055;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(4150, t0);
+            osc.frequency.linearRampToValueAtTime(4320, t0 + 0.035);
+            gain.gain.setValueAtTime(0.001, t0);
+            gain.gain.linearRampToValueAtTime(0.018, t0 + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.04);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(t0);
+            osc.stop(t0 + 0.045);
+          }
+        } catch (e) {}
+      }
+    }
+
+    const soundFX = new OnsenSoundEngine();
+    const STORAGE_MUTE_KEY = 'fumo_onsen_mute';
+    const STORAGE_MODE_KEY = 'fumo_onsen_mode';
+
+    try {
+      const savedMute = localStorage.getItem(STORAGE_MUTE_KEY);
+      if (savedMute === 'true') soundFX.enabled = false;
+    } catch (e) {}
+
+    // ============================================================================
+    // 2. THREE.JS SCENE, CAMERA, RENDERER & POST-PROCESSING
+    // ============================================================================
+    const tempColor = new THREE.Color();
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    const tempEuler = new THREE.Euler();
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = _createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        tempQuat.identity();
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#c8e6ff');
+    scene.fog = new THREE.FogExp2('#c8e6ff', 0.011);
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.5, 130);
+    camera.position.set(18.5, 13.5, 19.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(_getOptimalPixelRatio());
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.18,
+        0.55,
+        0.82
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (e) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0.5, 2.2, 0.5);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.47;
+    controls.minPolarAngle = Math.PI * 0.08;
+    controls.minDistance = 8.5;
+    controls.maxDistance = 40;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.42;
+
+    let lastUserInteractionTime = performance.now();
+    const recordInteraction = () => {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+    };
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 3. CAPPED DYNAMIC LIGHTING & SHARED MATERIALS
+    // ============================================================================
+    // 1. Hemisphere Sky/Ground Bounce
+    const hemiLight = new THREE.HemisphereLight(0xfff5e4, 0x8d6e63, 0.72);
+    hemiLight.position.set(0, 25, 0);
+    scene.add(hemiLight);
+
+    // 2. Main Sun / Moon Directional Light with Soft Shadows
+    const mainDirLight = new THREE.DirectionalLight(0xffeed4, 1.3);
+    mainDirLight.position.set(16, 22, 14);
+    mainDirLight.castShadow = true;
+    mainDirLight.shadow.mapSize.width = 2048;
+    mainDirLight.shadow.mapSize.height = 2048;
+    mainDirLight.shadow.camera.near = 2;
+    mainDirLight.shadow.camera.far = 55;
+    const dCam = 15.5;
+    mainDirLight.shadow.camera.left = -dCam;
+    mainDirLight.shadow.camera.right = dCam;
+    mainDirLight.shadow.camera.top = dCam;
+    mainDirLight.shadow.camera.bottom = -dCam;
+    mainDirLight.shadow.bias = -0.0006;
+    scene.add(mainDirLight);
+
+    // 3. Ryokan Engawa Paper Lanterns Warm PointLight
+    const engawaLight = new THREE.PointLight(0xff9e44, 0.15, 16, 1.5);
+    engawaLight.position.set(-4.0, 4.8, -3.5);
+    scene.add(engawaLight);
+
+    // 4. Steaming Turquoise Onsen Pool Glow PointLight
+    const poolGlowLight = new THREE.PointLight(0x38bdf8, 0.25, 15, 1.6);
+    poolGlowLight.position.set(2.5, 1.8, 2.0);
+    scene.add(poolGlowLight);
+
+    // 5. Stone Lantern & Boiler Fire Warm PointLight
+    const boilerLight = new THREE.PointLight(0xff6b35, 0.35, 12, 1.7);
+    boilerLight.position.set(6.5, 2.5, -5.5);
+    scene.add(boilerLight);
+
+    // Materials
+    const plushMaterial = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0.02 });
+    const solidMaterial = new THREE.MeshStandardMaterial({ roughness: 0.84, metalness: 0.05 });
+    const glossyMaterial = new THREE.MeshStandardMaterial({ roughness: 0.25, metalness: 0.15 });
+    const lanternEmissiveMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfff3d6,
+      emissive: new THREE.Color(0xff9933),
+      emissiveIntensity: 0.35,
+      roughness: 0.3
+    });
+    const shojiEmissiveMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfffdf7,
+      emissive: new THREE.Color(0xffb74d),
+      emissiveIntensity: 0.2,
+      roughness: 0.4
+    });
+    const waterMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0x2dd4bf,
+      transparent: true,
+      opacity: 0.82,
+      roughness: 0.14,
+      metalness: 0.05,
+      emissive: new THREE.Color(0x0d9488),
+      emissiveIntensity: 0.22
+    });
+    const iceMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xe0f2fe,
+      transparent: true,
+      opacity: 0.86,
+      roughness: 0.12,
+      metalness: 0.05,
+      emissive: new THREE.Color(0x38bdf8),
+      emissiveIntensity: 0.3
+    });
+    const crystalWingMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.2,
+      metalness: 0.1,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 0.35
+    });
+
+    // ============================================================================
+    // 4. VOXEL RYOKAN, TIERED ROCK POOLS, TREES & PROPS
+    // ============================================================================
+    const RV = 0.28; // 1 scene voxel = 0.28 world units
+    const solidVoxels = [];
+    const glossyVoxels = [];
+    const lanternVoxels = [];
+    const shojiVoxels = [];
+    const iceVoxels = [];
+    const furnitureColliders = [];
+
+    function addCollider(minX, minY, minZ, maxX, maxY, maxZ, name = 'rock') {
+      furnitureColliders.push({
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        name
+      });
+    }
+
+    // Pool definitions in world coordinates for buoyancy, splash & ripples
+    const ONSEN_POOLS = [
+      // Upper Rock Pool (Reimu)
+      { name: 'upper', minX: -1.8, maxX: 3.4, minZ: -4.2, maxZ: -0.4, waterY: 1.05, floorY: 0.42 },
+      // Main Middle Rock Pool (Marisa, Remilia, Flandre, Washtub Fumo, Yuyuko)
+      { name: 'main', minX: -1.4, maxX: 6.8, minZ: -0.4, maxZ: 5.4, waterY: 0.68, floorY: 0.12 },
+      // Lower Rock Pool & Stream (Cirno on ice block)
+      { name: 'lower', minX: 1.2, maxX: 8.4, minZ: 5.4, maxZ: 9.2, waterY: 0.42, floorY: 0.05 }
+    ];
+
+    function getPoolAt(wx, wz) {
+      for (let i = 0; i < ONSEN_POOLS.length; i++) {
+        const p = ONSEN_POOLS[i];
+        if (wx >= p.minX && wx <= p.maxX && wz >= p.minZ && wz <= p.maxZ) {
+          return p;
+        }
+      }
+      return null;
+    }
+
+    function pushV(list, gx, gy, gz, hex, variance = 0.035, sx = 1, sy = 1, sz = 1) {
+      list.push({
+        x: gx, y: gy, z: gz,
+        color: _varyColor(hex, gx, gy, gz, variance),
+        sx, sy, sz
+      });
+    }
+
+    function pushBox(list, x0, y0, z0, x1, y1, z1, hexOrFn, variance = 0.03) {
+      for (let x = x0; x <= x1; x++) {
+        for (let y = y0; y <= y1; y++) {
+          for (let z = z0; z <= z1; z++) {
+            if (x > x0 && x < x1 && y > y0 && y < y1 && z > z0 && z < z1) continue;
+            const c = typeof hexOrFn === 'function' ? hexOrFn(x, y, z) : hexOrFn;
+            if (c) pushV(list, x, y, z, c, variance);
+          }
+        }
+      }
+    }
+
+    function buildOnsenWorld() {
+      // ----------------------------------------------------------------------
+      // A. HILLSIDE BASE TERRAIN, MOSSY STONES & TIERED ROCK POOLS
+      // Grid: gx [-36..34], gz [-36..34]
+      // ----------------------------------------------------------------------
+      for (let x = -36; x <= 34; x++) {
+        for (let z = -36; z <= 34; z++) {
+          const wx = x * RV;
+          const wz = z * RV;
+          const pool = getPoolAt(wx, wz);
+
+          // Determine base elevation
+          let topY = 0;
+          if (x < -8 || z < -16) topY = 2; // Elevated ryokan & boiler terrace
+          else if (wx >= -2.5 && wx <= 4.2 && wz >= -5.0 && wz <= 0.2) topY = 2; // Upper pool terrace
+
+          // Base foundation
+          const stoneCol = ((x + z) % 7 === 0) ? '#596452' : '#64686e';
+          pushV(solidVoxels, x, -1, z, '#3d3934', 0.02);
+
+          if (pool) {
+            // Pool mosaic stone floor
+            const floorGridY = Math.round(pool.floorY / RV) - 1;
+            const tileCol = ((x + z) % 2 === 0) ? '#4a6b70' : '#3d5a5e';
+            pushV(solidVoxels, x, floorGridY, z, tileCol, 0.025);
+          } else {
+            // Stone paths, wooden deck, or mossy ground
+            for (let y = 0; y <= topY; y++) {
+              let col = stoneCol;
+              // Stepping stone path for attendants
+              const onPath = (Math.abs(wx - (-1.8)) < 1.1 && wz > -4 && wz < 7) ||
+                             (Math.abs(wz - (-0.8)) < 0.9 && wx > -3 && wx < 5);
+              if (y === topY) {
+                if (onPath) col = '#94989c';
+                else if (_voxelHash(x, 99, z) > 0.62) col = '#5a7d4c'; // Mountain moss
+                else col = '#74787c';
+              }
+              pushV(solidVoxels, x, y, z, col, 0.035);
+            }
+          }
+        }
+      }
+
+      // Volcanic Boulders Rim around the 3 Tiered Pools
+      for (let x = -10; x <= 32; x++) {
+        for (let z = -18; z <= 34; z++) {
+          const wx = x * RV;
+          const wz = z * RV;
+          const pHere = getPoolAt(wx, wz);
+          if (pHere) continue;
+
+          // Check if adjacent to any pool
+          let nearPool = null;
+          for (const d of [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,1]]) {
+            const pAdj = getPoolAt((x + d[0]) * RV, (z + d[1]) * RV);
+            if (pAdj) { nearPool = pAdj; break; }
+          }
+          if (nearPool) {
+            const rimY = Math.round(nearPool.waterY / RV) + (_voxelHash(x, 3, z) > 0.45 ? 2 : 1);
+            for (let y = 0; y <= rimY; y++) {
+              const mossy = (y === rimY && _voxelHash(x, 7, z) > 0.58);
+              pushV(solidVoxels, x, y, z, mossy ? '#4f7742' : '#52565c', 0.04);
+            }
+          }
+        }
+      }
+
+      // Marisa's Resting Rock & Witch Hat beside Main Pool (wx ~ 0.6, wz ~ 0.8)
+      pushBox(solidVoxels, 1, 2, 2, 4, 4, 4, '#5c6066', 0.03);
+      // Marisa's Black Witch Hat with White Band resting on the rock!
+      for (let hx = -3; hx <= 3; hx++) {
+        for (let hz = -3; hz <= 3; hz++) {
+          if (hx * hx + hz * hz <= 9.5) {
+            pushV(solidVoxels, 2.5 + hx * 0.45, 4.6, 3.0 + hz * 0.45, '#1e1b24', 0.02, 0.5, 0.4, 0.5);
+          }
+        }
+      }
+      pushV(solidVoxels, 2.5, 5.1, 3.0, '#f8fafc', 0.01, 1.5, 0.5, 1.5);
+      pushV(solidVoxels, 2.5, 5.8, 2.9, '#1e1b24', 0.02, 1.1, 1.2, 1.1);
+      pushV(solidVoxels, 2.5, 6.6, 2.7, '#1e1b24', 0.02, 0.6, 0.9, 0.6);
+
+      // Remilia's Red Wagasa Parasol & Milk Bottle on Poolside Rock (wx ~ 5.6, wz ~ 0.8)
+      const px = 20, pz = 3;
+      for (let y = 3; y <= 14; y++) {
+        pushV(solidVoxels, px, y, pz, '#5c3a21', 0.02, 0.45, 1, 0.45);
+      }
+      for (let ux = -6; ux <= 6; ux++) {
+        for (let uz = -6; uz <= 6; uz++) {
+          const r = Math.hypot(ux, uz);
+          if (r <= 6.2) {
+            const uy = 14.5 - r * 0.32;
+            const col = (Math.abs(ux) <= 1 || Math.abs(uz) <= 1) ? '#2b1924' : (r < 2.2 ? '#fefae0' : '#be123c');
+            pushV(solidVoxels, px + ux * 0.75, uy, pz + uz * 0.75, col, 0.025, 0.8, 0.45, 0.8);
+          }
+        }
+      }
+      // Remilia's glass bottle of fruit milk next to her
+      pushV(glossyVoxels, 18.5, 3.6, 4.5, '#fef3c7', 0.01, 0.65, 1.3, 0.65);
+      pushV(glossyVoxels, 18.5, 4.4, 4.5, '#f43f5e', 0.01, 0.45, 0.45, 0.45);
+
+      // Yuyuko's Tall Stack of Empty Dessert Plates at Pool Edge (wx ~ -0.6, wz ~ 4.2 -> gx -2, gz 15)
+      pushBox(solidVoxels, -4, 3, 14, -1, 3, 17, '#7f5539', 0.02); // Wooden tray
+      for (let p = 0; p < 8; p++) {
+        const py = 3.5 + p * 0.42;
+        const pCol = (p % 2 === 0) ? '#f8fafc' : '#bae6fd';
+        pushV(glossyVoxels, -2.5 + Math.sin(p) * 0.12, py, 15.5, pCol, 0.01, 1.8, 0.35, 1.8);
+      }
+      // One remaining tri-color Hanami Dango skewer beside the plates!
+      pushV(solidVoxels, -1.3, 3.6, 15.5, '#f4a2b8', 0.01, 0.5, 0.5, 0.5);
+      pushV(solidVoxels, -1.3, 4.0, 15.5, '#ffffff', 0.01, 0.5, 0.5, 0.5);
+      pushV(solidVoxels, -1.3, 4.4, 15.5, '#86efac', 0.01, 0.5, 0.5, 0.5);
+
+      // Cirno's Floating Translucent Ice Block in Lower Pool (wx = 4.6, wz = 7.2 -> gx 16.4, gz 25.7)
+      for (let ix = 14; ix <= 19; ix++) {
+        for (let iz = 23; iz <= 28; iz++) {
+          pushV(iceVoxels, ix, 1.2, iz, '#bae6fd', 0.02, 1, 1.4, 1);
+        }
+      }
+      addCollider(3.8, 0.0, 6.3, 5.4, 0.62, 7.9, 'cirno_ice_block');
+
+      // ----------------------------------------------------------------------
+      // B. TRADITIONAL WOODEN RYOKAN BUILDING (Left / Back-Left: gx -34..-11, gz -30..20)
+      // ----------------------------------------------------------------------
+      // Engawa Wooden Porch Deck (gx -15..-9, gz -24..18, gy 3)
+      pushBox(solidVoxels, -34, 3, -26, -9, 3, 18, (x, y, z) => {
+        return (z % 2 === 0) ? '#8d5b3c' : '#7f4f32';
+      }, 0.025);
+      // Porch support posts
+      for (let z = -24; z <= 18; z += 6) {
+        pushBox(solidVoxels, -9, 0, z, -9, 2, z, '#4a2e1b');
+      }
+      addCollider(-9.6, 0, -7.5, -2.5, 1.12, 5.2, 'engawa_porch');
+
+      // Ryokan Walls & Glowing Shoji Sliding Doors (gx = -15, gy = 4..18, gz = -24..16)
+      for (let y = 4; y <= 18; y++) {
+        for (let z = -24; z <= 16; z++) {
+          const isPillar = (z % 8 === 0) || (y === 4) || (y === 18);
+          // Leave doorway opening at gz = -8..-2 for Noren Curtain & Front Desk
+          const inDoorway = (z >= -7 && z <= -1 && y <= 14);
+          if (inDoorway) continue;
+
+          if (isPillar) {
+            pushV(solidVoxels, -15, y, z, '#4a2e1b', 0.02);
+          } else if (y >= 5 && y <= 15 && (z % 2 !== 0) && (y % 3 !== 0)) {
+            pushV(shojiVoxels, -15.1, y, z, '#fffbeb', 0.01, 0.6, 1, 1);
+          } else {
+            pushV(solidVoxels, -15, y, z, '#6b442a', 0.02);
+          }
+        }
+      }
+      // Side & Back Ryokan Walls
+      pushBox(solidVoxels, -34, 4, -24, -15, 18, -24, '#5c3a21');
+      pushBox(solidVoxels, -34, 4, 16, -15, 18, 16, '#5c3a21');
+      pushBox(solidVoxels, -34, 4, -24, -34, 18, 16, '#4a2e1b');
+      addCollider(-9.8, 1.1, -6.8, -4.1, 5.5, 4.6, 'ryokan_building');
+
+      // Traditional Kawara Tiled Roof with Upturned Eaves (gy = 18..26)
+      for (let ry = 0; ry <= 8; ry++) {
+        const xMin = -36 + ry;
+        const xMax = -7 - ry * 1.1;
+        const zMin = -27 + Math.floor(ry * 0.5);
+        const zMax = 19 - Math.floor(ry * 0.5);
+        for (let x = Math.floor(xMin); x <= Math.ceil(xMax); x++) {
+          for (let z = zMin; z <= zMax; z++) {
+            if (x > xMin + 1 && x < xMax - 1 && z > zMin + 1 && z < zMax - 1 && ry < 8) continue;
+            const eaveLift = (x >= xMax - 1.2 || z === zMin || z === zMax) ? 0.55 : 0;
+            const tileCol = (z % 2 === 0) ? '#2b303a' : '#353b47';
+            pushV(solidVoxels, x, 18.5 + ry * 0.85 + eaveLift, z, tileCol, 0.02);
+          }
+        }
+      }
+      // Golden Roof Ridge Ornament (Shachihoko / Finials)
+      pushV(glossyVoxels, -21, 26.2, -23, '#eab308', 0.02, 1.3, 1.6, 1.3);
+      pushV(glossyVoxels, -21, 26.2, 15, '#eab308', 0.02, 1.3, 1.6, 1.3);
+
+      // Indigo Noren Curtain in Doorway (gx = -14.2, gz = -7..-1, gy = 11..15)
+      for (let z = -7; z <= -1; z++) {
+        for (let y = 11; y <= 15; y++) {
+          if (y === 11 && (z === -5 || z === -3)) continue; // Slits in noren curtain
+          const isCrest = (y === 13 && (z === -6 || z === -4 || z === -2));
+          pushV(solidVoxels, -14.2, y, z, isCrest ? '#f8fafc' : '#1e3a8a', 0.02, 0.4, 1, 0.92);
+        }
+      }
+
+      // Hanging Red Paper Lanterns (Chochin) along Engawa Eaves
+      for (const lz of [-18, -8, 2, 12]) {
+        pushV(solidVoxels, -8.5, 17.2, lz, '#27272a', 0.01, 0.3, 1.5, 0.3);
+        pushV(solidVoxels, -8.5, 16.2, lz, '#18181b', 0.01, 1.4, 0.4, 1.4);
+        pushV(lanternVoxels, -8.5, 15.0, lz, '#ff6b35', 0.02, 1.7, 2.0, 1.7);
+        pushV(solidVoxels, -8.5, 13.8, lz, '#18181b', 0.01, 1.3, 0.4, 1.3);
+      }
+
+      // ----------------------------------------------------------------------
+      // C. RYOKAN PROPS: FRONT DESK & BOAT BELL, CHANGING SHELF, FRIDGE, FOOT BATH
+      // ----------------------------------------------------------------------
+      // 1. Komachi's Front Desk & Boat-Shaped Brass Bell (gx -13..-10, gz -5..-2, gy 4..6)
+      pushBox(solidVoxels, -13, 4, -5, -10, 6, -2, '#5c381f', 0.02);
+      // Boat-shaped brass bell on counter
+      pushV(glossyVoxels, -10.5, 6.7, -3.5, '#eab308', 0.01, 0.9, 0.5, 1.8);
+      pushV(glossyVoxels, -10.5, 7.2, -3.5, '#fef08a', 0.01, 0.6, 0.7, 0.6);
+
+      // 2. Changing-Room Shelf with Folded Yukata (gx -14..-12, gz 4..9, gy 4..10)
+      pushBox(solidVoxels, -14, 4, 4, -12, 10, 9, (x, y, z) => {
+        if (x === -12 && y !== 4 && y !== 7 && y !== 10 && z > 4 && z < 9) return null;
+        return '#7c4d2b';
+      }, 0.02);
+      // Folded pastel yukata stacks inside shelves
+      const yukataCols = ['#f472b6', '#38bdf8', '#a78bfa', '#4ade80'];
+      for (let s = 0; s < 4; s++) {
+        pushV(solidVoxels, -12.6, 5.2 + (s % 2) * 3.0, 5.2 + Math.floor(s / 2) * 2.2, yukataCols[s], 0.02, 1.2, 0.7, 1.5);
+      }
+
+      // 3. Drink Fridge stocked with Milk Bottles (gx -14..-12, gz 11..14, gy 4..10)
+      pushBox(glossyVoxels, -14, 4, 11, -12, 10, 14, (x, y, z) => {
+        if (x === -12 && y >= 5 && y <= 9 && z >= 12 && z <= 13) return null; // Glass door
+        return '#e2e8f0';
+      }, 0.01);
+      // Tiny milk bottles inside fridge (white, coffee brown, strawberry pink, banana yellow)
+      const milkCols = ['#ffffff', '#b45309', '#f472b6', '#facc15'];
+      for (let m = 0; m < 4; m++) {
+        pushV(glossyVoxels, -12.8, 5.5 + Math.floor(m / 2) * 2.2, 12.1 + (m % 2) * 0.9, milkCols[m], 0.01, 0.55, 1.1, 0.55);
+      }
+
+      // 4. Tray of Tea & Sweets on Engawa Porch (gx -11..-9, gz -13..-11, gy 4)
+      pushBox(solidVoxels, -11, 4, -13, -9, 4, -11, '#5c3a21', 0.02);
+      pushV(glossyVoxels, -10.2, 4.7, -12.2, '#4ade80', 0.01, 0.9, 0.9, 0.9); // Matcha teapot
+      pushV(glossyVoxels, -9.4, 4.6, -11.5, '#f8fafc', 0.01, 0.6, 0.7, 0.6); // Teacup
+
+      // 5. Outdoor Wooden Foot Bath (Ashiyu) near Engawa (gx -8..-5, gz 8..14, gy 1..2)
+      pushBox(solidVoxels, -8, 1, 8, -5, 2, 14, (x, y, z) => {
+        if (y === 2 && x > -8 && x < -5 && z > 8 && z < 14) return '#2dd4bf';
+        return '#8d5b3c';
+      }, 0.025);
+
+      // 6. Stack of Cedar Wooden Buckets (Oke) & Washing Stools (gx -6..-4, gz -3..0)
+      for (let b = 0; b < 3; b++) {
+        pushV(solidVoxels, -5.0, 2.2 + b * 0.85, -2.0, '#d4a373', 0.02, 1.3, 0.8, 1.3);
+        pushV(solidVoxels, -5.0, 2.2 + b * 0.85, -0.5, '#c89666', 0.02, 1.1, 0.65, 1.1); // Wooden stool
+      }
+
+      // ----------------------------------------------------------------------
+      // D. BOILER HUT, PIPES & CLICKABLE TEMPERATURE VALVE (Back-Right: gx 16..28, gz -26..-14)
+      // ----------------------------------------------------------------------
+      pushBox(solidVoxels, 17, 3, -25, 27, 13, -15, (x, y, z) => {
+        // Glowing furnace opening on front (z === -15, x 20..23, y 4..7)
+        if (z === -15 && x >= 20 && x <= 23 && y >= 4 && y <= 7) return null;
+        return (y <= 6) ? '#7f1d1d' : '#5c3a21'; // Red brick base + timber upper
+      }, 0.03);
+      // Boiler Roof & Chimney
+      pushBox(solidVoxels, 16, 14, -26, 28, 15, -14, '#334155', 0.02);
+      pushBox(solidVoxels, 24, 15, -23, 26, 22, -21, '#475569', 0.02);
+      // Glowing Coal Fire inside Boiler Furnace
+      for (let fx = 20; fx <= 23; fx++) {
+        for (let fy = 4; fy <= 6; fy++) {
+          pushV(lanternVoxels, fx, fy, -15.8, (fx + fy) % 2 === 0 ? '#ef4444' : '#f97316', 0.02);
+        }
+      }
+      // Copper & Iron Pipes running from Boiler Hut to Upper & Main Rock Pools
+      for (let z = -15; z <= -5; z++) {
+        pushV(glossyVoxels, 18, 5, z, '#b45309', 0.02, 0.85, 0.85, 1.05);
+      }
+      for (let x = 6; x <= 18; x++) {
+        pushV(glossyVoxels, x, 4.5, -5, '#b45309', 0.02, 1.05, 0.85, 0.85);
+      }
+      addCollider(4.5, 0.8, -7.2, 7.8, 4.4, -4.0, 'boiler_hut');
+
+      // ----------------------------------------------------------------------
+      // E. BAMBOO FENCE, STONE LANTERNS, AUTUMN TREES & DISTANT MOUNTAINS
+      // ----------------------------------------------------------------------
+      // Bamboo Fence (Takegaki) along Back Hillside (gz = -25, gx = -8..15)
+      for (let x = -8; x <= 15; x++) {
+        for (let y = 3; y <= 10; y++) {
+          const isKnot = (y === 5 || y === 8);
+          pushV(solidVoxels, x, y, -24, isKnot ? '#3f6212' : '#84cc16', 0.03, 0.85, 1, 0.5);
+        }
+      }
+
+      // Mossy Stone Lanterns (Toro) beside Pools
+      const lanternSpots = [[-4, -12], [15, -2], [11, 18], [-3, 18]];
+      lanternSpots.forEach(([lx, lz]) => {
+        const baseY = (lx < -2 && lz < -6) ? 3 : 1;
+        pushBox(solidVoxels, lx - 1, baseY, lz - 1, lx + 1, baseY + 1, lz + 1, '#64748b');
+        pushBox(solidVoxels, lx, baseY + 2, lz, lx, baseY + 4, lz, '#64748b');
+        pushV(lanternVoxels, lx, baseY + 5, lz, '#fde047', 0.01, 1.4, 1.4, 1.4); // Glowing light box
+        pushBox(solidVoxels, lx - 1, baseY + 6, lz - 1, lx + 1, baseY + 6, lz + 1, '#475569');
+        pushV(solidVoxels, lx, baseY + 7, lz, '#4f7742', 0.02); // Mossy finial
+      });
+
+      // Autumn Maple (Crimson/Orange) & Golden Ginkgo Trees
+      const treeSpecs = [
+        { gx: -5, gz: -21, trunkH: 13, radius: 6.5, palette: ['#dc2626', '#ea580c', '#f97316'] }, // Maple
+        { gx: 26, gz: -6,  trunkH: 12, radius: 6.0, palette: ['#eab308', '#facc15', '#ca8a04'] }, // Ginkgo
+        { gx: -6, gz: 24,  trunkH: 11, radius: 5.5, palette: ['#e11d48', '#f97316', '#fb923c'] }  // Maple
+      ];
+      treeSpecs.forEach((t) => {
+        for (let y = 1; y <= t.trunkH; y++) {
+          pushBox(solidVoxels, t.gx - 1, y, t.gz - 1, t.gx, y, t.gz, '#4a2e1b', 0.025);
+        }
+        const r = Math.ceil(t.radius);
+        for (let dx = -r; dx <= r; dx++) {
+          for (let dy = -3; dy <= r; dy++) {
+            for (let dz = -r; dz <= r; dz++) {
+              const dist = Math.sqrt(dx * dx + dy * dy * 1.4 + dz * dz);
+              if (dist <= t.radius && dist >= t.radius - 2.2 && _voxelHash(t.gx + dx, dy, t.gz + dz) > 0.22) {
+                const c = t.palette[Math.abs(dx + dy + dz) % t.palette.length];
+                pushV(solidVoxels, t.gx + dx, t.trunkH + dy, t.gz + dz, c, 0.045);
+              }
+            }
+          }
+        }
+      });
+
+      // Distant Mountain Peaks on the Back Horizon (Youkai Mountain Backdrop)
+      for (let x = -36; x <= 34; x += 2) {
+        const peakH = Math.round(14 + Math.sin(x * 0.14) * 7 + Math.cos(x * 0.27) * 5);
+        for (let y = 2; y <= peakH; y += 2) {
+          const isSnowCap = (y >= peakH - 3 && peakH >= 20);
+          const mCol = isSnowCap ? '#f1f5f9' : '#475569';
+          pushV(solidVoxels, x, y, -35, mCol, 0.02, 2.1, 2.1, 2.1);
+        }
+      }
+
+      // ----------------------------------------------------------------------
+      // F. TINY VOXEL FROG ON POOLSIDE ROCK (wx = 3.2, wz = 5.4 -> gx 11.5, gz 19.3)
+      // ----------------------------------------------------------------------
+      pushBox(solidVoxels, 10, 1, 18, 13, 3, 20, '#57534e', 0.03); // Frog rock
+      pushV(glossyVoxels, 11.5, 3.8, 19.0, '#22c55e', 0.02, 1.1, 0.75, 1.3); // Frog body
+      pushV(glossyVoxels, 11.2, 4.3, 19.4, '#ffffff', 0.01, 0.35, 0.35, 0.35); // Left eye
+      pushV(glossyVoxels, 11.8, 4.3, 19.4, '#ffffff', 0.01, 0.35, 0.35, 0.35); // Right eye
+    }
+
+    buildOnsenWorld();
+
+    const worldGroup = new THREE.Group();
+    scene.add(worldGroup);
+
+    const solidMesh = buildVoxelInstancedMesh(solidVoxels, RV, solidMaterial, true, true);
+    const glossyMesh = buildVoxelInstancedMesh(glossyVoxels, RV, glossyMaterial, true, true);
+    const lanternMesh = buildVoxelInstancedMesh(lanternVoxels, RV, lanternEmissiveMaterial, false, false);
+    const shojiMesh = buildVoxelInstancedMesh(shojiVoxels, RV, shojiEmissiveMaterial, false, false);
+    const iceBlockMesh = buildVoxelInstancedMesh(iceVoxels, RV, iceMaterial, false, true);
+
+    if (solidMesh) worldGroup.add(solidMesh);
+    if (glossyMesh) worldGroup.add(glossyMesh);
+    if (lanternMesh) worldGroup.add(lanternMesh);
+    if (shojiMesh) worldGroup.add(shojiMesh);
+    if (iceBlockMesh) worldGroup.add(iceBlockMesh);
+
+    // ============================================================================
+    // 5. INTERACTIVE 3D PROPS: BOILER VALVE, SHISHI-ODOSHI & FLOATING WASHTUB
+    // ============================================================================
+    // 5A. Clickable Boiler Valve Wheel on the Pipe (wx = 4.9, wy = 1.35, wz = -1.4)
+    const boilerValveGroup = new THREE.Group();
+    boilerValveGroup.position.set(17.5 * RV, 5.2 * RV, -5.0 * RV);
+    scene.add(boilerValveGroup);
+
+    const valveVoxels = [];
+    for (let a = 0; a < 8; a++) {
+      const ang = (a / 8) * Math.PI * 2;
+      valveVoxels.push({
+        x: Math.cos(ang) * 1.4,
+        y: Math.sin(ang) * 1.4,
+        z: 0.6,
+        color: new THREE.Color('#ef4444'),
+        sx: 0.6, sy: 0.6, sz: 0.4
+      });
+    }
+    valveVoxels.push({ x: 0, y: 0, z: 0.4, color: new THREE.Color('#eab308'), sx: 0.9, sy: 0.9, sz: 0.9 });
+    const boilerValveMesh = buildVoxelInstancedMesh(valveVoxels, RV, glossyMaterial, true, true);
+    boilerValveMesh.userData.isBoilerValve = true;
+    boilerValveGroup.add(boilerValveMesh);
+
+    // Clickable Invisible Hitbox for Komachi's Front Desk Bell
+    const bellHitMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.9, 0.9, 0.9),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    bellHitMesh.position.set(-10.5 * RV, 6.8 * RV, -3.5 * RV);
+    bellHitMesh.userData.isFrontDeskBell = true;
+    scene.add(bellHitMesh);
+
+    // 5B. Rhythmic Shishi-Odoshi (Bamboo Water Spout at gx = 13, gz = -3 -> wx = 3.64, wz = -0.84)
+    const shishiStandVoxels = [
+      { x: 13, y: 2, z: -4, color: new THREE.Color('#3f6212'), sx: 0.6, sy: 2.5, sz: 0.6 },
+      { x: 13, y: 2, z: -2, color: new THREE.Color('#3f6212'), sx: 0.6, sy: 2.5, sz: 0.6 },
+      { x: 14.5, y: 4.5, z: -3, color: new THREE.Color('#65a30d'), sx: 2.2, sy: 0.55, sz: 0.55 } // Feed pipe
+    ];
+    const shishiStandMesh = buildVoxelInstancedMesh(shishiStandVoxels, RV, solidMaterial, true, true);
+    worldGroup.add(shishiStandMesh);
+
+    const shishiArmPivot = new THREE.Group();
+    shishiArmPivot.position.set(13 * RV, 3.0 * RV, -3 * RV);
+    scene.add(shishiArmPivot);
+
+    const shishiTubeVoxels = [];
+    for (let bx = -2; bx <= 2; bx++) {
+      shishiTubeVoxels.push({
+        x: bx * 0.7, y: 0, z: 0,
+        color: new THREE.Color('#84cc16'),
+        sx: 0.75, sy: 0.65, sz: 0.65
+      });
+    }
+    const shishiTubeMesh = buildVoxelInstancedMesh(shishiTubeVoxels, RV, solidMaterial, true, true);
+    shishiArmPivot.add(shishiTubeMesh);
+
+    let shishiCycle = 0;
+
+    // 5C. Wooden Tarai Washtub Floating on Main Pool (for the sleeping Fumo!)
+    const washtubGroup = new THREE.Group();
+    washtubGroup.position.set(1.2, 0.68, 2.2);
+    scene.add(washtubGroup);
+
+    const tubVoxels = [];
+    for (let tx = -4; tx <= 4; tx++) {
+      for (let tz = -4; tz <= 4; tz++) {
+        const r = Math.hypot(tx, tz);
+        if (r <= 4.2) {
+          tubVoxels.push({ x: tx, y: 0, z: tz, color: new THREE.Color('#d4a373') });
+          if (r >= 3.1) {
+            tubVoxels.push({ x: tx, y: 1, z: tz, color: new THREE.Color('#e6b88a') });
+            tubVoxels.push({ x: tx, y: 1.8, z: tz, color: new THREE.Color('#b45309'), sx: 1, sy: 0.35, sz: 1 }); // Copper hoop
+          }
+        }
+      }
+    }
+    const washtubMesh = buildVoxelInstancedMesh(tubVoxels, 0.085, solidMaterial, true, true);
+    washtubGroup.add(washtubMesh);
+
+    // ============================================================================
+    // 6. ANIMATED TURQUOISE VOXEL WATER, EXPANDING RIPPLES, STEAM & LEAVES
+    // ============================================================================
+    const waterCells = [];
+    for (let x = -8; x <= 31; x++) {
+      for (let z = -16; z <= 33; z++) {
+        const wx = x * RV;
+        const wz = z * RV;
+        const pool = getPoolAt(wx, wz);
+        if (pool) {
+          waterCells.push({
+            wx, wz,
+            baseY: pool.waterY,
+            poolName: pool.name,
+            baseColor: _varyColor('#2dd4bf', x, 0, z, 0.025)
+          });
+        }
+      }
+    }
+    const waterMesh = new THREE.InstancedMesh(_createSoftVoxelGeometry(RV), waterMaterial, waterCells.length);
+    waterMesh.receiveShadow = true;
+    scene.add(waterMesh);
+
+    // Active expanding circular ripples on the water
+    const waterRipples = [];
+    function spawnWaterRipple(wx, wz, strength = 1.0) {
+      waterRipples.push({ x: wx, z: wz, radius: 0.15, strength, age: 0 });
+      if (waterRipples.length > 14) waterRipples.shift();
+    }
+
+    function updateAnimatedWater(time, dt) {
+      for (let r = waterRipples.length - 1; r >= 0; r--) {
+        const rip = waterRipples[r];
+        rip.age += dt;
+        rip.radius += dt * 3.4;
+        if (rip.age > 2.2) waterRipples.splice(r, 1);
+      }
+
+      for (let i = 0; i < waterCells.length; i++) {
+        const c = waterCells[i];
+        let waveH = Math.sin(time * 2.2 + c.wx * 1.4 + c.wz * 1.1) * 0.032 +
+                    Math.cos(time * 1.7 - c.wx * 0.9 + c.wz * 1.6) * 0.024;
+        let crestFoam = 0;
+
+        for (let r = 0; r < waterRipples.length; r++) {
+          const rip = waterRipples[r];
+          const dist = Math.hypot(c.wx - rip.x, c.wz - rip.z);
+          const diff = Math.abs(dist - rip.radius);
+          if (diff < 0.55) {
+            const fade = (1.0 - rip.age / 2.2) * rip.strength;
+            const ring = Math.cos((diff / 0.55) * Math.PI * 0.5) * fade;
+            waveH += ring * 0.095;
+            crestFoam = Math.max(crestFoam, ring);
+          }
+        }
+
+        tempPos.set(c.wx, c.baseY + waveH - RV * 0.35, c.wz);
+        tempQuat.identity();
+        tempScale.set(1.02, 0.65, 1.02);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        waterMesh.setMatrixAt(i, tempMatrix);
+
+        tempColor.copy(c.baseColor);
+        if (crestFoam > 0.22) {
+          tempColor.lerp(new THREE.Color('#e0f2fe'), Math.min(1, crestFoam * 0.85));
+        }
+        waterMesh.setColorAt(i, tempColor);
+      }
+      waterMesh.instanceMatrix.needsUpdate = true;
+      if (waterMesh.instanceColor) waterMesh.instanceColor.needsUpdate = true;
+    }
+
+    // Pooled Rising Steam Puffs (scales with Boiler Water Temperature!)
+    const STEAM_COUNT = 95;
+    const steamPuffs = [];
+    const steamMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.28,
+      depthWrite: false
+    });
+    const steamMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.32, 0.32, 0.32), steamMat, STEAM_COUNT);
+    for (let i = 0; i < STEAM_COUNT; i++) {
+      const pool = ONSEN_POOLS[i % ONSEN_POOLS.length];
+      steamPuffs.push({
+        x: THREE.MathUtils.lerp(pool.minX + 0.4, pool.maxX - 0.4, Math.random()),
+        y: pool.waterY + Math.random() * 3.8,
+        z: THREE.MathUtils.lerp(pool.minZ + 0.4, pool.maxZ - 0.4, Math.random()),
+        baseY: pool.waterY,
+        pool,
+        speed: 0.45 + Math.random() * 0.45,
+        phase: Math.random() * Math.PI * 2,
+        maxH: 2.6 + Math.random() * 2.2
+      });
+    }
+    scene.add(steamMesh);
+
+    // Pooled Falling Autumn Leaves & Night Fireflies
+    const LEAF_COUNT = 65;
+    const leafData = [];
+    const leafGeom = new THREE.BoxGeometry(0.13, 0.04, 0.13);
+    const leafMat = new THREE.MeshStandardMaterial({
+      roughness: 0.6,
+      emissive: new THREE.Color('#f59e0b'),
+      emissiveIntensity: 0.05
+    });
+    const leafMesh = new THREE.InstancedMesh(leafGeom, leafMat, LEAF_COUNT);
+    const leafColors = ['#ef4444', '#f97316', '#eab308', '#dc2626', '#facc15'];
+    for (let i = 0; i < LEAF_COUNT; i++) {
+      leafData.push({
+        x: -7 + Math.random() * 15,
+        y: 1 + Math.random() * 8.5,
+        z: -7 + Math.random() * 16,
+        vy: 0.45 + Math.random() * 0.4,
+        phase: Math.random() * Math.PI * 2,
+        isFirefly: i >= 45
+      });
+      leafMesh.setColorAt(i, new THREE.Color(i >= 45 ? '#bef264' : leafColors[i % leafColors.length]));
+    }
+    if (leafMesh.instanceColor) leafMesh.instanceColor.needsUpdate = true;
+    scene.add(leafMesh);
+
+    // Pop / Splash / Heart Particles
+    const POP_MAX = 64;
+    const popParticles = [];
+    const popGeom = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+    const popMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const popMesh = new THREE.InstancedMesh(popGeom, popMat, POP_MAX);
+    for (let i = 0; i < POP_MAX; i++) {
+      popParticles.push({ active: false, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, maxLife: 1, color: new THREE.Color() });
+      tempMatrix.makeScale(0, 0, 0);
+      popMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(popMesh);
+
+    function spawnBurstParticles(origin, paletteHexes, count = 12, upwardSpeed = 2.8) {
+      let spawned = 0;
+      for (let i = 0; i < POP_MAX && spawned < count; i++) {
+        const p = popParticles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.48 + Math.random() * 0.28;
+          p.pos.copy(origin).add(new THREE.Vector3(0, 0.75, 0));
+          const angle = (spawned / count) * Math.PI * 2 + Math.random() * 0.35;
+          const speed = 1.8 + Math.random() * 2.1;
+          p.vel.set(Math.cos(angle) * speed, upwardSpeed + Math.random() * 2.0, Math.sin(angle) * speed);
+          p.color.set(paletteHexes[spawned % paletteHexes.length]);
+          popMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (popMesh.instanceColor) popMesh.instanceColor.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 7. TOUHOU FUMO VOXEL PLUSHIE CLASS (Exact `room.html` Hollow-Shell Spec!)
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const fumos = [];
+    const staffFumos = [];
+    const guestFumos = [];
+
+    const WISH_TYPES = [
+      { id: 'tea',    emoji: '🍵', label: 'Green Tea',   propColor: '#4ade80' },
+      { id: 'milk',   emoji: '🥛', label: 'Fruit Milk',  propColor: '#fef08a' },
+      { id: 'towel',  emoji: '🧖‍♀️', label: 'Fresh Towel', propColor: '#ffffff' },
+      { id: 'scrub',  emoji: '🧽', label: 'Back Scrub',  propColor: '#fbbf24' },
+      { id: 'hotter', emoji: '🔥', label: 'Hotter Bath', propColor: '#f97316' }
+    ];
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.role = config.role || 'guest'; // 'staff' | 'guest' | 'bonus'
+        this.emoji = config.emoji || '♨️';
+        this.accentColor = config.accentColor || '#ef4444';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.078 * this.scaleFactor;
+        this.radius = 0.78 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.inWater = false;
+
+        // Soft-Body Spring States
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        // Staff AI / Task State
+        this.taskState = 'idle'; // 'idle' | 'walking_to_guest' | 'serving' | 'returning' | 'bell_summon' | 'bowing'
+        this.targetGuest = null;
+        this.taskTimer = 0;
+
+        // Guest Wish / Mood State
+        this.wish = null;
+        this.wishPatience = 1.0; // 1.0 = happy, < 0.35 = grumpy pulsing
+        this.wishCooldown = 2.0 + Math.random() * 4.0;
+        this.moodEl = null;
+
+        // Scene Hierarchy
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        // Carried item group for Staff Fumos
+        this.carryGroup = new THREE.Group();
+        this.carryGroup.position.set(0, 4.6 * this.FV, 4.8 * this.FV);
+        this.squashGroup.add(this.carryGroup);
+
+        // Extra rosy cheek meshes that intensify when bath water is hotter
+        this.cheekMat = new THREE.MeshBasicMaterial({
+          color: 0xff5c8a,
+          transparent: true,
+          opacity: 0.25
+        });
+
+        this.buildCharacterVoxels(config);
+        if (this.role === 'guest') {
+          this.createMoodBubble();
+          this.assignRandomWish();
+        }
+        this.syncTransform(0);
+        scene.add(this.root);
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingSolidVoxels = [];
+        const wingGlowVoxels = [];
+        const carryVoxels = [];
+
+        const skinBase = '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false) => {
+          const seamDarken = (isSeam && ((Math.abs(x + y + z) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z,
+            color: _varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // 1. STUBBY SITTING TORSO (Yukata / Happi for Staff, Bath Towel Wrap / Outfit for Bathers)
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain;
+
+              // Obi sash for yukata at y === 2..3
+              if (cfg.obiColor && (y === 2 || y === 3)) {
+                col = cfg.obiColor;
+              }
+              // White apron for Sakuya / Mystia
+              if (cfg.hasWhiteApron && z >= 1 && Math.abs(x) <= 2 && y <= 5) {
+                col = '#fcfcfc';
+              }
+              // Collar & neckline
+              if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                col = (this.role === 'guest') ? skinBase : '#ffffff';
+                if (cfg.tieColor && Math.abs(x) <= 1 && y === 5) col = cfg.tieColor;
+              }
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        // Nitori's Tan Tech Backpack
+        if (this.id === 'nitori') {
+          for (let bx = -2; bx <= 2; bx++) {
+            for (let by = 2; by <= 6; by++) {
+              addPlushVoxel(bodyVoxels, bx, by, -3.6, by === 5 ? '#d97706' : '#b45309');
+            }
+          }
+        }
+
+        // 2. SHORT DANGLING ARMS
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || cfg.outfitMain;
+                if (y === -3) col = skinBase;
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        // 3. SHORT SITTING / DANGLING LEGS
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = (this.role === 'guest') ? skinBase : '#ffffff';
+                if (z >= 3 && this.role !== 'guest') col = cfg.shoeColor || '#5c3a21'; // Wooden geta sandals for staff
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        // 4. OVERSIZED ROUND FUMO HEAD (`dist <= 6.4 && dist >= 4.5`) & ICONIC `ᗜˬᗜ` FACE
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                // Iconic Fumo Face Plane
+                if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (y === 6) col = '#1f141e';
+                  else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                  else col = cfg.eyeColor;
+                } else if (Math.abs(x) === 4 && y === 3) {
+                  col = blushCol;
+                } else if (y === 2 && Math.abs(x) <= 1) {
+                  col = (x === 0) ? '#e07a7a' : smileCol;
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        // Extra dynamic rosy cheeks for temperature reaction
+        for (const side of [-1, 1]) {
+          const cheek = new THREE.Mesh(new THREE.BoxGeometry(this.FV * 1.6, this.FV * 1.1, this.FV * 0.5), this.cheekMat);
+          cheek.position.set(side * 4.1 * this.FV, 3.0 * this.FV, 5.85 * this.FV);
+          this.headPivot.add(cheek);
+        }
+
+        // Folded White Onsen Towel on top of Bathing Guests' Heads!
+        if (cfg.hasHeadTowel) {
+          for (let tx = -3; tx <= 3; tx++) {
+            for (let tz = -2; tz <= 3; tz++) {
+              addPlushVoxel(headVoxels, tx, 11.8, tz, '#ffffff');
+              addPlushVoxel(headVoxels, tx * 0.9, 12.5, tz * 0.9, (tx === 0 && tz === 2) ? '#bae6fd' : '#f8fafc');
+            }
+          }
+        }
+
+        // Snowball on the Monkey-Style Fumo's Head!
+        if (this.id === 'monkey') {
+          for (let sx = -2; sx <= 2; sx++) {
+            for (let sy = 0; sy <= 3; sy++) {
+              for (let sz = -2; sz <= 2; sz++) {
+                if (sx * sx + (sy - 1.5) * (sy - 1.5) + sz * sz <= 4.5) {
+                  addPlushVoxel(headVoxels, sx, 11.8 + sy, sz, '#ffffff');
+                }
+              }
+            }
+          }
+          // Cute round monkey ears
+          for (const side of [-1, 1]) {
+            addPlushVoxel(headVoxels, side * 6.8, 7.0, 0.5, '#78350f');
+            addPlushVoxel(headVoxels, side * 6.8, 7.0, 1.2, '#fda4af');
+          }
+        }
+
+        // Character-Specific Hair & Accessories
+        if (this.id === 'reimu') {
+          for (const side of [-1, 1]) {
+            for (let y = -1; y <= 5; y++) {
+              addPlushVoxel(headVoxels, side * 6.8, y, 2.5, y === 5 ? '#e63946' : '#ffffff');
+            }
+          }
+          for (let bx = -7; bx <= 7; bx++) {
+            const h = Math.min(4, Math.floor(Math.abs(bx) * 0.7) + 1);
+            for (let by = -h; by <= h; by++) {
+              addPlushVoxel(headVoxels, bx, 11.5 + by * 0.75, -2.5, '#d90429');
+            }
+          }
+        }
+
+        if (this.id === 'marisa') {
+          for (let y = -1; y <= 5; y++) {
+            addPlushVoxel(headVoxels, -6.6, y, 2.8, y === 0 ? '#ffffff' : cfg.hairColor);
+          }
+        }
+
+        if (this.id === 'remilia') {
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -6; hz <= 5; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.8 && r >= 4.5) {
+                addPlushVoxel(headVoxels, hx, 10.8, hz, '#ffc2d1');
+                addPlushVoxel(headVoxels, hx * 0.9, 11.6, hz * 0.9, '#e11d48');
+              }
+            }
+          }
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 6; wx++) {
+              const topY = 2.0 + Math.sin((wx / 6) * Math.PI) * 2.5;
+              for (let wy = -1; wy <= topY; wy++) {
+                wingSolidVoxels.push({ x: side * wx, y: wy, z: -0.6, color: _varyColor('#2b193d', wx, wy, 0, 0.03) });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'flandre') {
+          for (let py = 2; py <= 7; py++) {
+            addPlushVoxel(headVoxels, -7.2, py, 0.5, py === 6 ? '#e63946' : cfg.hairColor);
+          }
+          const crystalColors = ['#38bdf8', '#3b82f6', '#a855f7', '#ec4899', '#f97316', '#fde047', '#4ade80', '#ef4444'];
+          for (const side of [-1, 1]) {
+            for (let rx = 1; rx <= 8; rx++) {
+              const branchY = 2.2 + (rx <= 4 ? rx * 0.4 : (1.6 - (rx - 4) * 0.3));
+              wingSolidVoxels.push({ x: side * rx, y: branchY, z: -0.5, color: new THREE.Color('#1e1b24'), sx: 0.9, sy: 0.6, sz: 0.6 });
+              if (rx % 2 === 0) {
+                const cHex = crystalColors[(side === -1 ? (rx / 2 - 1) : (3 + rx / 2)) % 8];
+                for (let cy = -2; cy <= 0; cy++) {
+                  wingGlowVoxels.push({
+                    x: side * rx, y: branchY - 1.0 + cy * 0.9, z: -0.5,
+                    color: new THREE.Color(cHex),
+                    sx: cy === -1 ? 1.3 : 0.75, sy: 0.9, sz: 0.75
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        if (this.id === 'cirno') {
+          for (let bx = -6; bx <= 6; bx++) {
+            const h = Math.min(3, Math.floor(Math.abs(bx) * 0.65) + 1);
+            for (let by = -h; by <= h; by++) {
+              addPlushVoxel(headVoxels, bx, 10.5 + by * 0.75, -4.6, '#1d4ed8');
+            }
+          }
+          const wingAngles = [0.45, 0.05, -0.35];
+          for (const side of [-1, 1]) {
+            for (let w = 0; w < 3; w++) {
+              const ang = wingAngles[w];
+              for (let r = 1; r <= 6; r++) {
+                wingGlowVoxels.push({
+                  x: side * (1.2 + Math.cos(ang) * r),
+                  y: 1.0 + Math.sin(ang) * r,
+                  z: -0.5 - r * 0.12,
+                  color: new THREE.Color(r > 4 ? '#e0f2fe' : '#38bdf8'),
+                  sx: 1.05, sy: 0.85, sz: 0.6
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'yuyuko') {
+          for (let hx = -6; hx <= 6; hx++) {
+            addPlushVoxel(headVoxels, hx, 11.4, 2.2 - Math.abs(hx) * 0.15, '#bae6fd');
+            if (Math.abs(hx) <= 1) addPlushVoxel(headVoxels, hx, 12.2, 2.4, '#ef4444');
+          }
+        }
+
+        if (this.id === 'sakuya') {
+          for (const side of [-1, 1]) {
+            for (let y = -2; y <= 5; y++) {
+              addPlushVoxel(headVoxels, side * 6.5, y, 3.2, y <= -1 ? '#22c55e' : cfg.hairColor);
+            }
+          }
+          for (let hx = -6; hx <= 6; hx++) {
+            addPlushVoxel(headVoxels, hx, 11.8, 1.8 - Math.abs(hx) * 0.15, Math.abs(hx) === 6 ? '#22c55e' : '#ffffff');
+          }
+          // Sakuya's Wooden Serving Tray with Teacup
+          for (let tx = -3; tx <= 3; tx++) {
+            for (let tz = -2; tz <= 2; tz++) {
+              carryVoxels.push({ x: tx * 0.75, y: 0, z: tz * 0.75, color: new THREE.Color('#78350f') });
+            }
+          }
+          carryVoxels.push({ x: 0, y: 0.9, z: 0, color: new THREE.Color('#4ade80'), sx: 1.2, sy: 1.2, sz: 1.2 });
+        }
+
+        if (this.id === 'mystia') {
+          // Green night-sparrow cook hat
+          for (let hx = -4; hx <= 4; hx++) {
+            for (let hz = -4; hz <= 4; hz++) {
+              if (hx * hx + hz * hz <= 16) {
+                addPlushVoxel(headVoxels, hx, 11.8, hz, '#15803d');
+                addPlushVoxel(headVoxels, hx * 0.7, 12.7, hz * 0.7, '#166534');
+              }
+            }
+          }
+          // Brown bird wings
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 5; wx++) {
+              for (let wy = 0; wy <= 3; wy++) {
+                wingSolidVoxels.push({ x: side * wx, y: wy - wx * 0.2, z: -0.5, color: _varyColor('#7c2d12', wx, wy, 0, 0.03) });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'youmu') {
+          // Black hair ribbon + bamboo broom in carryGroup
+          for (let bx = -2; bx <= 1; bx++) {
+            addPlushVoxel(headVoxels, -5.2 + bx, 10.8, 1.5, '#18181b');
+          }
+          for (let by = -4; by <= 5; by++) {
+            carryVoxels.push({ x: 2.2, y: by * 0.85, z: -1.0, color: new THREE.Color(by < -1 ? '#eab308' : '#84cc16'), sx: by < -1 ? 1.8 : 0.6, sy: 0.9, sz: 0.6 });
+          }
+        }
+
+        if (this.id === 'nitori') {
+          // Blue cap visor
+          for (let hx = -5; hx <= 5; hx++) {
+            for (let hz = -5; hz <= 6; hz++) {
+              if (hx * hx + hz * hz <= 26) {
+                addPlushVoxel(headVoxels, hx, 11.4, hz, '#2563eb');
+              }
+            }
+          }
+        }
+
+        if (this.id === 'komachi') {
+          // Twin high magenta tails
+          for (const side of [-1, 1]) {
+            for (let ty = 8; ty <= 13; ty++) {
+              addPlushVoxel(headVoxels, side * 6.8, ty, -1.0, ty === 10 ? '#eab308' : cfg.hairColor);
+            }
+          }
+        }
+
+        if (this.id === 'aya') {
+          // Red Tengu Tokin pillbox hat on forehead
+          for (let tx = -1; tx <= 1; tx++) {
+            for (let ty = 11; ty <= 13; ty++) {
+              addPlushVoxel(headVoxels, tx, ty, 3.5, '#dc2626');
+            }
+          }
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allFumoRaycastMeshes.push(m);
+          }
+          return m;
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        registerPart(wingSolidVoxels, this.wingsPivot);
+        registerPart(carryVoxels, this.carryGroup);
+
+        if (wingGlowVoxels.length > 0) {
+          const wMat = (this.id === 'cirno') ? iceMaterial : crystalWingMaterial;
+          registerPart(wingGlowVoxels, this.wingsPivot, wMat);
+        }
+      }
+
+      createMoodBubble() {
+        const el = document.createElement('div');
+        el.className = 'mood-bubble';
+        el.innerHTML = `<span class="mood-emoji">🍵</span><span class="mood-label">Tea</span>`;
+        el.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          handleFumoOrBubbleClick(this);
+        });
+        document.getElementById('mood-layer').appendChild(el);
+        this.moodEl = el;
+      }
+
+      assignRandomWish() {
+        const pool = (this.id === 'cirno')
+          ? WISH_TYPES.filter(w => w.id !== 'hotter')
+          : WISH_TYPES;
+        this.wish = pool[Math.floor(Math.random() * pool.length)];
+        this.wishPatience = 1.0;
+        if (this.moodEl) {
+          this.moodEl.style.display = 'flex';
+          this.moodEl.classList.remove('is-grumpy', 'is-being-served');
+          this.moodEl.querySelector('.mood-emoji').textContent = this.wish.emoji;
+          this.moodEl.querySelector('.mood-label').textContent = this.wish.label;
+        }
+      }
+
+      fulfillWish() {
+        if (!this.wish) return;
+        this.wish = null;
+        this.wishCooldown = 9.0 + Math.random() * 7.0;
+        if (this.moodEl) {
+          this.moodEl.style.display = 'none';
+          this.moodEl.classList.remove('is-grumpy', 'is-being-served');
+        }
+        this.squeeze(1.15);
+        spawnBurstParticles(this.pos, ['#f43f5e', '#fbbf24', '#4ade80', '#ffffff'], 16, 3.4);
+        incrementServedCounter();
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.5, this.squash - 0.42 * strength);
+        this.squashVel = -3.6 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 11 * strength;
+        this.limbPitch = -0.65 * strength;
+        this.limbPitchVel = -6.0 * strength;
+        spawnBurstParticles(this.pos, [this.accentColor, '#ff85a1', '#fde047', '#ffffff'], 12, 2.6);
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      resetToHome() {
+        this.pos.copy(this.homePos);
+        this.vel.set(0, 0, 0);
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel.set(0, 0, 0);
+        this.taskState = 'idle';
+        this.targetGuest = null;
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.squeeze(0.75);
+      }
+
+      updatePhysics(dt, time) {
+        // 1. Soft-Body Volume-Preserving Squash & Stretch Spring
+        const squashForce = (1.0 - this.squash) * 210.0 - this.squashVel * 11.5;
+        this.squashVel += squashForce * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash + this.squashVel * dt, 0.45, 1.55);
+
+        // 2. Oversized Head Wobble Spring
+        const idleBob = Math.sin(time * 2.3 + this.homePos.x) * 0.03;
+        const bowPitch = (this.taskState === 'bowing') ? 0.52 : idleBob;
+        this.headPitchVel += ((bowPitch - this.headPitch) * 140.0 - this.headPitchVel * 7.5) * dt;
+        this.headRollVel += ((0 - this.headRoll) * 140.0 - this.headRollVel * 7.5) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.58, 0.65);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        // 3. Dangling Limb Swing Springs
+        const isWalking = (this.taskState === 'walking_to_guest' || this.taskState === 'returning' || this.taskState === 'bell_summon');
+        const walkSwing = isWalking ? Math.sin(time * 14.0) * 0.48 : 0;
+        const targetLimbPitch = (this.isDragged || !this.isGrounded) ? 0.58 : walkSwing;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * 120.0 - this.limbPitchVel * 8.0) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * 120.0 - this.limbRollVel * 8.0) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.8, 0.9);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+
+        // 4. Staff AI Pathfinding & Service Delivery
+        if (this.role === 'staff' && !this.isDragged && this.taskState !== 'idle') {
+          this.updateStaffAI(dt, time);
+        }
+
+        // 5. Guest Mood & Patience Tick
+        if (this.role === 'guest') {
+          this.updateGuestMood(dt, time);
+        }
+
+        // 6. Rigid-Body / Buoyancy / Furniture Collision when NOT dragged
+        if (!this.isDragged && (this.role !== 'staff' || this.taskState === 'idle')) {
+          if (this.id === 'washtub_fumo') {
+            // Bob gently inside the floating wooden tarai washtub!
+            this.pos.x = washtubGroup.position.x;
+            this.pos.z = washtubGroup.position.z;
+            this.pos.y = washtubGroup.position.y + 0.04;
+            this.yaw = washtubGroup.rotation.y;
+            this.isGrounded = true;
+          } else {
+            this.vel.y -= 23.0 * dt;
+            this.vel.multiplyScalar(Math.pow(0.985, dt * 60));
+            this.pos.addScaledVector(this.vel, dt);
+
+            this.yaw += this.angVel.y * dt;
+            this.pitch += this.angVel.x * dt;
+            this.roll += this.angVel.z * dt;
+            this.angVel.multiplyScalar(Math.pow(0.92, dt * 60));
+            this.isGrounded = false;
+
+            // Check if inside an Onsen Water Pool (Float with head & shoulders above water!)
+            const pool = getPoolAt(this.pos.x, this.pos.z);
+            if (pool && this.id !== 'cirno') {
+              const floatY = pool.waterY - 0.24 + Math.sin(time * 2.5 + this.homePos.x * 2.0) * 0.035;
+              if (this.pos.y <= floatY) {
+                const impact = -this.vel.y;
+                if (!this.inWater && impact > 2.2) {
+                  // Splash into pool!
+                  soundFX.playSplash(Math.min(1.2, impact * 0.1));
+                  spawnWaterRipple(this.pos.x, this.pos.z, Math.min(1.6, impact * 0.14));
+                  spawnBurstParticles(this.pos, ['#e0f2fe', '#38bdf8', '#2dd4bf', '#ffffff'], 16, 3.2);
+                  this.squashVel -= Math.min(7.5, impact * 0.7);
+                }
+                this.inWater = true;
+                this.pos.y = THREE.MathUtils.lerp(this.pos.y, floatY, Math.min(1, dt * 10));
+                this.vel.y *= 0.35;
+                this.vel.x *= 0.84;
+                this.vel.z *= 0.84;
+                this.isGrounded = true;
+              } else {
+                this.inWater = false;
+              }
+            } else {
+              this.inWater = false;
+            }
+
+            // Ground elevation check
+            const groundY = (this.pos.x < -2.2 || this.pos.z < -4.4) ? 0.84 : 0.28;
+            if (!this.inWater && this.pos.y < groundY) {
+              const impact = -this.vel.y;
+              this.pos.y = groundY;
+              if (impact > 1.9) {
+                this.vel.y = impact * 0.38;
+                this.squashVel -= Math.min(8.5, impact * 0.85);
+                soundFX.playBounce(impact * 0.08);
+              } else {
+                this.vel.y = 0;
+                this.isGrounded = true;
+              }
+              this.vel.x *= 0.80;
+              this.vel.z *= 0.80;
+            }
+
+            // Furniture / Rock / Ice Block AABB Colliders
+            const r = this.radius * 0.7;
+            const centerY = this.pos.y + r;
+            for (let i = 0; i < furnitureColliders.length; i++) {
+              const box = furnitureColliders[i];
+              const cx = THREE.MathUtils.clamp(this.pos.x, box.min.x, box.max.x);
+              const cy = THREE.MathUtils.clamp(centerY, box.min.y, box.max.y);
+              const cz = THREE.MathUtils.clamp(this.pos.z, box.min.z, box.max.z);
+              const dx = this.pos.x - cx;
+              const dy = centerY - cy;
+              const dz = this.pos.z - cz;
+              const distSq = dx * dx + dy * dy + dz * dz;
+              if (distSq < r * r) {
+                if (centerY >= box.max.y - 0.25 && this.vel.y <= 0.5) {
+                  this.pos.y = box.max.y;
+                  this.vel.y = 0;
+                  this.vel.x *= 0.8;
+                  this.vel.z *= 0.8;
+                  this.isGrounded = true;
+                }
+              }
+            }
+
+            // Keep inside scene bounds
+            this.pos.x = THREE.MathUtils.clamp(this.pos.x, -8.8, 8.8);
+            this.pos.z = THREE.MathUtils.clamp(this.pos.z, -8.8, 8.8);
+
+            // Self-righting torque
+            if (this.isGrounded) {
+              const targetPitch = (this.taskState === 'bowing') ? 0.38 : 0;
+              this.pitch = THREE.MathUtils.lerp(this.pitch, targetPitch, Math.min(1, dt * 9.5));
+              this.roll = THREE.MathUtils.lerp(this.roll, 0, Math.min(1, dt * 9.5));
+            }
+          }
+        }
+
+        // Flandre occasional playful splash in the water
+        if (this.id === 'flandre' && this.inWater && !this.isDragged && Math.random() < dt * 0.45) {
+          spawnWaterRipple(this.pos.x, this.pos.z, 0.75);
+          this.limbPitchVel = -5.5;
+        }
+
+        this.syncTransform(time);
+      }
+
+      updateStaffAI(dt, time) {
+        const speed = 3.6;
+        if (this.taskState === 'walking_to_guest' && this.targetGuest) {
+          const targetPos = this.targetGuest.pos.clone();
+          const toTarget = targetPos.clone().sub(this.pos);
+          toTarget.y = 0;
+          const dist = toTarget.length();
+          if (dist > 1.35) {
+            toTarget.normalize();
+            this.pos.x += toTarget.x * speed * dt;
+            this.pos.z += toTarget.z * speed * dt;
+            const groundY = (this.pos.x < -2.2 || this.pos.z < -4.4) ? 0.84 : 0.32;
+            this.pos.y = groundY + Math.abs(Math.sin(time * 14.0)) * 0.14;
+            this.yaw = Math.atan2(toTarget.x, toTarget.z);
+            this.roll = Math.sin(time * 14.0) * 0.12;
+          } else {
+            this.taskState = 'serving';
+            this.taskTimer = 1.1;
+            this.squash = 0.74;
+            this.squashVel = 2.8;
+            soundFX.playPourWater(0.9);
+            this.targetGuest.fulfillWish();
+          }
+        } else if (this.taskState === 'serving') {
+          this.taskTimer -= dt;
+          this.pitch = Math.sin((1.1 - this.taskTimer) * Math.PI) * 0.35; // Polite bow
+          if (this.taskTimer <= 0) {
+            this.targetGuest = null;
+            this.taskState = 'returning';
+          }
+        } else if (this.taskState === 'bell_summon') {
+          // Hurry to Komachi's front desk lineup and bow!
+          const staffIndex = Math.max(0, staffFumos.indexOf(this));
+          const deskTarget = new THREE.Vector3(-2.1, 0.84, -2.6 + (staffIndex - 2) * 1.15);
+          const toDesk = deskTarget.clone().sub(this.pos);
+          toDesk.y = 0;
+          if (toDesk.length() > 0.25) {
+            toDesk.normalize();
+            this.pos.x += toDesk.x * (speed * 1.35) * dt;
+            this.pos.z += toDesk.z * (speed * 1.35) * dt;
+            this.pos.y = 0.84 + Math.abs(Math.sin(time * 16.0)) * 0.15;
+            this.yaw = Math.atan2(toDesk.x, toDesk.z);
+          } else {
+            this.yaw = -Math.PI * 0.5; // Face Komachi's front desk
+            this.taskState = 'bowing';
+            this.taskTimer = 1.8;
+            this.squash = 0.82;
+          }
+        } else if (this.taskState === 'bowing') {
+          this.taskTimer -= dt;
+          this.pitch = 0.42;
+          if (this.taskTimer <= 0) {
+            this.pitch = 0;
+            this.taskState = 'returning';
+          }
+        } else if (this.taskState === 'returning') {
+          const toHome = this.homePos.clone().sub(this.pos);
+          toHome.y = 0;
+          if (toHome.length() > 0.2) {
+            toHome.normalize();
+            this.pos.x += toHome.x * speed * dt;
+            this.pos.z += toHome.z * speed * dt;
+            const groundY = (this.pos.x < -2.2 || this.pos.z < -4.4) ? 0.84 : 0.32;
+            this.pos.y = groundY + Math.abs(Math.sin(time * 13.0)) * 0.12;
+            this.yaw = Math.atan2(toHome.x, toHome.z);
+          } else {
+            this.pos.copy(this.homePos);
+            this.yaw = this.homeYaw;
+            this.roll = 0;
+            this.pitch = 0;
+            this.taskState = 'idle';
+          }
+        }
+      }
+
+      updateGuestMood(dt, time) {
+        if (!this.wish) {
+          this.wishCooldown -= dt;
+          if (this.wishCooldown <= 0) {
+            this.assignRandomWish();
+          }
+          return;
+        }
+
+        // Decay patience slowly if not currently being served
+        const isBeingServed = staffFumos.some(s => s.targetGuest === this);
+        if (!isBeingServed) {
+          this.wishPatience = Math.max(0, this.wishPatience - dt * 0.025);
+          if (this.wishPatience < 0.38) {
+            this.moodEl.classList.add('is-grumpy');
+            adjustSatisfaction(-dt * 0.65);
+          }
+        } else {
+          this.moodEl.classList.remove('is-grumpy');
+          this.moodEl.classList.add('is-being-served');
+        }
+
+        // Project 3D position above guest's head to 2D screen coordinates
+        if (this.moodEl) {
+          tempPos.copy(this.pos);
+          tempPos.y += 1.55 * this.scaleFactor + Math.sin(time * 3.0 + this.homePos.x) * 0.06;
+          tempPos.project(camera);
+          if (tempPos.z > 1.0) {
+            this.moodEl.style.display = 'none';
+          } else {
+            this.moodEl.style.display = 'flex';
+            const sx = (tempPos.x * 0.5 + 0.5) * window.innerWidth;
+            const sy = (-tempPos.y * 0.5 + 0.5) * window.innerHeight;
+            this.moodEl.style.left = `${sx}px`;
+            this.moodEl.style.top = `${sy}px`;
+          }
+        }
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+
+        this.leftArmPivot.rotation.set(this.limbPitch, 0, 0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.rightArmPivot.rotation.set(this.limbPitch, 0, -0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+
+        const wingFlutter = Math.sin(time * 3.8 + this.homePos.x) * 0.06 + (1.0 - this.squash) * 0.35;
+        this.wingsPivot.rotation.x = wingFlutter;
+      }
+    }
+
+    // ============================================================================
+    // 8. INSTANTIATE THE FULL CAST (5 Staff + 6 Bathing Guests + 3 Bonus Fumos)
+    // ============================================================================
+    const castConfigs = [
+      // --- 5 STAFF ATTENDANTS ---
+      {
+        id: 'sakuya', role: 'staff',
+        name: 'Sakuya Izayoi (Head Attendant)', emoji: '🍵',
+        accentColor: '#60a5fa', hairColor: '#e2e8f0', eyeColor: '#1d4ed8',
+        outfitMain: '#1e3a8a', obiColor: '#22c55e', sleeveColor: '#1e3a8a',
+        hasWhiteApron: true,
+        homePos: new THREE.Vector3(-2.6, 0.84, -3.2), homeYaw: 1.2, pitchAudio: 0.95
+      },
+      {
+        id: 'mystia', role: 'staff',
+        name: 'Mystia Lorelei (Inn Cook)', emoji: '🍡',
+        accentColor: '#f472b6', hairColor: '#d8b4fe', eyeColor: '#9d174d',
+        outfitMain: '#831843', obiColor: '#fde047', sleeveColor: '#ffffff',
+        hasWhiteApron: true,
+        homePos: new THREE.Vector3(-2.7, 0.84, 1.4), homeYaw: 1.5, pitchAudio: 1.18
+      },
+      {
+        id: 'youmu', role: 'staff',
+        name: 'Youmu Konpaku (Sweeping Leaves)', emoji: '🧹',
+        accentColor: '#34d399', hairColor: '#f1f5f9', eyeColor: '#0f766e',
+        outfitMain: '#065f46', obiColor: '#f8fafc', sleeveColor: '#ffffff',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(-1.4, 0.32, 5.2), homeYaw: 0.4, pitchAudio: 1.06
+      },
+      {
+        id: 'nitori', role: 'staff',
+        name: 'Nitori Kawashiro (Boiler Engineer)', emoji: '🔧',
+        accentColor: '#38bdf8', hairColor: '#38bdf8', eyeColor: '#0369a1',
+        outfitMain: '#0284c7', obiColor: '#facc15', sleeveColor: '#bae6fd',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(4.2, 0.84, -3.6), homeYaw: -0.6, pitchAudio: 1.12
+      },
+      {
+        id: 'komachi', role: 'staff',
+        name: 'Komachi Onozuka (Front Desk)', emoji: '🔔',
+        accentColor: '#f43f5e', hairColor: '#e11d48', eyeColor: '#881337',
+        outfitMain: '#0f766e', obiColor: '#fb7185', sleeveColor: '#f8fafc',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(-3.3, 0.84, -1.0), homeYaw: 1.57, pitchAudio: 0.90
+      },
+
+      // --- 6 BATHING GUESTS (With Head Towels & Floating Mood Wishes) ---
+      {
+        id: 'reimu', role: 'guest',
+        name: 'Reimu Hakurei (Soaking in Upper Pool)', emoji: '⛩️',
+        accentColor: '#ef4444', hairColor: '#2b1e23', eyeColor: '#991b1b',
+        outfitMain: '#ffe5d4', hasHeadTowel: true,
+        homePos: new THREE.Vector3(0.8, 0.82, -2.3), homeYaw: 0.35, pitchAudio: 1.0
+      },
+      {
+        id: 'marisa', role: 'guest',
+        name: 'Marisa Kirisame (Relaxing by Her Hat)', emoji: '🌟',
+        accentColor: '#facc15', hairColor: '#fde047', eyeColor: '#ca8a04',
+        outfitMain: '#ffe5d4', hasHeadTowel: true,
+        homePos: new THREE.Vector3(0.3, 0.44, 1.8), homeYaw: 0.55, pitchAudio: 0.98
+      },
+      {
+        id: 'remilia', role: 'guest',
+        name: 'Remilia Scarlet (Under Parasol with Milk)', emoji: '🦇',
+        accentColor: '#fb7185', hairColor: '#a5b4fc', eyeColor: '#e11d48',
+        outfitMain: '#ffe5d4', hasHeadTowel: true,
+        homePos: new THREE.Vector3(5.2, 0.44, 1.2), homeYaw: -0.65, pitchAudio: 1.10
+      },
+      {
+        id: 'flandre', role: 'guest',
+        name: 'Flandre Scarlet (Splashing in the Bath!)', emoji: '🌈',
+        accentColor: '#f43f5e', hairColor: '#fef08a', eyeColor: '#dc2626',
+        outfitMain: '#ffe5d4', hasHeadTowel: true,
+        homePos: new THREE.Vector3(3.2, 0.44, 3.3), homeYaw: -0.25, pitchAudio: 1.22
+      },
+      {
+        id: 'cirno', role: 'guest',
+        name: 'Cirno (Chilling on Floating Ice Block)', emoji: '❄️',
+        accentColor: '#38bdf8', hairColor: '#7dd3fc', eyeColor: '#0284c7',
+        outfitMain: '#2563eb', hasHeadTowel: true,
+        homePos: new THREE.Vector3(4.6, 0.64, 7.1), homeYaw: -0.45, pitchAudio: 1.16
+      },
+      {
+        id: 'yuyuko', role: 'guest',
+        name: 'Yuyuko Saigyouji (Beside Dessert Plates)', emoji: '🌸',
+        accentColor: '#f9a8d4', hairColor: '#fbcfe8', eyeColor: '#be185d',
+        outfitMain: '#ffe5d4', hasHeadTowel: true,
+        homePos: new THREE.Vector3(-0.1, 0.44, 3.8), homeYaw: 0.75, pitchAudio: 0.92
+      },
+
+      // --- 3 UNEXPECTED BONUS FUMOS ---
+      {
+        id: 'washtub_fumo', role: 'bonus',
+        name: 'Sleepy Chen Fumo (Drifting in Wooden Washtub)', emoji: '🛁',
+        accentColor: '#fb923c', hairColor: '#78350f', eyeColor: '#b45309',
+        outfitMain: '#ea580c', hasHeadTowel: true, scale: 0.76,
+        homePos: new THREE.Vector3(1.2, 0.72, 2.2), homeYaw: 0.3, pitchAudio: 1.35
+      },
+      {
+        id: 'aya', role: 'bonus',
+        name: 'Aya Shameimaru (Peeking Over Bamboo Fence!)', emoji: '📸',
+        accentColor: '#ef4444', hairColor: '#18181b', eyeColor: '#dc2626',
+        outfitMain: '#1f2937', hasHeadTowel: false, scale: 0.88,
+        homePos: new THREE.Vector3(1.6, 2.45, -6.55), homeYaw: 0.05, pitchAudio: 1.12
+      },
+      {
+        id: 'monkey', role: 'bonus',
+        name: 'Snow-Monkey Fumo (With Snowball on Head!)', emoji: '🐒',
+        accentColor: '#d97706', hairColor: '#92400e', eyeColor: '#451a03',
+        outfitMain: '#b45309', hasHeadTowel: false, scale: 0.85,
+        homePos: new THREE.Vector3(2.8, 1.15, -0.35), homeYaw: -0.4, pitchAudio: 1.25
+      }
+    ];
+
+    castConfigs.forEach((cfg) => {
+      const f = new VoxelFumo(cfg);
+      fumos.push(f);
+      if (f.role === 'staff') staffFumos.push(f);
+      else if (f.role === 'guest') guestFumos.push(f);
+    });
+
+    // Selection Ring under Active Staff Attendant
+    const selectionRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.55, 0.72, 24),
+      new THREE.MeshBasicMaterial({ color: 0xfbbf24, side: THREE.DoubleSide })
+    );
+    selectionRing.rotation.x = -Math.PI / 2;
+    selectionRing.visible = false;
+    scene.add(selectionRing);
+
+    // ============================================================================
+    // 9. GAMEPLAY: STAFF DISPATCH, BOILER TEMPERATURE, BELL SUMMON & SATISFACTION
+    // ============================================================================
+    let selectedStaff = staffFumos[0]; // Default Sakuya ready to serve!
+    let satisfaction = 88.0;
+    let servedTotal = 0;
+
+    // Boiler Water Temperature Levels: 0 = Cool (36°C), 1 = Warm (42°C), 2 = Hot (45°C), 3 = Piping Hot (48°C)
+    const TEMP_LEVELS = [
+      { temp: 36, label: '36°C Cool (Cirno Loves!)', emoji: '❄️', steamFactor: 0.25, blushOpacity: 0.12 },
+      { temp: 42, label: '42°C Warm',               emoji: '♨️', steamFactor: 0.68, blushOpacity: 0.28 },
+      { temp: 45, label: '45°C Hot',                emoji: '🔥', steamFactor: 1.00, blushOpacity: 0.55 },
+      { temp: 48, label: '48°C Piping Hot!',        emoji: '🌋', steamFactor: 1.35, blushOpacity: 0.82 }
+    ];
+    let currentTempIndex = 1;
+
+    const dispatchDotEl = document.getElementById('dispatch-dot');
+    const dispatchTextEl = document.getElementById('dispatch-text');
+    const satPctEl = document.getElementById('satisfaction-pct');
+    const satBarEl = document.getElementById('satisfaction-bar');
+    const servedCountEl = document.getElementById('served-count');
+    const tempEmojiEl = document.getElementById('temp-emoji');
+    const tempLabelEl = document.getElementById('temp-label');
+
+    function updateDispatchUI() {
+      if (selectedStaff) {
+        dispatchDotEl.style.backgroundColor = selectedStaff.accentColor;
+        dispatchTextEl.textContent = `${selectedStaff.name.split(' (')[0]} ready — Click a Guest to serve!`;
+      } else {
+        dispatchDotEl.style.backgroundColor = '#f59e0b';
+        dispatchTextEl.textContent = 'Click a Staff Fumo, then a Guest to serve!';
+      }
+    }
+    updateDispatchUI();
+
+    function adjustSatisfaction(delta) {
+      satisfaction = THREE.MathUtils.clamp(satisfaction + delta, 10, 100);
+      satPctEl.textContent = `${Math.round(satisfaction)}%`;
+      satBarEl.style.width = `${Math.round(satisfaction)}%`;
+    }
+
+    function incrementServedCounter() {
+      servedTotal++;
+      servedCountEl.textContent = String(servedTotal);
+      adjustSatisfaction(7.5);
+    }
+
+    function cycleBoilerTemperature() {
+      currentTempIndex = (currentTempIndex + 1) % TEMP_LEVELS.length;
+      const lvl = TEMP_LEVELS[currentTempIndex];
+      tempEmojiEl.textContent = lvl.emoji;
+      tempLabelEl.textContent = lvl.label;
+
+      // Rotate the 3D Boiler Valve wheel & make Nitori react!
+      boilerValveGroup.rotation.z -= Math.PI * 0.5;
+      const nitori = staffFumos.find(s => s.id === 'nitori');
+      if (nitori) nitori.squeeze(0.85);
+      soundFX.playPourWater(1.1);
+
+      // Update Fumo cheek pinkness
+      fumos.forEach((f) => {
+        f.cheekMat.opacity = lvl.blushOpacity;
+      });
+
+      // If cooled down (36°C), Cirno cheers with ice sparkles!
+      if (currentTempIndex === 0) {
+        const cirno = guestFumos.find(g => g.id === 'cirno');
+        if (cirno) {
+          cirno.squeeze(1.3);
+          cirno.vel.y = 5.5;
+          spawnBurstParticles(cirno.pos, ['#38bdf8', '#bae6fd', '#ffffff'], 18, 3.8);
+        }
+      }
+
+      // If heated up (45°C or 48°C), fulfill any Guest wishing for a Hotter Bath!
+      if (currentTempIndex >= 2) {
+        guestFumos.forEach((g) => {
+          if (g.wish && g.wish.id === 'hotter') {
+            g.fulfillWish();
+          }
+        });
+      }
+    }
+
+    function ringFrontDeskBell() {
+      soundFX.playBell();
+      const komachi = staffFumos.find(s => s.id === 'komachi');
+      if (komachi) komachi.squeeze(1.0);
+
+      // Summon all staff Fumos to hurry to the front desk and bow!
+      staffFumos.forEach((s) => {
+        s.targetGuest = null;
+        s.taskState = 'bell_summon';
+      });
+      dispatchTextEl.textContent = '🔔 Bell rung! All staff assembling at the front desk!';
+    }
+
+    function handleFumoOrBubbleClick(fumo) {
+      if (fumo.role === 'staff') {
+        selectedStaff = fumo;
+        fumo.squeeze(0.85);
+        updateDispatchUI();
+      } else if (fumo.role === 'guest') {
+        // Dispatch selected staff (or nearest idle staff) to serve this guest!
+        const attendant = (selectedStaff && selectedStaff.taskState === 'idle')
+          ? selectedStaff
+          : (staffFumos.find(s => s.taskState === 'idle') || selectedStaff || staffFumos[0]);
+
+        if (attendant) {
+          selectedStaff = attendant;
+          attendant.targetGuest = fumo;
+          attendant.taskState = 'walking_to_guest';
+          attendant.squeeze(0.75);
+          dispatchTextEl.textContent = `${attendant.name.split(' (')[0]} serving ${fumo.name.split(' (')[0]}!`;
+          if (fumo.moodEl) fumo.moodEl.classList.add('is-being-served');
+        }
+        fumo.squeeze(0.95);
+      } else {
+        fumo.squeeze(1.0);
+      }
+    }
+
+    // ============================================================================
+    // 10. POINTER RAYCASTING: SQUEEZE, DRAG, THROW & CAMERA ISOLATION
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let hoveredFumo = null;
+    let pointerDownFumo = null;
+    let isDraggingFumo = false;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function pickInteractiveUnderPointer() {
+      raycaster.setFromCamera(pointerNDC, camera);
+      const interactiveList = [...allFumoRaycastMeshes, boilerValveMesh, bellHitMesh];
+      const hits = raycaster.intersectObjects(interactiveList, false);
+      if (hits.length > 0) {
+        return hits[0];
+      }
+      return null;
+    }
+
+    const onPointerDown = (e) => {
+      if (e.button !== 0) return;
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+
+      const hit = pickInteractiveUnderPointer();
+      if (!hit) return;
+
+      if (hit.object.userData.isBoilerValve) {
+        cycleBoilerTemperature();
+        return;
+      }
+      if (hit.object.userData.isFrontDeskBell) {
+        ringFrontDeskBell();
+        return;
+      }
+
+      if (hit.object.userData.fumo) {
+        pointerDownFumo = hit.object.userData.fumo;
+        isDraggingFumo = false;
+        // Immediately lock OrbitControls so dragging a Fumo never rotates the camera
+        controls.enabled = false;
+
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), pointerDownFumo.pos);
+
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          dragOffset.subVectors(pointerDownFumo.pos, dragHitPoint);
+        } else {
+          dragOffset.set(0, 0, 0);
+        }
+        dragHistory = [{ pos: pointerDownFumo.pos.clone(), time: performance.now() }];
+      }
+    };
+
+    const onPointerMove = (e) => {
+      updatePointerNDC(e);
+
+      if (pointerDownFumo) {
+        recordInteraction();
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          pointerDownFumo.isDragged = true;
+          pointerDownFumo.isGrounded = false;
+          pointerDownFumo.taskState = 'idle';
+          pointerDownFumo.squashVel += 3.0;
+          soundFX.playPickup();
+        }
+
+        if (isDraggingFumo) {
+          raycaster.setFromCamera(pointerNDC, camera);
+          if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+            const targetPos = dragHitPoint.clone().add(dragOffset);
+            targetPos.x = THREE.MathUtils.clamp(targetPos.x, -8.5, 8.5);
+            targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.35, 10.5);
+            targetPos.z = THREE.MathUtils.clamp(targetPos.z, -8.5, 8.5);
+
+            const prevPos = pointerDownFumo.pos.clone();
+            pointerDownFumo.pos.lerp(targetPos, 0.55);
+
+            const deltaMove = pointerDownFumo.pos.clone().sub(prevPos);
+            pointerDownFumo.headRollVel -= deltaMove.x * 16.0;
+            pointerDownFumo.headPitchVel += deltaMove.z * 16.0 - deltaMove.y * 10.0;
+            pointerDownFumo.limbRollVel -= deltaMove.x * 22.0;
+            pointerDownFumo.roll = THREE.MathUtils.lerp(pointerDownFumo.roll, THREE.MathUtils.clamp(-deltaMove.x * 1.4, -0.45, 0.45), 0.3);
+            pointerDownFumo.pitch = THREE.MathUtils.lerp(pointerDownFumo.pitch, THREE.MathUtils.clamp(deltaMove.z * 1.4, -0.45, 0.45), 0.3);
+
+            const now = performance.now();
+            dragHistory.push({ pos: pointerDownFumo.pos.clone(), time: now });
+            while (dragHistory.length > 6) dragHistory.shift();
+          }
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      const hit = pickInteractiveUnderPointer();
+      if (hit) {
+        renderer.domElement.style.cursor = 'pointer';
+        if (hit.object.userData.isBoilerValve) {
+          tooltipEmojiEl.textContent = '♨️';
+          tooltipTextEl.textContent = 'Boiler Valve — Click to change bath temperature!';
+        } else if (hit.object.userData.isFrontDeskBell) {
+          tooltipEmojiEl.textContent = '🔔';
+          tooltipTextEl.textContent = 'Boat Bell — Click or press S to summon staff!';
+        } else if (hit.object.userData.fumo) {
+          hoveredFumo = hit.object.userData.fumo;
+          renderer.domElement.style.cursor = 'grab';
+          tooltipEmojiEl.textContent = hoveredFumo.emoji;
+          tooltipTextEl.textContent = hoveredFumo.name;
+        }
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else {
+        hoveredFumo = null;
+        renderer.domElement.style.cursor = 'default';
+        tooltipEl.style.opacity = '0';
+      }
+    };
+
+    const onPointerUp = () => {
+      if (!pointerDownFumo) return;
+      controls.enabled = true;
+      recordInteraction();
+
+      if (!isDraggingFumo) {
+        handleFumoOrBubbleClick(pointerDownFumo);
+      } else {
+        pointerDownFumo.isDragged = false;
+        const now = performance.now();
+        while (dragHistory.length > 1 && now - dragHistory[0].time > 140) {
+          dragHistory.shift();
+        }
+        if (dragHistory.length >= 2) {
+          const first = dragHistory[0];
+          const last = dragHistory[dragHistory.length - 1];
+          const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+          const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+          if (throwVel.length() > 21) throwVel.setLength(21);
+          pointerDownFumo.vel.copy(throwVel);
+
+          const speed = throwVel.length();
+          pointerDownFumo.angVel.set(
+            throwVel.z * 0.65 + (Math.random() - 0.5) * speed * 0.4,
+            (Math.random() - 0.5) * speed * 0.5,
+            -throwVel.x * 0.65 + (Math.random() - 0.5) * speed * 0.4
+          );
+        } else {
+          pointerDownFumo.vel.set(0, 0, 0);
+        }
+      }
+
+      pointerDownFumo = null;
+      isDraggingFumo = false;
+      renderer.domElement.style.cursor = hoveredFumo ? 'grab' : 'default';
+    };
+
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+
+    // ============================================================================
+    // 11. DAY / NIGHT MODE TRANSITION (~2 SECONDS) & HUB SYNC
+    // ============================================================================
+    let currentMode = 'day'; // 'day' | 'night'
+    let dayNightProgress = 0.0;
+    let dayNightTarget = 0.0;
+
+    const daySkyCol = new THREE.Color('#c8e6ff');
+    const nightSkyCol = new THREE.Color('#090d1c');
+    const daySunCol = new THREE.Color('#ffeed4');
+    const nightMoonCol = new THREE.Color('#6488ea');
+    const dayHemiSky = new THREE.Color('#fff5e4');
+    const nightHemiSky = new THREE.Color('#1e2442');
+    const dayHemiGround = new THREE.Color('#8d6e63');
+    const nightHemiGround = new THREE.Color('#0f1322');
+
+    function notifyParentModeChanged() {
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: currentMode }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function applyModeState(newMode, immediate = false) {
+      const normalized = (newMode === 'night') ? 'night' : 'day';
+      if (normalized === currentMode && !immediate) return; // Absolute setMode does nothing if already in mode
+      currentMode = normalized;
+      dayNightTarget = (currentMode === 'night') ? 1.0 : 0.0;
+      if (immediate) {
+        dayNightProgress = dayNightTarget;
+      }
+      document.body.classList.toggle('night-ui', currentMode === 'night');
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, currentMode);
+      } catch (e) {}
+      notifyParentModeChanged();
+    }
+
+    function flipDayNightMode() {
+      applyModeState(currentMode === 'day' ? 'night' : 'day', false);
+    }
+
+    function updateDayNightInterpolation(dt) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.52; // ~2 seconds transition
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      scene.background.lerpColors(daySkyCol, nightSkyCol, t);
+      scene.fog.color.copy(scene.background);
+      scene.fog.density = THREE.MathUtils.lerp(0.010, 0.016, t);
+
+      mainDirLight.color.lerpColors(daySunCol, nightMoonCol, t);
+      mainDirLight.intensity = THREE.MathUtils.lerp(1.32, 0.38, t);
+
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.72, 0.25, t);
+
+      engawaLight.intensity = THREE.MathUtils.lerp(0.15, 1.55, t);
+      poolGlowLight.intensity = THREE.MathUtils.lerp(0.22, 1.15, t);
+      boilerLight.intensity = THREE.MathUtils.lerp(0.35, 1.25, t);
+
+      lanternEmissiveMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.3, 2.2, t);
+      shojiEmissiveMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.15, 1.45, t);
+      waterMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.18, 0.65, t);
+      iceMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.25, 0.85, t);
+      crystalWingMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.3, 1.25, t);
+      leafMat.emissiveIntensity = THREE.MathUtils.lerp(0.05, 0.85, t);
+
+      steamMat.color.lerpColors(new THREE.Color('#ffffff'), new THREE.Color('#fde68a'), t * 0.65);
+
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.16, 0.72, t);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.84, 0.58, t);
+      }
+    }
+
+    // ============================================================================
+    // 12. HUD BUTTONS, KEYBOARD SHORTCUTS & LIFECYCLE MANAGEMENT
+    // ============================================================================
+    const btnBell = document.getElementById('btn-bell');
+    const btnBoiler = document.getElementById('btn-boiler');
+    const btnReset = document.getElementById('btn-reset');
+    const btnMute = document.getElementById('btn-mute');
+    const iconSoundOn = document.getElementById('icon-sound-on');
+    const iconSoundOff = document.getElementById('icon-sound-off');
+
+    function syncMuteUI() {
+      iconSoundOn.classList.toggle('hidden', !soundFX.enabled);
+      iconSoundOff.classList.toggle('hidden', soundFX.enabled);
+    }
+    syncMuteUI();
+
+    function toggleMute() {
+      soundFX.enabled = !soundFX.enabled;
+      syncMuteUI();
+      try {
+        localStorage.setItem(STORAGE_MUTE_KEY, String(!soundFX.enabled));
+      } catch (e) {}
+      if (soundFX.enabled) soundFX.playPickup();
+    }
+
+    const onResetClick = () => {
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 35));
+    };
+
+    btnBell.addEventListener('click', ringFrontDeskBell);
+    btnBoiler.addEventListener('click', cycleBoilerTemperature);
+    btnReset.addEventListener('click', onResetClick);
+    btnMute.addEventListener('click', toggleMute);
+
+    const onKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      const key = e.key.toLowerCase();
+      if (key === 'n') {
+        e.preventDefault();
+        flipDayNightMode();
+      } else if (key === 's') {
+        e.preventDefault();
+        ringFrontDeskBell();
+      } else if (key === 'm') {
+        e.preventDefault();
+        toggleMute();
+      } else if (key === 'r') {
+        e.preventDefault();
+        onResetClick();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+
+    const onWindowResize = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    };
+    window.addEventListener('resize', onWindowResize);
+
+    // ============================================================================
+    // 13. MAIN RENDER LOOP & PROCEDURAL AMBIENT SOUNDSCAPE
+    // ============================================================================
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+    let kotoTimer = 1.8;
+    let cricketTimer = 2.5;
+    let streamTimer = 1.2;
+
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.033, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      if (!pointerDownFumo && (now - lastUserInteractionTime > 4500)) {
+        controls.autoRotate = true;
+      }
+
+      controls.update();
+      updateDayNightInterpolation(dt);
+      updateAnimatedWater(elapsed, dt);
+
+      // 1. Rhythmic Shishi-Odoshi Bamboo Water Spout
+      const prevCycle = shishiCycle;
+      shishiCycle = (elapsed * 0.22) % 1.0;
+      if (shishiCycle < 0.78) {
+        shishiArmPivot.rotation.z = THREE.MathUtils.lerp(0.18, -0.15, shishiCycle / 0.78);
+      } else if (shishiCycle < 0.88) {
+        shishiArmPivot.rotation.z = -0.68; // Tips over to pour water!
+      } else {
+        shishiArmPivot.rotation.z = 0.18;  // Snaps back against stone!
+      }
+      if (prevCycle < 0.88 && shishiCycle >= 0.88) {
+        soundFX.playShishiOdoshi();
+        spawnWaterRipple(3.4, -0.8, 0.95);
+      }
+
+      // 2. Floating Wooden Washtub Gentle Drift & Bob
+      washtubGroup.position.x = 1.2 + Math.sin(elapsed * 0.45) * 0.45;
+      washtubGroup.position.z = 2.2 + Math.cos(elapsed * 0.38) * 0.35;
+      washtubGroup.position.y = 0.68 + Math.sin(elapsed * 2.4) * 0.035;
+      washtubGroup.rotation.y = elapsed * 0.18;
+      washtubGroup.rotation.z = Math.sin(elapsed * 1.9) * 0.06;
+
+      // 3. Rising Steam Puffs (Scaled by Boiler Temperature)
+      const steamFactor = TEMP_LEVELS[currentTempIndex].steamFactor;
+      const activeSteamCount = Math.floor(STEAM_COUNT * Math.min(1, steamFactor));
+      for (let i = 0; i < STEAM_COUNT; i++) {
+        if (i >= activeSteamCount) {
+          tempMatrix.makeScale(0, 0, 0);
+          steamMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        const sp = steamPuffs[i];
+        sp.y += sp.speed * steamFactor * dt;
+        const heightNorm = (sp.y - sp.baseY) / (sp.maxH * steamFactor);
+        if (heightNorm >= 1.0) {
+          sp.y = sp.baseY;
+          sp.x = THREE.MathUtils.lerp(sp.pool.minX + 0.3, sp.pool.maxX - 0.3, Math.random());
+          sp.z = THREE.MathUtils.lerp(sp.pool.minZ + 0.3, sp.pool.maxZ - 0.3, Math.random());
+        }
+        const s = Math.sin(Math.min(1, Math.max(0, heightNorm)) * Math.PI) * (0.75 + 0.55 * steamFactor);
+        tempPos.set(
+          sp.x + Math.sin(elapsed * 1.1 + sp.phase) * 0.18,
+          sp.y,
+          sp.z + Math.cos(elapsed * 0.9 + sp.phase) * 0.18
+        );
+        tempQuat.setFromEuler(tempEuler.set(elapsed * 0.4, sp.phase, 0));
+        tempScale.set(s, s, s);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        steamMesh.setMatrixAt(i, tempMatrix);
+      }
+      steamMesh.instanceMatrix.needsUpdate = true;
+
+      // 4. Falling Autumn Leaves & Night Fireflies
+      for (let i = 0; i < LEAF_COUNT; i++) {
+        const lf = leafData[i];
+        if (lf.isFirefly) {
+          if (dayNightProgress < 0.25) {
+            tempMatrix.makeScale(0, 0, 0);
+            leafMesh.setMatrixAt(i, tempMatrix);
+            continue;
+          }
+          const fx = lf.x + Math.sin(elapsed * 1.2 + lf.phase) * 1.2;
+          const fy = 1.2 + Math.abs(Math.sin(elapsed * 0.8 + lf.phase)) * 2.8;
+          const fz = lf.z + Math.cos(elapsed * 1.1 + lf.phase) * 1.2;
+          const glowScale = (0.5 + 0.5 * Math.sin(elapsed * 4.2 + lf.phase)) * dayNightProgress * 0.9;
+          tempPos.set(fx, fy, fz);
+          tempQuat.identity();
+          tempScale.set(glowScale, glowScale, glowScale);
+          tempMatrix.compose(tempPos, tempQuat, tempScale);
+          leafMesh.setMatrixAt(i, tempMatrix);
+        } else {
+          lf.y -= lf.vy * dt;
+          if (lf.y < 0.2) {
+            lf.y = 8.5;
+            lf.x = -7 + Math.random() * 15;
+            lf.z = -7 + Math.random() * 16;
+          }
+          tempPos.set(
+            lf.x + Math.sin(elapsed * 1.5 + lf.phase) * 0.45,
+            lf.y,
+            lf.z + Math.cos(elapsed * 1.2 + lf.phase) * 0.45
+          );
+          tempQuat.setFromEuler(tempEuler.set(elapsed * 1.8 + lf.phase, elapsed, lf.phase));
+          tempScale.set(1, 1, 1);
+          tempMatrix.compose(tempPos, tempQuat, tempScale);
+          leafMesh.setMatrixAt(i, tempMatrix);
+        }
+      }
+      leafMesh.instanceMatrix.needsUpdate = true;
+
+      // 5. Pop / Splash / Heart Particles
+      let popDirty = false;
+      for (let i = 0; i < POP_MAX; i++) {
+        const p = popParticles[i];
+        if (!p.active) continue;
+        popDirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          popMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= 7.8 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const s = 1.0 - (p.life / p.maxLife);
+        tempQuat.setFromEuler(tempEuler.set(p.life * 7, p.life * 5, 0));
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        popMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (popDirty) popMesh.instanceMatrix.needsUpdate = true;
+
+      // 6. Update Fumo Physics & Selection Ring
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].updatePhysics(dt, elapsed);
+      }
+      if (selectedStaff) {
+        selectionRing.visible = true;
+        selectionRing.position.set(selectedStaff.pos.x, selectedStaff.pos.y + 0.04, selectedStaff.pos.z);
+        selectionRing.rotation.z = elapsed * 1.5;
+      } else {
+        selectionRing.visible = false;
+      }
+
+      // 7. Procedural Ambient Soundscape (Koto Plucks, Stream Bubbling & Night Crickets)
+      kotoTimer -= dt;
+      if (kotoTimer <= 0) {
+        soundFX.playKotoPluck();
+        kotoTimer = 1.4 + Math.random() * 2.4;
+      }
+      streamTimer -= dt;
+      if (streamTimer <= 0) {
+        soundFX.playPourWater(0.28);
+        streamTimer = 2.2 + Math.random() * 1.8;
+      }
+      if (dayNightProgress > 0.6) {
+        cricketTimer -= dt;
+        if (cricketTimer <= 0) {
+          soundFX.playCricket();
+          cricketTimer = 2.8 + Math.random() * 3.2;
+        }
+      }
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function pauseRenderLoop() {
+      if (isPaused) return;
+      isPaused = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+
+    function resumeRenderLoop() {
+      if (!isPaused) return;
+      isPaused = false;
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    function disposeScene() {
+      pauseRenderLoop();
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('resize', onWindowResize);
+      btnBell.removeEventListener('click', ringFrontDeskBell);
+      btnBoiler.removeEventListener('click', cycleBoilerTemperature);
+      btnReset.removeEventListener('click', onResetClick);
+      btnMute.removeEventListener('click', toggleMute);
+    }
+
+    // ============================================================================
+    // 14. SHARED `FumoSceneLifecycle` REGISTRATION & STARTUP
+    // ============================================================================
+    let initialMode = 'day';
+    try {
+      const savedMode = localStorage.getItem(STORAGE_MODE_KEY);
+      if (savedMode === 'night' || savedMode === 'day') initialMode = savedMode;
+    } catch (e) {}
+
+    applyModeState(initialMode, true);
+    updateDayNightInterpolation(0);
+
+    if (typeof FumoSceneLifecycle !== 'undefined') {
+      new FumoSceneLifecycle({
+        renderer,
+        scene,
+        composer,
+        audio: soundFX,
+        onToggleMode: () => {
+          flipDayNightMode();
+        },
+        onSetMode: (mode) => {
+          applyModeState(mode, false);
+        },
+        onPause: () => {
+          pauseRenderLoop();
+        },
+        onResume: () => {
+          resumeRenderLoop();
+        },
+        onDispose: () => {
+          disposeScene();
+        }
+      });
+    }
+
+    // Welcoming soft bounce on load
+    fumos.forEach((f, idx) => {
+      setTimeout(() => {
+        f.squash = 0.8;
+        f.squashVel = 1.8;
+      }, 90 + idx * 45);
+    });
+
+    prevTime = performance.now();
+    rafId = requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

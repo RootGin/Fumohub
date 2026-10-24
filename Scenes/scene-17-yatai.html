@@ -1,0 +1,3139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Mystia's Rainy Night Yatai — Touhou Fumo Voxel Diorama</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js r128 + OrbitControls + Post-Processing (UnrealBloomPass) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #080b14;
+    }
+    .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .glass-panel {
+      background: rgba(245, 247, 252, 0.80);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      color: #1e293b;
+      box-shadow: 0 10px 28px -6px rgba(10, 15, 35, 0.25), 0 2px 6px rgba(10, 15, 35, 0.12);
+      transition: background 0.5s ease, color 0.5s ease, border-color 0.5s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    body.night-ui .glass-panel {
+      background: rgba(18, 20, 36, 0.82);
+      border-color: rgba(251, 146, 60, 0.30);
+      color: #fff7ed;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.65), 0 0 18px rgba(251, 146, 60, 0.14);
+    }
+    .ui-btn {
+      cursor: pointer;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+    #fumo-tooltip {
+      pointer-events: none;
+      transition: opacity 0.16s ease, transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.08);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.18);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.14);
+      border-bottom-color: rgba(255, 255, 255, 0.28);
+    }
+    @keyframes popBump {
+      0% { transform: scale(1); }
+      45% { transform: scale(1.26); }
+      100% { transform: scale(1); }
+    }
+    .bump-anim {
+      animation: popBump 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+  </style>
+</head>
+<body class="night-ui">
+  <div id="canvas-container"></div>
+
+  <!-- Top-Right Action Bar (Top-Left kept completely clear for Hub Integration) -->
+  <div class="fixed top-4 right-4 z-20 flex items-center gap-2.5">
+    <!-- Active / Hovered Fumo Status Badge -->
+    <div id="fumo-badge" class="glass-panel rounded-2xl px-3.5 py-2 text-xs font-semibold hidden items-center gap-2 transition-all">
+      <span id="fumo-badge-dot" class="w-2.5 h-2.5 rounded-full inline-block bg-amber-400"></span>
+      <span id="fumo-badge-name">Mystia Lorelei</span>
+      <span id="fumo-badge-status" class="opacity-75 ml-1">Grilling</span>
+    </div>
+
+    <!-- Rain Intensity Toggle (R) -->
+    <button id="btn-rain" title="Toggle Heavy Rain / Light Drizzle (Shortcut: R)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <span id="rain-icon" class="text-base leading-none">🌧️</span>
+      <span id="rain-label" class="hidden sm:inline">Heavy Rain</span>
+      <kbd class="hidden md:inline-block">R</kbd>
+    </button>
+
+    <!-- Reset Fumos Button -->
+    <button id="btn-reset" title="Return Fumos to Cozy Spots"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+      <span class="hidden md:inline">Reset</span>
+    </button>
+  </div>
+
+  <!-- Pot Filling Floating Progress Pill -->
+  <div id="pot-progress-pill" class="fixed z-30 pointer-events-none opacity-0 transition-opacity duration-150 glass-panel rounded-2xl px-3.5 py-2 flex items-center gap-2.5 text-xs font-bold shadow-xl">
+    <span>🍜 Ladling Broth...</span>
+    <div class="w-20 h-2.5 rounded-full bg-black/20 overflow-hidden p-0.5">
+      <div id="pot-progress-bar" class="h-full bg-gradient-to-r from-amber-400 to-rose-500 rounded-full w-0"></div>
+    </div>
+  </div>
+
+  <!-- Floating Cursor Tooltip -->
+  <div id="fumo-tooltip" class="fixed z-30 opacity-0 px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold flex items-center gap-2 shadow-lg">
+    <span id="tooltip-emoji">🏮</span>
+    <span id="tooltip-text">Mystia Lorelei</span>
+  </div>
+
+  <!-- Bottom-Center Interactive Guide Pill -->
+  <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none w-max max-w-[92vw] hidden lg:block">
+    <div class="glass-panel rounded-2xl px-4 py-2 text-xs font-semibold flex items-center gap-x-4 opacity-90">
+      <span>🍢 <b>Click Grill:</b> Flip Skewers</span>
+      <span>🍲 <b>Hold Pot:</b> Fill Bowl</span>
+      <span>🍜 <b>Click Customer:</b> Serve & Squeeze</span>
+      <span>✋ <b>Drag Fumo:</b> Toss</span>
+      <span><kbd>R</kbd> Rain</span>
+    </div>
+  </div>
+
+  <!-- Bottom-Right Bowl Counter & Mute Toggle -->
+  <div class="fixed bottom-4 right-4 z-20 flex items-center gap-2.5">
+    <!-- Bowl Counter -->
+    <div class="glass-panel rounded-2xl px-4 py-2 flex items-center gap-2.5 text-xs sm:text-sm font-semibold">
+      <span class="text-lg leading-none">🍜</span>
+      <span class="opacity-80">Bowls Served:</span>
+      <span id="bowl-count-val" class="font-display text-base sm:text-lg font-bold text-amber-400">12</span>
+    </div>
+
+    <!-- Mute Toggle Button (M) -->
+    <button id="btn-mute" title="Toggle Rain & Izakaya Audio (Shortcut: M)"
+      class="glass-panel ui-btn rounded-2xl p-2.5 flex items-center justify-center">
+      <svg id="icon-sound-on" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+      </svg>
+      <svg id="icon-sound-off" class="w-5 h-5 hidden opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <line x1="23" y1="9" x2="17" y2="15"></line>
+        <line x1="17" y1="9" x2="23" y2="15"></line>
+      </svg>
+    </button>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 1. PROCEDURAL WEB AUDIO ENGINE (Rain Bed, Lo-Fi Loop, Sizzle, Bell, Thunder)
+    // ============================================================================
+    const STORAGE_MUTE_KEY = 'voxel_mystia_yatai_muted';
+    const STORAGE_MODE_KEY = 'voxel_mystia_yatai_mode';
+
+    class IzakayaSoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+        this.isPaused = false;
+        this.unlocked = false;
+        this.rainGain = null;
+        this.rainFilter = null;
+        this.masterGain = null;
+        this.lofiTimer = null;
+        this.stepIndex = 0;
+
+        try {
+          const savedMute = localStorage.getItem(STORAGE_MUTE_KEY);
+          if (savedMute === 'true') this.muted = true;
+        } catch (e) {}
+      }
+
+      unlock() {
+        if (this.unlocked && this.ctx) {
+          if (!this.isPaused && !this.muted && this.ctx.state === 'suspended') {
+            try { this.ctx.resume(); } catch (e) {}
+          }
+          return;
+        }
+        try {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtx) return;
+          this.ctx = new AudioCtx();
+          this.unlocked = true;
+
+          this.masterGain = this.ctx.createGain();
+          this.masterGain.gain.value = this.muted ? 0.0 : 1.0;
+          this.masterGain.connect(this.ctx.destination);
+
+          this.startRainBed();
+          this.startLofiLoop();
+        } catch (e) {}
+      }
+
+      setMuted(mute) {
+        this.muted = Boolean(mute);
+        try {
+          localStorage.setItem(STORAGE_MUTE_KEY, this.muted ? 'true' : 'false');
+        } catch (e) {}
+
+        if (!this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          this.masterGain.gain.setTargetAtTime(this.muted ? 0.0 : 1.0, now, 0.06);
+          if (!this.muted && !this.isPaused && this.ctx.state === 'suspended') {
+            this.ctx.resume();
+          }
+        } catch (e) {}
+      }
+
+      pause() {
+        this.isPaused = true;
+        if (this.ctx && this.ctx.state === 'running') {
+          try { this.ctx.suspend(); } catch (e) {}
+        }
+      }
+
+      resume() {
+        this.isPaused = false;
+        if (this.ctx && !this.muted && this.ctx.state === 'suspended') {
+          try { this.ctx.resume(); } catch (e) {}
+        }
+      }
+
+      startRainBed() {
+        if (!this.ctx) return;
+        try {
+          const bufferSize = this.ctx.sampleRate * 2;
+          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          let lastOut = 0.0;
+          for (let i = 0; i < bufferSize; i++) {
+            const white = Math.random() * 2 - 1;
+            data[i] = (lastOut + (0.04 * white)) / 1.04;
+            lastOut = data[i];
+            data[i] *= 2.5;
+          }
+
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = buffer;
+          noise.loop = true;
+
+          this.rainFilter = this.ctx.createBiquadFilter();
+          this.rainFilter.type = 'bandpass';
+          this.rainFilter.frequency.value = 1150;
+          this.rainFilter.Q.value = 0.65;
+
+          this.rainGain = this.ctx.createGain();
+          this.rainGain.gain.value = 0.09;
+
+          noise.connect(this.rainFilter);
+          this.rainFilter.connect(this.rainGain);
+          this.rainGain.connect(this.masterGain);
+          noise.start();
+        } catch (e) {}
+      }
+
+      setRainIntensity(isHeavy) {
+        if (!this.ctx || !this.rainGain || !this.rainFilter) return;
+        try {
+          const now = this.ctx.currentTime;
+          this.rainGain.gain.setTargetAtTime(isHeavy ? 0.11 : 0.045, now, 0.3);
+          this.rainFilter.frequency.setTargetAtTime(isHeavy ? 1250 : 880, now, 0.3);
+        } catch (e) {}
+      }
+
+      startLofiLoop() {
+        if (this.lofiTimer) clearInterval(this.lofiTimer);
+        // Cozy Japanese pentatonic lo-fi progression (Fmaj7 -> Em7 -> Dm7 -> Cmaj7)
+        const chords = [
+          [261.63, 329.63, 392.00, 493.88],
+          [220.00, 293.66, 349.23, 440.00],
+          [196.00, 261.63, 329.63, 392.00],
+          [220.00, 261.63, 329.63, 440.00]
+        ];
+        const melodyNotes = [523.25, 587.33, 659.25, 783.99, 880.00, 659.25, 587.33, 523.25];
+
+        this.lofiTimer = setInterval(() => {
+          if (!this.ctx || this.muted || this.isPaused || this.ctx.state !== 'running') return;
+          try {
+            const now = this.ctx.currentTime;
+            const step = this.stepIndex % 8;
+            const chord = chords[Math.floor(this.stepIndex / 4) % chords.length];
+
+            // Play warm Rhodes chord on beat 0 of every 4 steps
+            if (step % 4 === 0) {
+              chord.forEach((freq, idx) => {
+                const osc = this.ctx.createOscillator();
+                const g = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, now + idx * 0.03);
+                g.gain.setValueAtTime(0.0001, now + idx * 0.03);
+                g.gain.linearRampToValueAtTime(0.016, now + idx * 0.03 + 0.08);
+                g.gain.exponentialRampToValueAtTime(0.0005, now + 1.85);
+                osc.connect(g);
+                g.connect(this.masterGain);
+                osc.start(now + idx * 0.03);
+                osc.stop(now + 1.9);
+              });
+            }
+
+            // Gentle plucked koto/music-box note
+            if (step % 2 === 0 || Math.random() > 0.45) {
+              const mFreq = melodyNotes[(this.stepIndex + Math.floor(Math.random() * 3)) % melodyNotes.length];
+              const mOsc = this.ctx.createOscillator();
+              const mGain = this.ctx.createGain();
+              mOsc.type = 'triangle';
+              mOsc.frequency.setValueAtTime(mFreq, now);
+              mGain.gain.setValueAtTime(0.0001, now);
+              mGain.gain.linearRampToValueAtTime(0.015, now + 0.02);
+              mGain.gain.exponentialRampToValueAtTime(0.0004, now + 0.52);
+              mOsc.connect(mGain);
+              mGain.connect(this.masterGain);
+              mOsc.start(now);
+              mOsc.stop(now + 0.55);
+            }
+
+            this.stepIndex++;
+          } catch (e) {}
+        }, 480);
+      }
+
+      // Sizzling yakitori grill or bubbling broth sound
+      playSizzle(duration = 0.45) {
+        if (this.muted || this.isPaused) return;
+        try {
+          this.unlock();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const len = Math.floor(this.ctx.sampleRate * duration);
+          const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+          const data = buf.getChannelData(0);
+          for (let i = 0; i < len; i++) {
+            data[i] = (Math.random() * 2 - 1) * (Math.random() > 0.25 ? 1.0 : 0.2);
+          }
+          const src = this.ctx.createBufferSource();
+          src.buffer = buf;
+
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.setValueAtTime(3200, now);
+          filter.Q.setValueAtTime(1.4, now);
+
+          const g = this.ctx.createGain();
+          g.gain.setValueAtTime(0.001, now);
+          g.gain.linearRampToValueAtTime(0.12, now + 0.03);
+          g.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+          src.connect(filter);
+          filter.connect(g);
+          g.connect(this.masterGain);
+          src.start(now);
+          src.stop(now + duration + 0.02);
+        } catch (e) {}
+      }
+
+      // Crisp Izakaya Counter Service Bell ("Ding-ring!")
+      playServiceBell() {
+        if (this.muted || this.isPaused) return;
+        try {
+          this.unlock();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const partials = [1567.98, 3135.96, 4186.01];
+          partials.forEach((freq, i) => {
+            const osc = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now);
+            const amp = 0.08 / (i + 1);
+            g.gain.setValueAtTime(0.001, now);
+            g.gain.linearRampToValueAtTime(amp, now + 0.008);
+            g.gain.exponentialRampToValueAtTime(0.0005, now + 0.65 - i * 0.15);
+            osc.connect(g);
+            g.connect(this.masterGain);
+            osc.start(now);
+            osc.stop(now + 0.68);
+          });
+        } catch (e) {}
+      }
+
+      // Distant rolling thunder rumble
+      playThunder() {
+        if (this.muted || this.isPaused) return;
+        try {
+          this.unlock();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const dur = 2.4;
+          const len = Math.floor(this.ctx.sampleRate * dur);
+          const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+          const data = buf.getChannelData(0);
+          for (let i = 0; i < len; i++) {
+            data[i] = Math.random() * 2 - 1;
+          }
+          const src = this.ctx.createBufferSource();
+          src.buffer = buf;
+
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(145, now);
+          filter.frequency.exponentialRampToValueAtTime(52, now + dur);
+
+          const g = this.ctx.createGain();
+          g.gain.setValueAtTime(0.001, now);
+          g.gain.linearRampToValueAtTime(0.22, now + 0.18);
+          g.gain.exponentialRampToValueAtTime(0.09, now + 0.8);
+          g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+          src.connect(filter);
+          filter.connect(g);
+          g.connect(this.masterGain);
+          src.start(now);
+          src.stop(now + dur + 0.05);
+        } catch (e) {}
+      }
+
+      // Cute double-chirp plushie squeeze sound
+      playSqueeze(pitchMultiplier = 1.0) {
+        if (this.muted || this.isPaused) return;
+        try {
+          this.unlock();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+
+          const osc1 = this.ctx.createOscillator();
+          const gain1 = this.ctx.createGain();
+          osc1.type = 'sine';
+          const baseFreq = (520 + Math.random() * 70) * pitchMultiplier;
+          osc1.frequency.setValueAtTime(baseFreq, now);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.085);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.16);
+
+          gain1.gain.setValueAtTime(0.001, now);
+          gain1.gain.linearRampToValueAtTime(0.095, now + 0.025);
+          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+
+          osc1.connect(gain1);
+          gain1.connect(this.masterGain);
+          osc1.start(now);
+          osc1.stop(now + 0.18);
+
+          const osc2 = this.ctx.createOscillator();
+          const gain2 = this.ctx.createGain();
+          osc2.type = 'triangle';
+          osc2.frequency.setValueAtTime(baseFreq * 1.1, now + 0.11);
+          osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.65, now + 0.21);
+
+          gain2.gain.setValueAtTime(0.001, now + 0.11);
+          gain2.gain.linearRampToValueAtTime(0.07, now + 0.13);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+          osc2.connect(gain2);
+          gain2.connect(this.masterGain);
+          osc2.start(now + 0.11);
+          osc2.stop(now + 0.25);
+        } catch (e) {}
+      }
+
+      playBounce(intensity = 0.5) {
+        if (this.muted || this.isPaused || intensity < 0.08) return;
+        try {
+          this.unlock();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const vol = Math.min(0.13, intensity * 0.11);
+
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          const startFreq = 115 + Math.min(80, intensity * 35);
+          osc.frequency.setValueAtTime(startFreq, now);
+          osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+
+      playPickup() {
+        if (this.muted || this.isPaused) return;
+        try {
+          this.unlock();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(280, now);
+          osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.045, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+    }
+
+    const soundFX = new IzakayaSoundEngine();
+
+    // ============================================================================
+    // 2. COLOR & VOXEL HELPER UTILITIES (Learned from room.html)
+    // ============================================================================
+    const tempColor = new THREE.Color();
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+
+    function voxelHash(x, y, z) {
+      const n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    }
+
+    function varyColor(hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
+      tempColor.set(hexOrString);
+      const h = voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      tempColor.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return tempColor.clone();
+    }
+
+    function createSoftVoxelGeometry(size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    }
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        tempQuat.identity();
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    // ============================================================================
+    // 3. SCENE, CAMERA, RENDERER & POST-PROCESSING SETUP
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#090d1a');
+    scene.fog = new THREE.FogExp2('#090d1a', 0.016);
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.5, 130);
+    camera.position.set(14.5, 10.8, 17.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.06;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.72, // strong night bloom on neon & lanterns
+        0.58,
+        0.60
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (err) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0.5, 3.0, -1.2);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.475;
+    controls.minPolarAngle = Math.PI * 0.08;
+    controls.minDistance = 8.5;
+    controls.maxDistance = 36;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.42;
+
+    let lastUserInteractionTime = performance.now();
+    const recordInteraction = () => {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+      soundFX.unlock();
+    };
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 4. DYNAMIC LIGHTS (Capped for Performance) & SHARED MATERIALS
+    // ============================================================================
+    // 1. Hemisphere Light (Cold rainy sky vs warm alley bounce)
+    const hemiLight = new THREE.HemisphereLight(0x28385e, 0x181424, 0.35);
+    hemiLight.position.set(0, 22, 0);
+    scene.add(hemiLight);
+
+    // 2. Main Directional Light (Moonlight / Thunder flash at Night -> Overcast Drizzle in Day)
+    const skyDirLight = new THREE.DirectionalLight(0x6088cc, 0.42);
+    skyDirLight.position.set(-14, 20, 12);
+    skyDirLight.target.position.set(0, 2, -2);
+    scene.add(skyDirLight.target);
+    skyDirLight.castShadow = true;
+    skyDirLight.shadow.mapSize.width = 2048;
+    skyDirLight.shadow.mapSize.height = 2048;
+    skyDirLight.shadow.camera.near = 2;
+    skyDirLight.shadow.camera.far = 48;
+    const dCam = 14.5;
+    skyDirLight.shadow.camera.left = -dCam;
+    skyDirLight.shadow.camera.right = dCam;
+    skyDirLight.shadow.camera.top = dCam;
+    skyDirLight.shadow.camera.bottom = -dCam;
+    skyDirLight.shadow.bias = -0.0006;
+    skyDirLight.shadow.radius = 2.5;
+    scene.add(skyDirLight);
+
+    // 3. Yatai Red Paper Lanterns Warm PointLight (Casts soft cozy shadows over customers!)
+    const yataiLanternLight = new THREE.PointLight(0xff8c3b, 1.55, 19, 1.45);
+    yataiLanternLight.position.set(1.2, 6.2, -1.0);
+    yataiLanternLight.castShadow = true;
+    yataiLanternLight.shadow.mapSize.width = 1024;
+    yataiLanternLight.shadow.mapSize.height = 1024;
+    yataiLanternLight.shadow.bias = -0.001;
+    scene.add(yataiLanternLight);
+
+    // 4. Charcoal Grill & Steaming Pot Ember Glow
+    const grillLight = new THREE.PointLight(0xff5420, 1.15, 8.5, 1.8);
+    grillLight.position.set(-1.1, 3.6, -3.3);
+    scene.add(grillLight);
+
+    // 5. Vending Machines & Alley Neon Cyan/Pink Glow
+    const vendingNeonLight = new THREE.PointLight(0x38bdf8, 1.1, 13.5, 1.6);
+    vendingNeonLight.position.set(-6.8, 4.5, -5.8);
+    scene.add(vendingNeonLight);
+
+    // 6. Upper Alley Magenta Neon Sign Glow
+    const neonSignLight = new THREE.PointLight(0xf43f5e, 1.0, 14.0, 1.6);
+    neonSignLight.position.set(1.5, 9.2, -7.2);
+    scene.add(neonSignLight);
+
+    // Shared Materials
+    const plushMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.92,
+      metalness: 0.02
+    });
+
+    const alleyStoneMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.36, // Wet rain-slicked cobblestones
+      metalness: 0.18
+    });
+
+    const woodStallMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.72,
+      metalness: 0.06
+    });
+
+    const puddleWaterMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.05, // Mirror-slick wet puddle reflection
+      metalness: 0.82
+    });
+
+    const lanternEmissiveMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0xff6b2b),
+      emissiveIntensity: 1.85,
+      roughness: 0.25
+    });
+
+    const neonPinkMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0xff2a85),
+      emissiveIntensity: 2.1,
+      roughness: 0.2
+    });
+
+    const neonCyanMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0x22d3ee),
+      emissiveIntensity: 2.0,
+      roughness: 0.2
+    });
+
+    const charcoalEmberMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0xff4500),
+      emissiveIntensity: 2.2,
+      roughness: 0.35
+    });
+
+    // ============================================================================
+    // 5. COBBLED ALLEY, PUDDLES, VENDING MACHINES, BICYCLE, NEON & YATAI STALL
+    // ============================================================================
+    const RV = 0.25; // 1 scene voxel = 0.25 world units
+    const furnitureColliders = [];
+
+    function addCollider(minX, minY, minZ, maxX, maxY, maxZ, name = 'prop') {
+      furnitureColliders.push({
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        name
+      });
+    }
+
+    const alleyVoxels = [];
+    const stallVoxels = [];
+    const puddleVoxels = [];
+    const lanternVoxels = [];
+    const neonPinkVoxels = [];
+    const neonCyanVoxels = [];
+    const emberVoxels = [];
+
+    function pushVox(list, rx, ry, rz, hex, variance = 0.03, sx = 1, sy = 1, sz = 1) {
+      list.push({
+        x: rx, y: ry, z: rz,
+        color: varyColor(hex, rx, ry, rz, variance),
+        sx, sy, sz
+      });
+    }
+
+    function pushBox(list, x0, y0, z0, x1, y1, z1, colFnOrHex, variance = 0.03) {
+      for (let x = x0; x <= x1; x++) {
+        for (let y = y0; y <= y1; y++) {
+          for (let z = z0; z <= z1; z++) {
+            if (x > x0 && x < x1 && y > y0 && y < y1 && z > z0 && z < z1) continue;
+            const c = typeof colFnOrHex === 'function' ? colFnOrHex(x, y, z) : colFnOrHex;
+            if (c) pushVox(list, x + 0.5, y + 0.5, z + 0.5, c, variance);
+          }
+        }
+      }
+    }
+
+    // Puddle centers in world coordinates for both puddle blocks & rain ripples
+    const PUDDLE_ZONES = [
+      { x: -4.8, z: 4.5, rx: 2.5, rz: 1.9 },
+      { x: 4.2,  z: 4.8, rx: 2.8, rz: 2.1 },
+      { x: -7.2, z: -1.8, rx: 1.9, rz: 2.2 },
+      { x: 7.4,  z: -0.5, rx: 1.7, rz: 2.0 }
+    ];
+
+    function isInsidePuddle(wx, wz) {
+      for (let i = 0; i < PUDDLE_ZONES.length; i++) {
+        const p = PUDDLE_ZONES[i];
+        const dx = (wx - p.x) / p.rx;
+        const dz = (wz - p.z) / p.rz;
+        if (dx * dx + dz * dz <= 1.0) return true;
+      }
+      return false;
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5A. WET COBBLED ALLEY, BRICK BACK WALL, VENDING MACHINES, BICYCLE & NEON
+    // ----------------------------------------------------------------------------
+    function buildAlleyEnvironment() {
+      // 1. Cobblestone Ground & Reflective Puddles (rx: -42..41, rz: -36..35)
+      for (let x = -42; x <= 41; x++) {
+        for (let z = -36; z <= 35; z++) {
+          const wx = (x + 0.5) * RV;
+          const wz = (z + 0.5) * RV;
+          const inPuddle = isInsidePuddle(wx, wz);
+
+          // Curb sidewalk step along back wall (z <= -25)
+          if (z <= -25 && x <= -15) {
+            pushVox(alleyVoxels, x + 0.5, 0.35, z + 0.5, '#3b4254', 0.025, 1, 0.7, 1);
+          }
+
+          if (inPuddle) {
+            // Dark recessed basin + reflective mirror puddle top
+            pushVox(alleyVoxels, x + 0.5, -0.65, z + 0.5, '#141b29', 0.015);
+            pushVox(puddleVoxels, x + 0.5, -0.18, z + 0.5, '#1e3a5f', 0.01, 1.01, 0.25, 1.01);
+          } else {
+            // Cobblestone pattern with mortar joints & wet dark patches
+            const cobblePattern = ((x + Math.floor(z / 2) * 3) % 4 === 0) || (z % 3 === 0);
+            const wetPatch = Math.sin(x * 0.22) * Math.cos(z * 0.25) > 0.25;
+            let stoneCol = cobblePattern ? '#222736' : (wetPatch ? '#2b3346' : '#384152');
+            // Stepping stones path leading to stall
+            if (Math.abs(x - 2) <= 2 && z >= 6 && (Math.floor(z / 4) % 2 === 0)) {
+              stoneCol = '#4f596d';
+            }
+            pushVox(alleyVoxels, x + 0.5, -0.5, z + 0.5, stoneCol, 0.03);
+          }
+
+          // Outer foundation trim
+          if (x === -42 || x === 41 || z === 35 || z === -36) {
+            pushVox(alleyVoxels, x + 0.5, -1.5, z + 0.5, '#161922', 0.015);
+          }
+        }
+      }
+
+      // 2. Back Alley Brick & Timber Wall (rz = -36..-35, ry = 0..44, rx = -42..41)
+      for (let y = 0; y <= 44; y++) {
+        for (let x = -42; x <= 41; x++) {
+          // Taper wall height on far right for charming cutaway silhouette
+          if (x > 28 && y > 32 - (x - 28)) continue;
+
+          let wallCol = '#2c2533'; // Dark rainy brick/plaster
+          if (y <= 3) wallCol = '#1f2430'; // Wet stone foundation
+          else if (y === 4 || y === 28 || y === 44) wallCol = '#3d2b24'; // Timber beams
+          else if (x === -42 || x === -16 || x === 24) wallCol = '#3d2b24'; // Vertical timber pillars
+          else if ((y % 2 === 0) && ((x + y) % 5 === 0)) wallCol = '#382c3e'; // Brick texture variation
+
+          pushVox(alleyVoxels, x + 0.5, y + 0.5, -35.5, wallCol, 0.025);
+        }
+      }
+      addCollider(-10.5, 0, -9.2, 10.5, 11.5, -8.5, 'back_wall');
+
+      // 3. Two Glowing Japanese Vending Machines (Back-left: rx -38..-20, ry 1..20, rz -34..-28)
+      // Machine 1: Blue Drink Machine (rx -38..-30)
+      pushBox(stallVoxels, -38, 1, -34, -30, 20, -28, (x, y, z) => {
+        if (z === -28 && x >= -37 && x <= -31 && y >= 10 && y <= 18) return null; // Display cutout
+        if (z === -28 && x >= -36 && x <= -32 && y >= 3 && y <= 5) return '#0f172a'; // Dispenser slot
+        return '#1d4ed8';
+      }, 0.015);
+      // Glowing cyan/white drink display inside Machine 1
+      for (let x = -37; x <= -31; x++) {
+        for (let y = 10; y <= 18; y++) {
+          if (y % 3 === 0) {
+            pushVox(neonCyanVoxels, x + 0.5, y + 0.5, -28.2, '#e0f2fe', 0.01);
+          } else {
+            const canCol = ((x + y) % 3 === 0) ? '#38bdf8' : (((x + y) % 2 === 0) ? '#f43f5e' : '#facc15');
+            pushVox(neonCyanVoxels, x + 0.5, y + 0.5, -28.4, canCol, 0.01, 0.75, 0.85, 0.6);
+          }
+        }
+      }
+
+      // Machine 2: Red/White Hot & Cold Tea Machine (rx -28..-20)
+      pushBox(stallVoxels, -28, 1, -34, -20, 20, -28, (x, y, z) => {
+        if (z === -28 && x >= -27 && x <= -21 && y >= 10 && y <= 18) return null;
+        if (z === -28 && x >= -26 && x <= -22 && y >= 3 && y <= 5) return '#1e293b';
+        return (x === -28 || x === -20 || y <= 8) ? '#dc2626' : '#f8fafc';
+      }, 0.015);
+      for (let x = -27; x <= -21; x++) {
+        for (let y = 10; y <= 18; y++) {
+          const canCol = (y % 3 === 0) ? '#fef3c7' : (((x + y) % 2 === 0) ? '#4ade80' : '#fb923c');
+          pushVox(lanternVoxels, x + 0.5, y + 0.5, -28.3, canCol, 0.01, 0.8, 0.85, 0.6);
+        }
+      }
+      addCollider(-9.6, 0, -8.6, -4.9, 5.2, -6.8, 'vending_machines');
+
+      // 4. Retro Voxel Bicycle parked in the alley (Centered around X = -7.6, Z = -3.6 -> rx = -30, rz = -14)
+      // Back wheel (rz -19..-15) & Front wheel (rz -11..-7) at rx = -30
+      for (const wzCenter of [-17, -9]) {
+        for (let dy = 1; dy <= 5; dy++) {
+          for (let dz = -2; dz <= 2; dz++) {
+            const r = Math.hypot(dy - 3, dz);
+            if (r >= 1.6 && r <= 2.4) {
+              pushVox(stallVoxels, -30.0, dy + 0.2, wzCenter + dz + 0.5, '#1e293b', 0.01, 0.55, 0.9, 0.9);
+            } else if (r < 0.8) {
+              pushVox(stallVoxels, -30.0, dy + 0.2, wzCenter + dz + 0.5, '#94a3b8', 0.01, 0.7, 0.7, 0.7);
+            }
+          }
+        }
+      }
+      // Mint-green bicycle frame, brown saddle, handlebars & wicker front basket
+      for (let z = -17; z <= -9; z++) {
+        pushVox(stallVoxels, -30.0, 4.2 + (z + 17) * 0.22, z + 0.5, '#2dd4bf', 0.01, 0.6, 0.6, 1.0);
+      }
+      pushVox(stallVoxels, -30.0, 6.2, -15.0, '#78350f', 0.01, 1.2, 0.7, 1.8); // Saddle
+      pushVox(stallVoxels, -30.0, 7.2, -9.2, '#cbd5e1', 0.01, 2.8, 0.5, 0.6);  // Handlebars
+      pushVox(stallVoxels, -30.0, 5.8, -7.6, '#b45309', 0.02, 2.0, 1.6, 1.6);  // Front basket
+      pushVox(lanternVoxels, -30.0, 6.5, -6.5, '#fef08a', 0.01, 0.7, 0.7, 0.7); // Bicycle dynamo headlight
+      addCollider(-8.1, 0, -5.0, -7.0, 2.0, -1.6, 'bicycle');
+
+      // 5. Glowing Neon Signs on the Back Wall
+      // Sign A: Vertical Cyberpunk Kanji Sign on Left Wall (rx -18..-14, ry 24..41, rz -34.2)
+      pushBox(stallVoxels, -18, 24, -34, -14, 41, -34, '#0f172a');
+      for (let y = 25; y <= 40; y++) {
+        for (let x = -17; x <= -15; x++) {
+          const isBorder = (x === -17 || x === -15 || y === 25 || y === 40);
+          const isGlyph = (x === -16 && (y % 3 !== 0)) || (y % 4 === 0);
+          if (isBorder) {
+            pushVox(neonPinkVoxels, x + 0.5, y + 0.5, -33.6, '#ff2a85', 0.01, 0.85, 0.85, 0.5);
+          } else if (isGlyph) {
+            pushVox(neonCyanVoxels, x + 0.5, y + 0.5, -33.6, '#22d3ee', 0.01, 0.85, 0.85, 0.5);
+          }
+        }
+      }
+
+      // Sign B: Wide Izakaya "Night Sparrow & Ramen Bowl" Neon Sign above the Yatai (rx -4..18, ry 36..42, rz -34)
+      pushBox(stallVoxels, -4, 36, -34, 18, 42, -34, '#111827');
+      for (let x = -3; x <= 17; x++) {
+        for (let y = 37; y <= 41; y++) {
+          const border = (x === -3 || x === 17 || y === 37 || y === 41);
+          if (border) {
+            pushVox(neonCyanVoxels, x + 0.5, y + 0.5, -33.5, '#38bdf8', 0.01, 0.9, 0.9, 0.5);
+          } else if (x >= -1 && x <= 3 && (y === 38 || y === 40 || x === 1)) {
+            pushVox(neonPinkVoxels, x + 0.5, y + 0.5, -33.5, '#f43f5e', 0.01, 0.85, 0.85, 0.5);
+          } else if (x >= 6 && x <= 10 && ((x + y) % 2 === 0)) {
+            pushVox(lanternVoxels, x + 0.5, y + 0.5, -33.5, '#fbbf24', 0.01, 0.85, 0.85, 0.5);
+          } else if (x >= 12 && x <= 15 && (y === 38 || x === 13)) {
+            pushVox(neonPinkVoxels, x + 0.5, y + 0.5, -33.5, '#ec4899', 0.01, 0.85, 0.85, 0.5);
+          }
+        }
+      }
+    }
+
+    // ----------------------------------------------------------------------------
+    // 5B. MYSTIA'S WOODEN YATAI FOOD STALL, SAKE SHELF, GRILL, POT & LANTERNS
+    // ----------------------------------------------------------------------------
+    function buildYataiStall() {
+      // Yatai footprint: rx from -12 to 22 (X: -3.0 to 5.5), rz from -26 to -6 (Z: -6.5 to -1.5)
+      // 1. Cart Base, Prep Counter & Front Customer Counter (top of counter at ry = 10 -> Y = 2.75)
+      // Back prep counter & Sake cabinet (rx -11..21, ry 1..10, rz -25..-19)
+      pushBox(stallVoxels, -11, 1, -25, 21, 10, -19, (x, y) => {
+        if (y === 10) return '#784828';
+        return ((x + y) % 3 === 0) ? '#5c361d' : '#6b4022';
+      }, 0.025);
+
+      // Front Customer Counter Bar (rx -12..22, ry 1..10, rz -13..-6 -> top at Y = 2.75)
+      pushBox(stallVoxels, -12, 1, -13, 22, 10, -6, (x, y, z) => {
+        if (y === 10) return '#b07848'; // Smooth cypress counter top
+        if (y === 9 && z === -6) return '#8f5d34';
+        return (x % 3 === 0) ? '#633c20' : '#734727';
+      }, 0.025);
+
+      // Wooden Cart Wheels on Left (rx = -11) & Right (rx = 21)
+      for (const wx of [-11.5, 21.5]) {
+        for (let wy = 0; wy <= 5; wy++) {
+          for (let wz = -18; wz <= -13; wz++) {
+            const r = Math.hypot(wy - 2.5, wz + 15.5);
+            if (r <= 2.6 && r >= 1.4) {
+              pushVox(stallVoxels, wx, wy + 0.5, wz + 0.5, '#3b2313', 0.02);
+            } else if (r < 0.9) {
+              pushVox(stallVoxels, wx, wy + 0.5, wz + 0.5, '#94a3b8', 0.01);
+            }
+          }
+        }
+      }
+
+      // Register Yatai Counter Colliders (Top surface at Y = 2.75)
+      addCollider(-3.0, 0, -6.5, 5.5, 2.75, -1.5, 'yatai_counter');
+
+      // 2. Sake Shelf at Back of Stall (rx -9..19, ry 11..22, rz -25..-23)
+      pushBox(stallVoxels, -9, 11, -25, 19, 22, -24, (x, y) => {
+        if (y === 15 || y === 20 || x === -9 || x === 19) return '#4f2e18';
+        return null;
+      }, 0.02);
+      // Colorful Sake Bottles (Isshobin) & Ceramic Tokkuri Flasks on the Sake Shelf
+      const bottleColors = ['#10b981', '#8b5cf6', '#f59e0b', '#3b82f6', '#ec4899', '#14b8a6', '#eab308'];
+      let bIdx = 0;
+      for (const shelfY of [11, 16]) {
+        for (let x = -7; x <= 17; x += 3) {
+          const bCol = bottleColors[bIdx++ % bottleColors.length];
+          // Bottle body
+          pushVox(stallVoxels, x + 0.5, shelfY + 1.2, -23.8, bCol, 0.02, 1.1, 2.0, 1.1);
+          // Paper label
+          pushVox(stallVoxels, x + 0.5, shelfY + 1.2, -23.2, '#fef3c7', 0.01, 0.9, 1.0, 0.2);
+          // Bottle neck
+          pushVox(stallVoxels, x + 0.5, shelfY + 2.6, -23.8, bCol, 0.02, 0.5, 1.1, 0.5);
+        }
+      }
+
+      // 3. Four Corner Roof Pillars & Pitched Yatai Shingle Roof (ry 11..34)
+      const pillarCoords = [[-11, -24], [21, -24], [-11, -7], [21, -7]];
+      pillarCoords.forEach(([px, pz]) => {
+        for (let y = 11; y <= 28; y++) {
+          pushVox(stallVoxels, px + 0.5, y + 0.5, pz + 0.5, '#59351c', 0.02, 1.15, 1, 1.15);
+        }
+      });
+
+      // Slanted Shingle Roof (rx -14..24, rz -28..-3, ry 28..35)
+      for (let x = -14; x <= 24; x++) {
+        for (let z = -28; z <= -3; z++) {
+          const distFromRidge = Math.abs(z - (-15.5));
+          const roofY = Math.round(34.5 - distFromRidge * 0.48);
+          const isEave = (z === -28 || z === -3 || x === -14 || x === 24);
+          const shingleCol = isEave ? '#422614' : (((x + z) % 2 === 0) ? '#5c3820' : '#4f2f1a');
+          pushVox(stallVoxels, x + 0.5, roofY, z + 0.5, shingleCol, 0.025);
+        }
+      }
+      addCollider(-3.5, 6.8, -7.0, 6.0, 8.8, -0.75, 'yatai_roof');
+
+      // 4. Charcoal Yakitori Grill Box (Left side of counter: rx -8..-1, rz -13..-9, ry 11..12)
+      for (let x = -8; x <= -1; x++) {
+        for (let z = -13; z <= -9; z++) {
+          const isRim = (x === -8 || x === -1 || z === -13 || z === -9);
+          if (isRim) {
+            pushVox(stallVoxels, x + 0.5, 11.4, z + 0.5, '#27272a', 0.02, 1, 1.4, 1);
+          } else {
+            // Glowing red-hot Binchotan charcoal embers inside grill!
+            pushVox(emberVoxels, x + 0.5, 11.2, z + 0.5, '#ff4500', 0.04, 0.95, 0.9, 0.95);
+          }
+        }
+      }
+
+      // 5. Steaming Ramen / Oden Pot Cauldron (Right side of counter: rx 4..11, rz -13..-8, ry 11..13)
+      for (let x = 4; x <= 11; x++) {
+        for (let z = -13; z <= -8; z++) {
+          const dx = x - 7.5;
+          const dz = z + 10.5;
+          const r = Math.hypot(dx, dz);
+          if (r <= 3.6) {
+            if (r >= 2.6) {
+              // Dark iron cauldron rim with brass lip
+              pushVox(stallVoxels, x + 0.5, 11.5, z + 0.5, '#1e293b', 0.02, 1, 1.8, 1);
+              pushVox(stallVoxels, x + 0.5, 12.6, z + 0.5, '#d97706', 0.02, 1, 0.5, 1);
+            } else {
+              // Rich creamy golden tonkotsu ramen broth inside pot!
+              const isTopping = ((x + z) % 3 === 0);
+              const brothCol = isTopping ? '#4ade80' : '#fde68a';
+              pushVox(lanternVoxels, x + 0.5, 12.1, z + 0.5, brothCol, 0.02, 1, 0.6, 1);
+            }
+          }
+        }
+      }
+
+      // 6. Five Wooden Counter Stools in front of the Yatai (Z = -0.35 -> rz = -1.5)
+      const stoolXs = [-2.4, -0.6, 1.2, 3.1, 5.0];
+      stoolXs.forEach((sxWorld) => {
+        const srx = Math.round(sxWorld / RV);
+        // Stool seat at ry = 5 -> top at Y = 1.5
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dz = -1; dz <= 1; dz++) {
+            pushVox(stallVoxels, srx + dx + 0.5, 5.5, -1.5 + dz, '#9c6644', 0.025);
+          }
+        }
+        // Stool legs (ry 0..4)
+        for (let y = 0; y <= 4; y++) {
+          pushVox(stallVoxels, srx - 0.5, y + 0.5, -2.2, '#5c3820', 0.02, 0.7, 1, 0.7);
+          pushVox(stallVoxels, srx + 1.5, y + 0.5, -2.2, '#5c3820', 0.02, 0.7, 1, 0.7);
+          pushVox(stallVoxels, srx - 0.5, y + 0.5, -0.6, '#5c3820', 0.02, 0.7, 1, 0.7);
+          pushVox(stallVoxels, srx + 1.5, y + 0.5, -0.6, '#5c3820', 0.02, 0.7, 1, 0.7);
+        }
+        addCollider(sxWorld - 0.45, 0, -0.85, sxWorld + 0.45, 1.5, 0.15, 'stool');
+      });
+
+      // Mystia's Chef Step behind the counter (X = 0.45, Z = -4.35, top at Y = 1.85)
+      addCollider(-0.3, 0, -4.8, 1.2, 1.85, -3.8, 'chef_step');
+
+      // Left Crate / Barrel beside the counter where the Voxel Cat sits (X = -3.45, Z = -2.8, top at Y = 2.25)
+      pushBox(stallVoxels, -16, 0, -13, -13, 8, -9, (x, y) => {
+        if (y === 2 || y === 6) return '#3f3f46'; // Iron barrel hoops
+        return '#7c4d2b';
+      }, 0.025);
+      addCollider(-4.0, 0, -3.3, -3.0, 2.25, -2.1, 'cat_barrel');
+
+      // Mossy Stepping Stone on the right alley where the Leaf-Umbrella Mini Fumo sits (X = 7.2, Z = 2.4, top at Y = 0.35)
+      for (let x = 26; x <= 31; x++) {
+        for (let z = 7; z <= 12; z++) {
+          if (Math.hypot(x - 28.5, z - 9.5) <= 2.6) {
+            pushVox(alleyVoxels, x + 0.5, 0.45, z + 0.5, ((x + z) % 2 === 0) ? '#4d7c0f' : '#57534e', 0.03, 1, 0.9, 1);
+          }
+        }
+      }
+      addCollider(6.5, 0, 1.7, 7.9, 0.35, 3.1, 'moss_stone');
+    }
+
+    buildAlleyEnvironment();
+    buildYataiStall();
+
+    const envGroup = new THREE.Group();
+    scene.add(envGroup);
+
+    const alleyMesh = buildVoxelInstancedMesh(alleyVoxels, RV, alleyStoneMaterial, true, true);
+    const stallMesh = buildVoxelInstancedMesh(stallVoxels, RV, woodStallMaterial, true, true);
+    const puddleMesh = buildVoxelInstancedMesh(puddleVoxels, RV, puddleWaterMaterial, false, true);
+    const lanternStaticMesh = buildVoxelInstancedMesh(lanternVoxels, RV, lanternEmissiveMaterial, false, false);
+    const neonPinkMesh = buildVoxelInstancedMesh(neonPinkVoxels, RV, neonPinkMaterial, false, false);
+    const neonCyanMesh = buildVoxelInstancedMesh(neonCyanVoxels, RV, neonCyanMaterial, false, false);
+    const emberMesh = buildVoxelInstancedMesh(emberVoxels, RV, charcoalEmberMaterial, false, false);
+
+    if (alleyMesh) envGroup.add(alleyMesh);
+    if (stallMesh) envGroup.add(stallMesh);
+    if (puddleMesh) envGroup.add(puddleMesh);
+    if (lanternStaticMesh) envGroup.add(lanternStaticMesh);
+    if (neonPinkMesh) envGroup.add(neonPinkMesh);
+    if (neonCyanMesh) envGroup.add(neonCyanMesh);
+    if (emberMesh) envGroup.add(emberMesh);
+
+    // ============================================================================
+    // 6. INTERACTIVE & ANIMATED STALL PROPS:
+    //    - Cloth Noren Curtain & Red Paper Lanterns (Swaying)
+    //    - Flipping Yakitori Skewers on the Grill
+    //    - Steaming Ramen Pot & Filling Bowl
+    //    - Yuyuko's Very Tall Stack of Empty Bowls (+ Dynamic Served Bowls)
+    //    - Unexpected Voxel Cat & Voxel Frog on a Bowl
+    // ============================================================================
+
+    // 6A. Swaying Cloth Noren Curtain & Red Paper Lanterns
+    const norenData = [];
+    for (let panel = 0; panel < 5; panel++) {
+      const xStart = -10 + panel * 6;
+      for (let x = xStart; x <= xStart + 4; x++) {
+        for (let y = 21; y <= 27; y++) {
+          const isCrest = (y >= 23 && y <= 25 && (x === xStart + 2 || (y === 24 && Math.abs(x - (xStart + 2)) <= 1)));
+          const col = isCrest ? '#f8fafc' : '#1e3a8a';
+          norenData.push({
+            baseX: x + 0.5,
+            baseY: y + 0.5,
+            baseZ: -5.8,
+            weight: (28 - y) / 7,
+            panel,
+            color: varyColor(col, x, y, -6, 0.025)
+          });
+        }
+      }
+    }
+    const norenMesh = buildVoxelInstancedMesh(
+      norenData.map(n => ({ x: n.baseX, y: n.baseY, z: n.baseZ, color: n.color })),
+      RV,
+      plushMaterial,
+      true,
+      true
+    );
+    envGroup.add(norenMesh);
+
+    // 6 Hanging Red Paper Lanterns (Chochin) under the Yatai eaves
+    const chochinGroup = new THREE.Group();
+    scene.add(chochinGroup);
+    const chochinPivots = [];
+    const lanternXs = [-2.9, -1.2, 0.5, 2.2, 3.9, 5.4];
+    lanternXs.forEach((lx, idx) => {
+      const pivot = new THREE.Group();
+      pivot.position.set(lx, 6.85, -0.95);
+      const voxGlow = [];
+      const voxRim = [];
+      for (let y = -4; y <= 0; y++) {
+        const r = (y === 0 || y === -4) ? 1.0 : 1.5;
+        for (let x = -1; x <= 1; x++) {
+          for (let z = -1; z <= 1; z++) {
+            if (Math.hypot(x, z) > r) continue;
+            if (y === 0 || y === -4) {
+              voxRim.push({ x, y, z, color: new THREE.Color('#1e1b18') });
+            } else {
+              const col = (x === 0 && z === 1 && y === -2) ? '#fef08a' : '#ef4444';
+              voxGlow.push({ x, y, z, color: varyColor(col, x + idx, y, z, 0.02) });
+            }
+          }
+        }
+      }
+      const mGlow = buildVoxelInstancedMesh(voxGlow, 0.14, lanternEmissiveMaterial, false, false);
+      const mRim = buildVoxelInstancedMesh(voxRim, 0.14, woodStallMaterial, true, false);
+      if (mGlow) pivot.add(mGlow);
+      if (mRim) pivot.add(mRim);
+      chochinGroup.add(pivot);
+      chochinPivots.push({ pivot, phase: idx * 1.1 });
+    });
+
+    // 6B. Interactive Yakitori Skewers on the Charcoal Grill
+    const skewerPivots = [];
+    const grillCenter = new THREE.Vector3(-1.05, 2.95, -2.75);
+    for (let s = 0; s < 5; s++) {
+      const sp = new THREE.Group();
+      sp.position.set(-1.75 + s * 0.34, 3.02, -2.75);
+      const sVox = [];
+      // Bamboo skewer stick along Z
+      for (let z = -4; z <= 4; z++) {
+        if (z >= -2 && z <= 2) {
+          // Glazed yakitori chicken & green scallion chunks
+          const isNegi = (z === 0);
+          const meatCol = isNegi ? '#4ade80' : ((z % 2 === 0) ? '#b45309' : '#d97706');
+          sVox.push({ x: 0, y: 0, z, color: varyColor(meatCol, s, 0, z, 0.03), sx: 1.35, sy: 1.15, sz: 0.92 });
+        } else {
+          sVox.push({ x: 0, y: 0, z, color: new THREE.Color('#fde68a'), sx: 0.38, sy: 0.38, sz: 1.0 });
+        }
+      }
+      const sm = buildVoxelInstancedMesh(sVox, 0.095, woodStallMaterial, true, true);
+      if (sm) sp.add(sm);
+      scene.add(sp);
+      skewerPivots.push({
+        group: sp,
+        baseY: 3.02,
+        targetRotZ: 0,
+        currentRotZ: 0,
+        hopTime: 0
+      });
+    }
+
+    // Invisible Hitbox for Clicking the Yakitori Grill
+    const grillHitbox = new THREE.Mesh(
+      new THREE.BoxGeometry(1.9, 0.85, 1.35),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    grillHitbox.position.copy(grillCenter);
+    grillHitbox.userData.interactiveType = 'grill';
+    scene.add(grillHitbox);
+
+    // Invisible Hitbox for Holding Mouse on the Steaming Ramen Pot
+    const potCenter = new THREE.Vector3(1.95, 3.05, -2.65);
+    const potHitbox = new THREE.Mesh(
+      new THREE.BoxGeometry(1.95, 1.0, 1.55),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    potHitbox.position.copy(potCenter);
+    potHitbox.userData.interactiveType = 'pot';
+    scene.add(potHitbox);
+
+    // Active Filling Ramen Bowl next to the Pot
+    const fillingBowlGroup = new THREE.Group();
+    fillingBowlGroup.position.set(0.65, 2.82, -2.25);
+    const fBowlVox = [];
+    for (let x = -2; x <= 2; x++) {
+      for (let z = -2; z <= 2; z++) {
+        if (Math.hypot(x, z) <= 2.3) {
+          fBowlVox.push({ x, y: 0, z, color: new THREE.Color('#f8fafc') });
+          if (Math.hypot(x, z) >= 1.5) {
+            fBowlVox.push({ x, y: 1, z, color: new THREE.Color('#dc2626') });
+          }
+        }
+      }
+    }
+    const fBowlMesh = buildVoxelInstancedMesh(fBowlVox, 0.085, woodStallMaterial, true, true);
+    if (fBowlMesh) fillingBowlGroup.add(fBowlMesh);
+    const brothFillMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.26, 0.08, 0.26),
+      new THREE.MeshStandardMaterial({ color: 0xfde047, emissive: 0xf59e0b, emissiveIntensity: 0.45 })
+    );
+    brothFillMesh.position.set(0, 0.05, 0);
+    fillingBowlGroup.add(brothFillMesh);
+    scene.add(fillingBowlGroup);
+
+    // 6C. Yuyuko's Very Tall Stack of Empty Bowls + Dynamic Served Bowls!
+    let bowlsServedCount = 12;
+    const bowlCountEl = document.getElementById('bowl-count-val');
+    const yuyukoBowlStackGroup = new THREE.Group();
+    yuyukoBowlStackGroup.position.set(4.18, 2.76, -2.05);
+    scene.add(yuyukoBowlStackGroup);
+
+    function createSingleVoxelBowl(scale = 0.078) {
+      const g = new THREE.Group();
+      const bVox = [];
+      for (let x = -2; x <= 2; x++) {
+        for (let z = -2; z <= 2; z++) {
+          const r = Math.hypot(x, z);
+          if (r <= 2.2) {
+            bVox.push({ x, y: 0, z, color: new THREE.Color('#ffffff') });
+            if (r >= 1.4) {
+              bVox.push({ x, y: 1, z, color: new THREE.Color(((x + z) % 2 === 0) ? '#e11d48' : '#ffffff') });
+            }
+          }
+        }
+      }
+      const m = buildVoxelInstancedMesh(bVox, scale, woodStallMaterial, true, true);
+      if (m) g.add(m);
+      return g;
+    }
+
+    const stackedBowls = [];
+    function addBowlToYuyukoStack() {
+      const idx = stackedBowls.length;
+      const b = createSingleVoxelBowl(0.074);
+      const wobbleX = Math.sin(idx * 1.3) * 0.035;
+      const wobbleZ = Math.cos(idx * 1.7) * 0.035;
+      b.position.set(wobbleX, idx * 0.145, wobbleZ);
+      b.rotation.y = idx * 0.4;
+      yuyukoBowlStackGroup.add(b);
+      stackedBowls.push(b);
+    }
+    // Start with a very tall 12-bowl tower next to Yuyuko!
+    for (let i = 0; i < 12; i++) {
+      addBowlToYuyukoStack();
+    }
+
+    // 6D. Unexpected Spot: Voxel Cat Watching the Yakitori Grill!
+    const catGroup = new THREE.Group();
+    catGroup.position.set(-3.45, 2.25, -2.65);
+    catGroup.rotation.y = 0.55; // Facing the yakitori skewers
+    const catHeadPivot = new THREE.Group();
+    catHeadPivot.position.set(0, 0.42, 0.18);
+    const catTailPivot = new THREE.Group();
+    catTailPivot.position.set(0, 0.12, -0.25);
+    catGroup.add(catHeadPivot, catTailPivot);
+
+    (function buildVoxelCat() {
+      const bodyV = [];
+      const headV = [];
+      const tailV = [];
+      const CV = 0.068;
+      // Sitting cat body
+      for (let x = -2; x <= 2; x++) {
+        for (let y = 0; y <= 5; y++) {
+          for (let z = -3; z <= 2; z++) {
+            if (Math.hypot(x, z * 0.8) <= 2.3 - y * 0.12) {
+              const col = (z >= 1 && Math.abs(x) <= 1 && y <= 3) ? '#f8fafc' : '#1e1b24';
+              bodyV.push({ x, y, z, color: varyColor(col, x, y, z, 0.03) });
+            }
+          }
+        }
+      }
+      // Cat head + pointy ears + glowing yellow eyes
+      for (let x = -3; x <= 3; x++) {
+        for (let y = -1; y <= 3; y++) {
+          for (let z = -2; z <= 3; z++) {
+            if (Math.hypot(x, y - 1, z) <= 2.8) {
+              let col = '#1e1b24';
+              if (z >= 2 && y === 1 && Math.abs(x) === 1) col = '#facc15'; // Yellow cat eyes
+              if (z >= 2 && y === 0 && x === 0) col = '#f472b6'; // Tiny pink nose
+              headV.push({ x, y, z, color: varyColor(col, x, y, z, 0.02) });
+            }
+          }
+        }
+      }
+      // Pointy cat ears
+      for (const side of [-1, 1]) {
+        headV.push({ x: side * 2, y: 4, z: 0, color: new THREE.Color('#1e1b24') });
+        headV.push({ x: side * 2, y: 5, z: 0, color: new THREE.Color('#f472b6') });
+      }
+      // Swishing tail
+      for (let t = 0; t <= 5; t++) {
+        tailV.push({ x: 0, y: t * 0.7, z: -t * 0.7, color: new THREE.Color('#1e1b24') });
+      }
+      const bm = buildVoxelInstancedMesh(bodyV, CV, plushMaterial, true, true);
+      const hm = buildVoxelInstancedMesh(headV, CV, plushMaterial, true, true);
+      const tm = buildVoxelInstancedMesh(tailV, CV, plushMaterial, true, true);
+      if (bm) catGroup.add(bm);
+      if (hm) catHeadPivot.add(hm);
+      if (tm) catTailPivot.add(tm);
+      scene.add(catGroup);
+    })();
+
+    // 6E. Unexpected Spot: Voxel Frog Perched on an Overturned Bowl on the Counter!
+    const frogGroup = new THREE.Group();
+    frogGroup.position.set(4.95, 2.76, -2.35);
+    frogGroup.rotation.y = -0.45;
+    const frogThroatMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, 0.11, 0.12),
+      new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.7 })
+    );
+    frogThroatMesh.position.set(0, 0.28, 0.11);
+    frogGroup.add(frogThroatMesh);
+
+    (function buildFrogOnBowl() {
+      // Ceramic bowl base
+      const bowl = createSingleVoxelBowl(0.082);
+      bowl.rotation.x = Math.PI; // Overturned bowl dome
+      bowl.position.y = 0.12;
+      frogGroup.add(bowl);
+
+      // Tiny voxel green frog on top of the bowl
+      const fVox = [];
+      const FV = 0.055;
+      for (let x = -2; x <= 2; x++) {
+        for (let y = 0; y <= 2; y++) {
+          for (let z = -2; z <= 2; z++) {
+            if (Math.hypot(x, y, z) <= 2.3) {
+              fVox.push({ x, y: y + 3, z, color: varyColor('#4ade80', x, y, z, 0.03) });
+            }
+          }
+        }
+      }
+      // Bulging frog eyes
+      for (const side of [-1, 1]) {
+        fVox.push({ x: side * 1.5, y: 6, z: 1.2, color: new THREE.Color('#ffffff') });
+        fVox.push({ x: side * 1.5, y: 6.2, z: 1.8, color: new THREE.Color('#0f172a') });
+      }
+      const fm = buildVoxelInstancedMesh(fVox, FV, plushMaterial, true, true);
+      if (fm) frogGroup.add(fm);
+      scene.add(frogGroup);
+    })();
+
+    // 6F. Giant Green Lotus Leaf Umbrella shelter over the Mossy Stone (X = 7.2, Z = 2.4)
+    (function buildLeafUmbrella() {
+      const leafGroup = new THREE.Group();
+      leafGroup.position.set(7.2, 0.35, 2.4);
+      const lVox = [];
+      const LV = 0.11;
+      // Curved green stem behind the mini fumo
+      for (let y = 0; y <= 14; y++) {
+        const curveZ = -3.5 + Math.sin((y / 14) * Math.PI * 0.6) * 2.5;
+        lVox.push({ x: 0, y, z: curveZ, color: varyColor('#15803d', 0, y, 0, 0.02) });
+      }
+      // Wide lotus leaf canopy at y = 14
+      for (let x = -7; x <= 7; x++) {
+        for (let z = -7; z <= 7; z++) {
+          const r = Math.hypot(x, z);
+          if (r <= 7.2 && !(x === 0 && z > 2)) { // Classic lotus leaf notch in front
+            const droop = Math.max(0, (r - 3) * 0.35);
+            const isVein = (x === 0 || z === 0 || Math.abs(x) === Math.abs(z));
+            lVox.push({
+              x, y: 14.2 - droop, z,
+              color: varyColor(isVein ? '#86efac' : '#22c55e', x, 14, z, 0.03)
+            });
+          }
+        }
+      }
+      const lm = buildVoxelInstancedMesh(lVox, LV, plushMaterial, true, true);
+      if (lm) leafGroup.add(lm);
+      scene.add(leafGroup);
+    })();
+
+    // 6G. Day Mode "Closed & Cleaning Up" Props (Wooden Water Bucket & Deck Brush)
+    const dayCleanupGroup = new THREE.Group();
+    dayCleanupGroup.position.set(-1.6, 0.0, 1.8);
+    (function buildCleanupProps() {
+      const bVox = [];
+      const BV = 0.095;
+      for (let y = 0; y <= 4; y++) {
+        for (let x = -2; x <= 2; x++) {
+          for (let z = -2; z <= 2; z++) {
+            const r = Math.hypot(x, z);
+            if (r <= 2.3 && (y === 0 || r >= 1.5)) {
+              const col = (y === 2) ? '#475569' : '#b45309';
+              bVox.push({ x, y, z, color: varyColor(col, x, y, z, 0.02) });
+            } else if (y === 3 && r < 1.5) {
+              bVox.push({ x, y, z, color: new THREE.Color('#bae6fd') }); // Soapy water inside bucket
+            }
+          }
+        }
+      }
+      // Deck scrub brush leaning against bucket
+      for (let i = 0; i <= 10; i++) {
+        bVox.push({ x: 2.5 - i * 0.15, y: 1 + i * 0.85, z: 0, color: new THREE.Color('#d97706'), sx: 0.5, sy: 0.9, sz: 0.5 });
+      }
+      const cm = buildVoxelInstancedMesh(bVox, BV, woodStallMaterial, true, true);
+      if (cm) dayCleanupGroup.add(cm);
+      dayCleanupGroup.visible = false;
+      scene.add(dayCleanupGroup);
+    })();
+
+    // ============================================================================
+    // 7. POOLED PARTICLES: VOXEL RAIN STREAKS, PUDDLE RIPPLES, STEAM & SPARKS
+    // ============================================================================
+    let isHeavyRain = true;
+
+    // 7A. Falling Voxel Rain Streaks (Pooled InstancedMesh)
+    const RAIN_MAX = 420;
+    const rainDrops = [];
+    const rainGeom = new THREE.BoxGeometry(0.028, 0.58, 0.028);
+    const rainMat = new THREE.MeshBasicMaterial({
+      color: 0x93c5fd,
+      transparent: true,
+      opacity: 0.52
+    });
+    const rainMesh = new THREE.InstancedMesh(rainGeom, rainMat, RAIN_MAX);
+    for (let i = 0; i < RAIN_MAX; i++) {
+      rainDrops.push({
+        x: (Math.random() - 0.5) * 22,
+        y: Math.random() * 15,
+        z: (Math.random() - 0.5) * 20,
+        speed: 14 + Math.random() * 6
+      });
+    }
+    scene.add(rainMesh);
+
+    // 7B. Expanding Voxel Puddle Ripples (Pooled InstancedMesh)
+    const RIPPLE_MAX = 44;
+    const ripples = [];
+    const rippleGeom = new THREE.BoxGeometry(0.28, 0.015, 0.28);
+    const rippleMat = new THREE.MeshBasicMaterial({
+      color: 0xbae6fd,
+      transparent: true,
+      opacity: 0.45
+    });
+    const rippleMesh = new THREE.InstancedMesh(rippleGeom, rippleMat, RIPPLE_MAX);
+    for (let i = 0; i < RIPPLE_MAX; i++) {
+      ripples.push({ active: false, x: 0, z: 0, age: 0, maxAge: 0.7 });
+      tempMatrix.makeScale(0, 0, 0);
+      rippleMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(rippleMesh);
+
+    function spawnPuddleRipple(wx, wz) {
+      for (let i = 0; i < RIPPLE_MAX; i++) {
+        const rp = ripples[i];
+        if (!rp.active) {
+          rp.active = true;
+          rp.x = wx;
+          rp.z = wz;
+          rp.age = 0;
+          rp.maxAge = 0.55 + Math.random() * 0.35;
+          return;
+        }
+      }
+    }
+
+    function updateRainAndRipples(dt) {
+      const activeCount = isHeavyRain ? RAIN_MAX : 135;
+      const windX = isHeavyRain ? 1.8 : 0.5;
+      const windAngle = isHeavyRain ? -0.11 : -0.04;
+      tempQuat.setFromEuler(new THREE.Euler(0, 0, windAngle));
+
+      for (let i = 0; i < RAIN_MAX; i++) {
+        if (i >= activeCount) {
+          tempMatrix.makeScale(0, 0, 0);
+          rainMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        const d = rainDrops[i];
+        d.y -= d.speed * dt;
+        d.x += windX * dt;
+
+        // Check if raindrop hits the ground or yatai roof
+        const hitRoof = (d.x >= -3.5 && d.x <= 6.0 && d.z >= -7.0 && d.z <= -0.75 && d.y <= 7.5);
+        if (d.y <= 0.05 || hitRoof) {
+          if (d.y <= 0.05 && Math.random() < (isHeavyRain ? 0.25 : 0.1) && isInsidePuddle(d.x, d.z)) {
+            spawnPuddleRipple(d.x, d.z);
+          }
+          d.y = 13.5 + Math.random() * 3.0;
+          d.x = (Math.random() - 0.5) * 22;
+          d.z = (Math.random() - 0.5) * 20;
+        }
+
+        tempPos.set(d.x, d.y, d.z);
+        tempScale.set(1, isHeavyRain ? 1.15 : 0.75, 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        rainMesh.setMatrixAt(i, tempMatrix);
+      }
+      rainMesh.instanceMatrix.needsUpdate = true;
+
+      // Update Puddle Ripples
+      for (let i = 0; i < RIPPLE_MAX; i++) {
+        const rp = ripples[i];
+        if (!rp.active) continue;
+        rp.age += dt;
+        if (rp.age >= rp.maxAge) {
+          rp.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          rippleMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        const prog = rp.age / rp.maxAge;
+        const sc = 0.3 + prog * 2.2;
+        tempPos.set(rp.x, 0.015, rp.z);
+        tempQuat.setFromEuler(new THREE.Euler(0, prog * 1.5, 0));
+        tempScale.set(sc, 1.0 - prog, sc);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        rippleMesh.setMatrixAt(i, tempMatrix);
+      }
+      rippleMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // 7C. Drifting Steam Puffs from Ramen Pot & Yakitori Grill
+    const STEAM_MAX = 42;
+    const steamPuffs = [];
+    const steamGeom = new THREE.BoxGeometry(0.16, 0.16, 0.16);
+    const steamMat = new THREE.MeshBasicMaterial({
+      color: 0xf8fafc,
+      transparent: true,
+      opacity: 0.30
+    });
+    const steamMesh = new THREE.InstancedMesh(steamGeom, steamMat, STEAM_MAX);
+    for (let i = 0; i < STEAM_MAX; i++) {
+      const fromPot = (i % 3 !== 0);
+      steamPuffs.push({
+        fromPot,
+        x: (fromPot ? potCenter.x : grillCenter.x) + (Math.random() - 0.5) * 0.7,
+        y: 3.1 + Math.random() * 2.4,
+        z: (fromPot ? potCenter.z : grillCenter.z) + (Math.random() - 0.5) * 0.6,
+        vy: 0.55 + Math.random() * 0.45,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+    scene.add(steamMesh);
+
+    function updateSteamPuffs(time, dt, isPotHeld) {
+      for (let i = 0; i < STEAM_MAX; i++) {
+        const s = steamPuffs[i];
+        const boost = (s.fromPot && isPotHeld) ? 2.2 : 1.0;
+        s.y += s.vy * boost * dt;
+        s.x += Math.sin(time * 1.8 + s.phase) * 0.18 * dt;
+        if (s.y > 5.8) {
+          s.y = 3.05;
+          const base = s.fromPot ? potCenter : grillCenter;
+          s.x = base.x + (Math.random() - 0.5) * 0.75;
+          s.z = base.z + (Math.random() - 0.5) * 0.65;
+        }
+        const normH = (s.y - 3.05) / 2.75;
+        const sc = Math.sin(normH * Math.PI) * (isPotHeld && s.fromPot ? 1.55 : 1.15);
+        tempPos.set(s.x, s.y, s.z);
+        tempQuat.setFromEuler(new THREE.Euler(time * 0.8 + s.phase, time * 0.6, 0));
+        tempScale.set(sc, sc, sc);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        steamMesh.setMatrixAt(i, tempMatrix);
+      }
+      steamMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // 7D. Pooled Burst Particles (Squeeze Sparkles & Grill Sizzle Sparks!)
+    const POP_MAX = 64;
+    const popParticles = [];
+    const popGeom = new THREE.BoxGeometry(0.10, 0.10, 0.10);
+    const popMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const popMesh = new THREE.InstancedMesh(popGeom, popMat, POP_MAX);
+    for (let i = 0; i < POP_MAX; i++) {
+      popParticles.push({
+        active: false,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        life: 0,
+        maxLife: 1,
+        color: new THREE.Color('#ff85a1')
+      });
+      tempMatrix.makeScale(0, 0, 0);
+      popMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(popMesh);
+
+    function spawnBurstParticles(origin, palette, count = 14, upBoost = 3.0) {
+      let spawned = 0;
+      for (let i = 0; i < POP_MAX && spawned < count; i++) {
+        const p = popParticles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.45 + Math.random() * 0.3;
+          p.pos.copy(origin).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0.5, (Math.random() - 0.5) * 0.5));
+          const angle = (spawned / count) * Math.PI * 2 + Math.random() * 0.4;
+          const speed = 1.6 + Math.random() * 2.2;
+          p.vel.set(Math.cos(angle) * speed, upBoost + Math.random() * 2.2, Math.sin(angle) * speed);
+          p.color.set(palette[spawned % palette.length]);
+          popMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (popMesh.instanceColor) popMesh.instanceColor.needsUpdate = true;
+    }
+
+    function updateBurstParticles(dt) {
+      let dirty = false;
+      for (let i = 0; i < POP_MAX; i++) {
+        const p = popParticles[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          popMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= 7.8 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const s = 1.0 - (p.life / p.maxLife);
+        tempQuat.setFromEuler(new THREE.Euler(p.life * 9, p.life * 6, 0));
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        popMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) popMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 8. TOUHOU FUMO VOXEL PLUSHIE BUILDER & SOFT-BODY PHYSICS (Learned from room.html)
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const fumos = [];
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.role = config.role || 'Customer';
+        this.emoji = config.emoji || '🏮';
+        this.accentColor = config.accentColor || '#fb923c';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.082 * this.scaleFactor; // Fine voxel block size matching room.html
+        this.radius = 0.85 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isDragged = false;
+
+        // Soft-body spring states
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        this.buildCharacterVoxels(config);
+        this.syncTransform(0);
+        scene.add(this.root);
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingSolidVoxels = [];
+
+        const skinBase = '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false) => {
+          const seamDarken = (isSeam && ((Math.abs(x + y + z) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z,
+            color: varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // ------------------------------------------------------------------
+        // 1. STUBBY SITTING TORSO (y: 0..7, x: -4..4, z: -3..3)
+        // ------------------------------------------------------------------
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain;
+
+              if (y === 1 && z >= 1) col = '#ffffff';
+              if (cfg.hasWhiteApron && z >= 1 && Math.abs(x) <= 2 && y <= 5) {
+                col = '#fcfcfc';
+              }
+              if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                col = '#ffffff';
+                if (Math.abs(x) <= 1 && y === 5) col = cfg.tieColor || '#ef4444';
+              }
+              if (this.id === 'yuyuko' && z >= 2 && x === 0 && y >= 1 && y <= 5) {
+                col = '#38bdf8'; // Yuyuko kimono obi & border
+              }
+
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        // ------------------------------------------------------------------
+        // 2. SHORT DANGLING ARMS (+ Marisa's Sake Cup & Kogasa's Umbrella)
+        // ------------------------------------------------------------------
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || '#ffffff';
+                if (y === -3) col = skinBase;
+                else if (this.id === 'reimu' && y === -1) col = '#e63946';
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        // Marisa holding a warm ceramic sake/tea cup in her right hand!
+        if (this.id === 'marisa') {
+          for (let cy = -4; cy <= -2; cy++) {
+            addPlushVoxel(rightArmVoxels, 0.8, cy, 1.8, cy === -2 ? '#60a5fa' : '#f8fafc');
+            addPlushVoxel(rightArmVoxels, 0.2, cy, 1.8, cy === -2 ? '#60a5fa' : '#f8fafc');
+          }
+        }
+
+        // ------------------------------------------------------------------
+        // 3. SHORT SITTING / DANGLING LEGS WITH SHOES
+        // ------------------------------------------------------------------
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = '#ffffff';
+                if (z === 0) col = skinBase;
+                if (z >= 3) col = cfg.shoeColor || '#2b2d42';
+                if (z === 4 && y === 1 && x === 0) col = '#ffffff';
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        // ------------------------------------------------------------------
+        // 4. OVERSIZED ROUND FUMO HEAD, ICONIC 'ᗜˬᗜ' FACE, HAIR & HATS
+        // ------------------------------------------------------------------
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                // Iconic Fumo Face Plane
+                if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (y === 6) col = '#1f141e'; // Flat upper eyelash bar
+                  else if (y === 5 && Math.abs(x) === 2) col = '#ffffff'; // Eye shine
+                  else {
+                    // Kogasa has heterochromia (left eye red, right eye blue)!
+                    if (this.id === 'kogasa') {
+                      col = (x < 0) ? '#ef4444' : '#0284c7';
+                    } else {
+                      col = cfg.eyeColor;
+                    }
+                  }
+                } else if (Math.abs(x) === 4 && y === 3) {
+                  col = blushCol;
+                } else if (y === 2 && Math.abs(x) <= 1) {
+                  col = (x === 0) ? '#e07a7a' : smileCol;
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        // ------------------------------------------------------------------
+        // 5. CHARACTER-SPECIFIC ACCESSORIES, WINGS & HATS
+        // ------------------------------------------------------------------
+        if (this.id === 'mystia') {
+          // Mystia's Green Songbird Cap on top of her head
+          for (let hx = -5; hx <= 5; hx++) {
+            for (let hz = -4; hz <= 4; hz++) {
+              if (Math.hypot(hx, hz) <= 5.2) {
+                addPlushVoxel(headVoxels, hx, 11.4, hz, '#15803d');
+                if (Math.hypot(hx, hz) <= 3.6) {
+                  addPlushVoxel(headVoxels, hx, 12.3, hz, '#16a34a');
+                }
+              }
+            }
+          }
+          // Cute bird ear tufts on sides of head
+          for (const side of [-1, 1]) {
+            addPlushVoxel(headVoxels, side * 6.8, 8.5, 0.5, cfg.hairColor);
+            addPlushVoxel(headVoxels, side * 7.5, 9.3, 0.2, '#fbcfe8');
+          }
+          // Feathered Sparrow Bird Wings on her back!
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 7; wx++) {
+              const spanY = 3.0 - wx * 0.25;
+              for (let wy = -2; wy <= spanY; wy++) {
+                const featherCol = (wy === Math.floor(spanY)) ? '#f4acb7' : ((wy <= -1) ? '#fdf2f8' : '#855863');
+                wingSolidVoxels.push({
+                  x: side * wx * 0.95, y: wy, z: -0.4 - wx * 0.12,
+                  color: varyColor(featherCol, wx, wy, 0, 0.03)
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'wriggle') {
+          // Two black insect antennae curving up from top of head!
+          for (const side of [-1, 1]) {
+            for (let a = 1; a <= 6; a++) {
+              addPlushVoxel(headVoxels, side * (1.2 + a * 0.65), 11.2 + a * 0.75, 1.5 + a * 0.2, '#1e1b24');
+            }
+          }
+          // Wriggle's Dark Cape with Red Inner Lining on her back
+          for (let x = -4; x <= 4; x++) {
+            for (let y = -3; y <= 3; y++) {
+              if (Math.abs(x) <= 2.5 + (3 - y) * 0.35) {
+                wingSolidVoxels.push({
+                  x, y, z: -0.3,
+                  color: varyColor(Math.abs(x) >= 3 ? '#dc2626' : '#1e293b', x, y, 0, 0.03)
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'reimu') {
+          for (const side of [-1, 1]) {
+            for (let y = -1; y <= 5; y++) {
+              const tubeCol = (y === 5) ? '#e63946' : ((y >= 1 && y <= 4) ? '#ffffff' : cfg.hairColor);
+              addPlushVoxel(headVoxels, side * 6.8, y, 2.2, tubeCol);
+              addPlushVoxel(headVoxels, side * 6.8, y, 3.0, tubeCol);
+            }
+          }
+          for (let bx = -7; bx <= 7; bx++) {
+            const wingHeight = Math.min(4, Math.floor(Math.abs(bx) * 0.7) + 1);
+            for (let by = -wingHeight; by <= wingHeight; by++) {
+              addPlushVoxel(headVoxels, bx, 12.2 + by * 0.75, -1.5 - Math.abs(bx) * 0.15, '#d90429');
+            }
+          }
+        }
+
+        if (this.id === 'marisa') {
+          for (let y = -1; y <= 5; y++) {
+            addPlushVoxel(headVoxels, -6.6, y, 2.8, y === 0 ? '#ffffff' : cfg.hairColor);
+          }
+          for (let hx = -10; hx <= 10; hx++) {
+            for (let hz = -10; hz <= 10; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 10.2 && r >= 4.2) {
+                const brimY = 10.2 - hz * 0.22 + Math.sin(Math.atan2(hz, hx) * 4) * 0.4;
+                addPlushVoxel(headVoxels, hx, brimY, hz - 1.2, '#22222b');
+              }
+            }
+          }
+          for (let ch = 0; ch <= 9; ch++) {
+            const coneR = Math.max(0.8, 5.2 - ch * 0.52);
+            for (let hx = -6; hx <= 6; hx++) {
+              for (let hz = -6; hz <= 6; hz++) {
+                const r = Math.hypot(hx, hz);
+                if (r <= coneR && r >= coneR - 1.3) {
+                  const isRibbon = (ch === 1 || ch === 2);
+                  addPlushVoxel(headVoxels, hx, 10.8 + ch * 0.9 - hz * 0.18, hz - 1.5 - ch * 0.28, isRibbon ? '#f8f9fa' : '#22222b');
+                }
+              }
+            }
+          }
+          for (let bx = -3; bx <= 3; bx++) {
+            addPlushVoxel(headVoxels, bx, 11.8, 3.8, '#ffffff');
+            if (Math.abs(bx) >= 1) addPlushVoxel(headVoxels, bx, 12.6, 3.8, '#ffffff');
+          }
+        }
+
+        if (this.id === 'yuyuko') {
+          // Pale blue mob cap + white triangular Hitaikakushi ghost headband on front!
+          for (let hx = -6; hx <= 6; hx++) {
+            for (let hz = -5; hz <= 5; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.2 && r >= 4.0) {
+                addPlushVoxel(headVoxels, hx, 11.2, hz, '#bae6fd');
+              }
+            }
+          }
+          // Triangular front crest with red ghost swirl
+          for (let ty = 0; ty <= 3; ty++) {
+            for (let tx = -3 + ty; tx <= 3 - ty; tx++) {
+              const c = (tx === 0 && ty === 1) ? '#ef4444' : '#ffffff';
+              addPlushVoxel(headVoxels, tx, 10.8 + ty * 0.75, 4.8, c);
+            }
+          }
+        }
+
+        if (this.id === 'kogasa') {
+          // Kogasa's Purple Karakasa One-Eyed Umbrella held over her head!
+          // Bamboo handle shaft
+          for (let uy = 1; uy <= 17; uy++) {
+            addPlushVoxel(headVoxels, 4.2, uy, 0.5, '#d97706');
+          }
+          // Purple umbrella canopy with one big eye & sticking-out pink tongue!
+          for (let ux = -8; ux <= 10; ux++) {
+            for (let uz = -8; uz <= 8; uz++) {
+              const r = Math.hypot(ux - 1, uz);
+              if (r <= 9.2) {
+                const domeY = 17.5 - r * 0.35;
+                let uCol = '#7e22ce'; // Deep purple umbrella
+                // Big single eye on front of umbrella (uz >= 3, Math.abs(ux - 1) <= 2)
+                if (uz >= 4 && uz <= 6 && Math.abs(ux - 1) <= 1.5) {
+                  uCol = (Math.abs(ux - 1) <= 0.6 && uz === 5) ? '#0f172a' : '#ffffff';
+                }
+                // Red/pink sticking-out tongue below the eye
+                if (uz >= 6 && uz <= 8 && Math.abs(ux - 1) <= 1.2) {
+                  uCol = '#f43f5e';
+                }
+                addPlushVoxel(headVoxels, ux, domeY, uz, uCol);
+              }
+            }
+          }
+        }
+
+        if (this.id === 'keine') {
+          // Keine's Blue/Green Scholar Box Hat with hanging gold talismans
+          for (let hx = -5; hx <= 5; hx++) {
+            for (let hz = -5; hz <= 5; hz++) {
+              if (Math.max(Math.abs(hx), Math.abs(hz)) <= 4.6) {
+                addPlushVoxel(headVoxels, hx, 11.4, hz, '#1e3a8a');
+                addPlushVoxel(headVoxels, hx, 12.3, hz, '#15803d');
+              }
+            }
+          }
+          // Hanging yellow talisman strips on sides of hat
+          for (const side of [-1, 1]) {
+            for (let ty = 8; ty <= 11; ty++) {
+              addPlushVoxel(headVoxels, side * 5.2, ty, 2.2, '#fde047');
+            }
+          }
+        }
+
+        if (this.id === 'suwako') {
+          // Cute Frog Hat on the Mini Leaf-Umbrella Fumo
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -6; hz <= 6; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.8 && r >= 4.2) {
+                addPlushVoxel(headVoxels, hx, 10.6, hz, '#a3b18a');
+                if (r <= 5.6) addPlushVoxel(headVoxels, hx, 11.6, hz, '#a3b18a');
+              }
+            }
+          }
+          for (const side of [-1, 1]) {
+            addPlushVoxel(headVoxels, side * 3.5, 13.0, 2.5, '#a3b18a');
+            addPlushVoxel(headVoxels, side * 3.5, 13.2, 3.3, '#ffffff');
+            addPlushVoxel(headVoxels, side * 3.5, 13.2, 3.9, '#1e293b');
+          }
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allFumoRaycastMeshes.push(m);
+          }
+          return m;
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        registerPart(wingSolidVoxels, this.wingsPivot);
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.50, this.squash - 0.44 * strength);
+        this.squashVel = -3.6 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 12 * strength;
+        this.limbPitch = -0.68 * strength;
+        this.limbPitchVel = -6.2 * strength;
+        spawnBurstParticles(this.pos, [this.accentColor, '#fde047', '#ffffff', '#fb7185'], 14, 2.8);
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      resetToHome() {
+        this.pos.copy(this.homePos);
+        this.vel.set(0, 0, 0);
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.squeeze(0.75);
+      }
+
+      updatePhysics(dt, time) {
+        // 1. Volume-Preserving Squash & Stretch Spring
+        const squashStiff = 210.0;
+        const squashDamp = 11.5;
+        const squashForce = (1.0 - this.squash) * squashStiff - this.squashVel * squashDamp;
+        this.squashVel += squashForce * dt;
+        this.squash += this.squashVel * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash, 0.45, 1.55);
+
+        // 2. Oversized Head Wobble Spring
+        const headStiff = 140.0;
+        const headDamp = 7.5;
+        const idleHeadBob = Math.sin(time * 2.2 + this.homePos.x) * 0.028;
+        this.headPitchVel += ((idleHeadBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        // 3. Dangling Limb Swing Springs
+        const targetLimbPitch = (this.isDragged || !this.isGrounded) ? 0.58 : 0.0;
+        const limbStiff = 120.0;
+        const limbDamp = 8.0;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * limbStiff - this.limbPitchVel * limbDamp) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * limbStiff - this.limbRollVel * limbDamp) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.8, 0.9);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+
+        // 4. Gravity, Throw Arc, Bounce & Furniture Collisions
+        if (!this.isDragged) {
+          this.vel.y -= 24.0 * dt;
+          this.vel.multiplyScalar(Math.pow(0.985, dt * 60));
+          this.pos.addScaledVector(this.vel, dt);
+
+          this.yaw += this.angVel.y * dt;
+          this.pitch += this.angVel.x * dt;
+          this.roll += this.angVel.z * dt;
+          this.angVel.multiplyScalar(Math.pow(0.92, dt * 60));
+
+          this.isGrounded = false;
+
+          // Alley Cobblestone Ground Collision (Y = 0)
+          if (this.pos.y < 0) {
+            const impact = -this.vel.y;
+            this.pos.y = 0;
+            if (impact > 1.8) {
+              this.vel.y = impact * 0.42;
+              this.squashVel -= Math.min(9.0, impact * 0.95);
+              this.headPitchVel += (Math.random() - 0.5) * impact * 2.0;
+              this.headRollVel += (Math.random() - 0.5) * impact * 2.0;
+              soundFX.playBounce(impact * 0.08);
+              if (isInsidePuddle(this.pos.x, this.pos.z)) {
+                spawnPuddleRipple(this.pos.x, this.pos.z);
+              }
+            } else {
+              this.vel.y = 0;
+              this.isGrounded = true;
+            }
+            this.vel.x *= 0.80;
+            this.vel.z *= 0.80;
+          }
+
+          // Alley Bounds
+          const minX = -9.6, maxX = 9.6, minZ = -8.2, maxZ = 8.4;
+          if (this.pos.x < minX) { this.pos.x = minX; this.vel.x = Math.abs(this.vel.x) * 0.5; }
+          if (this.pos.x > maxX) { this.pos.x = maxX; this.vel.x = -Math.abs(this.vel.x) * 0.5; }
+          if (this.pos.z < minZ) { this.pos.z = minZ; this.vel.z = Math.abs(this.vel.z) * 0.5; }
+          if (this.pos.z > maxZ) { this.pos.z = maxZ; this.vel.z = -Math.abs(this.vel.z) * 0.5; }
+
+          // Furniture / Stall AABB Collisions
+          const r = this.radius * 0.72;
+          const centerY = this.pos.y + r;
+
+          for (let i = 0; i < furnitureColliders.length; i++) {
+            const box = furnitureColliders[i];
+            const cx = THREE.MathUtils.clamp(this.pos.x, box.min.x, box.max.x);
+            const cy = THREE.MathUtils.clamp(centerY, box.min.y, box.max.y);
+            const cz = THREE.MathUtils.clamp(this.pos.z, box.min.z, box.max.z);
+
+            const dx = this.pos.x - cx;
+            const dy = centerY - cy;
+            const dz = this.pos.z - cz;
+            const distSq = dx * dx + dy * dy + dz * dz;
+
+            if (distSq < r * r) {
+              const dist = Math.sqrt(distSq);
+              if (centerY >= box.max.y - 0.26 && this.vel.y <= 0.5) {
+                const impact = -this.vel.y;
+                this.pos.y = box.max.y;
+                if (impact > 2.0) {
+                  this.vel.y = impact * 0.38;
+                  this.squashVel -= Math.min(8.5, impact * 0.85);
+                  this.headPitchVel += (Math.random() - 0.5) * impact * 1.8;
+                  soundFX.playBounce(impact * 0.08);
+                } else {
+                  this.vel.y = 0;
+                  this.isGrounded = true;
+                }
+                this.vel.x *= 0.80;
+                this.vel.z *= 0.80;
+              } else if (dist > 0.0001) {
+                const nx = dx / dist;
+                const ny = dy / dist;
+                const nz = dz / dist;
+                const pen = r - dist;
+                this.pos.x += nx * pen;
+                this.pos.y = Math.max(0, this.pos.y + ny * pen);
+                this.pos.z += nz * pen;
+
+                const vn = this.vel.x * nx + this.vel.y * ny + this.vel.z * nz;
+                if (vn < 0) {
+                  const imp = -vn;
+                  this.vel.x -= 1.42 * vn * nx;
+                  this.vel.y -= 1.42 * vn * ny;
+                  this.vel.z -= 1.42 * vn * nz;
+                  if (imp > 2.0) {
+                    this.squashVel -= Math.min(6.0, imp * 0.55);
+                    soundFX.playBounce(imp * 0.06);
+                  }
+                }
+              }
+            }
+          }
+
+          if (this.isGrounded) {
+            this.pitch = THREE.MathUtils.lerp(this.pitch, 0, Math.min(1, dt * 9.5));
+            this.roll = THREE.MathUtils.lerp(this.roll, 0, Math.min(1, dt * 9.5));
+            this.angVel.multiplyScalar(0.75);
+          }
+        }
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+
+        this.leftArmPivot.rotation.set(this.limbPitch, 0, 0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.rightArmPivot.rotation.set(this.limbPitch, 0, -0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+
+        const wingFlutter = Math.sin(time * 3.8 + this.homePos.x) * 0.06 + (1.0 - this.squash) * 0.35;
+        this.wingsPivot.rotation.x = wingFlutter;
+      }
+    }
+
+    // ============================================================================
+    // 9. SPAWN THE CAST OF 8 TOUHOU FUMOS AT MYSTIA'S YATAI
+    // ============================================================================
+    const fumoConfigs = [
+      {
+        id: 'mystia',
+        name: 'Mystia Lorelei (Yatai Chef)',
+        role: 'Chef',
+        emoji: '🐦',
+        accentColor: '#f472b6',
+        hairColor: '#9c6b78',
+        eyeColor: '#be185d',
+        outfitMain: '#831843',
+        sleeveColor: '#fbcfe8',
+        tieColor: '#22c55e',
+        shoeColor: '#4c0519',
+        hasWhiteApron: true,
+        // Behind the counter tending the grill & pot!
+        homePos: new THREE.Vector3(0.45, 1.85, -4.25),
+        homeYaw: 0.0,
+        pitchAudio: 1.12
+      },
+      {
+        id: 'keine',
+        name: 'Keine Kamishirasawa (Late-Night Teacher)',
+        role: 'Customer',
+        emoji: '📚',
+        accentColor: '#60a5fa',
+        hairColor: '#cbd5e1',
+        eyeColor: '#1d4ed8',
+        outfitMain: '#1e3a8a',
+        sleeveColor: '#ffffff',
+        tieColor: '#dc2626',
+        shoeColor: '#172554',
+        hasWhiteApron: false,
+        // Seated on Stool 1 (far left of counter)
+        homePos: new THREE.Vector3(-2.4, 1.5, -0.35),
+        homeYaw: Math.PI - 0.15,
+        pitchAudio: 0.90
+      },
+      {
+        id: 'reimu',
+        name: 'Reimu Hakurei (Hungry Shrine Maiden)',
+        role: 'Customer',
+        emoji: '⛩️',
+        accentColor: '#ef4444',
+        hairColor: '#2b1e23',
+        eyeColor: '#991b1b',
+        outfitMain: '#dc2626',
+        sleeveColor: '#ffffff',
+        tieColor: '#facc15',
+        shoeColor: '#451a03',
+        hasWhiteApron: false,
+        // Seated on Stool 2 facing the grill
+        homePos: new THREE.Vector3(-0.6, 1.5, -0.35),
+        homeYaw: Math.PI,
+        pitchAudio: 1.0
+      },
+      {
+        id: 'marisa',
+        name: 'Marisa Kirisame (Warm Drink)',
+        role: 'Customer',
+        emoji: '🍶',
+        accentColor: '#facc15',
+        hairColor: '#fde047',
+        eyeColor: '#ca8a04',
+        outfitMain: '#1f2937',
+        sleeveColor: '#ffffff',
+        tieColor: '#ffffff',
+        shoeColor: '#111827',
+        hasWhiteApron: true,
+        // Seated on Stool 3 holding a warm cup
+        homePos: new THREE.Vector3(1.2, 1.5, -0.35),
+        homeYaw: Math.PI + 0.1,
+        pitchAudio: 0.96
+      },
+      {
+        id: 'yuyuko',
+        name: 'Yuyuko Saigyouji (12+ Bowls!)',
+        role: 'Customer',
+        emoji: '🌸',
+        accentColor: '#f9a8d4',
+        hairColor: '#f4acb7',
+        eyeColor: '#be185d',
+        outfitMain: '#7dd3fc',
+        sleeveColor: '#fbcfe8',
+        tieColor: '#0284c7',
+        shoeColor: '#4c0519',
+        hasWhiteApron: false,
+        // Seated on Stool 4 right in front of her towering stack of bowls!
+        homePos: new THREE.Vector3(3.1, 1.5, -0.35),
+        homeYaw: Math.PI + 0.08,
+        pitchAudio: 1.05
+      },
+      {
+        id: 'wriggle',
+        name: 'Wriggle Nightbug (Firefly Guest)',
+        role: 'Customer',
+        emoji: '🪲',
+        accentColor: '#4ade80',
+        hairColor: '#2d6a4f',
+        eyeColor: '#15803d',
+        outfitMain: '#1e293b',
+        sleeveColor: '#fef08a',
+        tieColor: '#ef4444',
+        shoeColor: '#0f172a',
+        hasWhiteApron: false,
+        // Seated on Stool 5 on the right end of counter
+        homePos: new THREE.Vector3(5.0, 1.5, -0.35),
+        homeYaw: Math.PI + 0.25,
+        pitchAudio: 1.18
+      },
+      {
+        id: 'kogasa',
+        name: 'Kogasa Tatara (Purple Umbrella)',
+        role: 'Customer',
+        emoji: '☂️',
+        accentColor: '#a855f7',
+        hairColor: '#38bdf8',
+        eyeColor: '#0284c7',
+        outfitMain: '#0f766e',
+        sleeveColor: '#ffffff',
+        tieColor: '#ec4899',
+        shoeColor: '#3b0764',
+        hasWhiteApron: false,
+        // Standing/sitting by the rainy alley puddle with her Karakasa umbrella
+        homePos: new THREE.Vector3(-4.2, 0.0, 1.4),
+        homeYaw: 0.55,
+        pitchAudio: 1.15
+      },
+      {
+        id: 'suwako',
+        name: 'Mini Suwako (Under Leaf Umbrella!)',
+        role: 'Customer',
+        emoji: '🍃',
+        accentColor: '#22c55e',
+        hairColor: '#fde68a',
+        eyeColor: '#4f46e5',
+        outfitMain: '#6366f1',
+        sleeveColor: '#ffffff',
+        tieColor: '#a3e635',
+        shoeColor: '#312e81',
+        hasWhiteApron: false,
+        scale: 0.64,
+        // Unexpected Spot: Sheltered under the giant green lotus leaf umbrella on the right!
+        homePos: new THREE.Vector3(7.2, 0.35, 2.4),
+        homeYaw: -0.65,
+        pitchAudio: 1.42
+      }
+    ];
+
+    fumoConfigs.forEach(cfg => {
+      fumos.push(new VoxelFumo(cfg));
+    });
+
+    function resolveFumoToFumoCollisions() {
+      for (let i = 0; i < fumos.length; i++) {
+        for (let j = i + 1; j < fumos.length; j++) {
+          const a = fumos[i];
+          const b = fumos[j];
+          const minDist = (a.radius + b.radius) * 0.78;
+          const dx = b.pos.x - a.pos.x;
+          const dy = (b.pos.y + b.radius * 0.6) - (a.pos.y + a.radius * 0.6);
+          const dz = b.pos.z - a.pos.z;
+          const distSq = dx * dx + dy * dy + dz * dz;
+
+          if (distSq < minDist * minDist && distSq > 0.0001) {
+            const dist = Math.sqrt(distSq);
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const nz = dz / dist;
+            const overlap = (minDist - dist) * 0.5;
+
+            if (!a.isDragged) {
+              a.pos.x -= nx * overlap;
+              a.pos.y = Math.max(0, a.pos.y - ny * overlap);
+              a.pos.z -= nz * overlap;
+            }
+            if (!b.isDragged) {
+              b.pos.x += nx * overlap;
+              b.pos.y = Math.max(0, b.pos.y + ny * overlap);
+              b.pos.z += nz * overlap;
+            }
+
+            const rvx = b.vel.x - a.vel.x;
+            const rvy = b.vel.y - a.vel.y;
+            const rvz = b.vel.z - a.vel.z;
+            const vn = rvx * nx + rvy * ny + rvz * nz;
+            if (vn < 0) {
+              const imp = -vn * 0.68;
+              if (!a.isDragged) {
+                a.vel.x -= imp * nx;
+                a.vel.y -= imp * ny;
+                a.vel.z -= imp * nz;
+                a.squashVel -= Math.min(5.0, imp * 0.6);
+              }
+              if (!b.isDragged) {
+                b.vel.x += imp * nx;
+                b.vel.y += imp * ny;
+                b.vel.z += imp * nz;
+                b.squashVel -= Math.min(5.0, imp * 0.6);
+              }
+              if (imp > 1.5) soundFX.playBounce(imp * 0.07);
+            }
+          }
+        }
+      }
+    }
+
+    // ============================================================================
+    // 10. INTERACTION: SERVE BOWLS, FLIP SKEWERS, HOLD POT, DRAG & THROW FUMOS
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let hoveredFumo = null;
+    let hoveredProp = null;
+    let selectedFumo = null;
+    let isDraggingFumo = false;
+    let isHoldingPot = false;
+    let potFillProgress = 0.0;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+    const badgeEl = document.getElementById('fumo-badge');
+    const badgeDotEl = document.getElementById('fumo-badge-dot');
+    const badgeNameEl = document.getElementById('fumo-badge-name');
+    const badgeStatusEl = document.getElementById('fumo-badge-status');
+    const potPillEl = document.getElementById('pot-progress-pill');
+    const potBarEl = document.getElementById('pot-progress-bar');
+
+    // Temporary served bowls sitting in front of customers on the counter
+    const servedCustomerBowls = [];
+
+    function serveBowlToCustomer(fumo) {
+      bowlsServedCount++;
+      bowlCountEl.textContent = String(bowlsServedCount);
+      bowlCountEl.classList.remove('bump-anim');
+      void bowlCountEl.offsetWidth;
+      bowlCountEl.classList.add('bump-anim');
+
+      soundFX.playServiceBell();
+      fumo.squeeze(1.1);
+
+      // Mystia chef also does a cheerful little hop when serving!
+      const mystia = fumos[0];
+      if (mystia && mystia !== fumo) {
+        mystia.squash = 0.78;
+        mystia.squashVel = 2.4;
+        mystia.headPitchVel = -6.0;
+      }
+
+      // Add a bowl to Yuyuko's tower (capped at 28 bowls tall so it stays visible)
+      if (stackedBowls.length < 28) {
+        addBowlToYuyukoStack();
+      }
+
+      // Spawn a hot steaming bowl right in front of the served customer
+      const bowl = createSingleVoxelBowl(0.072);
+      const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), fumo.yaw);
+      bowl.position.copy(fumo.pos).addScaledVector(forward, 0.62);
+      bowl.position.y = fumo.pos.y >= 1.3 ? 2.76 : fumo.pos.y + 0.05;
+      scene.add(bowl);
+      servedCustomerBowls.push({ mesh: bowl, age: 0 });
+      if (servedCustomerBowls.length > 6) {
+        const old = servedCustomerBowls.shift();
+        scene.remove(old.mesh);
+      }
+
+      updateUIBadge(fumo, 'Served Ramen! 🍜');
+    }
+
+    function flipYakitoriSkewers() {
+      soundFX.playSizzle(0.5);
+      skewerPivots.forEach((sk, idx) => {
+        setTimeout(() => {
+          sk.targetRotZ += Math.PI;
+          sk.hopTime = 0.28;
+        }, idx * 45);
+      });
+      spawnBurstParticles(grillCenter, ['#ff4500', '#fb923c', '#fde047', '#ffffff'], 18, 3.2);
+      // Cat perks up its head when skewers sizzle!
+      catHeadPivot.rotation.x = -0.35;
+    }
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function pickTargetUnderPointer() {
+      raycaster.setFromCamera(pointerNDC, camera);
+      // Check Fumos first
+      const fHits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (fHits.length > 0 && fHits[0].object.userData.fumo) {
+        return { type: 'fumo', fumo: fHits[0].object.userData.fumo, point: fHits[0].point };
+      }
+      // Check Grill & Pot
+      const pHits = raycaster.intersectObjects([grillHitbox, potHitbox], false);
+      if (pHits.length > 0) {
+        return { type: pHits[0].object.userData.interactiveType, point: pHits[0].point };
+      }
+      return null;
+    }
+
+    function updateUIBadge(fumo, statusText) {
+      if (!fumo) {
+        badgeEl.classList.add('hidden');
+        badgeEl.classList.remove('flex');
+        return;
+      }
+      badgeEl.classList.remove('hidden');
+      badgeEl.classList.add('flex');
+      badgeDotEl.style.backgroundColor = fumo.accentColor;
+      badgeNameEl.textContent = fumo.name;
+      badgeStatusEl.textContent = statusText;
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+
+      const hit = pickTargetUnderPointer();
+      if (!hit) return;
+
+      if (hit.type === 'grill') {
+        controls.enabled = false;
+        flipYakitoriSkewers();
+        setTimeout(() => { controls.enabled = true; }, 80);
+        return;
+      }
+
+      if (hit.type === 'pot') {
+        controls.enabled = false;
+        isHoldingPot = true;
+        soundFX.playSizzle(0.65);
+        potPillEl.style.left = `${e.clientX - 65}px`;
+        potPillEl.style.top = `${e.clientY - 52}px`;
+        potPillEl.style.opacity = '1';
+        return;
+      }
+
+      if (hit.type === 'fumo') {
+        selectedFumo = hit.fumo;
+        isDraggingFumo = false;
+        controls.enabled = false;
+
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), selectedFumo.pos);
+
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          dragOffset.subVectors(selectedFumo.pos, dragHitPoint);
+        } else {
+          dragOffset.set(0, 0, 0);
+        }
+
+        dragHistory = [{ pos: selectedFumo.pos.clone(), time: performance.now() }];
+        updateUIBadge(selectedFumo, 'Selected');
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      updatePointerNDC(e);
+
+      if (isHoldingPot) {
+        potPillEl.style.left = `${e.clientX - 65}px`;
+        potPillEl.style.top = `${e.clientY - 52}px`;
+        return;
+      }
+
+      if (selectedFumo) {
+        recordInteraction();
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          selectedFumo.isDragged = true;
+          selectedFumo.isGrounded = false;
+          selectedFumo.squashVel += 3.2;
+          soundFX.playPickup();
+          updateUIBadge(selectedFumo, 'Dragging — Release to Throw!');
+        }
+
+        if (isDraggingFumo) {
+          raycaster.setFromCamera(pointerNDC, camera);
+          if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+            const targetPos = dragHitPoint.clone().add(dragOffset);
+            targetPos.x = THREE.MathUtils.clamp(targetPos.x, -9.2, 9.2);
+            targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.25, 10.5);
+            targetPos.z = THREE.MathUtils.clamp(targetPos.z, -8.0, 8.2);
+
+            const prevPos = selectedFumo.pos.clone();
+            selectedFumo.pos.lerp(targetPos, 0.55);
+
+            const deltaMove = selectedFumo.pos.clone().sub(prevPos);
+            selectedFumo.headRollVel -= deltaMove.x * 16.0;
+            selectedFumo.headPitchVel += deltaMove.z * 16.0 - deltaMove.y * 10.0;
+            selectedFumo.limbRollVel -= deltaMove.x * 22.0;
+            selectedFumo.roll = THREE.MathUtils.lerp(selectedFumo.roll, THREE.MathUtils.clamp(-deltaMove.x * 1.4, -0.45, 0.45), 0.3);
+            selectedFumo.pitch = THREE.MathUtils.lerp(selectedFumo.pitch, THREE.MathUtils.clamp(deltaMove.z * 1.4, -0.45, 0.45), 0.3);
+
+            const now = performance.now();
+            dragHistory.push({ pos: selectedFumo.pos.clone(), time: now });
+            while (dragHistory.length > 6) dragHistory.shift();
+          }
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      const hit = pickTargetUnderPointer();
+      if (hit) {
+        if (hit.type === 'fumo') {
+          hoveredFumo = hit.fumo;
+          hoveredProp = null;
+          renderer.domElement.style.cursor = 'grab';
+          tooltipEmojiEl.textContent = hoveredFumo.emoji;
+          tooltipTextEl.textContent = `${hoveredFumo.name} • Click to Serve/Squeeze`;
+        } else if (hit.type === 'grill') {
+          hoveredFumo = null;
+          hoveredProp = 'grill';
+          renderer.domElement.style.cursor = 'pointer';
+          tooltipEmojiEl.textContent = '🍢';
+          tooltipTextEl.textContent = 'Charcoal Grill • Click to Flip Skewers!';
+        } else if (hit.type === 'pot') {
+          hoveredFumo = null;
+          hoveredProp = 'pot';
+          renderer.domElement.style.cursor = 'pointer';
+          tooltipEmojiEl.textContent = '🍲';
+          tooltipTextEl.textContent = 'Steaming Ramen Pot • Hold Mouse to Fill Bowl!';
+        }
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else {
+        hoveredFumo = null;
+        hoveredProp = null;
+        renderer.domElement.style.cursor = 'default';
+        tooltipEl.style.opacity = '0';
+      }
+    });
+
+    window.addEventListener('pointerup', () => {
+      if (isHoldingPot) {
+        isHoldingPot = false;
+        potPillEl.style.opacity = '0';
+        controls.enabled = true;
+      }
+
+      if (!selectedFumo) return;
+      controls.enabled = true;
+      recordInteraction();
+
+      if (!isDraggingFumo) {
+        // Click without dragging: Squeeze + Serve a steaming bowl if customer!
+        if (selectedFumo.role === 'Customer') {
+          serveBowlToCustomer(selectedFumo);
+        } else {
+          selectedFumo.squeeze(1.0);
+          updateUIBadge(selectedFumo, 'Squeezed! ᗜˬᗜ');
+        }
+      } else {
+        selectedFumo.isDragged = false;
+        const now = performance.now();
+        while (dragHistory.length > 1 && now - dragHistory[0].time > 140) {
+          dragHistory.shift();
+        }
+        if (dragHistory.length >= 2) {
+          const first = dragHistory[0];
+          const last = dragHistory[dragHistory.length - 1];
+          const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+          const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+          if (throwVel.length() > 22) throwVel.setLength(22);
+          selectedFumo.vel.copy(throwVel);
+
+          const speed = throwVel.length();
+          selectedFumo.angVel.set(
+            throwVel.z * 0.65 + (Math.random() - 0.5) * speed * 0.4,
+            (Math.random() - 0.5) * speed * 0.5,
+            -throwVel.x * 0.65 + (Math.random() - 0.5) * speed * 0.4
+          );
+        } else {
+          selectedFumo.vel.set(0, 0, 0);
+        }
+        updateUIBadge(selectedFumo, 'Thrown!');
+      }
+
+      selectedFumo = null;
+      isDraggingFumo = false;
+      renderer.domElement.style.cursor = hoveredFumo ? 'grab' : 'default';
+    });
+
+    // ============================================================================
+    // 11. DAY / NIGHT SMOOTH INTERPOLATION (~2 SECONDS) & HUB INTEGRATION
+    // ============================================================================
+    let isNightMode = true; // Rainy night default mood
+    let dayNightProgress = 1.0; // 0.0 = Day (Drizzly Morning Cleanup), 1.0 = Night (Warm Izakaya Glow)
+    let dayNightTarget = 1.0;
+    let lightningFlash = 0.0;
+
+    const daySkyColor = new THREE.Color('#7c8b9e');
+    const nightSkyColor = new THREE.Color('#080b14');
+
+    const dayDirLightCol = new THREE.Color('#dce4ef');
+    const nightDirLightCol = new THREE.Color('#4d70b8');
+
+    const dayHemiSky = new THREE.Color('#b8c4d4');
+    const nightHemiSky = new THREE.Color('#202b4d');
+    const dayHemiGround = new THREE.Color('#475569');
+    const nightHemiGround = new THREE.Color('#141122');
+
+    function notifyParentMode() {
+      const modeStr = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: modeStr }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(night, { immediate = false, playSound = true } = {}) {
+      isNightMode = Boolean(night);
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) {
+        dayNightProgress = dayNightTarget;
+      }
+      document.body.classList.toggle('night-ui', isNightMode);
+      dayCleanupGroup.visible = !isNightMode;
+
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
+      } catch (e) {}
+
+      if (playSound) {
+        soundFX.playPickup();
+      }
+      notifyParentMode();
+    }
+
+    function toggleDayNight() {
+      setDayNightMode(!isNightMode, { immediate: false, playSound: true });
+    }
+
+    function updateDayNightTransition(dt, elapsed) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.52; // ~2 second smooth transition
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      // Occasional distant lightning flash & thunder during heavy night rain
+      if (isHeavyRain && isNightMode && Math.random() < dt * 0.075) {
+        lightningFlash = 0.85;
+        soundFX.playThunder();
+      }
+      if (lightningFlash > 0) {
+        lightningFlash = Math.max(0, lightningFlash - dt * 2.8);
+      }
+
+      // 1. Sky & Fog interpolation
+      scene.background.lerpColors(daySkyColor, nightSkyColor, t);
+      if (lightningFlash > 0) {
+        scene.background.lerp(new THREE.Color('#cbd5e1'), lightningFlash * 0.35);
+      }
+      scene.fog.color.copy(scene.background);
+      scene.fog.density = THREE.MathUtils.lerp(0.014, 0.017, t);
+
+      // 2. Overcast Daylight vs Moonlight + Thunder Flash
+      skyDirLight.color.lerpColors(dayDirLightCol, nightDirLightCol, t);
+      skyDirLight.intensity = THREE.MathUtils.lerp(1.15, 0.38, t) + lightningFlash * 1.4;
+
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.78, 0.32, t);
+
+      // 3. Yatai Lanterns, Charcoal Grill & Alley Neon Lights
+      const flicker = 1.0 + Math.sin(elapsed * 9.0) * 0.035;
+      yataiLanternLight.intensity = THREE.MathUtils.lerp(0.06, 1.65 * flicker, t);
+      grillLight.intensity = THREE.MathUtils.lerp(0.15, 1.25 * flicker, t);
+      vendingNeonLight.intensity = THREE.MathUtils.lerp(0.08, 1.15, t);
+      neonSignLight.intensity = THREE.MathUtils.lerp(0.05, 1.05, t);
+
+      // 4. Emissive Materials & Bloom
+      lanternEmissiveMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.12, 2.05, t);
+      neonPinkMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.08, 2.35, t);
+      neonCyanMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.08, 2.15, t);
+      charcoalEmberMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, 2.45 * flicker, t);
+
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.14, 0.76, t);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.86, 0.56, t);
+      }
+    }
+
+    // ============================================================================
+    // 12. UI BUTTONS, RAIN TOGGLE & KEYBOARD SHORTCUTS
+    // ============================================================================
+    const btnRain = document.getElementById('btn-rain');
+    const rainIconEl = document.getElementById('rain-icon');
+    const rainLabelEl = document.getElementById('rain-label');
+
+    function toggleRainMode() {
+      isHeavyRain = !isHeavyRain;
+      rainIconEl.textContent = isHeavyRain ? '🌧️' : '🌦️';
+      rainLabelEl.textContent = isHeavyRain ? 'Heavy Rain' : 'Light Drizzle';
+      soundFX.setRainIntensity(isHeavyRain);
+      if (isHeavyRain) {
+        soundFX.playThunder();
+      } else {
+        soundFX.playPickup();
+      }
+    }
+
+    btnRain.addEventListener('click', () => {
+      recordInteraction();
+      toggleRainMode();
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      recordInteraction();
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 45));
+      updateUIBadge(null, '');
+    });
+
+    const btnMute = document.getElementById('btn-mute');
+    const iconSoundOn = document.getElementById('icon-sound-on');
+    const iconSoundOff = document.getElementById('icon-sound-off');
+
+    function syncMuteUI() {
+      iconSoundOn.classList.toggle('hidden', soundFX.muted);
+      iconSoundOff.classList.toggle('hidden', !soundFX.muted);
+    }
+    syncMuteUI();
+
+    btnMute.addEventListener('click', () => {
+      soundFX.unlock();
+      soundFX.setMuted(!soundFX.muted);
+      syncMuteUI();
+      if (!soundFX.muted) soundFX.playPickup();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      soundFX.unlock();
+      const key = e.key.toLowerCase();
+
+      if (key === 'n') {
+        e.preventDefault();
+        toggleDayNight();
+      } else if (key === 'r') {
+        e.preventDefault();
+        toggleRainMode();
+      } else if (key === 'm') {
+        e.preventDefault();
+        soundFX.setMuted(!soundFX.muted);
+        syncMuteUI();
+      } else if (key === ' ') {
+        e.preventDefault();
+        fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 50));
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ============================================================================
+    // 13. MAIN RENDER LOOP, PROP ANIMATIONS & HUB MESSAGE HANDLERS
+    // ============================================================================
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    function updateSceneAnimations(elapsed, dt) {
+      // 1. Swaying Cloth Noren Curtain (Also lowers slightly in Day closed/cleanup mode)
+      if (norenMesh) {
+        const dayDrop = (1.0 - dayNightProgress) * 1.1;
+        for (let i = 0; i < norenData.length; i++) {
+          const n = norenData[i];
+          const swayZ = Math.sin(elapsed * 2.1 + n.panel * 0.9 + n.baseX * 0.2) * 0.55 * n.weight;
+          tempPos.set(n.baseX * RV, (n.baseY - dayDrop) * RV, (n.baseZ + swayZ) * RV);
+          tempQuat.setFromEuler(new THREE.Euler(swayZ * 0.25, 0, 0));
+          tempScale.set(1, 1, 1);
+          tempMatrix.compose(tempPos, tempQuat, tempScale);
+          norenMesh.setMatrixAt(i, tempMatrix);
+        }
+        norenMesh.instanceMatrix.needsUpdate = true;
+      }
+
+      // 2. Swaying Red Paper Lanterns
+      for (let i = 0; i < chochinPivots.length; i++) {
+        const ch = chochinPivots[i];
+        const windStrength = isHeavyRain ? 0.14 : 0.06;
+        ch.pivot.rotation.z = Math.sin(elapsed * 2.3 + ch.phase) * windStrength;
+        ch.pivot.rotation.x = Math.cos(elapsed * 1.8 + ch.phase) * windStrength * 0.7;
+      }
+
+      // 3. Yakitori Skewer Flip Animation
+      for (let i = 0; i < skewerPivots.length; i++) {
+        const sk = skewerPivots[i];
+        sk.currentRotZ = THREE.MathUtils.lerp(sk.currentRotZ, sk.targetRotZ, Math.min(1, dt * 12));
+        if (sk.hopTime > 0) {
+          sk.hopTime = Math.max(0, sk.hopTime - dt);
+        }
+        const hopOffset = Math.sin((sk.hopTime / 0.28) * Math.PI) * 0.32;
+        sk.group.position.y = sk.baseY + Math.max(0, hopOffset);
+        sk.group.rotation.z = sk.currentRotZ;
+      }
+
+      // 4. Holding the Ramen Pot to Fill a Bowl
+      if (isHoldingPot) {
+        potFillProgress += dt * 1.35;
+        brothFillMesh.position.y = 0.05 + Math.min(1, potFillProgress) * 0.11;
+        const sc = 0.6 + Math.min(1, potFillProgress) * 0.55;
+        brothFillMesh.scale.set(sc, 1, sc);
+        potBarEl.style.width = `${Math.min(100, Math.round(potFillProgress * 100))}%`;
+
+        if (potFillProgress >= 1.0) {
+          potFillProgress = 0.0;
+          // Pick a hungry customer to receive the freshly filled bowl!
+          const customers = fumos.filter(f => f.role === 'Customer');
+          const luckyCustomer = customers[bowlsServedCount % customers.length];
+          if (luckyCustomer) {
+            serveBowlToCustomer(luckyCustomer);
+          }
+          spawnBurstParticles(potCenter, ['#fde047', '#fb923c', '#ffffff'], 15, 2.8);
+        }
+      } else {
+        potFillProgress = Math.max(0, potFillProgress - dt * 1.5);
+        brothFillMesh.position.y = 0.05 + potFillProgress * 0.11;
+      }
+
+      // 5. Voxel Cat Watching the Grill & Voxel Frog Breathing on Bowl
+      catHeadPivot.rotation.y = Math.sin(elapsed * 1.7) * 0.22;
+      catHeadPivot.rotation.x = THREE.MathUtils.lerp(catHeadPivot.rotation.x, Math.sin(elapsed * 2.5) * 0.08, dt * 5);
+      catTailPivot.rotation.z = Math.sin(elapsed * 3.6) * 0.35;
+
+      const throatScale = 1.0 + Math.max(0, Math.sin(elapsed * 4.2)) * 0.45;
+      frogThroatMesh.scale.set(throatScale, throatScale, throatScale);
+      frogGroup.position.y = 2.76 + Math.max(0, Math.sin(elapsed * 2.1) - 0.85) * 0.35;
+    }
+
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.033, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      if (!selectedFumo && !isHoldingPot && (now - lastUserInteractionTime > 4500)) {
+        controls.autoRotate = true;
+      }
+
+      controls.update();
+      updateDayNightTransition(dt, elapsed);
+      updateSceneAnimations(elapsed, dt);
+      updateRainAndRipples(dt);
+      updateSteamPuffs(elapsed, dt, isHoldingPot);
+      updateBurstParticles(dt);
+
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].updatePhysics(dt, elapsed);
+      }
+      resolveFumoToFumoCollisions();
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function pauseRenderLoop() {
+      if (isPaused) return;
+      isPaused = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      soundFX.pause();
+    }
+
+    function resumeRenderLoop() {
+      if (!isPaused) return;
+      isPaused = false;
+      prevTime = performance.now();
+      soundFX.resume();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    // Hub Message Integration
+    window.addEventListener('message', (e) => {
+      const data = e.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'toggleMode') {
+        toggleDayNight();
+      } else if (data.type === 'pause') {
+        pauseRenderLoop();
+      } else if (data.type === 'resume') {
+        resumeRenderLoop();
+      }
+    });
+
+    window.onload = function () {
+      let initialNight = true;
+      try {
+        const saved = localStorage.getItem(STORAGE_MODE_KEY);
+        if (saved === 'day') initialNight = false;
+        else if (saved === 'night') initialNight = true;
+      } catch (e) {}
+
+      setDayNightMode(initialNight, { immediate: true, playSound: false });
+      updateDayNightTransition(0, 0);
+
+      // Initial welcoming bounce on all Fumos
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.78;
+          f.squashVel = 2.0;
+          f.headPitchVel = 4.0;
+        }, 100 + idx * 65);
+      });
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>
