@@ -835,10 +835,9 @@
     }
 
     function triggerToggleMode() {
-      // Optimistically flip icon/glow, and sync if scene responds with modeChanged
-      updateModeUI(currentMode === "day" ? "night" : "day");
-      postToScene({ type: "toggleMode" });
-      postToScene({ type: "setMode", mode: currentMode });
+      const nextMode = currentMode === "day" ? "night" : "day";
+      updateModeUI(nextMode);
+      postToScene({ type: "setMode", mode: nextMode });
     }
 
     // ============================================================================

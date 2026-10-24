@@ -3104,6 +3104,8 @@
       if (!data || typeof data !== 'object') return;
       if (data.type === 'toggleMode') {
         toggleDayNight();
+      } else if (data.type === 'setMode' && (data.mode === 'day' || data.mode === 'night')) {
+        setDayNightMode(data.mode === 'night', { immediate: false, playSound: false });
       } else if (data.type === 'pause') {
         pauseRenderLoop();
       } else if (data.type === 'resume') {
