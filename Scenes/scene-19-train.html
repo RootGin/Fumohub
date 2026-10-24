@@ -1,0 +1,3379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Touhou Fumo Voxel Spirit Train — Overnight Journey</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js r128 + OrbitControls + Post-Processing (UnrealBloomPass) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #0b0d1e;
+    }
+    h1, .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.80);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.68);
+      box-shadow: 0 10px 28px -6px rgba(20, 15, 45, 0.18), 0 2px 6px rgba(20, 15, 45, 0.08);
+      transition: background 0.5s ease, color 0.5s ease, border-color 0.5s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    body.night-ui .glass-panel {
+      background: rgba(20, 22, 44, 0.82);
+      border-color: rgba(155, 145, 245, 0.28);
+      color: #f3f0ff;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.6), 0 0 18px rgba(130, 110, 255, 0.16);
+    }
+    .ui-btn {
+      cursor: pointer;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+    #fumo-tooltip {
+      pointer-events: none;
+      transition: opacity 0.16s ease, transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.08);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.18);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.14);
+      border-bottom-color: rgba(255, 255, 255, 0.28);
+    }
+    .speed-bar-fill {
+      transition: width 0.15s ease-out, background-color 0.3s ease;
+    }
+  </style>
+</head>
+<body class="text-slate-800 night-ui">
+  <div id="canvas-container"></div>
+
+  <!-- Top-Right Controls: Active Status Badge, Whistle, Tea Service, Squeeze All, Reset (Top-Left kept completely empty for Hub) -->
+  <div class="fixed top-4 right-4 z-20 flex flex-wrap items-center justify-end gap-2 max-w-[72vw]">
+    <!-- Active / Hovered Fumo or Prop Indicator -->
+    <div id="fumo-badge" class="glass-panel rounded-2xl px-3.5 py-2 text-xs font-semibold hidden items-center gap-2 transition-all">
+      <span id="fumo-badge-dot" class="w-2.5 h-2.5 rounded-full inline-block bg-rose-500"></span>
+      <span id="fumo-badge-name">Reimu Hakurei</span>
+      <span id="fumo-badge-status" class="opacity-70 ml-1">Window Seat</span>
+    </div>
+
+    <!-- Blow Steam Whistle Button -->
+    <button id="btn-whistle" title="Blow Steam Whistle (W)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2 flex items-center gap-1.5 text-xs sm:text-sm font-semibold">
+      <span class="text-base leading-none">🚂</span>
+      <span class="hidden md:inline">Whistle</span>
+    </button>
+
+    <!-- Serve Tea Cart Button -->
+    <button id="btn-tea" title="Serve Wobbling Tea Cups (T)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2 flex items-center gap-1.5 text-xs sm:text-sm font-semibold">
+      <span class="text-base leading-none">🍵</span>
+      <span class="hidden md:inline">Serve Tea</span>
+    </button>
+
+    <!-- Squeeze All Button -->
+    <button id="btn-squeeze-all" title="Squeeze All Fumos! (Space)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2 flex items-center gap-1.5 text-xs sm:text-sm font-semibold">
+      <span class="text-base leading-none">✨</span>
+      <span class="hidden lg:inline">Squeeze All</span>
+    </button>
+
+    <!-- Reset Fumos Button -->
+    <button id="btn-reset" title="Return Fumos to Train Seats (R)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2 flex items-center gap-1.5 text-xs sm:text-sm font-semibold">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+      <span class="hidden sm:inline">Reset</span>
+    </button>
+  </div>
+
+  <!-- Bottom-Right Speed Gauge & Mute Button -->
+  <div class="fixed bottom-4 right-4 z-20 flex items-end gap-2.5">
+    <!-- Interactive Train Speed Gauge -->
+    <div class="glass-panel rounded-2xl px-4 py-2.5 flex flex-col gap-1.5 min-w-[185px]">
+      <div class="flex items-center justify-between gap-3">
+        <span class="text-[11px] font-bold uppercase tracking-wider opacity-70 flex items-center gap-1">
+          <span>⚡</span> Spirit Express
+        </span>
+        <span id="tunnel-indicator" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 hidden">
+          TUNNEL ECHO
+        </span>
+      </div>
+      <div class="flex items-baseline justify-between">
+        <div class="font-display text-xl font-bold leading-none">
+          <span id="speed-value">68</span>
+          <span class="text-xs font-semibold opacity-70">km/h</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <button id="btn-speed-down" title="Decrease Train Speed (Down Arrow)"
+            class="ui-btn w-6 h-6 rounded-lg bg-black/10 dark:bg-white/10 flex items-center justify-center text-xs font-bold">−</button>
+          <button id="btn-speed-up" title="Increase Train Speed (Up Arrow)"
+            class="ui-btn w-6 h-6 rounded-lg bg-black/10 dark:bg-white/10 flex items-center justify-center text-xs font-bold">+</button>
+        </div>
+      </div>
+      <div class="w-full h-2 rounded-full bg-black/10 dark:bg-white/15 overflow-hidden">
+        <div id="speed-bar" class="speed-bar-fill h-full rounded-full bg-amber-400" style="width: 56%;"></div>
+      </div>
+      <div class="text-[10px] opacity-70 font-semibold flex justify-between">
+        <span><kbd>↑</kbd><kbd>↓</kbd> Speed</span>
+        <span id="speed-state-label">Cruising</span>
+      </div>
+    </div>
+
+    <!-- Mute Toggle Button (Bottom-Right as requested) -->
+    <button id="btn-sound" title="Toggle Train & Plush Sound Effects (M)"
+      class="glass-panel ui-btn rounded-2xl p-3 flex items-center justify-center">
+      <svg id="icon-sound-on" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+      </svg>
+      <svg id="icon-sound-off" class="w-5 h-5 hidden opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <line x1="23" y1="9" x2="17" y2="15"></line>
+        <line x1="17" y1="9" x2="23" y2="15"></line>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Floating Cursor Tooltip for Hovered Fumo / Interactive Prop -->
+  <div id="fumo-tooltip" class="fixed z-30 opacity-0 px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold flex items-center gap-2 shadow-lg">
+    <span id="tooltip-emoji">🎀</span>
+    <span id="tooltip-text">Reimu Fumo</span>
+  </div>
+
+  <!-- Bottom Center HUD Hints -->
+  <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none hidden lg:block">
+    <div class="glass-panel rounded-2xl px-4 py-2 text-xs font-semibold flex items-center gap-x-4 opacity-90">
+      <span>🖱️ <b>Click Fumo:</b> Squeeze</span>
+      <span>✋ <b>Drag:</b> Toss</span>
+      <span>🚂 <b>Click Whistle / Tea Cart:</b> Interact</span>
+      <span><kbd>↑</kbd><kbd>↓</kbd> Train Speed</span>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 1. WEB AUDIO SYNTHESIZER (Chug Rhythm, Steam Whistle, Tunnel Echo, Music Box & Squeaks)
+    // ============================================================================
+    const STORAGE_MUTE_KEY = 'voxel_spirit_train_muted';
+    const STORAGE_MODE_KEY = 'voxel_spirit_train_mode';
+
+    class TrainAndPlushSoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+        this.isPaused = false;
+        this.noiseBuffer = null;
+        this.masterGain = null;
+        this.dryGain = null;
+        this.echoDelay = null;
+        this.echoFeedback = null;
+        this.echoWetGain = null;
+        this.tunnelEchoAmount = 0;
+
+        this.chugAccum = 0;
+        this.chugStep = 0;
+        this.musicAccum = 0;
+        this.musicIndex = 0;
+
+        // Gentle Touhou-style pentatonic music-box notes (Hz)
+        this.melodyNotes = [
+          659.25, 783.99, 880.00, 1046.50, 880.00, 783.99, 659.25, 587.33,
+          523.25, 587.33, 659.25, 783.99, 659.25, 587.33, 523.25, 440.00,
+          523.25, 659.25, 880.00, 987.77, 1046.50, 880.00, 783.99, 659.25
+        ];
+
+        try {
+          const savedMute = localStorage.getItem(STORAGE_MUTE_KEY);
+          if (savedMute === 'true') this.muted = true;
+        } catch (e) {}
+      }
+
+      unlock() {
+        try {
+          if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            this.ctx = new AudioCtx();
+
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.value = this.muted ? 0.0 : 1.0;
+            this.masterGain.connect(this.ctx.destination);
+
+            this.dryGain = this.ctx.createGain();
+            this.dryGain.gain.value = 1.0;
+            this.dryGain.connect(this.masterGain);
+
+            // Tunnel Echo Delay Network
+            this.echoDelay = this.ctx.createDelay(1.0);
+            this.echoDelay.delayTime.value = 0.23;
+            this.echoFeedback = this.ctx.createGain();
+            this.echoFeedback.gain.value = 0.42;
+            this.echoWetGain = this.ctx.createGain();
+            this.echoWetGain.gain.value = 0.05;
+
+            this.echoDelay.connect(this.echoFeedback);
+            this.echoFeedback.connect(this.echoDelay);
+            this.echoDelay.connect(this.echoWetGain);
+            this.echoWetGain.connect(this.masterGain);
+
+            // Generate 2 seconds of white noise for steam chugs and whistle breath
+            const sr = this.ctx.sampleRate;
+            this.noiseBuffer = this.ctx.createBuffer(1, sr * 2, sr);
+            const data = this.noiseBuffer.getChannelData(0);
+            for (let i = 0; i < data.length; i++) {
+              data[i] = Math.random() * 2 - 1;
+            }
+          }
+          if (this.ctx && this.ctx.state === 'suspended' && !this.isPaused) {
+            this.ctx.resume().catch(() => {});
+          }
+        } catch (e) {}
+      }
+
+      connectOut(node) {
+        if (!this.ctx) return;
+        node.connect(this.dryGain);
+        node.connect(this.echoDelay);
+      }
+
+      setMuted(mute) {
+        this.muted = Boolean(mute);
+        try {
+          localStorage.setItem(STORAGE_MUTE_KEY, this.muted ? 'true' : 'false');
+        } catch (e) {}
+        if (this.ctx && this.masterGain) {
+          try {
+            this.masterGain.gain.setTargetAtTime(this.muted ? 0.0 : 1.0, this.ctx.currentTime, 0.04);
+          } catch (e) {}
+        }
+      }
+
+      setPaused(paused) {
+        this.isPaused = Boolean(paused);
+        if (!this.ctx) return;
+        try {
+          if (this.isPaused && this.ctx.state === 'running') {
+            this.ctx.suspend().catch(() => {});
+          } else if (!this.isPaused && this.ctx.state === 'suspended') {
+            this.ctx.resume().catch(() => {});
+          }
+        } catch (e) {}
+      }
+
+      setTunnelEcho(amount) {
+        this.tunnelEchoAmount = amount;
+        if (!this.ctx || !this.echoWetGain || !this.echoFeedback) return;
+        try {
+          const now = this.ctx.currentTime;
+          this.echoWetGain.gain.setTargetAtTime(0.05 + amount * 0.48, now, 0.1);
+          this.echoFeedback.gain.setTargetAtTime(0.32 + amount * 0.35, now, 0.1);
+        } catch (e) {}
+      }
+
+      // Rhythmic Steam Chug + Track Joint Clack tied to Train Speed
+      playChugStep(speedRatio, isAccent) {
+        if (this.muted || this.isPaused || !this.ctx || !this.noiseBuffer) return;
+        try {
+          const now = this.ctx.currentTime;
+          const src = this.ctx.createBufferSource();
+          src.buffer = this.noiseBuffer;
+
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          // In tunnel, resonant lower frequencies bloom
+          const baseCutoff = isAccent ? 310 : 220;
+          filter.frequency.setValueAtTime(baseCutoff + speedRatio * 140 - this.tunnelEchoAmount * 70, now);
+          filter.Q.setValueAtTime(2.6 + this.tunnelEchoAmount * 2.0, now);
+
+          const gain = this.ctx.createGain();
+          const vol = (isAccent ? 0.055 : 0.032) * (0.45 + 0.55 * speedRatio);
+          const dur = Math.max(0.055, 0.14 - speedRatio * 0.06);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(vol, now + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.0008, now + dur);
+
+          src.connect(filter);
+          filter.connect(gain);
+          this.connectOut(gain);
+          src.start(now, Math.random() * 1.2, dur + 0.02);
+
+          // Every 4th beat, play the "clack-clack" of wheels over rail joints
+          if (this.chugStep % 4 === 0 || this.chugStep % 4 === 1) {
+            const osc = this.ctx.createOscillator();
+            const cGain = this.ctx.createGain();
+            osc.type = 'triangle';
+            const f = (this.chugStep % 4 === 0) ? 145 : 118;
+            osc.frequency.setValueAtTime(f + this.tunnelEchoAmount * 45, now);
+            osc.frequency.exponentialRampToValueAtTime(38, now + 0.045);
+
+            cGain.gain.setValueAtTime(0.038 * speedRatio, now);
+            cGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+            osc.connect(cGain);
+            this.connectOut(cGain);
+            osc.start(now);
+            osc.stop(now + 0.055);
+          }
+        } catch (e) {}
+      }
+
+      // Delicate Music Box Note
+      playMusicBoxNote(freq) {
+        if (this.muted || this.isPaused || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const overtone = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+
+          osc.type = 'sine';
+          overtone.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now);
+          overtone.frequency.setValueAtTime(freq * 2.0, now);
+
+          const oGain = this.ctx.createGain();
+          oGain.gain.setValueAtTime(0.18, now);
+          oGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.028, now + 0.012);
+          gain.gain.exponentialRampToValueAtTime(0.0005, now + 1.15);
+
+          osc.connect(gain);
+          overtone.connect(oGain);
+          oGain.connect(gain);
+          this.connectOut(gain);
+
+          osc.start(now);
+          overtone.start(now);
+          osc.stop(now + 1.2);
+          overtone.stop(now + 0.25);
+        } catch (e) {}
+      }
+
+      // Rich Dual-Tone Steam Train Whistle
+      playWhistle() {
+        this.unlock();
+        if (this.muted || this.isPaused || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const freqs = [440, 554.37, 659.25]; // Warm A-major / train chord
+          freqs.forEach((f, idx) => {
+            const osc = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            osc.type = idx === 0 ? 'triangle' : 'sawtooth';
+            osc.frequency.setValueAtTime(f * 0.96, now);
+            osc.frequency.exponentialRampToValueAtTime(f, now + 0.08);
+            osc.frequency.setValueAtTime(f, now + 0.55);
+            osc.frequency.exponentialRampToValueAtTime(f * 0.94, now + 0.85);
+
+            const peak = idx === 0 ? 0.055 : 0.025;
+            g.gain.setValueAtTime(0.001, now);
+            g.gain.linearRampToValueAtTime(peak, now + 0.06);
+            g.gain.setValueAtTime(peak, now + 0.52);
+            g.gain.exponentialRampToValueAtTime(0.0008, now + 0.88);
+
+            // Low-pass filter to make it warm and brassy
+            const lp = this.ctx.createBiquadFilter();
+            lp.type = 'lowpass';
+            lp.frequency.setValueAtTime(1350, now);
+
+            osc.connect(lp);
+            lp.connect(g);
+            this.connectOut(g);
+            osc.start(now);
+            osc.stop(now + 0.9);
+          });
+
+          // Steam hiss layer
+          if (this.noiseBuffer) {
+            const nSrc = this.ctx.createBufferSource();
+            nSrc.buffer = this.noiseBuffer;
+            const bp = this.ctx.createBiquadFilter();
+            bp.type = 'bandpass';
+            bp.frequency.setValueAtTime(1600, now);
+            const nGain = this.ctx.createGain();
+            nGain.gain.setValueAtTime(0.001, now);
+            nGain.gain.linearRampToValueAtTime(0.04, now + 0.05);
+            nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
+            nSrc.connect(bp);
+            bp.connect(nGain);
+            this.connectOut(nGain);
+            nSrc.start(now, 0, 0.88);
+          }
+        } catch (e) {}
+      }
+
+      // Porcelain Teacup Clink Sound
+      playTeaServe() {
+        this.unlock();
+        if (this.muted || this.isPaused || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          [1320, 1760].forEach((f, i) => {
+            const osc = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            osc.type = 'sine';
+            const t0 = now + i * 0.07;
+            osc.frequency.setValueAtTime(f, t0);
+            g.gain.setValueAtTime(0.001, t0);
+            g.gain.linearRampToValueAtTime(0.06, t0 + 0.008);
+            g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.22);
+            osc.connect(g);
+            this.connectOut(g);
+            osc.start(t0);
+            osc.stop(t0 + 0.24);
+          });
+        } catch (e) {}
+      }
+
+      // Cute Double-Chirp Plushie Squeeze Sound
+      playSqueeze(pitchMultiplier = 1.0) {
+        this.unlock();
+        if (this.muted || this.isPaused || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const baseFreq = (520 + Math.random() * 80) * pitchMultiplier;
+
+          const osc1 = this.ctx.createOscillator();
+          const gain1 = this.ctx.createGain();
+          osc1.type = 'sine';
+          osc1.frequency.setValueAtTime(baseFreq, now);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.085);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.16);
+          gain1.gain.setValueAtTime(0.001, now);
+          gain1.gain.linearRampToValueAtTime(0.10, now + 0.025);
+          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+          osc1.connect(gain1);
+          this.connectOut(gain1);
+          osc1.start(now);
+          osc1.stop(now + 0.18);
+
+          const osc2 = this.ctx.createOscillator();
+          const gain2 = this.ctx.createGain();
+          osc2.type = 'triangle';
+          osc2.frequency.setValueAtTime(baseFreq * 1.1, now + 0.11);
+          osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.65, now + 0.21);
+          gain2.gain.setValueAtTime(0.001, now + 0.11);
+          gain2.gain.linearRampToValueAtTime(0.075, now + 0.13);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+          osc2.connect(gain2);
+          this.connectOut(gain2);
+          osc2.start(now + 0.11);
+          osc2.stop(now + 0.25);
+        } catch (e) {}
+      }
+
+      // Soft Fabric Thud on Bounce
+      playBounce(intensity = 0.5) {
+        if (this.muted || this.isPaused || intensity < 0.08 || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const vol = Math.min(0.12, intensity * 0.10);
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          const startFreq = 115 + Math.min(80, intensity * 35);
+          osc.frequency.setValueAtTime(startFreq, now);
+          osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(gain);
+          this.connectOut(gain);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+
+      playPickup() {
+        this.unlock();
+        if (this.muted || this.isPaused || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(280, now);
+          osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.045, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(gain);
+          this.connectOut(gain);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+
+      update(dt, trainSpeed, maxSpeed) {
+        if (!this.ctx || this.muted || this.isPaused) return;
+        const speedRatio = THREE.MathUtils.clamp(trainSpeed / maxSpeed, 0, 1);
+
+        // 1. Track Chug Cadence tied directly to train speed
+        if (speedRatio > 0.02) {
+          const chugsPerSec = 1.6 + speedRatio * 6.8;
+          this.chugAccum += dt * chugsPerSec;
+          if (this.chugAccum >= 1.0) {
+            this.chugAccum %= 1.0;
+            this.playChugStep(speedRatio, (this.chugStep % 4 === 0));
+            this.chugStep++;
+          }
+        }
+
+        // 2. Gentle Music-Box Melody
+        const noteRate = 1.35 + speedRatio * 0.45;
+        this.musicAccum += dt * noteRate;
+        if (this.musicAccum >= 1.0) {
+          this.musicAccum %= 1.0;
+          if (Math.random() < 0.72) {
+            const note = this.melodyNotes[this.musicIndex % this.melodyNotes.length];
+            this.playMusicBoxNote(note);
+            this.musicIndex++;
+          }
+        }
+      }
+    }
+
+    const soundFX = new TrainAndPlushSoundEngine();
+
+    // ============================================================================
+    // 2. COLOR & VOXEL HELPER UTILITIES
+    // ============================================================================
+    const tempColor = new THREE.Color();
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+
+    function voxelHash(x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    }
+
+    function varyColor(hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
+      tempColor.set(hexOrString);
+      const h = voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      tempColor.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return tempColor.clone();
+    }
+
+    function createSoftVoxelGeometry(size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    }
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        tempQuat.identity();
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    // ============================================================================
+    // 3. SCENE, CAMERA, RENDERER & POST-PROCESSING SETUP
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#0c1026');
+    scene.fog = new THREE.FogExp2('#0c1026', 0.0085);
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.5, 160);
+    camera.position.set(2.5, 9.2, 23.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.06;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.58,
+        0.55,
+        0.70
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (err) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(-0.5, 3.3, 0.0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.485;
+    controls.minPolarAngle = Math.PI * 0.06;
+    controls.minDistance = 8.0;
+    controls.maxDistance = 42.0;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.35;
+
+    let lastUserInteractionTime = performance.now();
+    const recordInteraction = () => {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+      soundFX.unlock();
+    };
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 4. LIGHTING & MATERIALS (Capped Dynamic Lights for High Performance)
+    // ============================================================================
+    // 1. Hemisphere Light
+    const hemiLight = new THREE.HemisphereLight(0xfff5e6, 0x3b3355, 0.55);
+    hemiLight.position.set(0, 28, 0);
+    scene.add(hemiLight);
+
+    // 2. Main Sun / Moon Directional Light
+    const mainDirLight = new THREE.DirectionalLight(0xffeacc, 1.15);
+    mainDirLight.position.set(14, 22, 16);
+    mainDirLight.castShadow = true;
+    mainDirLight.shadow.mapSize.width = 2048;
+    mainDirLight.shadow.mapSize.height = 2048;
+    mainDirLight.shadow.camera.near = 2;
+    mainDirLight.shadow.camera.far = 65;
+    const dCam = 18.5;
+    mainDirLight.shadow.camera.left = -dCam;
+    mainDirLight.shadow.camera.right = dCam;
+    mainDirLight.shadow.camera.top = dCam;
+    mainDirLight.shadow.camera.bottom = -dCam;
+    mainDirLight.shadow.bias = -0.0006;
+    scene.add(mainDirLight);
+
+    // 3. Engine Firebox & Coal Car Warm Glow (Where Okuu shovels coal)
+    const fireboxLight = new THREE.PointLight(0xff5a1f, 1.4, 9.5, 1.6);
+    fireboxLight.position.set(7.6, 2.7, 0.0);
+    scene.add(fireboxLight);
+
+    // 4. Passenger Carriage 1 Cozy Warm Interior Lamp Light
+    const carriage1Light = new THREE.PointLight(0xffb85c, 1.1, 12.0, 1.5);
+    carriage1Light.position.set(-0.2, 4.4, 0.0);
+    scene.add(carriage1Light);
+
+    // 5. Dining Carriage & Observation Platform Warm Lamp Light
+    const diningCarLight = new THREE.PointLight(0xffa94d, 1.1, 12.0, 1.5);
+    diningCarLight.position.set(-8.6, 4.4, 0.0);
+    scene.add(diningCarLight);
+
+    // 6. Locomotive Spirit Headlamp Light
+    const headlampLight = new THREE.PointLight(0xffe599, 1.2, 16.0, 1.5);
+    headlampLight.position.set(13.2, 3.6, 0.0);
+    scene.add(headlampLight);
+
+    // Shared Materials
+    const plushMaterial = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0.02 });
+    const trainSolidMaterial = new THREE.MeshStandardMaterial({ roughness: 0.72, metalness: 0.12 });
+    const brassMaterial = new THREE.MeshStandardMaterial({ roughness: 0.28, metalness: 0.65 });
+    const landscapeMaterial = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0.04 });
+
+    const waterMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.82,
+      roughness: 0.14,
+      metalness: 0.1,
+      emissive: new THREE.Color(0x1d4ed8),
+      emissiveIntensity: 0.18
+    });
+
+    const translucentIceMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.85,
+      roughness: 0.15,
+      metalness: 0.05,
+      transmission: 0.35,
+      emissive: new THREE.Color(0x38bdf8),
+      emissiveIntensity: 0.35
+    });
+
+    const crystalWingMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.2,
+      metalness: 0.1,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 0.45
+    });
+
+    const warmLanternMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfff3d1,
+      emissive: new THREE.Color(0xffaa33),
+      emissiveIntensity: 1.4,
+      roughness: 0.2
+    });
+
+    const fireEmberMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffd166,
+      emissive: new THREE.Color(0xff4d00),
+      emissiveIntensity: 1.8,
+      roughness: 0.25
+    });
+
+    const glassWindowMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xdbeafe,
+      transparent: true,
+      opacity: 0.32,
+      roughness: 0.1,
+      metalness: 0.1
+    });
+
+    // ============================================================================
+    // 5. CUTAWAY STEAM-AND-SPIRIT TRAIN CONSTRUCTION
+    // Train faces +X (Engine on Right, Rear Platform on Left) with +Z side cutaway!
+    // ============================================================================
+    const TV = 0.22; // 1 Train Voxel = 0.22 world units
+    const trainGroup = new THREE.Group();
+    scene.add(trainGroup);
+
+    const trainSolidVoxels = [];
+    const trainBrassVoxels = [];
+    const trainLanternVoxels = [];
+    const trainEmberVoxels = [];
+    const trainGlassVoxels = [];
+    const trainColliders = []; // Local to trainGroup: { min: Vector3, max: Vector3, name }
+
+    function addTrainCollider(minX, minY, minZ, maxX, maxY, maxZ, name = 'train_part') {
+      trainColliders.push({
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        name
+      });
+    }
+
+    function pushTV(list, tx, ty, tz, hex, variance = 0.025, sx = 1, sy = 1, sz = 1) {
+      list.push({
+        x: tx, y: ty, z: tz,
+        color: varyColor(hex, tx, ty, tz, variance),
+        sx, sy, sz
+      });
+    }
+
+    function pushTBox(list, x0, y0, z0, x1, y1, z1, colOrFn, variance = 0.025) {
+      for (let x = x0; x <= x1; x++) {
+        for (let y = y0; y <= y1; y++) {
+          for (let z = z0; z <= z1; z++) {
+            if (x > x0 && x < x1 && y > y0 && y < y1 && z > z0 && z < z1) continue;
+            const c = typeof colOrFn === 'function' ? colOrFn(x, y, z) : colOrFn;
+            if (c) pushTV(list, x, y, z, c, variance);
+          }
+        }
+      }
+    }
+
+    function buildCutawaySpiritTrain() {
+      // ----------------------------------------------------------------------
+      // A. LOCOMOTIVE ENGINE (tx: 38..56, world X: +8.36 to +12.32)
+      // ----------------------------------------------------------------------
+      // Red/Black Chassis Deck (ty: 4..5, tz: -6..6)
+      pushTBox(trainSolidVoxels, 37, 4, -6, 57, 5, 6, (x, y, z) => {
+        if (Math.abs(z) === 6 || x === 57) return '#b91c1c'; // Crimson buffer beam
+        return '#1e293b';
+      });
+      // Cowcatcher / Pilot at front (tx: 58..60)
+      for (let z = -5; z <= 5; z++) {
+        const tipX = 60 - Math.floor(Math.abs(z) * 0.5);
+        pushTV(trainSolidVoxels, tipX, 3, z, '#991b1b');
+        pushTV(trainSolidVoxels, tipX - 1, 4, z, '#b91c1c');
+      }
+
+      // Cylindrical Steam Boiler (tx: 44..56, center ty: 10, tz: 0)
+      for (let x = 44; x <= 56; x++) {
+        for (let y = 6; y <= 14; y++) {
+          for (let z = -4; z <= 4; z++) {
+            const r = Math.hypot(y - 10, z);
+            if (r <= 4.3 && r >= 3.1) {
+              const isBrassBand = (x === 46 || x === 51 || x === 55);
+              if (isBrassBand) {
+                pushTV(trainBrassVoxels, x, y, z, '#eab308', 0.015);
+              } else {
+                pushTV(trainSolidVoxels, x, y, z, x >= 54 ? '#334155' : '#0f172a', 0.02);
+              }
+            }
+          }
+        }
+      }
+      // Front Boiler Smokebox Door with Gold Hakurei Emblem (tx: 57)
+      for (let y = 7; y <= 13; y++) {
+        for (let z = -3; z <= 3; z++) {
+          if (Math.hypot(y - 10, z) <= 3.5) {
+            pushTV(trainSolidVoxels, 57, y, z, (y === 10 && z === 0) ? '#eab308' : '#1e293b');
+          }
+        }
+      }
+      // Spirit Headlamp on front of Smokebox (tx: 58, ty: 12..14, tz: -1..1)
+      pushTBox(trainBrassVoxels, 57, 12, -1, 58, 14, 1, '#ca8a04');
+      pushTV(trainLanternVoxels, 58.6, 13, 0, '#fef08a', 0.01, 0.8, 1.4, 1.4);
+
+      // Tall Smokestack Chimney (tx: 53..55, ty: 14..21, tz: -1..1)
+      for (let y = 14; y <= 21; y++) {
+        const crown = (y >= 20);
+        for (let x = 53; x <= 55; x++) {
+          for (let z = -1; z <= 1; z++) {
+            if (x === 54 && z === 0 && y >= 18) continue; // Hollow flue
+            pushTV(crown ? trainBrassVoxels : trainSolidVoxels, x, y, z, crown ? '#eab308' : '#0f172a');
+          }
+        }
+      }
+
+      // Steam Dome (tx: 48..50, ty: 14..17)
+      pushTBox(trainBrassVoxels, 48, 14, -2, 50, 17, 2, '#eab308');
+
+      // Engine Cab (tx: 37..43, ty: 6..20, cutaway front at tz > 0!)
+      // Back wall of cab (tz = -6) & Roof (ty = 20)
+      pushTBox(trainSolidVoxels, 37, 6, -6, 44, 19, -6, (x, y) => {
+        if (y >= 11 && y <= 16 && x >= 39 && x <= 42) return null; // Window cutout
+        return y <= 10 ? '#451a03' : '#7c2d12';
+      });
+      pushTBox(trainSolidVoxels, 36, 20, -7, 45, 21, 7, '#1e293b'); // Cab Roof
+      // Front cab bulkhead (tx = 43) with Glowing Firebox at bottom!
+      for (let y = 6; y <= 19; y++) {
+        for (let z = -5; z <= 5; z++) {
+          if (y <= 10 && Math.abs(z) <= 2) {
+            pushTV(trainEmberVoxels, 43, y, z, (y + z) % 2 === 0 ? '#ff4d00' : '#ffd166', 0.04);
+          } else if (z <= 1 || y >= 16) {
+            pushTV(trainSolidVoxels, 43, y, z, '#334155');
+          }
+        }
+      }
+      // Front cutaway cab pillar (tx = 37, tz = 6)
+      pushTBox(trainSolidVoxels, 37, 6, 5, 38, 19, 6, '#7c2d12');
+
+      addTrainCollider(8.1, 0.8, -1.4, 12.6, 1.35, 1.4, 'engine_deck');
+      addTrainCollider(9.5, 1.35, -1.0, 12.4, 3.3, 1.0, 'engine_boiler');
+
+      // ----------------------------------------------------------------------
+      // B. COAL TENDER CAR (tx: 22..34, world X: +4.84 to +7.48) - Okuu's station!
+      // ----------------------------------------------------------------------
+      // Coupler between Engine and Tender (tx: 35..36)
+      pushTBox(trainSolidVoxels, 34, 4, -2, 37, 5, 2, '#334155');
+
+      // Tender Floor & Back/Side Walls (Cutaway on +Z so we see Okuu shoveling coal!)
+      pushTBox(trainSolidVoxels, 22, 4, -6, 34, 5, 6, '#1e293b');
+      // Back wall (tz = -6), Left wall (tx = 22), low front lip (tz = 6, ty = 6..8)
+      pushTBox(trainSolidVoxels, 22, 6, -6, 34, 13, -6, '#7c2d12');
+      pushTBox(trainSolidVoxels, 22, 6, -6, 23, 13, 6, '#7c2d12');
+      pushTBox(trainSolidVoxels, 22, 6, 6, 34, 8, 6, '#7c2d12');
+      pushTBox(trainBrassVoxels, 22, 14, -6, 34, 14, -6, '#eab308'); // Brass rim
+
+      // Mound of Coal & Glowing Spirit Embers in left half of Tender (tx: 23..29)
+      for (let x = 23; x <= 29; x++) {
+        for (let z = -5; z <= 4; z++) {
+          const maxH = 9 + Math.floor(Math.sin((x - 22) * 0.6) * 2.2) - Math.max(0, z - 1);
+          for (let y = 6; y <= maxH; y++) {
+            const isEmber = ((x * 7 + y * 13 + z * 5) % 11 === 0);
+            if (isEmber) {
+              pushTV(trainEmberVoxels, x, y, z, '#ff6b00', 0.05);
+            } else {
+              pushTV(trainSolidVoxels, x, y, z, '#111827', 0.04);
+            }
+          }
+        }
+      }
+      addTrainCollider(4.8, 0.8, -1.4, 7.6, 1.35, 1.4, 'tender_floor');
+      addTrainCollider(5.0, 1.35, -1.2, 6.4, 2.4, 0.9, 'coal_mound');
+
+      // ----------------------------------------------------------------------
+      // C. PASSENGER CARRIAGE 1 (tx: -16..19, world X: -3.52 to +4.18)
+      // ----------------------------------------------------------------------
+      // Coupler & Gangway between Tender and Carriage 1 (tx: 19..22)
+      pushTBox(trainSolidVoxels, 19, 4, -3, 22, 5, 3, '#334155');
+
+      // Carriage 1 Floor with Mahogany Planks & Crimson Aisle Runner (tx: -16..19, ty: 4..5, tz: -7..7)
+      for (let x = -16; x <= 19; x++) {
+        for (let z = -7; z <= 7; z++) {
+          let floorCol = (x % 2 === 0) ? '#5c3a21' : '#6e472b';
+          if (z >= 2 && z <= 5) floorCol = '#991b1b'; // Plush red carpet aisle
+          if (Math.abs(z) === 7) floorCol = '#3b2313'; // Outer beam
+          pushTV(trainSolidVoxels, x, 5, z, floorCol, 0.02);
+          if (Math.abs(z) === 7 || x === -16 || x === 19) {
+            pushTV(trainSolidVoxels, x, 4, z, '#1e293b', 0.015);
+          }
+        }
+      }
+
+      // Back Wall (tz = -7) with 3 Large Panoramic Windows & Wainscoting
+      for (let x = -16; x <= 19; x++) {
+        for (let y = 6; y <= 20; y++) {
+          const inWin1 = (x >= -13 && x <= -6 && y >= 10 && y <= 17);
+          const inWin2 = (x >= -2 && x <= 5 && y >= 10 && y <= 17);
+          const inWin3 = (x >= 9 && x <= 16 && y >= 10 && y <= 17);
+          if (inWin1 || inWin2 || inWin3) {
+            // Window frame mullions & glass
+            if (y === 10 || y === 17 || x === -13 || x === -6 || x === -2 || x === 5 || x === 9 || x === 16) {
+              pushTV(trainBrassVoxels, x, y, -7, '#b45309', 0.015);
+            } else {
+              pushTV(trainGlassVoxels, x, y, -7, '#dbeafe', 0.01, 1, 1, 0.3);
+            }
+            continue;
+          }
+          let wCol = '#fef3c7'; // Warm cream upper interior wall
+          if (y <= 9) wCol = (x % 2 === 0) ? '#78350f' : '#92400e'; // Rich wood wainscoting
+          else if (y === 20) wCol = '#451a03';
+          pushTV(trainSolidVoxels, x, y, -7, wCol, 0.02);
+        }
+      }
+
+      // End Bulkheads of Carriage 1 (tx = -16 and tx = 19) with arched doorway
+      for (const bx of [-16, 19]) {
+        for (let y = 6; y <= 20; y++) {
+          for (let z = -7; z <= 7; z++) {
+            const inDoor = (z >= -1 && z <= 3 && y <= 16);
+            // Cutaway front half so interior is unobstructed!
+            if (z >= 4 && y < 19) continue;
+            if (!inDoor) {
+              pushTV(trainSolidVoxels, bx, y, z, y <= 9 ? '#78350f' : '#92400e', 0.02);
+            }
+          }
+        }
+      }
+
+      // Cutaway Clerestory Roof (Sloped back half + full top arch so you can see inside & luggage rack!)
+      for (let x = -16; x <= 19; x++) {
+        for (let z = -7; z <= 3; z++) {
+          const roofY = (z >= -3 && z <= 1) ? 22 : 21;
+          pushTV(trainSolidVoxels, x, roofY, z, '#334155', 0.02);
+        }
+        // Front cutaway cornice beam with brass trim
+        pushTV(trainBrassVoxels, x, 21, 4, '#d97706', 0.015);
+      }
+
+      // Overhead Brass Luggage Rack along Back Wall (ty = 18, tz = -6..-4, tx = -14..17)
+      for (let x = -14; x <= 17; x++) {
+        if (x % 4 === 0 || x === -14 || x === 17) {
+          for (let z = -6; z <= -4; z++) {
+            pushTV(trainBrassVoxels, x, 18, z, '#eab308', 0.01, 0.6, 0.5, 1);
+          }
+        }
+        pushTV(trainBrassVoxels, x, 18, -4, '#eab308', 0.01, 1, 0.5, 0.5);
+      }
+      // Vintage Leather Suitcase on Luggage Rack (tx: -12..-9, ty: 19, tz: -6..-4)
+      pushTBox(trainSolidVoxels, -12, 19, -6, -9, 20, -4, '#854d0e');
+      // Woven Fabric Hammock in the Luggage Rack for Mini Suwako! (tx: 0..6, ty: 18..19, tz: -6..-4)
+      for (let x = 0; x <= 6; x++) {
+        const sag = Math.sin(((x) / 6) * Math.PI) * 0.65;
+        for (let z = -6; z <= -4; z++) {
+          pushTV(trainSolidVoxels, x, 18.6 - sag, z, (x + z) % 2 === 0 ? '#fef08a' : '#86efac', 0.02, 1, 0.55, 1);
+        }
+      }
+
+      // Warm Wall Sconce Lamps inside Carriage 1 (tx = -7, 7)
+      for (const lx of [-7, 7]) {
+        pushTV(trainBrassVoxels, lx, 15, -6, '#d97706');
+        pushTV(trainLanternVoxels, lx, 16, -6, '#fff3b0', 0.01, 1.2, 1.3, 1.2);
+      }
+
+      // 3 Plush Velvet Booth Seat Pairs & Window Tables in Carriage 1
+      // Booth 1 (tx: -14..-6): Reimu & Marisa sharing a window seat!
+      // Booth 2 (tx: -3..5): Remilia asleep with parasol, Koishi hiding under the seat!
+      // Booth 3 (tx: 8..16): Cirno pressing her face against the window!
+      const booths = [
+        { xL: -14, xR: -6, tableX: -10 },
+        { xL: -3,  xR: 5,  tableX: 1 },
+        { xL: 8,   xR: 16, tableX: 12 }
+      ];
+      booths.forEach((b) => {
+        // Left & Right facing bench seats (tz: -6..-1)
+        for (const sx of [b.xL, b.xR]) {
+          const dir = sx === b.xL ? 1 : -1;
+          for (let z = -6; z <= -1; z++) {
+            // Wooden seat legs at ends so space UNDER seat is hollow for Koishi!
+            if (z === -6 || z === -1) {
+              pushTV(trainSolidVoxels, sx, 6, z, '#451a03');
+              pushTV(trainSolidVoxels, sx + dir, 6, z, '#451a03');
+            }
+            // Velvet seat cushion (ty = 7..8)
+            pushTV(trainSolidVoxels, sx, 8, z, '#15803d', 0.03);
+            pushTV(trainSolidVoxels, sx + dir, 8, z, '#166534', 0.03);
+            pushTV(trainSolidVoxels, sx + dir * 2, 8, z, '#15803d', 0.03);
+            // Seat backrest (ty = 9..12)
+            for (let y = 9; y <= 12; y++) {
+              pushTV(trainSolidVoxels, sx, y, z, y === 12 ? '#dcfce7' : '#15803d', 0.03);
+            }
+          }
+        }
+        // Small mahogany window table between the facing seats (tz: -6..-3, ty: 9)
+        for (let tx = b.tableX - 1; tx <= b.tableX + 1; tx++) {
+          for (let tz = -6; tz <= -3; tz++) {
+            pushTV(trainSolidVoxels, tx, 9, tz, '#78350f', 0.02, 1, 0.6, 1);
+          }
+        }
+        pushTV(trainBrassVoxels, b.tableX, 7, -5, '#b45309', 0.01, 0.6, 3, 0.6);
+      });
+
+      addTrainCollider(-3.6, 1.0, -1.6, 4.2, 1.25, 1.6, 'carriage1_floor');
+      addTrainCollider(-3.2, 1.25, -1.4, 3.6, 1.90, -0.2, 'carriage1_seats');
+      addTrainCollider(-0.1, 3.9, -1.4, 1.4, 4.25, -0.7, 'luggage_hammock');
+
+      // ----------------------------------------------------------------------
+      // D. DINING CAR & REAR OBSERVATION PLATFORM (tx: -56..-19, world X: -12.32 to -4.18)
+      // ----------------------------------------------------------------------
+      // Coupler & Gangway between Carriage 1 and Dining Car (tx: -19..-16)
+      pushTBox(trainSolidVoxels, -19, 4, -3, -16, 5, 3, '#334155');
+
+      // Dining Car Floor (tx: -50..-19) + Rear Observation Platform (tx: -56..-51)
+      for (let x = -56; x <= -19; x++) {
+        for (let z = -7; z <= 7; z++) {
+          let fCol = ((x + z) % 2 === 0) ? '#7c2d12' : '#9a3412'; // Warm parquet floor
+          if (x <= -51) fCol = '#334155'; // Rear steel observation deck
+          pushTV(trainSolidVoxels, x, 5, z, fCol, 0.02);
+          if (Math.abs(z) === 7 || x === -56 || x === -19) {
+            pushTV(trainSolidVoxels, x, 4, z, '#1e293b', 0.015);
+          }
+        }
+      }
+
+      // Dining Car Back Wall (tz = -7, tx: -50..-19) with Arched Windows
+      for (let x = -50; x <= -19; x++) {
+        for (let y = 6; y <= 20; y++) {
+          const inWinA = (x >= -46 && x <= -38 && y >= 10 && y <= 17);
+          const inWinB = (x >= -33 && x <= -25 && y >= 10 && y <= 17);
+          if (inWinA || inWinB) {
+            if (y === 10 || y === 17 || x === -46 || x === -38 || x === -33 || x === -25) {
+              pushTV(trainBrassVoxels, x, y, -7, '#b45309', 0.015);
+            } else {
+              pushTV(trainGlassVoxels, x, y, -7, '#dbeafe', 0.01, 1, 1, 0.3);
+            }
+            continue;
+          }
+          let wCol = '#fffbeb';
+          if (y <= 9) wCol = (x % 2 === 0) ? '#7f1d1d' : '#991b1b'; // Crimson dining wainscoting
+          else if (y === 20) wCol = '#450a0a';
+          pushTV(trainSolidVoxels, x, y, -7, wCol, 0.02);
+        }
+      }
+
+      // Dining Car Bulkheads (tx = -50 and tx = -19)
+      for (const bx of [-50, -19]) {
+        for (let y = 6; y <= 20; y++) {
+          for (let z = -7; z <= 7; z++) {
+            const inDoor = (z >= -1 && z <= 3 && y <= 16);
+            if (z >= 4 && y < 19) continue;
+            if (!inDoor) {
+              pushTV(trainSolidVoxels, bx, y, z, y <= 9 ? '#7f1d1d' : '#991b1b', 0.02);
+            }
+          }
+        }
+      }
+
+      // Dining Car Clerestory Roof (tx: -51..-19, ty: 21..22) — Flandre sits on top!
+      for (let x = -51; x <= -19; x++) {
+        for (let z = -7; z <= 4; z++) {
+          const rY = (z >= -4 && z <= 2) ? 22 : 21;
+          pushTV(trainSolidVoxels, x, rY, z, '#1e293b', 0.02);
+        }
+        pushTV(trainBrassVoxels, x, 21, 5, '#d97706', 0.015);
+      }
+
+      // Two Dining Tables with Crisp White Tablecloths & Warm Table Lamps
+      for (const dtx of [-42, -29]) {
+        // Plush crimson dining chairs
+        for (const cx of [dtx - 3, dtx + 3]) {
+          for (let z = -5; z <= -2; z++) {
+            pushTV(trainSolidVoxels, cx, 6, z, '#451a03');
+            pushTV(trainSolidVoxels, cx, 7, z, '#b91c1c');
+            for (let y = 8; y <= 11; y++) {
+              pushTV(trainSolidVoxels, cx + (cx < dtx ? -1 : 1), y, z, '#991b1b');
+            }
+          }
+        }
+        // Table pedestal & white tablecloth top (ty = 9)
+        pushTV(trainBrassVoxels, dtx, 7, -3.5, '#78350f', 0.01, 1, 3, 1);
+        for (let x = dtx - 2; x <= dtx + 2; x++) {
+          for (let z = -6; z <= -1; z++) {
+            pushTV(trainSolidVoxels, x, 9, z, '#f8fafc', 0.015, 1, 0.75, 1);
+          }
+        }
+        // Little brass table lamp with glowing warm shade
+        pushTV(trainBrassVoxels, dtx, 10, -5, '#eab308', 0.01, 0.6, 1.0, 0.6);
+        pushTV(trainLanternVoxels, dtx, 11, -5, '#fde68a', 0.01, 1.3, 1.1, 1.3);
+      }
+
+      // Rear Observation Platform Brass Railing & Red Tail Lantern (tx: -56..-51)
+      for (let z = -7; z <= 7; z++) {
+        pushTV(trainBrassVoxels, -56, 9, z, '#eab308', 0.01, 0.6, 0.6, 1);
+        if (z % 2 === 0 || Math.abs(z) === 7) {
+          for (let y = 6; y <= 8; y++) {
+            pushTV(trainBrassVoxels, -56, y, z, '#ca8a04', 0.01, 0.5, 1, 0.5);
+          }
+        }
+      }
+      for (let x = -56; x <= -51; x++) {
+        pushTV(trainBrassVoxels, x, 9, -7, '#eab308', 0.01, 1, 0.6, 0.6);
+        pushTV(trainBrassVoxels, x, 9, 7, '#eab308', 0.01, 1, 0.6, 0.6);
+      }
+      // Glowing Red Tail Lantern on rear railing
+      pushTV(trainEmberVoxels, -56.6, 7.5, 0, '#ef4444', 0.01, 0.9, 1.3, 1.3);
+
+      addTrainCollider(-12.4, 1.0, -1.6, -4.1, 1.25, 1.6, 'dining_floor');
+      addTrainCollider(-10.0, 1.25, -1.4, -5.8, 2.05, -0.2, 'dining_tables');
+      addTrainCollider(-11.2, 4.6, -1.5, -4.2, 5.05, 0.9, 'dining_roof');
+    }
+
+    buildCutawaySpiritTrain();
+
+    const tSolidMesh = buildVoxelInstancedMesh(trainSolidVoxels, TV, trainSolidMaterial, true, true);
+    const tBrassMesh = buildVoxelInstancedMesh(trainBrassVoxels, TV, brassMaterial, true, true);
+    const tLanternMesh = buildVoxelInstancedMesh(trainLanternVoxels, TV, warmLanternMaterial, false, false);
+    const tEmberMesh = buildVoxelInstancedMesh(trainEmberVoxels, TV, fireEmberMaterial, false, false);
+    const tGlassMesh = buildVoxelInstancedMesh(trainGlassVoxels, TV, glassWindowMaterial, false, false);
+
+    if (tSolidMesh) trainGroup.add(tSolidMesh);
+    if (tBrassMesh) trainGroup.add(tBrassMesh);
+    if (tLanternMesh) trainGroup.add(tLanternMesh);
+    if (tEmberMesh) trainGroup.add(tEmberMesh);
+    if (tGlassMesh) trainGroup.add(tGlassMesh);
+
+    // ============================================================================
+    // 6. INTERACTIVE TRAIN PROPS: CLICKABLE STEAM WHISTLE, ROLLING TEA CART & WHEELS
+    // ============================================================================
+    const interactivePropMeshes = [];
+
+    // 6A. Clickable Brass Steam Whistle atop the Locomotive Boiler (tx = 46, ty = 15..18, tz = 0)
+    const whistleGroup = new THREE.Group();
+    whistleGroup.position.set(46 * TV, 15 * TV, 0);
+    trainGroup.add(whistleGroup);
+
+    const whistleVoxels = [
+      { x: 0, y: 0, z: 0, color: '#ca8a04', sx: 1.2, sy: 1, sz: 1.2 },
+      { x: 0, y: 1, z: 0, color: '#eab308', sx: 1.5, sy: 1.2, sz: 1.5 },
+      { x: 0, y: 2.2, z: 0, color: '#fef08a', sx: 1.5, sy: 1.2, sz: 1.5 },
+      { x: 0, y: 3.2, z: 0, color: '#ca8a04', sx: 1.0, sy: 0.8, sz: 1.0 },
+      { x: -1.1, y: 1.5, z: 0, color: '#ef4444', sx: 1.2, sy: 0.4, sz: 0.4 } // Whistle pull lever
+    ];
+    const whistleMesh = buildVoxelInstancedMesh(whistleVoxels, TV, brassMaterial, true, true);
+    whistleMesh.userData.interactiveType = 'whistle';
+    whistleMesh.userData.label = '🚂 Brass Steam Whistle (Click to Blow!)';
+    whistleGroup.add(whistleMesh);
+
+    // Invisible larger hit box so clicking the whistle is effortless
+    const whistleHitBox = new THREE.Mesh(
+      new THREE.BoxGeometry(1.1, 1.3, 1.1),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    whistleHitBox.position.set(0, 0.35, 0);
+    whistleHitBox.userData.interactiveType = 'whistle';
+    whistleHitBox.userData.label = '🚂 Brass Steam Whistle (Click to Blow!)';
+    whistleGroup.add(whistleHitBox);
+    interactivePropMeshes.push(whistleMesh, whistleHitBox);
+
+    // 6B. Clickable Rolling Tea Cart in the Aisle of Carriage 1 (tx = 4, ty = 6..10, tz = 3.2)
+    const teaCartGroup = new THREE.Group();
+    teaCartGroup.position.set(4 * TV, 5.5 * TV, 3.2 * TV);
+    trainGroup.add(teaCartGroup);
+
+    const teaCartVoxels = [];
+    // Wooden 2-tier tea cart with brass handles & wheels
+    for (let x = -2; x <= 2; x++) {
+      for (let z = -1; z <= 1; z++) {
+        pushTV(teaCartVoxels, x, 1, z, '#78350f'); // Lower shelf
+        pushTV(teaCartVoxels, x, 3.5, z, (Math.abs(x) === 2 || Math.abs(z) === 1) ? '#d97706' : '#fef3c7'); // Top tray
+      }
+    }
+    for (const cx of [-2, 2]) {
+      for (const cz of [-1, 1]) {
+        pushTV(teaCartVoxels, cx, 0, cz, '#1e293b', 0.01, 0.8, 0.8, 0.8); // Small caster wheels
+        pushTV(teaCartVoxels, cx, 2, cz, '#eab308', 0.01, 0.5, 1.5, 0.5); // Brass pillars
+      }
+    }
+    // Porcelain Teapot & Matcha Tin on Cart
+    pushTV(teaCartVoxels, -0.8, 4.5, 0, '#f8fafc', 0.01, 1.4, 1.3, 1.4);
+    pushTV(teaCartVoxels, -0.8, 5.4, 0, '#ef4444', 0.01, 0.7, 0.5, 0.7);
+    pushTV(teaCartVoxels, 1.1, 4.4, -0.3, '#16a34a', 0.01, 1.0, 1.2, 1.0);
+
+    const teaCartMesh = buildVoxelInstancedMesh(teaCartVoxels, TV, trainSolidMaterial, true, true);
+    teaCartMesh.userData.interactiveType = 'teacart';
+    teaCartMesh.userData.label = '🍵 Rolling Tea Cart (Click to Serve Wobbling Cups!)';
+    teaCartGroup.add(teaCartMesh);
+
+    const teaCartHitBox = new THREE.Mesh(
+      new THREE.BoxGeometry(1.4, 1.4, 1.1),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    teaCartHitBox.position.set(0, 0.6, 0);
+    teaCartHitBox.userData.interactiveType = 'teacart';
+    teaCartHitBox.userData.label = '🍵 Rolling Tea Cart (Click to Serve Wobbling Cups!)';
+    teaCartGroup.add(teaCartHitBox);
+    interactivePropMeshes.push(teaCartMesh, teaCartHitBox);
+
+    // Served Wobbling Teacups Pool (placed on carriage tables & cart when Tea Cart is clicked!)
+    const cupAnchors = [
+      new THREE.Vector3(-10 * TV, 9.6 * TV, -4.5 * TV), // Reimu & Marisa's table
+      new THREE.Vector3(-9.2 * TV, 9.6 * TV, -3.5 * TV),
+      new THREE.Vector3(1 * TV, 9.6 * TV, -4.2 * TV),   // Remilia's table
+      new THREE.Vector3(12 * TV, 9.6 * TV, -4.2 * TV),  // Cirno's table
+      new THREE.Vector3(-29 * TV, 9.6 * TV, -3.5 * TV), // Dining table 1
+      new THREE.Vector3(-42 * TV, 9.6 * TV, -3.5 * TV)  // Dining table 2
+    ];
+    const servedCups = [];
+    cupAnchors.forEach((anchorPos, idx) => {
+      const cupGroup = new THREE.Group();
+      cupGroup.position.copy(anchorPos);
+      const cVox = [
+        { x: 0, y: 0, z: 0, color: '#e2e8f0', sx: 1.5, sy: 0.35, sz: 1.5 }, // Saucer
+        { x: 0, y: 0.6, z: 0, color: '#ffffff', sx: 1.1, sy: 1.0, sz: 1.1 }, // Porcelain cup
+        { x: 0, y: 1.0, z: 0, color: '#4ade80', sx: 0.85, sy: 0.3, sz: 0.85 } // Hot green tea
+      ];
+      const cMesh = buildVoxelInstancedMesh(cVox, TV * 0.85, trainSolidMaterial, true, true);
+      cupGroup.add(cMesh);
+      trainGroup.add(cupGroup);
+      servedCups.push({
+        group: cupGroup,
+        basePos: anchorPos.clone(),
+        wobblePitch: 0,
+        wobbleRoll: 0,
+        wobbleVelPitch: 0,
+        wobbleVelRoll: 0,
+        popScale: 1.0,
+        phase: idx * 1.1
+      });
+    });
+
+    // 6C. Rotating Voxel Train Wheels along the Undercarriage
+    const wheelGroups = [];
+    const wheelXPositions = [-50, -44, -26, -20, -11, -5, 9, 15, 25, 31, 41, 47, 53];
+    wheelXPositions.forEach((wx) => {
+      const isBigDriver = (wx === 41 || wx === 47);
+      const wRadius = isBigDriver ? 2.1 : 1.45;
+      const wGroup = new THREE.Group();
+      wGroup.position.set(wx * TV, 2.2 * TV, 0);
+
+      const wVox = [];
+      for (const sideZ of [-5.5, 5.5]) {
+        for (let y = -2; y <= 2; y++) {
+          for (let x = -2; x <= 2; x++) {
+            const d = Math.hypot(x, y);
+            if (d <= wRadius) {
+              const col = d >= wRadius - 0.6 ? '#94a3b8' : (isBigDriver ? '#b91c1c' : '#334155');
+              pushTV(wVox, x * 0.75, y * 0.75, sideZ, col, 0.01, 0.8, 0.8, 0.6);
+            }
+          }
+        }
+        // Brass axle hub & counterweight spoke
+        pushTV(wVox, 0, 0, sideZ + (sideZ > 0 ? 0.5 : -0.5), '#eab308', 0.01, 0.9, 0.9, 0.5);
+        pushTV(wVox, 0.9, 0, sideZ + (sideZ > 0 ? 0.4 : -0.4), '#cbd5e1', 0.01, 1.4, 0.45, 0.4);
+      }
+      const wMesh = buildVoxelInstancedMesh(wVox, TV, trainSolidMaterial, true, false);
+      wGroup.add(wMesh);
+      trainGroup.add(wGroup);
+      wheelGroups.push({ group: wGroup, radius: wRadius * TV });
+    });
+
+    // ============================================================================
+    // 7. SCROLLING MAGICAL COUNTRYSIDE LANDSCAPE (River Bridge, Tunnel, Paddy, Village, Lake, Shrine)
+    // Loops seamlessly over LOOP_LENGTH = 96 world units!
+    // ============================================================================
+    const LV = 0.45; // 1 Landscape Voxel = 0.45 world units
+    const LOOP_LENGTH = 96.0;
+    const NUM_CHUNKS = 2; // Two 96-unit chunks tiled side by side for seamless wrap
+    const landscapeChunks = [];
+
+    function buildSingleLandscapeChunk() {
+      const chunkGroup = new THREE.Group();
+      const landSolid = [];
+      const landWater = [];
+      const landLantern = [];
+
+      const pushLV = (arr, x, y, z, col, variance = 0.035, sx = 1, sy = 1, sz = 1) => {
+        // World coords inside chunk: x in [-106..106] * LV (~ -48 to +48 world units)
+        arr.push({
+          x, y, z,
+          color: varyColor(col, x, y, z, variance),
+          sx, sy, sz
+        });
+      };
+
+      // Grid X goes from -106 to +106 (213 columns * 0.45 = 95.85 ~ 96.0 units)
+      for (let gx = -106; gx <= 106; gx++) {
+        const inRiverZone = (gx >= -92 && gx <= -62);
+        const inTunnelZone = (gx >= -50 && gx <= -22);
+        const inPaddyZone = (gx >= -16 && gx <= 18);
+        const inVillageZone = (gx >= 24 && gx <= 56);
+        const inLakeZone = (gx >= 60 && gx <= 84);
+        const inShrineZone = (gx >= 72 && gx <= 102);
+
+        // 1. RAILROAD TRACK BED, WOODEN TIES & STEEL RAILS (along gz = -3..3, gy = 0)
+        if (!inRiverZone) {
+          for (let gz = -4; gz <= 4; gz++) {
+            pushLV(landSolid, gx, -1, gz, Math.abs(gz) === 4 ? '#475569' : '#64748b', 0.04);
+          }
+        } else {
+          // Arched Red Steel & Stone Bridge over the River!
+          pushLV(landSolid, gx, -1, -3, '#991b1b', 0.02);
+          pushLV(landSolid, gx, -1, 3, '#991b1b', 0.02);
+          if (gx % 4 === 0) {
+            for (let by = 0; by <= 5; by++) {
+              pushLV(landSolid, gx, by, -4, '#b91c1c', 0.02, 0.7, 1, 0.7);
+              pushLV(landSolid, gx, by, 4, '#b91c1c', 0.02, 0.7, 1, 0.7);
+            }
+            pushLV(landSolid, gx, 5, -4, '#dc2626', 0.02, 4.1, 0.7, 0.7);
+            pushLV(landSolid, gx, 5, 4, '#dc2626', 0.02, 4.1, 0.7, 0.7);
+          }
+          // Stone bridge piers in the river
+          if (gx === -86 || gx === -68) {
+            for (let py = -6; py <= -1; py++) {
+              for (let pz = -4; pz <= 4; pz++) {
+                pushLV(landSolid, gx, py, pz, '#64748b', 0.03);
+              }
+            }
+          }
+        }
+
+        // Wooden sleepers (ties) & steel rails
+        if (gx % 2 === 0) {
+          for (let gz = -3; gz <= 3; gz++) {
+            pushLV(landSolid, gx, -0.3, gz, '#5c3a21', 0.03, 0.8, 0.45, 1);
+          }
+        }
+        pushLV(landSolid, gx, 0.05, -2.2, '#cbd5e1', 0.01, 1.02, 0.35, 0.35);
+        pushLV(landSolid, gx, 0.05, 2.2, '#cbd5e1', 0.01, 1.02, 0.35, 0.35);
+
+        // 2. FOREGROUND & BACKGROUND COUNTRYSIDE TERRAIN
+        for (let gz = -38; gz <= 24; gz++) {
+          if (gz >= -4 && gz <= 4) continue; // Track corridor
+
+          // ZONE 1: RIVER WITH BRIDGE (gx: -92..-62)
+          if (inRiverZone) {
+            const riverCenter = -77 + Math.sin(gz * 0.12) * 4;
+            const distFromRiver = Math.abs(gx - riverCenter);
+            if (distFromRiver < 11) {
+              pushLV(landWater, gx, -3.2, gz, distFromRiver > 9 ? '#bae6fd' : '#0284c7', 0.03, 1, 0.6, 1);
+              continue;
+            }
+          }
+
+          // ZONE 3: TERRACED PADDY FIELDS (gx: -16..18, gz < -6 or gz > 6)
+          if (inPaddyZone && gz >= -26 && gz <= 18) {
+            const stepTier = Math.floor(Math.abs(gz) / 8);
+            const terraceY = -1.5 + (gz < 0 ? stepTier * 0.8 : -0.5);
+            const isBund = (gx % 8 === 0 || gz % 8 === 0);
+            if (isBund) {
+              pushLV(landSolid, gx, terraceY + 0.3, gz, '#4d7c0f', 0.04);
+            } else {
+              pushLV(landWater, gx, terraceY, gz, '#38bdf8', 0.02, 1, 0.4, 1);
+              if ((gx % 3 === 0) && (gz % 3 === 0)) {
+                pushLV(landSolid, gx, terraceY + 0.5, gz, '#84cc16', 0.04, 0.45, 0.9, 0.45); // Rice shoots
+              }
+            }
+            continue;
+          }
+
+          // ZONE 5: MISTY LAKE (gx: 60..84, gz > 5)
+          if (inLakeZone && gz >= 6 && gz <= 22) {
+            pushLV(landWater, gx, -2.2, gz, '#1d4ed8', 0.025, 1, 0.5, 1);
+            if ((gx * 7 + gz * 11) % 29 === 0) {
+              pushLV(landSolid, gx, -1.8, gz, '#22c55e', 0.03, 1.3, 0.3, 1.3); // Floating lotus pad
+            }
+            continue;
+          }
+
+          // Default rolling grassy hills
+          let baseH = -2;
+          if (gz < -8) {
+            baseH = -1 + Math.floor(Math.sin(gx * 0.08) * 1.5 + Math.abs(gz + 8) * 0.25);
+          } else if (gz > 8) {
+            baseH = -2;
+          }
+          // Shrine Hill rise in background (gx: 74..100, gz < -14)
+          if (inShrineZone && gz <= -14) {
+            const hillDist = Math.hypot(gx - 87, gz + 25);
+            if (hillDist < 14) {
+              baseH = Math.max(baseH, Math.floor(11 - hillDist * 0.65));
+            }
+          }
+
+          if (gz % 2 === 0 && gx % 2 === 0) {
+            pushLV(landSolid, gx, baseH, gz, baseH > 3 ? '#15803d' : '#166534', 0.045, 2.02, 1.5, 2.02);
+          }
+        }
+
+        // 3. ZONE 2: MOUNTAIN TUNNEL ARCH OVER THE TRACKS (gx: -48..-24)
+        // Cutaway on front (+Z) side so we still see the train inside the glowing mountain cavern!
+        if (gx >= -48 && gx <= -24) {
+          const isPortal = (gx === -48 || gx === -24);
+          // Back cavern wall (gz = -9..-7) and overhead mountain arch (gy = 12..19)
+          for (let gy = -1; gy <= 18; gy++) {
+            const wallCol = isPortal ? '#64748b' : '#334155';
+            pushLV(landSolid, gx, gy, -8, wallCol, 0.04);
+            if (gy >= 13) {
+              for (let gz = -7; gz <= (isPortal ? 6 : 2); gz++) {
+                const topY = 16 + Math.floor(Math.sin(gx * 0.2 + gz * 0.3) * 1.5);
+                if (gy <= topY) {
+                  pushLV(landSolid, gx, gy, gz, gy === topY ? '#15803d' : wallCol, 0.045);
+                }
+              }
+            }
+          }
+          // Front portal stone pillar on +Z at tunnel entrance & exit
+          if (isPortal) {
+            for (let gy = -1; gy <= 14; gy++) {
+              pushLV(landSolid, gx, gy, 6, '#64748b', 0.03, 1.5, 1, 1.5);
+            }
+            // Sacred Shimenawa rope & glowing spirit talismans (ofuda) on tunnel portals!
+            for (let gz = -6; gz <= 5; gz += 2) {
+              pushLV(landLantern, gx + (gx === -48 ? -0.6 : 0.6), 13.2, gz, '#fef08a', 0.01, 0.4, 1.1, 0.6);
+            }
+          }
+          // Glowing amber tunnel wall lanterns inside the cavern
+          if (gx % 6 === 0) {
+            pushLV(landLantern, gx, 6, -6.8, '#ff9e00', 0.01, 0.9, 1.3, 0.9);
+          }
+        }
+      }
+
+      // 4. ZONE 4: LANTERN-LIT VILLAGE & WAYSIDE STATION (gx: 26..54, gz: -22..-8)
+      // Wayside wooden station platform right behind the tracks (gx: 28..46, gz: -9..-5)
+      for (let x = 28; x <= 46; x++) {
+        for (let z = -9; z <= -5; z++) {
+          pushLV(landSolid, x, 0.5, z, '#78350f', 0.02);
+        }
+        // Station awning roof
+        for (let z = -9; z <= -6; z++) {
+          pushLV(landSolid, x, 5.5, z, '#1e293b', 0.02);
+        }
+        if (x === 30 || x === 37 || x === 44) {
+          for (let y = 1; y <= 5; y++) pushLV(landSolid, x, y, -8, '#451a03');
+        }
+        // Hanging warm station paper lanterns!
+        if (x % 3 === 0) {
+          pushLV(landLantern, x, 4.4, -5.8, (x % 6 === 0) ? '#ff4d6d' : '#ffb703', 0.01, 0.85, 1.2, 0.85);
+        }
+      }
+
+      // Three Cozy Lit Village Houses behind the station
+      const houses = [
+        { cx: 30, cz: -17, w: 4, d: 3, h: 4, roofCol: '#1e293b' },
+        { cx: 41, cz: -20, w: 5, d: 4, h: 5, roofCol: '#7f1d1d' },
+        { cx: 51, cz: -16, w: 4, d: 3, h: 4, roofCol: '#1e3a8a' }
+      ];
+      houses.forEach((hs) => {
+        for (let x = hs.cx - hs.w; x <= hs.cx + hs.w; x++) {
+          for (let z = hs.cz - hs.d; z <= hs.cz + hs.d; z++) {
+            for (let y = 1; y <= hs.h; y++) {
+              const isEdge = (Math.abs(x - hs.cx) === hs.w || Math.abs(z - hs.cz) === hs.d);
+              if (!isEdge) continue;
+              const isGlowingWindow = (z === hs.cz + hs.d && y >= 2 && y <= 3 && Math.abs(x - hs.cx) <= 2 && x !== hs.cx);
+              if (isGlowingWindow) {
+                pushLV(landLantern, x, y, z, '#fde68a', 0.01);
+              } else {
+                pushLV(landSolid, x, y, z, '#e2e8f0', 0.02);
+              }
+            }
+            // Gabled tiled roof
+            const roofH = hs.h + 1 + (hs.d - Math.abs(z - hs.cz));
+            pushLV(landSolid, x, roofH, z, hs.roofCol, 0.025);
+          }
+        }
+      });
+
+      // 5. ZONE 6: HAKUREI SHRINE ON THE HILL (gx: 80..94, gz: -29..-18, gy: 11+)
+      // Vermilion Torii Gate on the hill steps (gx: 87, gz: -17)
+      for (let y = 6; y <= 13; y++) {
+        pushLV(landSolid, 84, y, -17, '#dc2626', 0.01);
+        pushLV(landSolid, 90, y, -17, '#dc2626', 0.01);
+      }
+      for (let x = 83; x <= 91; x++) {
+        pushLV(landSolid, x, 13, -17, '#b91c1c', 0.01);
+        pushLV(landSolid, x, 11, -17, '#dc2626', 0.01);
+      }
+      // Shrine Main Hall on hilltop (gx: 83..91, gz: -27..-22, gy: 11..16)
+      for (let x = 83; x <= 91; x++) {
+        for (let z = -27; z <= -22; z++) {
+          for (let y = 11; y <= 15; y++) {
+            const isFront = (z === -22 && Math.abs(x - 87) <= 2 && y <= 14);
+            if (isFront) {
+              pushLV(landLantern, x, y, z, '#fde047', 0.01);
+            } else if (x === 83 || x === 91 || z === -27 || z === -22) {
+              pushLV(landSolid, x, y, z, '#fef2f2', 0.02);
+            }
+          }
+          const sRoofY = 16 + (3 - Math.abs(z + 24.5));
+          pushLV(landSolid, x, sRoofY, z, '#991b1b', 0.02);
+        }
+      }
+      // Stone Lanterns flanking the shrine
+      pushLV(landLantern, 82, 12, -20, '#ffb703', 0.01, 0.9, 1.2, 0.9);
+      pushLV(landLantern, 92, 12, -20, '#ffb703', 0.01, 0.9, 1.2, 0.9);
+
+      const mSolid = buildVoxelInstancedMesh(landSolid, LV, landscapeMaterial, true, true);
+      const mWater = buildVoxelInstancedMesh(landWater, LV, waterMaterial, false, true);
+      const mLantern = buildVoxelInstancedMesh(landLantern, LV, warmLanternMaterial, false, false);
+
+      if (mSolid) chunkGroup.add(mSolid);
+      if (mWater) chunkGroup.add(mWater);
+      if (mLantern) chunkGroup.add(mLantern);
+
+      return chunkGroup;
+    }
+
+    for (let c = 0; c < NUM_CHUNKS; c++) {
+      const chunk = buildSingleLandscapeChunk();
+      chunk.position.x = c * LOOP_LENGTH;
+      scene.add(chunk);
+      landscapeChunks.push(chunk);
+    }
+
+    // ============================================================================
+    // 8. SKY STARS, FIREFLY CLOUDS, DRIFTING DAY CLOUDS & CHIMNEY SMOKE PUFFS
+    // ============================================================================
+    // 8A. Starry Night Sky Dome (Instanced Voxel Stars)
+    const STAR_COUNT = 260;
+    const starGeom = new THREE.BoxGeometry(0.18, 0.18, 0.18);
+    const starMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
+    const starMesh = new THREE.InstancedMesh(starGeom, starMat, STAR_COUNT);
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI * 0.42 + 0.06;
+      const rad = 58 + Math.random() * 18;
+      tempPos.set(
+        Math.cos(theta) * Math.cos(phi) * rad,
+        Math.sin(phi) * rad + 4,
+        Math.sin(theta) * Math.cos(phi) * rad - 10
+      );
+      tempQuat.identity();
+      const s = 0.6 + Math.random() * 1.4;
+      tempScale.set(s, s, s);
+      tempMatrix.compose(tempPos, tempQuat, tempScale);
+      starMesh.setMatrixAt(i, tempMatrix);
+      const starCols = ['#ffffff', '#fef08a', '#bae6fd', '#fbcfe8'];
+      starMesh.setColorAt(i, new THREE.Color(starCols[i % starCols.length]));
+    }
+    starMesh.instanceMatrix.needsUpdate = true;
+    starMesh.instanceColor.needsUpdate = true;
+    scene.add(starMesh);
+
+    // 8B. Glowing Firefly Clouds drifting over the countryside
+    const FIREFLY_COUNT = 75;
+    const fireflyData = [];
+    const fireflyGeom = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+    const fireflyMat = new THREE.MeshBasicMaterial({ color: 0xd9f99d, transparent: true, opacity: 0.85 });
+    const fireflyMesh = new THREE.InstancedMesh(fireflyGeom, fireflyMat, FIREFLY_COUNT);
+    for (let i = 0; i < FIREFLY_COUNT; i++) {
+      fireflyData.push({
+        x: (Math.random() - 0.5) * 44,
+        y: 0.6 + Math.random() * 6.5,
+        z: (Math.random() > 0.45 ? -1 : 1) * (3.5 + Math.random() * 10),
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.5 + Math.random() * 0.8
+      });
+    }
+    scene.add(fireflyMesh);
+
+    // 8C. Pooled Chimney Smoke & Steam Whistle Puffs
+    const SMOKE_MAX = 90;
+    const smokePuffs = [];
+    const smokeGeom = new THREE.BoxGeometry(0.32, 0.32, 0.32);
+    const smokeMat = new THREE.MeshStandardMaterial({
+      color: 0xf8fafc,
+      roughness: 0.95,
+      transparent: true,
+      opacity: 0.78
+    });
+    const smokeMesh = new THREE.InstancedMesh(smokeGeom, smokeMat, SMOKE_MAX);
+    for (let i = 0; i < SMOKE_MAX; i++) {
+      smokePuffs.push({
+        active: false,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        life: 0,
+        maxLife: 1,
+        baseScale: 1
+      });
+      tempMatrix.makeScale(0, 0, 0);
+      smokeMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(smokeMesh);
+
+    let smokeSpawnTimer = 0;
+    function spawnSmokePuff(worldOrigin, isWhistleSteam = false) {
+      for (let i = 0; i < SMOKE_MAX; i++) {
+        const p = smokePuffs[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = isWhistleSteam ? (0.8 + Math.random() * 0.5) : (1.8 + Math.random() * 0.9);
+          p.pos.copy(worldOrigin).add(new THREE.Vector3(
+            (Math.random() - 0.5) * 0.2,
+            (Math.random() - 0.5) * 0.15,
+            (Math.random() - 0.5) * 0.2
+          ));
+          p.vel.set(
+            (Math.random() - 0.5) * 0.8,
+            isWhistleSteam ? (4.2 + Math.random() * 2.5) : (2.2 + Math.random() * 1.4),
+            (Math.random() - 0.5) * 0.8
+          );
+          p.baseScale = isWhistleSteam ? 0.65 : 1.05;
+          break;
+        }
+      }
+    }
+
+    function triggerSteamWhistle() {
+      soundFX.playWhistle();
+      const wWorld = new THREE.Vector3();
+      whistleGroup.getWorldPosition(wWorld);
+      wWorld.y += 0.7;
+      for (let k = 0; k < 14; k++) {
+        setTimeout(() => spawnSmokePuff(wWorld, true), k * 35);
+      }
+      updateUIBadge({ name: 'Spirit Locomotive', accentColor: '#f59e0b' }, 'Whistle Blown! 🚂💨');
+    }
+
+    function triggerTeaCartService() {
+      soundFX.playTeaServe();
+      servedCups.forEach((cup, i) => {
+        cup.wobbleVelPitch += (Math.random() > 0.5 ? 1 : -1) * (10 + i * 1.5);
+        cup.wobbleVelRoll += (Math.random() - 0.5) * 12;
+        cup.popScale = 1.45;
+      });
+      const cartWorld = new THREE.Vector3();
+      teaCartGroup.getWorldPosition(cartWorld);
+      spawnSqueezeParticles(cartWorld, '#4ade80');
+      updateUIBadge({ name: 'Matcha Tea Service', accentColor: '#4ade80' }, 'Fresh Tea Served! 🍵');
+    }
+
+    // ============================================================================
+    // 9. SQUEEZE SPARKLE BURST PARTICLES
+    // ============================================================================
+    const POP_MAX = 56;
+    const popParticles = [];
+    const popGeom = new THREE.BoxGeometry(0.11, 0.11, 0.11);
+    const popMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const popMesh = new THREE.InstancedMesh(popGeom, popMat, POP_MAX);
+    for (let i = 0; i < POP_MAX; i++) {
+      popParticles.push({ active: false, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, maxLife: 1, color: new THREE.Color('#ff85a1') });
+      tempMatrix.makeScale(0, 0, 0);
+      popMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(popMesh);
+
+    function spawnSqueezeParticles(origin, accentHex) {
+      const palette = [accentHex, '#ff85a1', '#fde047', '#ffffff'];
+      let spawned = 0;
+      for (let i = 0; i < POP_MAX && spawned < 12; i++) {
+        const p = popParticles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.45 + Math.random() * 0.25;
+          p.pos.copy(origin).add(new THREE.Vector3(0, 0.85, 0));
+          const angle = (spawned / 12) * Math.PI * 2 + Math.random() * 0.3;
+          const speed = 2.2 + Math.random() * 2.0;
+          p.vel.set(Math.cos(angle) * speed, 2.5 + Math.random() * 2.2, Math.sin(angle) * speed);
+          p.color.set(palette[spawned % palette.length]);
+          popMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (popMesh.instanceColor) popMesh.instanceColor.needsUpdate = true;
+    }
+
+    function updatePopParticles(dt) {
+      let dirty = false;
+      for (let i = 0; i < POP_MAX; i++) {
+        const p = popParticles[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          popMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= 7.5 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const s = 1.0 - (p.life / p.maxLife);
+        tempQuat.setFromEuler(new THREE.Euler(p.life * 8, p.life * 6, 0));
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        popMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) popMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 10. TOUHOU FUMO VOXEL PLUSHIE BUILDER & SOFT-BODY PHYSICS CLASS
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const fumos = [];
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.role = config.role || 'Passenger';
+        this.emoji = config.emoji || '🎀';
+        this.accentColor = config.accentColor || '#ef4444';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.074 * this.scaleFactor; // Scaled to fit train booths & aisles
+        this.radius = 0.72 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+        this.isAsleep = Boolean(config.isAsleep);
+        this.isWaving = Boolean(config.isWaving);
+
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.isDisplacedFromHome = false;
+
+        // Soft-Body Spring States
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        this.buildCharacterVoxels(config);
+        this.syncTransform(0);
+        trainGroup.add(this.root); // Attached to trainGroup so fumos ride & sway with the train!
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingSolidVoxels = [];
+        const wingGlowVoxels = [];
+
+        const skinBase = '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false) => {
+          const seamDarken = (isSeam && ((Math.abs(x + y + z) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z,
+            color: varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // 1. STUBBY SITTING TORSO
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain;
+
+              if (y === 1 && z >= 1) col = '#ffffff';
+              if (cfg.hasWhiteApron && z >= 1 && Math.abs(x) <= 2 && y <= 5) {
+                col = '#fcfcfc';
+              }
+              if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                col = '#ffffff';
+                if (Math.abs(x) <= 1 && y === 5) col = cfg.tieColor || '#ef4444';
+              }
+              // Sakuya Conductor gold double-breasted buttons
+              if (this.id === 'sakuya' && z >= 2 && Math.abs(x) === 1 && (y === 2 || y === 4)) {
+                col = '#eab308';
+              }
+              // Koishi green diamond buttons & Third Eye on chest
+              if (this.id === 'koishi' && z >= 2) {
+                if (x === 0 && y === 3) col = '#e11d48'; // Third eye core
+                else if (Math.abs(x) <= 1 && y === 3) col = '#a855f7';
+              }
+              // Okuu red nuclear hexagon core on chest
+              if (this.id === 'okuu' && z >= 2 && Math.abs(x) <= 1 && y >= 3 && y <= 5) {
+                col = '#dc2626';
+              }
+              if (this.id === 'remilia' && z >= 2 && x === 0 && y >= 2 && y <= 6) {
+                col = '#d90429';
+              }
+              if (this.id === 'flandre' && z >= 2 && Math.abs(x) === 1 && y === 4) {
+                col = '#fde047';
+              }
+
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        // 2. SHORT DANGLING ARMS + CHARACTER PROPS IN HANDS
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || '#ffffff';
+                if (y === -3) col = skinBase;
+                else if (this.id === 'reimu' && y === -1) col = '#e63946';
+                // Okuu's right arm is her iconic Third Leg Control Rod Cannon!
+                if (this.id === 'okuu' && side === 1 && y <= -1) col = '#475569';
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        // Sakuya's Golden Conductor Pocket Watch in right hand
+        if (this.id === 'sakuya') {
+          addPlushVoxel(rightArmVoxels, 0.5, -3.5, 1.8, '#eab308');
+          addPlushVoxel(rightArmVoxels, 0.5, -4.4, 2.2, '#eab308');
+          addPlushVoxel(rightArmVoxels, 0.5, -4.4, 2.7, '#ffffff');
+        }
+        // Aya's Vintage Voxel Camera held in front of her right hand
+        if (this.id === 'aya') {
+          for (let cx = -2; cx <= 0; cx++) {
+            for (let cy = -3; cy <= -1; cy++) {
+              addPlushVoxel(rightArmVoxels, cx, cy, 2.2, '#1e293b');
+            }
+          }
+          addPlushVoxel(rightArmVoxels, -1, -2, 3.1, '#94a3b8'); // Camera lens
+          addPlushVoxel(rightArmVoxels, 0, -1, 2.9, '#fef08a'); // Flash bulb
+        }
+        // Okuu's Coal Shovel in left hand
+        if (this.id === 'okuu') {
+          for (let sz = 1; sz <= 5; sz++) {
+            addPlushVoxel(leftArmVoxels, -0.5, -2.5, sz, sz >= 4 ? '#334155' : '#78350f');
+          }
+          addPlushVoxel(leftArmVoxels, -0.5, -2.0, 5.2, '#ff4d00'); // Glowing coal on shovel!
+        }
+
+        // 3. SHORT SITTING / DANGLING LEGS WITH SHOES
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = '#ffffff';
+                if (z === 0) col = skinBase;
+                if (z >= 3) col = cfg.shoeColor || '#2b2d42';
+                if (z === 4 && y === 1 && x === 0) col = '#ffffff';
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        // 4. OVERSIZED ROUND FUMO HEAD, ICONIC 'ᗜˬᗜ' FACE (or sleeping '_ ˬ _'), HAIR & HATS
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (this.isAsleep) {
+                    // Closed peaceful sleeping fumo eyes (curved bar at y === 4)
+                    if (y === 4) col = '#1f141e';
+                  } else {
+                    if (y === 6) col = '#1f141e';
+                    else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                    else col = cfg.eyeColor;
+                  }
+                } else if (Math.abs(x) === 4 && y === 3) {
+                  col = blushCol;
+                } else if (y === 2 && Math.abs(x) <= 1) {
+                  col = (x === 0) ? '#e07a7a' : smileCol;
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        // Character-Specific Headwear, Bows, Parasols & Wings:
+        if (this.id === 'reimu') {
+          for (const side of [-1, 1]) {
+            for (let y = -1; y <= 5; y++) {
+              const tubeCol = (y === 5) ? '#e63946' : ((y >= 1 && y <= 4) ? '#ffffff' : cfg.hairColor);
+              addPlushVoxel(headVoxels, side * 6.8, y, 2.2, tubeCol);
+              addPlushVoxel(headVoxels, side * 6.8, y, 3.0, tubeCol);
+            }
+          }
+          for (let bx = -7; bx <= 7; bx++) {
+            const wingHeight = Math.min(4, Math.floor(Math.abs(bx) * 0.7) + 1);
+            for (let by = -wingHeight; by <= wingHeight; by++) {
+              addPlushVoxel(headVoxels, bx, 12.2 + by * 0.75, -1.5 - Math.abs(bx) * 0.15, '#d90429');
+            }
+          }
+        }
+
+        if (this.id === 'cirno') {
+          for (let bx = -6; bx <= 6; bx++) {
+            const h = Math.min(3, Math.floor(Math.abs(bx) * 0.65) + 1);
+            for (let by = -h; by <= h; by++) {
+              addPlushVoxel(headVoxels, bx, 10.5 + by * 0.75, -4.8, '#1d4ed8');
+            }
+          }
+          const wingAngles = [0.45, 0.05, -0.35];
+          for (const side of [-1, 1]) {
+            for (let w = 0; w < 3; w++) {
+              const ang = wingAngles[w];
+              for (let r = 1; r <= 7; r++) {
+                const wx = side * (1.2 + Math.cos(ang) * r * 1.05);
+                const wy = 1.0 + Math.sin(ang) * r * 1.05;
+                const wz = -0.5 - r * 0.15;
+                wingGlowVoxels.push({
+                  x: wx, y: wy, z: wz,
+                  color: varyColor(r > 5 ? '#e0f2fe' : '#38bdf8', wx, wy, wz, 0.02),
+                  sx: 1.1, sy: 0.85, sz: 0.6
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'marisa') {
+          for (let y = -1; y <= 5; y++) {
+            addPlushVoxel(headVoxels, -6.6, y, 2.8, y === 0 ? '#ffffff' : cfg.hairColor);
+          }
+          for (let hx = -10; hx <= 10; hx++) {
+            for (let hz = -10; hz <= 10; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 10.2 && r >= 4.2) {
+                const brimY = 10.2 - hz * 0.22 + Math.sin(Math.atan2(hz, hx) * 4) * 0.4;
+                addPlushVoxel(headVoxels, hx, brimY, hz - 1.2, '#22222b');
+              }
+            }
+          }
+          for (let ch = 0; ch <= 9; ch++) {
+            const coneR = Math.max(0.8, 5.2 - ch * 0.52);
+            for (let hx = -6; hx <= 6; hx++) {
+              for (let hz = -6; hz <= 6; hz++) {
+                const r = Math.hypot(hx, hz);
+                if (r <= coneR && r >= coneR - 1.3) {
+                  const isRibbon = (ch === 1 || ch === 2);
+                  addPlushVoxel(headVoxels, hx, 10.8 + ch * 0.9 - hz * 0.18, hz - 1.5 - ch * 0.28, isRibbon ? '#f8f9fa' : '#22222b');
+                }
+              }
+            }
+          }
+          for (let bx = -3; bx <= 3; bx++) {
+            addPlushVoxel(headVoxels, bx, 11.8, 3.8, '#ffffff');
+            if (Math.abs(bx) >= 1) addPlushVoxel(headVoxels, bx, 12.6, 3.8, '#ffffff');
+          }
+        }
+
+        if (this.id === 'sakuya') {
+          // Twin silver braids + Conductor Peaked Cap with Gold Badge!
+          for (const side of [-1, 1]) {
+            for (let y = -2; y <= 5; y++) {
+              const col = (y <= -1) ? '#22c55e' : cfg.hairColor;
+              addPlushVoxel(headVoxels, side * 6.5, y, 3.2, col);
+            }
+          }
+          for (let hx = -6; hx <= 6; hx++) {
+            for (let hz = -5; hz <= 6; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.2) {
+                addPlushVoxel(headVoxels, hx, 11.4, hz, hz >= 4 ? '#0f172a' : '#1e3a8a'); // Visor & crown
+                if (r <= 5.2 && hz <= 4) {
+                  addPlushVoxel(headVoxels, hx, 12.3, hz, (Math.abs(hx) <= 1 && hz >= 3) ? '#eab308' : '#1e3a8a');
+                }
+              }
+            }
+          }
+        }
+
+        if (this.id === 'remilia') {
+          // Frilly Pink Mob Cap
+          for (let hx = -8; hx <= 8; hx++) {
+            for (let hz = -7; hz <= 6; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 7.4 && r >= 4.5) {
+                addPlushVoxel(headVoxels, hx, 11.0, hz, '#ffc2d1');
+                if (r <= 6.4) addPlushVoxel(headVoxels, hx, 12.0, hz, '#d90429');
+                if (r <= 5.5) addPlushVoxel(headVoxels, hx, 13.0, hz, '#ffe5ec');
+              }
+            }
+          }
+          // Bat Wings + Sleeping Parasol Canopy resting over her shoulder!
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 6; wx++) {
+              const topY = 2.0 + Math.sin((wx / 6) * Math.PI) * 2.5;
+              for (let wy = -1; wy <= topY; wy++) {
+                wingSolidVoxels.push({
+                  x: side * wx, y: wy, z: -0.6 - wx * 0.15,
+                  color: varyColor('#2b193d', wx, wy, 0, 0.03)
+                });
+              }
+            }
+          }
+          // Frilly Purple/Pink Parasol tilted behind her head
+          for (let px = -7; px <= 7; px++) {
+            for (let pz = -7; pz <= 7; pz++) {
+              const pr = Math.hypot(px, pz);
+              if (pr <= 7.2) {
+                const domeY = 12.5 - pr * 0.35;
+                const pCol = pr >= 6.0 ? '#ffc2d1' : '#7e22ce';
+                wingSolidVoxels.push({
+                  x: px + 2.5, y: domeY, z: pz - 1.5,
+                  color: varyColor(pCol, px, domeY, pz, 0.03)
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'koishi') {
+          // Iconic Flat-Brimmed Dark Hat with Yellow Ribbon Bow
+          for (let hx = -8; hx <= 8; hx++) {
+            for (let hz = -8; hz <= 8; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 8.2 && r >= 4.2) {
+                addPlushVoxel(headVoxels, hx, 10.6, hz, '#1e293b');
+              }
+              if (r <= 5.4) {
+                addPlushVoxel(headVoxels, hx, 11.6, hz, r >= 4.2 ? '#fde047' : '#1e293b');
+                addPlushVoxel(headVoxels, hx * 0.85, 12.5, hz * 0.85, '#1e293b');
+              }
+            }
+          }
+        }
+
+        if (this.id === 'aya') {
+          // Red Tengu Tokin Box Hat on forehead + Black Crow Wings
+          for (let tx = -1; tx <= 1; tx++) {
+            for (let ty = 11; ty <= 13; ty++) {
+              addPlushVoxel(headVoxels, tx, ty, 3.2, '#dc2626');
+            }
+          }
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 6; wx++) {
+              for (let wy = -1; wy <= 3; wy++) {
+                wingSolidVoxels.push({
+                  x: side * wx, y: wy, z: -0.6,
+                  color: varyColor('#0f172a', wx, wy, 0, 0.02)
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'okuu') {
+          // Big Green Bow on head + Black Raven Wings + Star-Lined Cape
+          for (let bx = -5; bx <= 5; bx++) {
+            addPlushVoxel(headVoxels, bx, 11.8, -2.5, '#16a34a');
+            addPlushVoxel(headVoxels, bx, 12.6, -2.5, '#22c55e');
+          }
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 7; wx++) {
+              for (let wy = -2; wy <= 4; wy++) {
+                wingSolidVoxels.push({
+                  x: side * wx, y: wy, z: -0.8,
+                  color: varyColor('#1e1b24', wx, wy, 0, 0.025)
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'flandre') {
+          for (let py = 2; py <= 7; py++) {
+            addPlushVoxel(headVoxels, -7.2 - (7 - py) * 0.3, py, 0.5, py === 6 ? '#e63946' : cfg.hairColor);
+          }
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -7; hz <= 5; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.8 && r >= 4.8) {
+                addPlushVoxel(headVoxels, hx, 11.2, hz, '#ffe5ec');
+                addPlushVoxel(headVoxels, hx, 12.1, hz * 0.85, '#e63946');
+                addPlushVoxel(headVoxels, hx * 0.8, 12.9, hz * 0.75, '#ffe5ec');
+              }
+            }
+          }
+          const crystalColors = ['#38bdf8', '#3b82f6', '#a855f7', '#ec4899', '#f97316', '#fde047', '#4ade80', '#ef4444'];
+          for (const side of [-1, 1]) {
+            for (let rx = 1; rx <= 9; rx++) {
+              const branchY = 2.5 + (rx <= 4 ? rx * 0.45 : (4 * 0.45 - (rx - 4) * 0.35));
+              wingSolidVoxels.push({
+                x: side * rx, y: branchY, z: -0.5,
+                color: new THREE.Color('#1e1b24'),
+                sx: 0.9, sy: 0.65, sz: 0.65
+              });
+              if (rx % 2 === 0 && rx <= 8) {
+                const cIdx = (side === -1 ? (rx / 2 - 1) : (3 + rx / 2));
+                const cHex = crystalColors[cIdx % 8];
+                for (let cy = -2; cy <= 0; cy++) {
+                  const width = (cy === -1) ? 1.35 : 0.75;
+                  wingGlowVoxels.push({
+                    x: side * (rx + 0.3),
+                    y: branchY - 1.1 + cy * 0.95,
+                    z: -0.5,
+                    color: new THREE.Color(cHex),
+                    sx: width, sy: 0.95, sz: 0.75
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        if (this.id === 'youmu') {
+          // Black ribbon headband on silver bob + Floating Myon Phantom Half
+          for (let hx = -5; hx <= 5; hx++) {
+            addPlushVoxel(headVoxels, hx, 11.5, 1.5, '#0f172a');
+          }
+          for (let mx = -1; mx <= 1; mx++) {
+            for (let my = -1; my <= 1; my++) {
+              wingGlowVoxels.push({
+                x: 6.2 + mx * 0.85, y: 5.0 + my * 0.85, z: 1.5,
+                color: new THREE.Color('#f8fafc'),
+                sx: 1, sy: 1, sz: 1
+              });
+            }
+          }
+        }
+
+        if (this.id === 'suwako') {
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -6; hz <= 6; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.8 && r >= 4.2) {
+                addPlushVoxel(headVoxels, hx, 10.6, hz, '#a3b18a');
+                if (r <= 5.6) addPlushVoxel(headVoxels, hx, 11.6, hz, '#a3b18a');
+              }
+            }
+          }
+          for (const side of [-1, 1]) {
+            addPlushVoxel(headVoxels, side * 3.5, 13.0, 2.5, '#a3b18a');
+            addPlushVoxel(headVoxels, side * 3.5, 13.2, 3.3, '#ffffff');
+            addPlushVoxel(headVoxels, side * 3.5, 13.2, 3.9, '#1e293b');
+          }
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allFumoRaycastMeshes.push(m);
+          }
+          return m;
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        registerPart(wingSolidVoxels, this.wingsPivot);
+        if (wingGlowVoxels.length > 0) {
+          const wMat = (this.id === 'cirno') ? translucentIceMaterial : crystalWingMaterial;
+          registerPart(wingGlowVoxels, this.wingsPivot, wMat);
+        }
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.52, this.squash - 0.42 * strength);
+        this.squashVel = -3.5 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 11 * strength;
+        this.limbPitch = -0.65 * strength;
+        this.limbPitchVel = -6.0 * strength;
+
+        const worldPos = new THREE.Vector3();
+        this.root.getWorldPosition(worldPos);
+        spawnSqueezeParticles(worldPos, this.accentColor);
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      resetToHome() {
+        this.pos.copy(this.homePos);
+        this.vel.set(0, 0, 0);
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.isDisplacedFromHome = false;
+        this.squeeze(0.75);
+      }
+
+      applyTrainBump(bumpImpulse, swayLateral) {
+        this.headPitchVel += bumpImpulse * (0.8 + Math.random() * 0.5);
+        this.headRollVel += swayLateral * 1.4;
+        this.squashVel -= Math.abs(bumpImpulse) * 0.18;
+        // Loose / displaced fumos slide a little with train bumps!
+        if (this.isDisplacedFromHome && this.isGrounded && !this.isDragged) {
+          this.vel.x += (Math.random() - 0.55) * Math.abs(bumpImpulse) * 0.35;
+          this.vel.z += swayLateral * 0.25;
+        }
+      }
+
+      updatePhysics(dt, time) {
+        const squashStiff = 210.0;
+        const squashDamp = 11.5;
+        const squashForce = (1.0 - this.squash) * squashStiff - this.squashVel * squashDamp;
+        this.squashVel += squashForce * dt;
+        this.squash += this.squashVel * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash, 0.45, 1.55);
+
+        const headStiff = 140.0;
+        const headDamp = 7.5;
+        const idleHeadBob = Math.sin(time * 2.2 + this.homePos.x) * 0.03;
+        this.headPitchVel += ((idleHeadBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        const targetLimbPitch = (this.isDragged || !this.isGrounded) ? 0.58 : 0.0;
+        const limbStiff = 120.0;
+        const limbDamp = 8.0;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * limbStiff - this.limbPitchVel * limbDamp) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * limbStiff - this.limbRollVel * limbDamp) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.8, 0.9);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+
+        if (!this.isDragged) {
+          // If resting undisturbed in its special seat/hammock/perch, keep it anchored until tossed
+          if (!this.isDisplacedFromHome) {
+            this.pos.lerp(this.homePos, Math.min(1, dt * 12));
+            this.isGrounded = true;
+          } else {
+            this.vel.y -= 24.0 * dt;
+            this.vel.multiplyScalar(Math.pow(0.985, dt * 60));
+            this.pos.addScaledVector(this.vel, dt);
+
+            this.yaw += this.angVel.y * dt;
+            this.pitch += this.angVel.x * dt;
+            this.roll += this.angVel.z * dt;
+            this.angVel.multiplyScalar(Math.pow(0.92, dt * 60));
+
+            this.isGrounded = false;
+
+            // Ground / Track Embankment Floor (Y = 0.25)
+            if (this.pos.y < 0.25) {
+              const impact = -this.vel.y;
+              this.pos.y = 0.25;
+              if (impact > 1.8) {
+                this.vel.y = impact * 0.42;
+                this.squashVel -= Math.min(9.0, impact * 0.95);
+                this.headPitchVel += (Math.random() - 0.5) * impact * 2.0;
+                this.headRollVel += (Math.random() - 0.5) * impact * 2.0;
+                soundFX.playBounce(impact * 0.08);
+              } else {
+                this.vel.y = 0;
+                this.isGrounded = true;
+              }
+              this.vel.x *= 0.80;
+              this.vel.z *= 0.80;
+            }
+
+            // Keep inside viewable diorama bounds
+            this.pos.x = THREE.MathUtils.clamp(this.pos.x, -13.5, 13.5);
+            this.pos.z = THREE.MathUtils.clamp(this.pos.z, -1.45, 4.5);
+
+            // Train Car & Furniture AABB Collisions
+            const r = this.radius * 0.72;
+            const centerY = this.pos.y + r;
+
+            for (let i = 0; i < trainColliders.length; i++) {
+              const box = trainColliders[i];
+              const cx = THREE.MathUtils.clamp(this.pos.x, box.min.x, box.max.x);
+              const cy = THREE.MathUtils.clamp(centerY, box.min.y, box.max.y);
+              const cz = THREE.MathUtils.clamp(this.pos.z, box.min.z, box.max.z);
+
+              const dx = this.pos.x - cx;
+              const dy = centerY - cy;
+              const dz = this.pos.z - cz;
+              const distSq = dx * dx + dy * dy + dz * dz;
+
+              if (distSq < r * r) {
+                const dist = Math.sqrt(distSq);
+                if (centerY >= box.max.y - 0.22 && this.vel.y <= 0.5) {
+                  const impact = -this.vel.y;
+                  this.pos.y = box.max.y;
+                  if (impact > 2.0) {
+                    this.vel.y = impact * 0.38;
+                    this.squashVel -= Math.min(8.5, impact * 0.85);
+                    this.headPitchVel += (Math.random() - 0.5) * impact * 1.8;
+                    soundFX.playBounce(impact * 0.08);
+                  } else {
+                    this.vel.y = 0;
+                    this.isGrounded = true;
+                  }
+                  this.vel.x *= 0.82;
+                  this.vel.z *= 0.82;
+                } else if (dist > 0.0001) {
+                  const nx = dx / dist;
+                  const ny = dy / dist;
+                  const nz = dz / dist;
+                  const pen = r - dist;
+                  this.pos.x += nx * pen;
+                  this.pos.y = Math.max(0.25, this.pos.y + ny * pen);
+                  this.pos.z += nz * pen;
+
+                  const vn = this.vel.x * nx + this.vel.y * ny + this.vel.z * nz;
+                  if (vn < 0) {
+                    const imp = -vn;
+                    this.vel.x -= 1.42 * vn * nx;
+                    this.vel.y -= 1.42 * vn * ny;
+                    this.vel.z -= 1.42 * vn * nz;
+                    if (imp > 2.0) {
+                      this.squashVel -= Math.min(6.0, imp * 0.55);
+                      soundFX.playBounce(imp * 0.06);
+                    }
+                  }
+                }
+              }
+            }
+
+            if (this.isGrounded) {
+              this.pitch = THREE.MathUtils.lerp(this.pitch, 0, Math.min(1, dt * 9.5));
+              this.roll = THREE.MathUtils.lerp(this.roll, 0, Math.min(1, dt * 9.5));
+              this.angVel.multiplyScalar(0.75);
+            }
+          }
+        }
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+
+        const waveRight = this.isWaving ? (0.85 + Math.sin(time * 6.5) * 0.45) : 0;
+        this.leftArmPivot.rotation.set(this.limbPitch, 0, 0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.rightArmPivot.rotation.set(this.limbPitch - waveRight * 0.4, 0, -0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll - waveRight);
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+
+        const wingFlutter = Math.sin(time * 3.8 + this.homePos.x) * 0.06 + (1.0 - this.squash) * 0.35;
+        this.wingsPivot.rotation.x = wingFlutter;
+      }
+    }
+
+    // ============================================================================
+    // 11. INSTANTIATE ALL 11 CAST & UNEXPECTED SPOT FUMOS ON THE TRAIN
+    // ============================================================================
+    const fumoConfigs = [
+      // 1. Reimu Hakurei — Sharing a window seat in Booth 1 with Marisa!
+      {
+        id: 'reimu',
+        name: 'Reimu Hakurei',
+        role: 'Sharing Window Seat',
+        emoji: '⛩️',
+        accentColor: '#ef4444',
+        hairColor: '#2b1e23',
+        eyeColor: '#991b1b',
+        outfitMain: '#dc2626',
+        sleeveColor: '#ffffff',
+        tieColor: '#facc15',
+        shoeColor: '#451a03',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(-12.6 * TV, 8.6 * TV, -4.2 * TV),
+        homeYaw: 1.35,
+        pitchAudio: 1.0
+      },
+      // 2. Marisa Kirisame — Sharing the window booth with Reimu!
+      {
+        id: 'marisa',
+        name: 'Marisa Kirisame',
+        role: 'Sharing Window Seat',
+        emoji: '🌟',
+        accentColor: '#facc15',
+        hairColor: '#fde047',
+        eyeColor: '#ca8a04',
+        outfitMain: '#1f2937',
+        sleeveColor: '#ffffff',
+        tieColor: '#ffffff',
+        shoeColor: '#111827',
+        hasWhiteApron: true,
+        homePos: new THREE.Vector3(-7.4 * TV, 8.6 * TV, -4.2 * TV),
+        homeYaw: -1.35,
+        pitchAudio: 0.96
+      },
+      // 3. Sakuya Izayoi — Conductor in uniform with pocket watch in Carriage 1 aisle!
+      {
+        id: 'sakuya',
+        name: 'Conductor Sakuya',
+        role: 'Train Conductor (Pocket Watch)',
+        emoji: '⏱️',
+        accentColor: '#60a5fa',
+        hairColor: '#e2e8f0',
+        eyeColor: '#1d4ed8',
+        outfitMain: '#1e3a8a',
+        sleeveColor: '#1e3a8a',
+        tieColor: '#ef4444',
+        shoeColor: '#172554',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(-5.0 * TV, 5.6 * TV, 3.0 * TV),
+        homeYaw: 0.25,
+        pitchAudio: 0.92
+      },
+      // 4. Remilia Scarlet — Asleep in Booth 2 under her frilly parasol!
+      {
+        id: 'remilia',
+        name: 'Remilia Scarlet',
+        role: 'Asleep with Parasol',
+        emoji: '☂️',
+        accentColor: '#fb7185',
+        hairColor: '#a5b4fc',
+        eyeColor: '#e11d48',
+        outfitMain: '#ffe4e6',
+        sleeveColor: '#ffe4e6',
+        tieColor: '#be123c',
+        shoeColor: '#4c0519',
+        hasWhiteApron: false,
+        isAsleep: true,
+        homePos: new THREE.Vector3(-1.4 * TV, 8.6 * TV, -4.2 * TV),
+        homeYaw: 0.95,
+        pitchAudio: 1.08
+      },
+      // 5. Koishi Komeiji — Hiding under the seat in Booth 2!
+      {
+        id: 'koishi',
+        name: 'Koishi Komeiji',
+        role: 'Hiding Under the Seat!',
+        emoji: '👁️',
+        accentColor: '#34d399',
+        hairColor: '#6ee7b7',
+        eyeColor: '#059669',
+        outfitMain: '#facc15',
+        sleeveColor: '#fde047',
+        tieColor: '#15803d',
+        shoeColor: '#1e293b',
+        hasWhiteApron: false,
+        scale: 0.85,
+        homePos: new THREE.Vector3(3.2 * TV, 5.6 * TV, -2.2 * TV),
+        homeYaw: -0.15,
+        pitchAudio: 1.25
+      },
+      // 6. Cirno — Face pressed right against the Carriage 1 window!
+      {
+        id: 'cirno',
+        name: 'Cirno',
+        role: 'Face Pressed on Window!',
+        emoji: '❄️',
+        accentColor: '#38bdf8',
+        hairColor: '#7dd3fc',
+        eyeColor: '#0284c7',
+        outfitMain: '#2563eb',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#1e3a8a',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(12.2 * TV, 8.6 * TV, -5.1 * TV),
+        homeYaw: Math.PI, // Facing out the back panoramic window!
+        pitchAudio: 1.15
+      },
+      // 7. Aya Shameimaru — Taking photos in the Dining Car!
+      {
+        id: 'aya',
+        name: 'Aya Shameimaru',
+        role: 'Taking Photos in Dining Car',
+        emoji: '📸',
+        accentColor: '#f87171',
+        hairColor: '#1e1b24',
+        eyeColor: '#dc2626',
+        outfitMain: '#1f2937',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#dc2626',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(-35.0 * TV, 5.6 * TV, 1.5 * TV),
+        homeYaw: 0.45,
+        pitchAudio: 1.05
+      },
+      // 8. Okuu (Utsuho Reiuji) — Feeding coal to the glowing engine firebox!
+      {
+        id: 'okuu',
+        name: 'Utsuho "Okuu" Reiuji',
+        role: 'Feeding Coal to the Engine!',
+        emoji: '☢️',
+        accentColor: '#f97316',
+        hairColor: '#451a03',
+        eyeColor: '#b91c1c',
+        outfitMain: '#15803d',
+        sleeveColor: '#ffffff',
+        tieColor: '#dc2626',
+        shoeColor: '#334155',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(31.8 * TV, 5.6 * TV, 0.2 * TV),
+        homeYaw: 1.35, // Facing the glowing locomotive firebox!
+        pitchAudio: 0.86
+      },
+      // 9. UNEXPECTED SPOT 1: Flandre Scarlet — Sitting atop the Dining Car Roof!
+      {
+        id: 'flandre',
+        name: 'Flandre Scarlet',
+        role: 'Perched on the Train Roof!',
+        emoji: '🌈',
+        accentColor: '#f43f5e',
+        hairColor: '#fef08a',
+        eyeColor: '#dc2626',
+        outfitMain: '#e11d48',
+        sleeveColor: '#ffffff',
+        tieColor: '#fde047',
+        shoeColor: '#881337',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(-33.5 * TV, 22.6 * TV, -0.5 * TV),
+        homeYaw: 0.35,
+        pitchAudio: 1.22
+      },
+      // 10. UNEXPECTED SPOT 2: Youmu Konpaku — Waving from the Rear Observation Platform!
+      {
+        id: 'youmu',
+        name: 'Youmu Konpaku',
+        role: 'Waving from Rear Platform!',
+        emoji: '⚔️',
+        accentColor: '#2dd4bf',
+        hairColor: '#f1f5f9',
+        eyeColor: '#0f766e',
+        outfitMain: '#0f766e',
+        sleeveColor: '#ffffff',
+        tieColor: '#0f172a',
+        shoeColor: '#0f172a',
+        hasWhiteApron: false,
+        isWaving: true,
+        homePos: new THREE.Vector3(-53.5 * TV, 5.6 * TV, 0.5 * TV),
+        homeYaw: -1.15,
+        pitchAudio: 1.12
+      },
+      // 11. UNEXPECTED SPOT 3: Mini Suwako — Sleeping in the Luggage Rack Hammock!
+      {
+        id: 'suwako',
+        name: 'Mini Suwako Moriya',
+        role: 'Sleeping in Luggage Rack Hammock!',
+        emoji: '🐸',
+        accentColor: '#4ade80',
+        hairColor: '#fde68a',
+        eyeColor: '#4f46e5',
+        outfitMain: '#6366f1',
+        sleeveColor: '#ffffff',
+        tieColor: '#a3e635',
+        shoeColor: '#312e81',
+        hasWhiteApron: false,
+        isAsleep: true,
+        scale: 0.65,
+        homePos: new THREE.Vector3(3.0 * TV, 18.5 * TV, -5.0 * TV),
+        homeYaw: 0.15,
+        pitchAudio: 1.42
+      }
+    ];
+
+    fumoConfigs.forEach(cfg => {
+      fumos.push(new VoxelFumo(cfg));
+    });
+
+    function resolveFumoToFumoCollisions() {
+      for (let i = 0; i < fumos.length; i++) {
+        for (let j = i + 1; j < fumos.length; j++) {
+          const a = fumos[i];
+          const b = fumos[j];
+          if (!a.isDisplacedFromHome && !b.isDisplacedFromHome) continue;
+          const minDist = (a.radius + b.radius) * 0.78;
+          const dx = b.pos.x - a.pos.x;
+          const dy = (b.pos.y + b.radius * 0.6) - (a.pos.y + a.radius * 0.6);
+          const dz = b.pos.z - a.pos.z;
+          const distSq = dx * dx + dy * dy + dz * dz;
+
+          if (distSq < minDist * minDist && distSq > 0.0001) {
+            const dist = Math.sqrt(distSq);
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const nz = dz / dist;
+            const overlap = (minDist - dist) * 0.5;
+
+            if (!a.isDragged && a.isDisplacedFromHome) {
+              a.pos.x -= nx * overlap;
+              a.pos.y = Math.max(0.25, a.pos.y - ny * overlap);
+              a.pos.z -= nz * overlap;
+            }
+            if (!b.isDragged && b.isDisplacedFromHome) {
+              b.pos.x += nx * overlap;
+              b.pos.y = Math.max(0.25, b.pos.y + ny * overlap);
+              b.pos.z += nz * overlap;
+            }
+          }
+        }
+      }
+    }
+
+    // ============================================================================
+    // 12. POINTER INTERACTION: FUMOS, STEAM WHISTLE & ROLLING TEA CART
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let hoveredFumo = null;
+    let hoveredProp = null;
+    let selectedFumo = null;
+    let isDraggingFumo = false;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+    const badgeEl = document.getElementById('fumo-badge');
+    const badgeDotEl = document.getElementById('fumo-badge-dot');
+    const badgeNameEl = document.getElementById('fumo-badge-name');
+    const badgeStatusEl = document.getElementById('fumo-badge-status');
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function pickSceneTarget() {
+      raycaster.setFromCamera(pointerNDC, camera);
+      const fumoHits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      const propHits = raycaster.intersectObjects(interactivePropMeshes, false);
+
+      if (fumoHits.length > 0 && propHits.length > 0) {
+        if (propHits[0].distance < fumoHits[0].distance) {
+          return { type: 'prop', propType: propHits[0].object.userData.interactiveType, label: propHits[0].object.userData.label };
+        }
+      }
+      if (fumoHits.length > 0 && fumoHits[0].object.userData.fumo) {
+        return { type: 'fumo', fumo: fumoHits[0].object.userData.fumo, point: fumoHits[0].point };
+      }
+      if (propHits.length > 0) {
+        return { type: 'prop', propType: propHits[0].object.userData.interactiveType, label: propHits[0].object.userData.label };
+      }
+      return null;
+    }
+
+    function updateUIBadge(entity, statusText) {
+      if (!entity) {
+        badgeEl.classList.add('hidden');
+        badgeEl.classList.remove('flex');
+        return;
+      }
+      badgeEl.classList.remove('hidden');
+      badgeEl.classList.add('flex');
+      badgeDotEl.style.backgroundColor = entity.accentColor || '#f59e0b';
+      badgeNameEl.textContent = entity.name;
+      badgeStatusEl.textContent = statusText;
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+
+      const hit = pickSceneTarget();
+      if (!hit) return;
+
+      if (hit.type === 'prop') {
+        if (hit.propType === 'whistle') {
+          triggerSteamWhistle();
+        } else if (hit.propType === 'teacart') {
+          triggerTeaCartService();
+        }
+        return;
+      }
+
+      if (hit.type === 'fumo') {
+        selectedFumo = hit.fumo;
+        isDraggingFumo = false;
+        controls.enabled = false; // Dragging a fumo must never rotate the camera!
+
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        const worldPos = new THREE.Vector3();
+        selectedFumo.root.getWorldPosition(worldPos);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), worldPos);
+
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          trainGroup.worldToLocal(dragHitPoint);
+          dragOffset.subVectors(selectedFumo.pos, dragHitPoint);
+        } else {
+          dragOffset.set(0, 0, 0);
+        }
+
+        dragHistory = [{ pos: selectedFumo.pos.clone(), time: performance.now() }];
+        updateUIBadge(selectedFumo, selectedFumo.role);
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      updatePointerNDC(e);
+
+      if (selectedFumo) {
+        recordInteraction();
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          selectedFumo.isDragged = true;
+          selectedFumo.isDisplacedFromHome = true;
+          selectedFumo.isGrounded = false;
+          selectedFumo.squashVel += 3.2;
+          soundFX.playPickup();
+          updateUIBadge(selectedFumo, 'Dragging — Release to Throw!');
+        }
+
+        if (isDraggingFumo) {
+          raycaster.setFromCamera(pointerNDC, camera);
+          if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+            trainGroup.worldToLocal(dragHitPoint);
+            const targetPos = dragHitPoint.clone().add(dragOffset);
+            targetPos.x = THREE.MathUtils.clamp(targetPos.x, -13.0, 13.0);
+            targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.4, 11.5);
+            targetPos.z = THREE.MathUtils.clamp(targetPos.z, -1.35, 4.2);
+
+            const prevPos = selectedFumo.pos.clone();
+            selectedFumo.pos.lerp(targetPos, 0.55);
+
+            const deltaMove = selectedFumo.pos.clone().sub(prevPos);
+            selectedFumo.headRollVel -= deltaMove.x * 16.0;
+            selectedFumo.headPitchVel += deltaMove.z * 16.0 - deltaMove.y * 10.0;
+            selectedFumo.limbRollVel -= deltaMove.x * 22.0;
+            selectedFumo.roll = THREE.MathUtils.lerp(selectedFumo.roll, THREE.MathUtils.clamp(-deltaMove.x * 1.4, -0.45, 0.45), 0.3);
+            selectedFumo.pitch = THREE.MathUtils.lerp(selectedFumo.pitch, THREE.MathUtils.clamp(deltaMove.z * 1.4, -0.45, 0.45), 0.3);
+
+            const now = performance.now();
+            dragHistory.push({ pos: selectedFumo.pos.clone(), time: now });
+            while (dragHistory.length > 6) dragHistory.shift();
+          }
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      const hit = pickSceneTarget();
+      if (hit && hit.type === 'fumo') {
+        hoveredFumo = hit.fumo;
+        hoveredProp = null;
+        renderer.domElement.style.cursor = 'grab';
+        tooltipEmojiEl.textContent = hoveredFumo.emoji;
+        tooltipTextEl.textContent = `${hoveredFumo.name} • ${hoveredFumo.role}`;
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else if (hit && hit.type === 'prop') {
+        hoveredFumo = null;
+        hoveredProp = hit;
+        renderer.domElement.style.cursor = 'pointer';
+        tooltipEmojiEl.textContent = hit.propType === 'whistle' ? '🚂' : '🍵';
+        tooltipTextEl.textContent = hit.label;
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else {
+        hoveredFumo = null;
+        hoveredProp = null;
+        renderer.domElement.style.cursor = 'default';
+        tooltipEl.style.opacity = '0';
+      }
+    });
+
+    window.addEventListener('pointerup', () => {
+      if (!selectedFumo) return;
+      controls.enabled = true;
+      recordInteraction();
+
+      if (!isDraggingFumo) {
+        selectedFumo.squeeze(1.0);
+        updateUIBadge(selectedFumo, 'Squeezed! ᗜˬᗜ');
+      } else {
+        selectedFumo.isDragged = false;
+        const now = performance.now();
+        while (dragHistory.length > 1 && now - dragHistory[0].time > 140) {
+          dragHistory.shift();
+        }
+        if (dragHistory.length >= 2) {
+          const first = dragHistory[0];
+          const last = dragHistory[dragHistory.length - 1];
+          const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+          const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+          if (throwVel.length() > 20) throwVel.setLength(20);
+          selectedFumo.vel.copy(throwVel);
+
+          const speed = throwVel.length();
+          selectedFumo.angVel.set(
+            throwVel.z * 0.65 + (Math.random() - 0.5) * speed * 0.4,
+            (Math.random() - 0.5) * speed * 0.5,
+            -throwVel.x * 0.65 + (Math.random() - 0.5) * speed * 0.4
+          );
+        } else {
+          selectedFumo.vel.set(0, 0, 0);
+        }
+        updateUIBadge(selectedFumo, 'Tossed!');
+      }
+
+      selectedFumo = null;
+      isDraggingFumo = false;
+      renderer.domElement.style.cursor = (hoveredFumo || hoveredProp) ? 'pointer' : 'default';
+    });
+
+    // ============================================================================
+    // 13. TRAIN SPEED CONTROLLER & GAUGE UI
+    // ============================================================================
+    const MAX_TRAIN_SPEED = 18.0; // World units per second (~ 120 km/h display)
+    let targetTrainSpeed = 10.2;  // ~ 68 km/h default cruising speed
+    let currentTrainSpeed = 10.2;
+    let railTieBumpAccum = 0;
+
+    const speedValueEl = document.getElementById('speed-value');
+    const speedBarEl = document.getElementById('speed-bar');
+    const speedStateLabelEl = document.getElementById('speed-state-label');
+    const tunnelIndicatorEl = document.getElementById('tunnel-indicator');
+
+    function changeTrainSpeed(delta) {
+      recordInteraction();
+      targetTrainSpeed = THREE.MathUtils.clamp(targetTrainSpeed + delta, 0, MAX_TRAIN_SPEED);
+      updateSpeedGaugeUI();
+    }
+
+    function updateSpeedGaugeUI() {
+      const kmh = Math.round((targetTrainSpeed / MAX_TRAIN_SPEED) * 120);
+      speedValueEl.textContent = String(kmh);
+      const pct = Math.round((targetTrainSpeed / MAX_TRAIN_SPEED) * 100);
+      speedBarEl.style.width = `${pct}%`;
+
+      if (kmh === 0) {
+        speedStateLabelEl.textContent = 'Station Stop';
+        speedBarEl.style.backgroundColor = '#94a3b8';
+      } else if (kmh < 45) {
+        speedStateLabelEl.textContent = 'Scenic Crawl';
+        speedBarEl.style.backgroundColor = '#38bdf8';
+      } else if (kmh < 95) {
+        speedStateLabelEl.textContent = 'Cruising';
+        speedBarEl.style.backgroundColor = '#fbbf24';
+      } else {
+        speedStateLabelEl.textContent = 'Spirit Express!';
+        speedBarEl.style.backgroundColor = '#f43f5e';
+      }
+    }
+
+    document.getElementById('btn-speed-up').addEventListener('click', () => changeTrainSpeed(2.25));
+    document.getElementById('btn-speed-down').addEventListener('click', () => changeTrainSpeed(-2.25));
+    document.getElementById('btn-whistle').addEventListener('click', () => {
+      recordInteraction();
+      triggerSteamWhistle();
+    });
+    document.getElementById('btn-tea').addEventListener('click', () => {
+      recordInteraction();
+      triggerTeaCartService();
+    });
+    document.getElementById('btn-squeeze-all').addEventListener('click', () => {
+      recordInteraction();
+      fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 50));
+    });
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      recordInteraction();
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 40));
+      updateUIBadge(null, '');
+    });
+
+    const btnSound = document.getElementById('btn-sound');
+    const iconSoundOn = document.getElementById('icon-sound-on');
+    const iconSoundOff = document.getElementById('icon-sound-off');
+
+    function syncSoundIcon() {
+      iconSoundOn.classList.toggle('hidden', soundFX.muted);
+      iconSoundOff.classList.toggle('hidden', !soundFX.muted);
+    }
+    syncSoundIcon();
+
+    btnSound.addEventListener('click', () => {
+      soundFX.unlock();
+      soundFX.setMuted(!soundFX.muted);
+      syncSoundIcon();
+      if (!soundFX.muted) soundFX.playPickup();
+    });
+
+    // ============================================================================
+    // 14. DAY / NIGHT SMOOTH INTERPOLATION (~2 SECONDS) & HUB INTEGRATION
+    // ============================================================================
+    let isNightMode = true; // Overnight journey default
+    let dayNightProgress = 1.0; // 0.0 = Day, 1.0 = Night
+    let dayNightTarget = 1.0;
+
+    const daySkyColor = new THREE.Color('#bfe3ff');
+    const nightSkyColor = new THREE.Color('#090c1d');
+
+    const dayDirLightCol = new THREE.Color('#fff2d6');
+    const nightDirLightCol = new THREE.Color('#6b8ce8');
+
+    const dayHemiSky = new THREE.Color('#fff8eb');
+    const nightHemiSky = new THREE.Color('#1f244d');
+    const dayHemiGround = new THREE.Color('#9ab087');
+    const nightHemiGround = new THREE.Color('#0c0e1c');
+
+    function notifyParentMode() {
+      const modeStr = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: modeStr }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(night, { immediate = false, playSound = true } = {}) {
+      isNightMode = Boolean(night);
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) {
+        dayNightProgress = dayNightTarget;
+      }
+      document.body.classList.toggle('night-ui', isNightMode);
+
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
+      } catch (e) {}
+
+      if (playSound) {
+        soundFX.playPickup();
+      }
+      notifyParentMode();
+    }
+
+    function toggleDayNight() {
+      setDayNightMode(!isNightMode, { immediate: false, playSound: true });
+    }
+
+    function updateDayNightAndTunnel(dt, tunnelFactor) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.52; // ~2 seconds transition
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      // Blend in tunnel darkening when the mountain tunnel passes over the train
+      const effNight = Math.min(1.0, t + tunnelFactor * 0.45);
+
+      scene.background.lerpColors(daySkyColor, nightSkyColor, t);
+      scene.fog.color.copy(scene.background);
+      scene.fog.density = THREE.MathUtils.lerp(0.0065, 0.0095, t);
+
+      mainDirLight.color.lerpColors(dayDirLightCol, nightDirLightCol, t);
+      mainDirLight.intensity = THREE.MathUtils.lerp(1.35, 0.34, effNight);
+
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.72, 0.24, effNight);
+
+      // Train interior & lantern lights glow warmly at night or inside the tunnel
+      carriage1Light.intensity = THREE.MathUtils.lerp(0.25, 1.35, effNight);
+      diningCarLight.intensity = THREE.MathUtils.lerp(0.25, 1.35, effNight);
+      headlampLight.intensity = THREE.MathUtils.lerp(0.20, 1.65, effNight);
+      fireboxLight.intensity = THREE.MathUtils.lerp(0.75, 1.85, effNight);
+
+      warmLanternMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.32, 2.1, effNight);
+      fireEmberMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.85, 2.4, effNight);
+      translucentIceMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.2, 0.8, effNight);
+      crystalWingMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.28, 1.25, effNight);
+
+      starMat.opacity = THREE.MathUtils.lerp(0.0, 0.92, t);
+      fireflyMat.opacity = THREE.MathUtils.lerp(0.0, 0.88, t);
+
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.14, 0.65, effNight);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.85, 0.62, effNight);
+      }
+    }
+
+    // Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      recordInteraction();
+
+      const key = e.key.toLowerCase();
+      if (key === 'n') {
+        e.preventDefault();
+        toggleDayNight();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        changeTrainSpeed(1.8);
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        changeTrainSpeed(-1.8);
+      } else if (key === 'w') {
+        e.preventDefault();
+        triggerSteamWhistle();
+      } else if (key === 't') {
+        e.preventDefault();
+        triggerTeaCartService();
+      } else if (key === 'r') {
+        fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 40));
+      } else if (key === ' ') {
+        e.preventDefault();
+        fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 50));
+      } else if (key === 'm') {
+        btnSound.click();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ============================================================================
+    // 15. MAIN ANIMATION LOOP, PAUSE / RESUME & HUB MESSAGE LISTENER
+    // ============================================================================
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.033, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      if (!selectedFumo && (now - lastUserInteractionTime > 5000)) {
+        controls.autoRotate = true;
+      }
+      controls.update();
+
+      // 1. Smoothly interpolate train speed & scroll the looping landscape
+      currentTrainSpeed = THREE.MathUtils.lerp(currentTrainSpeed, targetTrainSpeed, Math.min(1, dt * 3.5));
+      const speedRatio = currentTrainSpeed / MAX_TRAIN_SPEED;
+
+      let tunnelFactor = 0.0;
+      for (let i = 0; i < landscapeChunks.length; i++) {
+        const chunk = landscapeChunks[i];
+        chunk.position.x -= currentTrainSpeed * dt;
+        if (chunk.position.x < -LOOP_LENGTH) {
+          chunk.position.x += LOOP_LENGTH * NUM_CHUNKS;
+        }
+        // Check if this chunk's mountain tunnel (local X around -16.2 world units) is passing over the train
+        const tunnelWorldX = chunk.position.x - 36 * LV;
+        const distToTunnel = Math.abs(tunnelWorldX);
+        if (distToTunnel < 12.5) {
+          tunnelFactor = Math.max(tunnelFactor, 1.0 - distToTunnel / 12.5);
+        }
+      }
+
+      soundFX.setTunnelEcho(tunnelFactor);
+      tunnelIndicatorEl.classList.toggle('hidden', tunnelFactor < 0.25);
+
+      // 2. Rotate Train Wheels & Emit Chimney Smoke Puffs
+      for (let i = 0; i < wheelGroups.length; i++) {
+        const w = wheelGroups[i];
+        w.group.rotation.z -= (currentTrainSpeed * dt) / Math.max(0.2, w.radius);
+      }
+
+      if (currentTrainSpeed > 0.2) {
+        smokeSpawnTimer += dt * (2.5 + speedRatio * 9.5);
+        if (smokeSpawnTimer >= 1.0) {
+          smokeSpawnTimer %= 1.0;
+          const chimneyWorld = new THREE.Vector3(54 * TV, 21.8 * TV, 0);
+          trainGroup.localToWorld(chimneyWorld);
+          spawnSmokePuff(chimneyWorld, false);
+        }
+      }
+
+      // Update Pooled Smoke & Steam Puffs (drifting backward as train moves forward)
+      let smokeDirty = false;
+      for (let i = 0; i < SMOKE_MAX; i++) {
+        const p = smokePuffs[i];
+        if (!p.active) continue;
+        smokeDirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          smokeMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.pos.x -= currentTrainSpeed * 0.65 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        p.vel.y *= Math.pow(0.96, dt * 60);
+        const progress = p.life / p.maxLife;
+        const s = p.baseScale * (0.5 + progress * 2.1) * (1.0 - progress * 0.65);
+        tempQuat.setFromEuler(new THREE.Euler(p.life * 1.5, p.life * 1.1, 0));
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        smokeMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (smokeDirty) smokeMesh.instanceMatrix.needsUpdate = true;
+
+      // 3. Gentle Train Sway & Rail-Joint Bumps
+      const swayRoll = Math.sin(elapsed * (1.8 + speedRatio * 2.5)) * 0.014 * (0.2 + 0.8 * speedRatio);
+      const swayPitch = Math.cos(elapsed * (2.3 + speedRatio * 2.0)) * 0.005 * speedRatio;
+      let bumpY = 0;
+
+      railTieBumpAccum += currentTrainSpeed * dt;
+      if (railTieBumpAccum >= 4.2) {
+        railTieBumpAccum %= 4.2;
+        const bumpImpulse = (1.5 + speedRatio * 3.2);
+        bumpY = 0.035 * speedRatio;
+        const lateral = (Math.random() - 0.5) * 2.2 * speedRatio;
+        fumos.forEach(f => f.applyTrainBump(bumpImpulse, lateral));
+        servedCups.forEach(c => {
+          c.wobbleVelPitch += (Math.random() - 0.5) * bumpImpulse * 3.0;
+          c.wobbleVelRoll += lateral * 3.5;
+        });
+      }
+
+      trainGroup.rotation.x = swayRoll;
+      trainGroup.rotation.z = swayPitch;
+      trainGroup.position.y = THREE.MathUtils.lerp(trainGroup.position.y, bumpY, 0.35);
+
+      // 4. Update Wobbling Served Teacups on Tables
+      for (let i = 0; i < servedCups.length; i++) {
+        const cup = servedCups[i];
+        cup.wobbleVelPitch += (-160 * cup.wobblePitch - 7.5 * cup.wobbleVelPitch) * dt;
+        cup.wobbleVelRoll += (-160 * cup.wobbleRoll - 7.5 * cup.wobbleVelRoll) * dt;
+        cup.wobblePitch = THREE.MathUtils.clamp(cup.wobblePitch + cup.wobbleVelPitch * dt, -0.35, 0.35);
+        cup.wobbleRoll = THREE.MathUtils.clamp(cup.wobbleRoll + cup.wobbleVelRoll * dt, -0.35, 0.35);
+        cup.popScale = THREE.MathUtils.lerp(cup.popScale, 1.0, Math.min(1, dt * 8));
+
+        cup.group.rotation.set(
+          cup.wobblePitch + Math.sin(elapsed * 4 + cup.phase) * 0.03 * speedRatio,
+          0,
+          cup.wobbleRoll + Math.cos(elapsed * 3.5 + cup.phase) * 0.03 * speedRatio
+        );
+        cup.group.scale.setScalar(cup.popScale);
+      }
+
+      // 5. Update Firefly Clouds
+      for (let i = 0; i < FIREFLY_COUNT; i++) {
+        const ff = fireflyData[i];
+        ff.x -= currentTrainSpeed * 0.35 * dt;
+        if (ff.x < -22) ff.x += 44;
+        const fy = ff.y + Math.sin(elapsed * 2.0 + ff.phase) * 0.45;
+        const fz = ff.z + Math.cos(elapsed * 1.6 + ff.phase) * 0.45;
+        const pulse = 0.4 + 0.8 * (0.5 + 0.5 * Math.sin(elapsed * 3.5 + ff.phase));
+        tempPos.set(ff.x, fy, fz);
+        tempQuat.identity();
+        tempScale.set(pulse, pulse, pulse);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        fireflyMesh.setMatrixAt(i, tempMatrix);
+      }
+      fireflyMesh.instanceMatrix.needsUpdate = true;
+
+      // 6. Update Day/Night, Audio Rhythm, Particles & Fumo Physics
+      updateDayNightAndTunnel(dt, tunnelFactor);
+      soundFX.update(dt, currentTrainSpeed, MAX_TRAIN_SPEED);
+      updatePopParticles(dt);
+
+      // Flicker firebox light warmly
+      fireboxLight.color.setHSL(0.05 + Math.sin(elapsed * 11) * 0.015, 0.95, 0.55);
+
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].updatePhysics(dt, elapsed);
+      }
+      resolveFumoToFumoCollisions();
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function pauseRenderLoop() {
+      if (isPaused) return;
+      isPaused = true;
+      soundFX.setPaused(true);
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+
+    function resumeRenderLoop() {
+      if (!isPaused) return;
+      isPaused = false;
+      soundFX.setPaused(false);
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    // Hub Message Listener
+    window.addEventListener('message', (e) => {
+      const data = e.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'toggleMode') {
+        toggleDayNight();
+      } else if (data.type === 'pause') {
+        pauseRenderLoop();
+      } else if (data.type === 'resume') {
+        resumeRenderLoop();
+      }
+    });
+
+    window.onload = function () {
+      let initialNight = true;
+      try {
+        const saved = localStorage.getItem(STORAGE_MODE_KEY);
+        if (saved === 'day') initialNight = false;
+        else if (saved === 'night') initialNight = true;
+      } catch (e) {}
+
+      setDayNightMode(initialNight, { immediate: true, playSound: false });
+      updateDayNightAndTunnel(0, 0);
+      updateSpeedGaugeUI();
+
+      // Welcoming gentle plushie bounce on load
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.78;
+          f.squashVel = 2.0;
+          f.headPitchVel = 4.0;
+        }, 100 + idx * 60);
+      });
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>
