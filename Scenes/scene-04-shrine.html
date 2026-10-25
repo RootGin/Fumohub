@@ -665,14 +665,144 @@
     };
 
     // ============================================================================
-    // 1. EXTEND SHARED PlushSoundEngine WITH BELL, COINS, CLAP, KOTO & NATURE
+    // 1. EXTEND SHARED PlushSoundEngine WITH HAKUREI SHRINE BGM THEME & SFX
+    //    ("Spring Lane ~ Hakurei Shrine" & "Maiden's Capriccio" Multi-Voice Synth)
     // ============================================================================
     class ShrineSoundEngine extends PlushSoundEngine {
       constructor() {
         super();
         this.kotoIdx = 0;
-        // Traditional Japanese In-sen pentatonic scale
-        this.kotoScale = [293.66, 311.13, 392.00, 440.00, 523.25, 587.33, 622.25, 783.99];
+        this.bgmStep = 0;
+        this.bgmStepTimer = 0.35;
+        this.bgmGain = null;
+        this.noiseBuffer = null;
+
+        // Traditional Japanese scale frequencies (D Dorian / Yo & In-sen pentatonic)
+        const N = {
+          G2: 98.00, A2: 110.00, Bb2: 116.54, C3: 130.81, D3: 146.83, E3: 164.81, F3: 174.61, G3: 196.00, A3: 220.00,
+          Bb3: 233.08, C4: 261.63, D4: 293.66, Eb4: 311.13, E4: 329.63, F4: 349.23, G4: 392.00, A4: 440.00,
+          Bb4: 466.16, C5: 523.25, D5: 587.33, Eb5: 622.25, E5: 659.25, F5: 698.46, G5: 783.99, A5: 880.00,
+          Bb5: 932.33, C6: 1046.50, D6: 1174.66, E6: 1318.51, F6: 1396.91, A6: 1760.00
+        };
+        this.N = N;
+        this.kotoScale = [N.D4, N.F4, N.G4, N.A4, N.C5, N.D5, N.F5, N.G5, N.A5];
+
+        // 64-Step (8-Bar) Touhou Hakurei Shrine Theme Arrangement:
+        // Bars 1–2 (0..15):  Section A1 — "Spring Lane ~ Hakurei Courtyard" (Dm7 -> Bbmaj7 -> C6 -> Dm9)
+        // Bars 3–4 (16..31): Section A2 — "Breeze Through the Torii" (Shakuhachi counter-melody enters)
+        // Bars 5–6 (32..47): Section B1 — "Maiden's Capriccio" (ZUN IV-V-vi progression: Bb -> C -> Dm -> Am)
+        // Bars 7–8 (48..63): Section B2 — "Crimson & White Ofuda" (Soaring climax & koto harp turnaround)
+        this.hakureiScore = [
+          // --- BAR 1 (Dm7: D - F - A - C) ---
+          { koto: N.D4, bass: N.D3, strum: [N.D4, N.F4, N.A4, N.D5], chime: N.D6 },
+          { koto: N.F4 },
+          { koto: N.G4, arp: N.A3 },
+          { koto: N.A4, grace: N.G4 },
+          { koto: N.C5, bass: N.A2, flute: N.A4, fluteDur: 1.05 },
+          { arp: N.F4 },
+          { koto: N.A4 },
+          { koto: N.G4, arp: N.D4 },
+
+          // --- BAR 2 (Bbmaj7 -> C6: Bb - D - F - A -> C - E - G - A) ---
+          { koto: N.F4, bass: N.Bb2, strum: [N.Bb3, N.D4, N.F4, N.A4] },
+          { koto: N.D4 },
+          { koto: N.F4, arp: N.Bb3 },
+          { koto: N.G4 },
+          { koto: N.A4, bass: N.C3, flute: N.G4, fluteDur: 0.95, chime: N.A6 },
+          { arp: N.E4 },
+          { koto: N.G4, grace: N.A4 },
+          { koto: N.F4, arp: N.C4 },
+
+          // --- BAR 3 (Dm7 -> Gm7: Rising Torii Phrase) ---
+          { koto: N.D4, bass: N.D3, strum: [N.D4, N.A4, N.D5] },
+          { koto: N.F4 },
+          { koto: N.A4, arp: N.F4 },
+          { koto: N.C5 },
+          { koto: N.D5, bass: N.G2, flute: N.F5, fluteDur: 1.15, chime: N.D6 },
+          { koto: N.C5, arp: N.Bb3 },
+          { koto: N.A4, grace: N.C5 },
+          { koto: N.G4, arp: N.D4 },
+
+          // --- BAR 4 (Am7 -> Dm9: Gentle Shrine Cadence) ---
+          { koto: N.A4, bass: N.A2, flute: N.E5, fluteDur: 0.9 },
+          { koto: N.C5 },
+          { koto: N.G4, arp: N.E4 },
+          { koto: N.F4 },
+          { koto: N.D4, bass: N.D3, strum: [N.D4, N.F4, N.A4, N.C5, N.E5], chime: N.A6 },
+          { arp: N.A3 },
+          { koto: N.F4, flute: N.D5, fluteDur: 0.85 },
+          { koto: N.G4, arp: N.D4 },
+
+          // --- BAR 5 (Section B: Maiden's Capriccio — Bbmaj7 -> C) ---
+          { koto: N.F5, bass: N.Bb2, strum: [N.Bb3, N.F4, N.Bb4, N.D5], flute: N.D5, fluteDur: 1.0, chime: N.F6 },
+          { koto: N.E5 },
+          { koto: N.D5, arp: N.F4 },
+          { koto: N.A4 },
+          { koto: N.C5, bass: N.C3, strum: [N.C4, N.G4, N.C5, N.E5], flute: N.E5, fluteDur: 1.0 },
+          { koto: N.D5 },
+          { koto: N.E5, arp: N.G4, grace: N.D5 },
+          { koto: N.G5 },
+
+          // --- BAR 6 (Dm -> Am7: Soaring Hakurei Melody) ---
+          { koto: N.A5, bass: N.D3, strum: [N.D4, N.A4, N.D5, N.F5], flute: N.F5, fluteDur: 1.2, chime: N.A6 },
+          { koto: N.G5 },
+          { koto: N.F5, arp: N.A4 },
+          { koto: N.E5, grace: N.F5 },
+          { koto: N.D5, bass: N.A2, flute: N.C5, fluteDur: 0.95 },
+          { koto: N.C5, arp: N.E4 },
+          { koto: N.A4 },
+          { koto: N.G4, arp: N.C4 },
+
+          // --- BAR 7 (Gm7 -> Am7 -> Bbmaj7: Emotional Touhou Climb) ---
+          { koto: N.Bb4, bass: N.G2, strum: [N.G3, N.D4, N.G4, N.Bb4], flute: N.Bb4, fluteDur: 0.9 },
+          { koto: N.A4 },
+          { koto: N.G4, arp: N.D4 },
+          { koto: N.Bb4 },
+          { koto: N.C5, bass: N.A2, strum: [N.A3, N.E4, N.A4, N.C5], flute: N.C5, fluteDur: 0.95, chime: N.E6 },
+          { koto: N.D5 },
+          { koto: N.F5, bass: N.Bb2, grace: N.E5 },
+          { koto: N.E5, arp: N.F4 },
+
+          // --- BAR 8 (C7sus4 -> Dm9: Shimmering Koto Glissando Turnaround) ---
+          { koto: N.D5, bass: N.C3, strum: [N.D4, N.F4, N.A4, N.D5], flute: N.D5, fluteDur: 1.5, chime: N.D6 },
+          { koto: N.A4 },
+          { koto: N.F4, arp: N.D4 },
+          { koto: N.D4 },
+          { bass: N.D3, strum: [N.D4, N.F4, N.A4, N.C5, N.D5, N.F5, N.A5], chime: N.A6 },
+          { arp: N.A4 },
+          { koto: N.F4, arp: N.D4 },
+          { koto: N.E4, arp: N.A3 }
+        ];
+      }
+
+      init() {
+        super.init();
+        if (this.ctx && !this.bgmGain) {
+          this.bgmGain = this.ctx.createGain();
+          this.bgmGain.gain.setValueAtTime(0.88, this.ctx.currentTime);
+          this.bgmGain.connect(this.ctx.destination);
+        }
+        if (this.ctx && !this.noiseBuffer) {
+          // 0.25s reusable white-noise buffer for shakuhachi breath chiff & koto plectrum transient
+          const len = Math.floor(this.ctx.sampleRate * 0.25);
+          this.noiseBuffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+          const data = this.noiseBuffer.getChannelData(0);
+          for (let i = 0; i < len; i++) {
+            data[i] = Math.random() * 2 - 1;
+          }
+        }
+      }
+
+      // Gently duck BGM when ceremonial shrine SFX (bell, coins, claps) play
+      duckBGM(dipGain = 0.32, recoverSec = 1.35) {
+        if (!this.ctx || !this.bgmGain) return;
+        try {
+          const now = this.ctx.currentTime;
+          this.bgmGain.gain.cancelScheduledValues(now);
+          this.bgmGain.gain.setValueAtTime(this.bgmGain.gain.value, now);
+          this.bgmGain.gain.linearRampToValueAtTime(dipGain, now + 0.04);
+          this.bgmGain.gain.exponentialRampToValueAtTime(0.88, now + recoverSec);
+        } catch (e) {}
       }
 
       // Metallic bronze suzu shrine bell ring
@@ -681,6 +811,7 @@
         try {
           this.init();
           if (!this.ctx) return;
+          this.duckBGM(0.28, 1.4);
           const now = this.ctx.currentTime;
           const partials = [784, 1568, 2380, 3120];
           partials.forEach((freq, idx) => {
@@ -732,6 +863,7 @@
         try {
           this.init();
           if (!this.ctx) return;
+          this.duckBGM(0.35, 1.1);
           const t0 = this.ctx.currentTime + delaySec;
           const bufferSize = Math.floor(this.ctx.sampleRate * 0.09);
           const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
@@ -757,29 +889,245 @@
         } catch (e) {}
       }
 
-      // Soft plucked Japanese Koto note
-      playKotoPluck() {
+      // Authentic Japanese Koto plucked string synthesis (tsume plectrum attack + warm paulownia body resonance)
+      playKotoNote(freq, delaySec = 0, duration = 1.35, volume = 0.026, isNight = false) {
         if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
         try {
-          const now = this.ctx.currentTime;
-          const freq = this.kotoScale[this.kotoIdx % this.kotoScale.length];
-          this.kotoIdx = (this.kotoIdx + (Math.random() < 0.65 ? 1 : 2)) % this.kotoScale.length;
+          const dest = this.bgmGain || this.ctx.destination;
+          const t0 = this.ctx.currentTime + delaySec;
+
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'lowpass';
+          const peakCutoff = isNight ? Math.min(2600, freq * 3.6) : Math.min(3400, freq * 4.5);
+          filter.frequency.setValueAtTime(peakCutoff, t0);
+          filter.frequency.exponentialRampToValueAtTime(Math.max(420, freq * 1.35), t0 + duration * 0.85);
+          filter.Q.setValueAtTime(1.1, t0);
+
+          const gain = this.ctx.createGain();
+          gain.gain.setValueAtTime(0.0001, t0);
+          gain.gain.linearRampToValueAtTime(volume, t0 + 0.009);
+          gain.gain.exponentialRampToValueAtTime(volume * 0.32, t0 + 0.22);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+
+          // Fundamental string oscillator with slight pitch-bend pluck transient
+          const osc1 = this.ctx.createOscillator();
+          osc1.type = 'triangle';
+          osc1.frequency.setValueAtTime(freq * 1.016, t0);
+          osc1.frequency.exponentialRampToValueAtTime(freq, t0 + 0.022);
+          osc1.frequency.exponentialRampToValueAtTime(freq * 0.997, t0 + duration);
+
+          // Octave harmonic shimmer
+          const osc2 = this.ctx.createOscillator();
+          const harmGain = this.ctx.createGain();
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(freq * 2.0, t0);
+          harmGain.gain.setValueAtTime(0.28, t0);
+          harmGain.gain.exponentialRampToValueAtTime(0.02, t0 + duration * 0.45);
+
+          osc1.connect(filter);
+          osc2.connect(harmGain);
+          harmGain.connect(filter);
+          filter.connect(gain);
+          gain.connect(dest);
+
+          osc1.start(t0);
+          osc2.start(t0);
+          osc1.stop(t0 + duration + 0.03);
+          osc2.stop(t0 + duration + 0.03);
+        } catch (e) {}
+      }
+
+      // Expressive Shakuhachi bamboo flute voice with breath chiff, pitch scoop, and delayed vibrato
+      playShakuhachiNote(freq, delaySec = 0, duration = 1.0, volume = 0.017, isNight = false) {
+        if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
+        try {
+          const dest = this.bgmGain || this.ctx.destination;
+          const t0 = this.ctx.currentTime + delaySec;
+          const dur = isNight ? duration * 1.22 : duration;
+
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(isNight ? 1350 : 1750, t0);
+
+          const gain = this.ctx.createGain();
+          gain.gain.setValueAtTime(0.0001, t0);
+          gain.gain.linearRampToValueAtTime(volume, t0 + 0.09);
+          gain.gain.setValueAtTime(volume * 0.9, t0 + dur * 0.65);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
 
           const osc = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
-          osc.type = 'triangle';
-          osc.frequency.setValueAtTime(freq, now);
-          osc.frequency.exponentialRampToValueAtTime(freq * 0.996, now + 1.4);
+          osc.type = 'sine';
+          // Traditional shakuhachi "atari" upward pitch scoop at note onset
+          osc.frequency.setValueAtTime(freq * 0.974, t0);
+          osc.frequency.exponentialRampToValueAtTime(freq, t0 + 0.075);
 
-          gain.gain.setValueAtTime(0.0001, now);
-          gain.gain.linearRampToValueAtTime(0.022, now + 0.015);
-          gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.45);
+          // Warm woody 2nd harmonic
+          const oscHarm = this.ctx.createOscillator();
+          const harmGain = this.ctx.createGain();
+          oscHarm.type = 'triangle';
+          oscHarm.frequency.setValueAtTime(freq, t0);
+          harmGain.gain.setValueAtTime(0.32, t0);
 
-          osc.connect(gain);
-          gain.connect(this.ctx.destination);
-          osc.start(now);
-          osc.stop(now + 1.5);
+          // Delayed expressive vibrato LFO
+          const vibrato = this.ctx.createOscillator();
+          const vibGain = this.ctx.createGain();
+          vibrato.frequency.setValueAtTime(5.1, t0);
+          vibGain.gain.setValueAtTime(0.0, t0);
+          vibGain.gain.linearRampToValueAtTime(freq * 0.0085, t0 + Math.min(0.28, dur * 0.4));
+          vibrato.connect(vibGain);
+          vibGain.connect(osc.frequency);
+          vibGain.connect(oscHarm.frequency);
+
+          // Soft bamboo breath chiff at attack
+          if (this.noiseBuffer) {
+            const breath = this.ctx.createBufferSource();
+            breath.buffer = this.noiseBuffer;
+            const breathFilter = this.ctx.createBiquadFilter();
+            breathFilter.type = 'bandpass';
+            breathFilter.frequency.setValueAtTime(freq * 2.5, t0);
+            breathFilter.Q.setValueAtTime(4.0, t0);
+            const breathGain = this.ctx.createGain();
+            breathGain.gain.setValueAtTime(volume * 0.45, t0);
+            breathGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.09);
+            breath.connect(breathFilter);
+            breathFilter.connect(breathGain);
+            breathGain.connect(dest);
+            breath.start(t0);
+            breath.stop(t0 + 0.1);
+          }
+
+          osc.connect(filter);
+          oscHarm.connect(harmGain);
+          harmGain.connect(filter);
+          filter.connect(gain);
+          gain.connect(dest);
+
+          osc.start(t0);
+          oscHarm.start(t0);
+          vibrato.start(t0);
+          osc.stop(t0 + dur + 0.03);
+          oscHarm.stop(t0 + dur + 0.03);
+          vibrato.stop(t0 + dur + 0.03);
         } catch (e) {}
+      }
+
+      // Deep 17-string Bass Koto (Jūshichigen) root & fifth resonance
+      playBassKoto(freq, duration = 1.5, volume = 0.022) {
+        if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
+        try {
+          const dest = this.bgmGain || this.ctx.destination;
+          const t0 = this.ctx.currentTime;
+
+          const osc = this.ctx.createOscillator();
+          const oscFifth = this.ctx.createOscillator();
+          const fifthGain = this.ctx.createGain();
+          const filter = this.ctx.createBiquadFilter();
+          const gain = this.ctx.createGain();
+
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq * 1.01, t0);
+          osc.frequency.exponentialRampToValueAtTime(freq, t0 + 0.025);
+
+          oscFifth.type = 'sine';
+          oscFifth.frequency.setValueAtTime(freq * 1.498, t0);
+          fifthGain.gain.setValueAtTime(0.26, t0);
+
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(520, t0);
+          filter.frequency.exponentialRampToValueAtTime(190, t0 + duration);
+
+          gain.gain.setValueAtTime(0.0001, t0);
+          gain.gain.linearRampToValueAtTime(volume, t0 + 0.012);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+
+          osc.connect(filter);
+          oscFifth.connect(fifthGain);
+          fifthGain.connect(filter);
+          filter.connect(gain);
+          gain.connect(dest);
+
+          osc.start(t0);
+          oscFifth.start(t0);
+          osc.stop(t0 + duration + 0.03);
+          oscFifth.stop(t0 + duration + 0.03);
+        } catch (e) {}
+      }
+
+      // Shimmering Kagura Suzu / Wind Chime accent on phrase boundaries
+      playKaguraChime(freq, volume = 0.0085) {
+        if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
+        try {
+          const dest = this.bgmGain || this.ctx.destination;
+          const t0 = this.ctx.currentTime;
+          [1.0, 2.0, 2.756].forEach((ratio, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq * ratio, t0);
+            const amp = volume / (idx * 1.6 + 1);
+            gain.gain.setValueAtTime(0.0001, t0);
+            gain.gain.linearRampToValueAtTime(amp, t0 + 0.008);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.25 - idx * 0.25);
+            osc.connect(gain);
+            gain.connect(dest);
+            osc.start(t0);
+            osc.stop(t0 + 1.3);
+          });
+        } catch (e) {}
+      }
+
+      // Advance one step of the Hakurei Shrine BGM score
+      playKotoPluck(isNight = false) {
+        if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
+        const step = this.hakureiScore[this.bgmStep % this.hakureiScore.length];
+        this.bgmStep = (this.bgmStep + 1) % this.hakureiScore.length;
+        if (!step) return;
+
+        // In Night Mode, subtly inflect E -> Eb (In-sen nocturnal mode) on select turnaround phrases
+        const nightPitch = (f) => {
+          if (!isNight || !f) return f;
+          if (Math.abs(f - this.N.E4) < 1) return this.N.Eb4;
+          if (Math.abs(f - this.N.E5) < 1 && this.bgmStep < 32) return this.N.Eb5;
+          return f;
+        };
+
+        if (step.bass) {
+          this.playBassKoto(step.bass, isNight ? 1.75 : 1.45, isNight ? 0.020 : 0.023);
+        }
+        if (step.strum) {
+          step.strum.forEach((f, idx) => {
+            this.playKotoNote(nightPitch(f), idx * 0.036, isNight ? 1.65 : 1.35, 0.013, isNight);
+          });
+        }
+        if (step.grace && step.koto) {
+          this.playKotoNote(nightPitch(step.grace), 0, 0.35, 0.014, isNight);
+          this.playKotoNote(nightPitch(step.koto), 0.055, isNight ? 1.55 : 1.30, isNight ? 0.023 : 0.027, isNight);
+        } else if (step.koto) {
+          this.playKotoNote(nightPitch(step.koto), 0, isNight ? 1.55 : 1.30, isNight ? 0.023 : 0.027, isNight);
+        }
+        if (step.arp) {
+          this.playKotoNote(nightPitch(step.arp), 0.01, isNight ? 1.25 : 1.0, 0.014, isNight);
+        }
+        if (step.flute) {
+          this.playShakuhachiNote(nightPitch(step.flute), 0.02, step.fluteDur || 0.95, isNight ? 0.018 : 0.016, isNight);
+        }
+        if (step.chime) {
+          this.playKaguraChime(step.chime, isNight ? 0.010 : 0.0075);
+        }
+      }
+
+      // Frame-driven sequencer tick called from main animate() loop
+      updateBGM(dt, isNight = false) {
+        if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
+        this.bgmStepTimer -= dt;
+        if (this.bgmStepTimer <= 0) {
+          this.playKotoPluck(isNight);
+          // Day: lively ~112 BPM eighth-note pulse (0.268s); Night: serene ~86 BPM pulse (0.348s)
+          const baseStep = isNight ? 0.348 : 0.268;
+          // Slight expressive rubato on bar endings (every 16th step)
+          const isPhraseEnd = (this.bgmStep % 16 === 0);
+          this.bgmStepTimer = baseStep + (isPhraseEnd ? 0.045 : 0);
+        }
       }
 
       // Daytime Bird Chirp or Nighttime Cricket Trill
@@ -797,7 +1145,7 @@
             osc.frequency.setValueAtTime(f * 1.05, now + 0.09);
             osc.frequency.exponentialRampToValueAtTime(f * 1.35, now + 0.18);
             gain.gain.setValueAtTime(0.0001, now);
-            gain.gain.linearRampToValueAtTime(0.016, now + 0.02);
+            gain.gain.linearRampToValueAtTime(0.014, now + 0.02);
             gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.21);
             osc.connect(gain);
             gain.connect(this.ctx.destination);
@@ -807,7 +1155,7 @@
             const f = 3800 + Math.random() * 250;
             osc.frequency.setValueAtTime(f, now);
             gain.gain.setValueAtTime(0.0001, now);
-            gain.gain.linearRampToValueAtTime(0.011, now + 0.02);
+            gain.gain.linearRampToValueAtTime(0.009, now + 0.02);
             gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
             osc.connect(gain);
             gain.connect(this.ctx.destination);
@@ -921,6 +1269,7 @@
     const recordInteraction = () => {
       lastUserInteractionTime = performance.now();
       controls.autoRotate = false;
+      if (soundFX.enabled) soundFX.init();
     };
     controls.addEventListener('start', recordInteraction);
 
@@ -4304,6 +4653,7 @@
     function onKeyDown(e) {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       if (e.ctrlKey || e.altKey || e.metaKey) return;
+      if (soundFX.enabled) soundFX.init();
 
       if (e.key === 'Escape' && isDonateModalOpen) {
         e.preventDefault();
@@ -4384,7 +4734,6 @@
     let prevTime = performance.now();
     let isPaused = false;
     let rafId = null;
-    let nextKotoTimer = 1.8;
     let nextNatureTimer = 2.6;
 
     function animate(now) {
@@ -4445,12 +4794,8 @@
       resolveFumoToFumoCollisions();
       updateSpeechBubblePosition();
 
-      // Synthesized Koto Plucks & Day Birds / Night Crickets
-      nextKotoTimer -= dt;
-      if (nextKotoTimer <= 0) {
-        soundFX.playKotoPluck();
-        nextKotoTimer = 1.6 + Math.random() * 2.4;
-      }
+      // Synthesized Hakurei Shrine BGM Theme & Day Birds / Night Crickets
+      soundFX.updateBGM(dt, isNightMode);
       nextNatureTimer -= dt;
       if (nextNatureTimer <= 0) {
         soundFX.playNatureChirp(isNightMode);
