@@ -224,14 +224,14 @@
       color: #fbbf24;
     }
 
-    /* Centered Donation Panel Modal */
+    /* Centered Donation Panel Modal (Scalable & Resizable) */
     #donate-backdrop {
       position: fixed;
       inset: 0;
       z-index: 50;
-      background: rgba(10, 12, 26, 0.48);
-      backdrop-filter: blur(5px);
-      -webkit-backdrop-filter: blur(5px);
+      background: rgba(10, 12, 26, 0.52);
+      backdrop-filter: blur(7px);
+      -webkit-backdrop-filter: blur(7px);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -247,27 +247,47 @@
       visibility: visible;
     }
     #donate-card {
-      width: 100%;
-      max-width: 390px;
-      border-radius: 24px;
-      padding: 22px 22px 20px;
+      --qr-scale: 1;
+      --qr-base-size: clamp(240px, 34vmin, 320px);
+      --qr-size: clamp(180px, calc(var(--qr-base-size) * var(--qr-scale)), min(78vw, 66vh));
+      width: auto;
+      min-width: min(340px, 92vw);
+      max-width: 94vw;
+      max-height: 94vh;
+      border-radius: 26px;
+      padding: 22px 24px 20px;
       position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
       text-align: center;
+      border: 1.5px solid rgba(225, 29, 72, 0.28);
+      box-shadow:
+        0 24px 60px rgba(15, 23, 42, 0.35),
+        0 0 0 1px rgba(255, 255, 255, 0.5) inset;
       transform: translateY(12px) scale(0.95);
       transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease;
+      overflow: hidden;
+    }
+    #donate-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 5px;
+      background: linear-gradient(90deg, #e11d48, #fbbf24, #e11d48);
+      opacity: 0.9;
     }
     #donate-backdrop.is-open #donate-card {
       transform: translateY(0) scale(1);
     }
     body.night-ui #donate-card {
-      border-color: rgba(251, 191, 36, 0.55);
+      border-color: rgba(251, 191, 36, 0.58);
       box-shadow:
-        0 20px 50px rgba(0, 0, 0, 0.78),
-        0 0 38px rgba(251, 191, 36, 0.32),
-        inset 0 0 18px rgba(251, 191, 36, 0.12);
+        0 24px 60px rgba(0, 0, 0, 0.82),
+        0 0 42px rgba(251, 191, 36, 0.32),
+        inset 0 0 20px rgba(251, 191, 36, 0.12);
     }
     .donate-close-btn {
       position: absolute;
@@ -282,6 +302,7 @@
       color: inherit;
       font-size: 14px;
       font-weight: 700;
+      z-index: 2;
     }
     body.night-ui .donate-close-btn {
       background: rgba(255, 255, 255, 0.12);
@@ -290,48 +311,60 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 11px;
+      padding: 4px 12px;
       border-radius: 999px;
       background: rgba(225, 29, 72, 0.12);
       color: #e11d48;
       font-size: 11.5px;
       font-weight: 700;
-      margin-bottom: 6px;
+      margin-bottom: 5px;
     }
     body.night-ui .donate-header-badge {
       background: rgba(251, 191, 36, 0.16);
       color: #fbbf24;
     }
     .donate-title {
-      font-size: 19px;
+      font-size: clamp(18px, calc(16px + 3px * var(--qr-scale)), 24px);
       font-weight: 700;
-      margin: 0 0 12px;
+      margin: 0 0 10px;
+      letter-spacing: -0.01em;
     }
     .qr-frame {
-      width: 220px;
-      height: 220px;
-      border-radius: 18px;
+      width: var(--qr-size);
+      height: calc(var(--qr-size) * 1.06);
+      border-radius: 20px;
       background: #ffffff;
       padding: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
-      border: 2px solid rgba(225, 29, 72, 0.22);
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+      border: 2px solid rgba(225, 29, 72, 0.24);
+      box-shadow:
+        0 10px 28px rgba(0, 0, 0, 0.10),
+        0 0 0 4px rgba(255, 255, 255, 0.65);
       margin-bottom: 10px;
       overflow: hidden;
+      cursor: zoom-in;
+      transition: width 0.14s ease-out, height 0.14s ease-out, box-shadow 0.25s ease, border-color 0.25s ease;
+      position: relative;
+    }
+    .qr-frame.is-zoomed {
+      cursor: zoom-out;
     }
     body.night-ui .qr-frame {
-      border-color: rgba(251, 191, 36, 0.78);
-      box-shadow: 0 0 28px rgba(251, 191, 36, 0.38);
+      border-color: rgba(251, 191, 36, 0.82);
+      box-shadow:
+        0 12px 32px rgba(0, 0, 0, 0.45),
+        0 0 30px rgba(251, 191, 36, 0.38);
     }
     #donate-qr-img {
       width: 100%;
       height: 100%;
       object-fit: contain;
-      image-rendering: -webkit-optimize-contrast;
-      image-rendering: crisp-edges;
       display: block;
+      border-radius: 10px;
+      user-select: none;
+      -webkit-user-drag: none;
     }
     #donate-qr-placeholder {
       display: none;
@@ -358,11 +391,85 @@
       color: #64748b;
       line-height: 1.3;
     }
+    /* Interactive Scale Toolbar inside Modal */
+    .qr-scale-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.055);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      margin-bottom: 8px;
+      font-size: 11.5px;
+      font-weight: 700;
+    }
+    body.night-ui .qr-scale-bar {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+    .scale-step-btn {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: inline-grid;
+      place-items: center;
+      font-size: 13px;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.75);
+      color: #1e293b;
+      padding: 0;
+    }
+    body.night-ui .scale-step-btn {
+      background: rgba(255, 255, 255, 0.16);
+      color: #f8fafc;
+    }
+    #qr-scale-slider {
+      width: 84px;
+      height: 5px;
+      accent-color: #e11d48;
+      cursor: pointer;
+    }
+    body.night-ui #qr-scale-slider {
+      accent-color: #fbbf24;
+    }
+    #qr-scale-readout {
+      min-width: 38px;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      cursor: pointer;
+      padding: 2px 5px;
+      border-radius: 6px;
+      background: rgba(225, 29, 72, 0.1);
+      color: #e11d48;
+    }
+    body.night-ui #qr-scale-readout {
+      background: rgba(251, 191, 36, 0.18);
+      color: #fbbf24;
+    }
     .qr-caption {
       font-size: 12.5px;
       font-weight: 700;
       opacity: 0.85;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
+    }
+    /* Corner Drag-Resize Handle */
+    #donate-resize-handle {
+      position: absolute;
+      right: 6px;
+      bottom: 6px;
+      width: 22px;
+      height: 22px;
+      cursor: nwse-resize;
+      display: grid;
+      place-items: center;
+      opacity: 0.45;
+      font-size: 12px;
+      user-select: none;
+      transition: opacity 0.15s ease;
+    }
+    #donate-resize-handle:hover {
+      opacity: 0.95;
     }
     .bank-label-row {
       display: flex;
@@ -370,7 +477,7 @@
       justify-content: center;
       gap: 8px;
       flex-wrap: wrap;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
     #donate-bank-label {
       font-size: 12px;
@@ -504,14 +611,22 @@
 
       <h2 class="font-display donate-title" id="donate-modal-title">Make a Shrine Offering</h2>
 
-      <!-- Regular HTML <img> QR Container (Stays razor-sharp and works on file://) -->
-      <div class="qr-frame">
+      <!-- Regular HTML <img> QR Container (Click or Scroll to Scale, works on file://) -->
+      <div class="qr-frame" id="qr-frame-box" title="Click to toggle zoom, or use scroll wheel / slider">
         <img id="donate-qr-img" alt="Bank Donation QR Code" />
         <div id="donate-qr-placeholder">
           <span style="font-size:32px;line-height:1;">⛩️🧾</span>
           <div class="placeholder-title">Add your QR in DONATE_CONFIG</div>
           <div class="placeholder-sub">Set <code>qrImageSrc</code> at the top of the script</div>
         </div>
+      </div>
+
+      <!-- Interactive Scale Controls -->
+      <div class="qr-scale-bar" title="Scale QR Code Size (Scroll wheel or drag corner also supported)">
+        <button type="button" class="ui-btn scale-step-btn" id="btn-qr-smaller" aria-label="Decrease QR size">−</button>
+        <input type="range" id="qr-scale-slider" min="70" max="175" value="110" step="5" aria-label="QR Code Scale" />
+        <button type="button" class="ui-btn scale-step-btn" id="btn-qr-larger" aria-label="Increase QR size">+</button>
+        <span id="qr-scale-readout" title="Click to reset scale to 100%">110%</span>
       </div>
 
       <div class="qr-caption" id="donate-qr-caption">Scan with your banking app</div>
@@ -531,6 +646,9 @@
         <span>☕</span>
         <span id="btn-kofi-label">Support on Ko-fi</span>
       </button>
+
+      <!-- Drag Corner Handle to Resize Modal -->
+      <div id="donate-resize-handle" title="Drag to resize panel">⤡</div>
     </div>
   </div>
 
@@ -726,16 +844,19 @@
       mesh.castShadow = castShadow;
       mesh.receiveShadow = receiveShadow;
 
+      // createSoftVoxelGeometry uses 0.985 * unitSize for quilted plushies; scale architectural blocks by 1.02 so 1x1x1 blocks join seamlessly with zero gaps
+      const seamFill = (material === plushMaterial) ? 1.0 : 1.02;
+
       for (let i = 0; i < voxels.length; i++) {
         const v = voxels[i];
         tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
-        if (v.rx || v.ry || v.rz) {
+        if (v.rx || v.ry || v.ry === 0 || v.rz) {
           tempEuler.set(v.rx || 0, v.ry || 0, v.rz || 0);
           tempQuat.setFromEuler(tempEuler);
         } else {
           tempQuat.identity();
         }
-        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempScale.set((v.sx || 1) * seamFill, (v.sy || 1) * seamFill, (v.sz || 1) * seamFill);
         tempMatrix.compose(tempPos, tempQuat, tempScale);
         mesh.setMatrixAt(i, tempMatrix);
         mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
@@ -751,11 +872,11 @@
     const container = document.getElementById('canvas-container');
     const scene = new THREE.Scene();
     scene.background = new THREE.Color('#cce8ff');
-    scene.fog = new THREE.FogExp2('#cce8ff', 0.0082);
+    scene.fog = new THREE.FogExp2('#cce8ff', 0.0062);
 
-    const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.5, 160);
-    // Start the camera framing the Saisen-bako offering box and the Hakurei Shrine main hall
-    camera.position.set(14.5, 11.2, 18.5);
+    const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.5, 240);
+    // Start the camera framing the Saisen-bako offering box and the expanded Hakurei Shrine grounds
+    camera.position.set(16.5, 12.2, 21.0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -790,8 +911,8 @@
     controls.dampingFactor = 0.06;
     controls.maxPolarAngle = Math.PI * 0.475;
     controls.minPolarAngle = Math.PI * 0.08;
-    controls.minDistance = 7;
-    controls.maxDistance = 48;
+    controls.minDistance = 6.5;
+    controls.maxDistance = 72;
     controls.autoRotate = false;
     controls.autoRotateSpeed = 0.42;
 
@@ -811,15 +932,15 @@
     scene.add(hemiLight);
 
     const sunDirLight = new THREE.DirectionalLight(0xfff2d6, 1.32);
-    sunDirLight.position.set(22, 26, 18);
+    sunDirLight.position.set(26, 32, 22);
     sunDirLight.target.position.set(0, 2, -2);
     scene.add(sunDirLight.target);
     sunDirLight.castShadow = true;
     sunDirLight.shadow.mapSize.width = 2048;
     sunDirLight.shadow.mapSize.height = 2048;
     sunDirLight.shadow.camera.near = 2;
-    sunDirLight.shadow.camera.far = 65;
-    const dCam = 19.5;
+    sunDirLight.shadow.camera.far = 90;
+    const dCam = 28.5;
     sunDirLight.shadow.camera.left = -dCam;
     sunDirLight.shadow.camera.right = dCam;
     sunDirLight.shadow.camera.top = dCam;
@@ -833,7 +954,7 @@
     scene.add(fillLight);
 
     // Shrine Veranda & Offering Box Warm Lantern Point Light
-    const shrineLanternLight = new THREE.PointLight(0xffa94d, 0.25, 16, 1.6);
+    const shrineLanternLight = new THREE.PointLight(0xffa94d, 0.25, 22, 1.5);
     shrineLanternLight.position.set(0, 6.2, -2.2);
     shrineLanternLight.castShadow = true;
     shrineLanternLight.shadow.mapSize.width = 1024;
@@ -841,14 +962,14 @@
     shrineLanternLight.shadow.bias = -0.001;
     scene.add(shrineLanternLight);
 
-    // Stone Staircase Lanterns Point Light
-    const stairLanternLight = new THREE.PointLight(0xffb74d, 0.0, 18, 1.5);
-    stairLanternLight.position.set(0, 3.8, 6.5);
+    // Stone Staircase & Approach Lanterns Point Light
+    const stairLanternLight = new THREE.PointLight(0xffb74d, 0.0, 26, 1.4);
+    stairLanternLight.position.set(0, 3.8, 8.5);
     scene.add(stairLanternLight);
 
-    // Mountain Stream Fairy / Spirit Glow Point Light
-    const streamGlowLight = new THREE.PointLight(0x67e8f9, 0.1, 12, 1.7);
-    streamGlowLight.position.set(-7.5, 2.2, 6.5);
+    // Mountain Stream & Waterfall Spirit Glow Point Light
+    const streamGlowLight = new THREE.PointLight(0x67e8f9, 0.1, 18, 1.6);
+    streamGlowLight.position.set(-8.5, 2.5, 6.5);
     scene.add(streamGlowLight);
 
     // Shared Materials
@@ -919,19 +1040,28 @@
       }
     }
 
-    // 5A. GENSOKYO HILLSIDE TERRAIN, STONE STAIRCASE, STREAM & WOODEN BRIDGE
+    // 5A. EXPANDED GENSOKYO HILLSIDE TERRAIN, WATERFALL CLIFF, STAIRCASE, STREAM & BRIDGES
     function buildHillsideAndStairs() {
-      for (let x = -54; x <= 53; x++) {
-        for (let z = 8; z <= 58; z++) {
-          const streamCenterX = -28 - (z - 28) * 0.28 + Math.sin(z * 0.18) * 2.5;
-          const distToStream = Math.abs(x - streamCenterX);
+      const X_MIN = -80, X_MAX = 79;
+      const Z_MIN = -76, Z_MAX = 82;
 
-          if (z <= 36 && x >= -11 && x <= 10) continue;
+      // 1. Lower Valley Grounds, Winding Stream & Extended Sandō Approach (z = 8..82)
+      for (let x = X_MIN; x <= X_MAX; x++) {
+        for (let z = 8; z <= Z_MAX; z++) {
+          const streamCenterX = -30 - (z - 28) * 0.26 + Math.sin(z * 0.16) * 3.0;
+          const isPlungePool = (z >= 8 && z <= 22 && Math.hypot(x + 34, z - 14) < 8.5);
+          const distToStream = isPlungePool ? 0 : Math.abs(x - streamCenterX);
 
-          if (distToStream < 5.2) {
+          // Solid base layer under the stone staircase so the stair base & sides never have a gap at y = -0.5
+          if (z <= 38 && x >= -11 && x <= 10) {
+            pushVoxel(solidVoxels, x + 0.5, -0.5, z + 0.5, '#78716c', 0.03);
+            continue;
+          }
+
+          if (distToStream < 5.6 || isPlungePool) {
             const pebbleCol = ((x + z) % 3 === 0) ? '#64748b' : '#475569';
             pushVoxel(solidVoxels, x + 0.5, -1.5, z + 0.5, pebbleCol, 0.04);
-            if (distToStream >= 4.0) {
+            if (!isPlungePool && distToStream >= 4.2) {
               pushVoxel(solidVoxels, x + 0.5, -0.5, z + 0.5, '#78716c', 0.05);
               if ((x * z) % 5 === 0) pushVoxel(solidVoxels, x + 0.5, 0.3, z + 0.5, '#65a30d', 0.04, 1, 0.6, 1);
             }
@@ -939,30 +1069,45 @@
           }
 
           let groundCol = '#65a30d';
-          if (x >= -8 && x <= 7) {
-            const flagstone = ((Math.floor((x + 10) / 3) + Math.floor(z / 3)) % 2 === 0);
+          if (x >= -9 && x <= 8) {
+            const flagstone = ((Math.floor((x + 12) / 3) + Math.floor(z / 3)) % 2 === 0);
             groundCol = flagstone ? '#9ca3af' : '#94a3b8';
-            if (Math.abs(x) >= 7) groundCol = '#78716c';
-          } else if (((x * 13 + z * 7) % 11) === 0) {
+            if (Math.abs(x + 0.5) >= 7.5) groundCol = '#78716c';
+          } else if (z >= 18 && z <= 30 && x >= 18 && x <= 38) {
+            // Gravel path & stone patio leading to the Red-Umbrella Tea Stall
+            groundCol = ((x + z) % 2 === 0) ? '#d6ccc2' : '#c7b8ea';
+            if (x <= 22 && Math.abs(z - 24) <= 2) groundCol = '#94a3b8';
+          } else if (((x * 13 + z * 7) % 9) === 0) {
             groundCol = '#4d7c0f';
+          } else if (((x * 5 + z * 17) % 23) === 0) {
+            groundCol = '#84cc16';
           }
           pushVoxel(solidVoxels, x + 0.5, -0.5, z + 0.5, groundCol, 0.035);
 
-          if (x === -54 || x === 53 || z === 58) {
+          // Scatter tiny wildflowers & mossy stones on outer meadows
+          if (Math.abs(x) > 16 && ((x * 31 + z * 19) % 47) === 0 && z < Z_MAX - 2) {
+            const flowerCol = ((x + z) % 3 === 0) ? '#fbcfe8' : (((x + z) % 2 === 0) ? '#fde047' : '#f8fafc');
+            pushVoxel(solidVoxels, x + 0.5, 0.25, z + 0.5, flowerCol, 0.02, 0.6, 0.4, 0.6);
+          }
+
+          if (x === X_MIN || x === X_MAX || z === Z_MAX) {
             pushVoxel(solidVoxels, x + 0.5, -1.5, z + 0.5, '#57534e', 0.02);
             pushVoxel(solidVoxels, x + 0.5, -2.5, z + 0.5, '#44403c', 0.02);
+            pushVoxel(solidVoxels, x + 0.5, -3.5, z + 0.5, '#292524', 0.02);
           }
         }
       }
 
-      // Tiered Retaining Wall & Hillside Slopes
-      for (let x = -54; x <= 53; x++) {
+      // 2. Tiered Retaining Wall & Hillside Slopes
+      for (let x = X_MIN; x <= X_MAX; x++) {
         if (x >= -11 && x <= 10) continue;
+        // Leave carve-out only for the Waterfall Chute & Plunge Pool center (x = -37..-31, z = 8..16)
         for (let z = 8; z <= 22; z++) {
+          if (x >= -37 && x <= -31 && z <= 18) continue;
           const t = 1.0 - (z - 8) / 14;
           const topY = Math.floor(t * 10);
           for (let y = 0; y <= topY; y++) {
-            if (y < topY - 1 && z > 8 && z < 22 && x > -54 && x < 53) continue;
+            if (y < topY - 2 && z > 8 && z < 22 && x > X_MIN && x < X_MAX && x !== -12 && x !== 11 && x !== -38 && x !== -30) continue;
             const isTop = (y === topY);
             const col = isTop ? '#65a30d' : ((y % 3 === 0) ? '#78716c' : '#57534e');
             pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, col, 0.04);
@@ -970,7 +1115,29 @@
         }
       }
 
-      // Long Stone Staircase (10 broad steps from Z = 9.0 down to Z = 2.0, ry = 0..9)
+      // West Cliffside Rock Formation & Waterfall Channel (x = -42..-26, z = 4..14)
+      for (let x = -42; x <= -26; x++) {
+        for (let z = 4; z <= 14; z++) {
+          const distFromChute = Math.abs(x + 34);
+          if (distFromChute <= 3.2) {
+            // Solid rocky waterfall chute bed
+            const chuteH = Math.max(0, Math.round((12 - z) * 1.1));
+            for (let y = 0; y <= chuteH; y++) {
+              pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, '#475569', 0.04);
+            }
+          } else if (distFromChute <= 7.8) {
+            // Solid mossy cliff boulders flanking the waterfall (every integer y so no vertical gaps)
+            const cliffH = 9 + Math.round((7.8 - distFromChute) * 1.1 + Math.sin(x * 0.6 + z) * 1.0);
+            for (let y = 0; y <= cliffH; y++) {
+              if (y < cliffH - 2 && distFromChute > 4.5 && z < 11) continue;
+              const isMoss = (y >= cliffH - 1);
+              pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, isMoss ? '#4d7c0f' : '#57534e', 0.04);
+            }
+          }
+        }
+      }
+
+      // 3. Long Stone Staircase (10 broad steps from Z = 9.0 down to Z = 2.0, ry = 0..9)
       for (let step = 0; step < 10; step++) {
         const ry = 9 - step;
         const zStart = 9 + step * 3;
@@ -980,8 +1147,8 @@
           for (let x = -11; x <= 10; x++) {
             const isBalustrade = (x <= -10 || x >= 9);
             const stepTopY = isBalustrade ? ry + 2 : ry;
-            for (let y = 0; y <= stepTopY; y++) {
-              if (y < stepTopY && z > zStart && x > -11 && x < 10) continue;
+            const minFillY = (isBalustrade || z === zStart || z === zEnd || x === -11 || x === 10) ? 0 : Math.max(0, ry - 1);
+            for (let y = minFillY; y <= stepTopY; y++) {
               let sCol = isBalustrade ? '#78716c' : ((x + step) % 4 === 0 ? '#94a3b8' : '#a8a29e');
               if (!isBalustrade && Math.abs(x) >= 7 && ((x + z) % 3 === 0)) sCol = '#84a98c';
               pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, sCol, 0.03);
@@ -1003,79 +1170,149 @@
       addCollider(-3.0, 0, 2.0, -2.3, 3.1, 9.5, 'stair_rail_left');
       addCollider(2.3, 0, 2.0, 3.0, 3.1, 9.5, 'stair_rail_right');
 
-      // Upper Shrine Courtyard Platform (top surface at Y = 2.5 -> ry = 9)
-      for (let x = -54; x <= 53; x++) {
-        for (let z = -54; z <= 8; z++) {
-          const isBorder = (x === -54 || x === 53 || z === -54);
+      // 4. Expanded Upper Shrine Courtyard Platform (top surface at Y = 2.5 -> ry = 9)
+      for (let x = X_MIN; x <= X_MAX; x++) {
+        for (let z = Z_MIN; z <= 8; z++) {
+          // Upper stream feeding the waterfall (x = -37..-31, z = -18..8)
+          if (z >= -18 && Math.abs(x + 34) <= 2.8) {
+            pushVoxel(solidVoxels, x + 0.5, 7.5, z + 0.5, '#334155', 0.03);
+            pushVoxel(solidVoxels, x + 0.5, 8.5, z + 0.5, '#475569', 0.03);
+            pushVoxel(waterBaseVoxels, x + 0.5, 9.35, z + 0.5, '#38bdf8', 0.02, 1.02, 0.75, 1.02);
+            continue;
+          }
+
+          const isBorder = (x === X_MIN || x === X_MAX || z === Z_MIN || z === 8);
           let courtCol = '#d6ccc2';
           if (x >= -8 && x <= 7 && z >= -18) {
             const tile = ((Math.floor((x + 8) / 3) + Math.floor((z + 20) / 3)) % 2 === 0);
             courtCol = tile ? '#94a3b8' : '#a8a29e';
             if (Math.abs(x) === 8) courtCol = '#78716c';
-          } else if (x < -22 || x > 22 || z < -42) {
+          } else if (z >= -28 && z <= -22 && x >= 22 && x <= 34) {
+            // Flagstone walkway to East Shrine Pavilion (Shamusho)
+            courtCol = ((x + z) % 2 === 0) ? '#94a3b8' : '#cbd5e1';
+          } else if (x < -30 || x > 48 || z < -54) {
             courtCol = ((x + z) % 5 === 0) ? '#4d7c0f' : '#65a30d';
           } else if (z % 2 === 0) {
             courtCol = '#e3d5ca';
           }
 
           pushVoxel(solidVoxels, x + 0.5, 9.5, z + 0.5, courtCol, 0.025);
-          if (isBorder) {
-            for (let y = -1; y <= 8; y += 2) {
-              pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, '#57534e', 0.02, 1, 2, 1);
+          // Solid sub-layer under the courtyard border & front cliff edge so no seam ever shows
+          if (isBorder || (z >= 6 && z <= 8)) {
+            pushVoxel(solidVoxels, x + 0.5, 8.5, z + 0.5, '#57534e', 0.025);
+          }
+          if (x === X_MIN || x === X_MAX || z === Z_MIN) {
+            for (let y = -2; y <= 7; y++) {
+              pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, '#57534e', 0.02);
             }
           }
         }
       }
-      addCollider(-13.8, 0.0, -13.8, 13.5, 2.5, 2.25, 'upper_courtyard');
-      addCollider(-13.8, 0.0, 2.25, -2.5, 2.3, 4.8, 'slope_left');
-      addCollider(2.5, 0.0, 2.25, 13.5, 2.3, 4.8, 'slope_right');
+      addCollider(-20.0, 0.0, -19.2, 20.0, 2.5, 2.25, 'upper_courtyard');
+      addCollider(-20.0, 0.0, 2.25, -2.5, 2.3, 4.8, 'slope_left');
+      addCollider(2.5, 0.0, 2.25, 20.0, 2.3, 4.8, 'slope_right');
 
-      // Small Arched Red Wooden Bridge over the Mountain Stream
-      for (let x = -35; x <= -23; x++) {
-        const t = (x + 29) / 6;
-        const archY = Math.round((1 - t * t) * 2.5);
+      // 5. Arched Red Wooden Bridge over the Lower Mountain Stream (filled solidly under arch)
+      for (let x = -38; x <= -24; x++) {
+        const t = (x + 31) / 7;
+        const archY = Math.round((1 - t * t) * 2.6);
         for (let z = 35; z <= 39; z++) {
           pushVoxel(solidVoxels, x + 0.5, archY + 0.5, z + 0.5, '#9e6840', 0.025);
+          // Fill bridge deck thickness so step transitions between archY levels never leave a gap
+          if (archY > 0) {
+            pushVoxel(solidVoxels, x + 0.5, archY - 0.5, z + 0.5, '#6e4528', 0.025);
+          }
           if (z === 35 || z === 39) {
             pushVoxel(solidVoxels, x + 0.5, archY + 1.5, z + 0.5, '#dc2626', 0.02);
-            if (x === -35 || x === -29 || x === -23) {
+            if (x === -38 || x === -31 || x === -24) {
               pushVoxel(solidVoxels, x + 0.5, archY + 2.5, z + 0.5, '#dc2626', 0.02);
-              pushVoxel(glossyVoxels, x + 0.5, archY + 3.2, z + 0.5, '#fbbf24', 0.01, 0.8, 0.6, 0.8);
+              pushVoxel(glossyVoxels, x + 0.5, archY + 3.2, z + 0.5, '#fbbf24', 0.01, 0.85, 0.7, 0.85);
             }
           }
         }
       }
-      addCollider(-8.8, 0.0, 8.6, -5.6, 0.85, 10.0, 'stream_bridge');
+      addCollider(-9.6, 0.0, 8.6, -5.8, 0.9, 10.0, 'stream_bridge');
+
+      // Stepping Stones across the Lower Stream near the Outer Torii (z = 60..62)
+      for (let sx = -46; sx <= -32; sx += 3) {
+        pushVoxel(solidVoxels, sx + 0.5, -0.3, 61.0, '#94a3b8', 0.03, 1.8, 0.9, 1.8);
+      }
     }
 
     // 5B. MAIN HAKUREI SHRINE HALL (HAIDEN), CURVED ROOF, VERANDA & SHIMENAWA
     function buildShrineMainHall() {
-      pushBoxVoxels(solidVoxels, -26, 10, -46, 25, 12, -16, (x, y) => (y === 10 ? '#78716c' : '#5c3a21'));
+      // 1. Solid Stone Base (ry = 10) & Timber Foundation Skirt (ry = 11..12) under the entire Veranda (-28..27, -47..-15)
       for (let x = -28; x <= 27; x++) {
         for (let z = -47; z <= -15; z++) {
-          if (x > -22 && x < 21 && z > -43 && z < -21) continue;
-          const plankCol = (x % 3 === 0) ? '#9e663f' : '#ad7249';
-          pushVoxel(solidVoxels, x + 0.5, 13.5, z + 0.5, plankCol, 0.025);
-        }
-      }
-      for (let x = -28; x <= 27; x++) {
-        if (x >= -7 && x <= 6) continue;
-        pushVoxel(solidVoxels, x + 0.5, 14.5, -15.5, '#b91c1c', 0.02, 1, 0.6, 0.6);
-        pushVoxel(solidVoxels, x + 0.5, 15.6, -15.5, '#7f1d1d', 0.02, 1, 0.6, 0.7);
-      }
-      for (let z = -47; z <= -15; z++) {
-        for (const rx of [-28, 27]) {
-          pushVoxel(solidVoxels, rx + 0.5, 14.5, z + 0.5, '#b91c1c', 0.02, 0.6, 0.6, 1);
-          pushVoxel(solidVoxels, rx + 0.5, 15.6, z + 0.5, '#7f1d1d', 0.02, 0.7, 0.6, 1);
+          const isOuterRing = (x === -28 || x === 27 || z === -47 || z === -15);
+          const isInnerRing = (x === -27 || x === 26 || z === -46 || z === -16);
+          if (isOuterRing || isInnerRing) {
+            pushVoxel(solidVoxels, x + 0.5, 10.5, z + 0.5, ((x + z) % 2 === 0) ? '#78716c' : '#8a817c', 0.025);
+          }
+          if (isInnerRing) {
+            pushVoxel(solidVoxels, x + 0.5, 11.5, z + 0.5, '#5c3a21', 0.02);
+            pushVoxel(solidVoxels, x + 0.5, 12.5, z + 0.5, '#4a2c18', 0.02);
+          }
+          // Outer veranda support posts (tsuka) along the perimeter edge so the veranda deck never floats
+          if (isOuterRing && (x === -28 || x === -18 || x === -7 || x === 6 || x === 17 || x === 27 || z === -47 || z === -31 || z === -15)) {
+            if ((x % 5 === 0) || (z % 5 === 0) || x === -28 || x === 27 || x === -7 || x === 6) {
+              pushVoxel(solidVoxels, x + 0.5, 11.5, z + 0.5, '#6e4226', 0.02);
+              pushVoxel(solidVoxels, x + 0.5, 12.5, z + 0.5, '#6e4226', 0.02);
+            }
+          }
         }
       }
 
-      // Front Wooden Veranda Steps
+      // 2. Complete Continuous Veranda & Interior Floor Deck (ry = 13, x = -28..27, z = -47..-15)
+      for (let x = -28; x <= 27; x++) {
+        for (let z = -47; z <= -15; z++) {
+          const isEdge = (x === -28 || x === 27 || z === -47 || z === -15);
+          const plankCol = isEdge ? '#6e4528' : ((x % 3 === 0) ? '#9e663f' : '#ad7249');
+          pushVoxel(solidVoxels, x + 0.5, 13.5, z + 0.5, plankCol, 0.025);
+        }
+      }
+
+      // 3. Veranda Railings (Kōran) with Vertical Baluster Posts & Giboshi Finials (no floating bars!)
+      for (let x = -28; x <= 27; x++) {
+        if (x >= -7 && x <= 6) continue;
+        // Lower & upper horizontal rails connected solidly
+        pushVoxel(solidVoxels, x + 0.5, 14.35, -14.5, '#b91c1c', 0.02, 1.02, 0.72, 0.72);
+        pushVoxel(solidVoxels, x + 0.5, 15.35, -14.5, '#7f1d1d', 0.02, 1.02, 0.78, 0.82);
+        // Vertical baluster posts connecting floor (13.5) -> lower rail (14.35) -> top rail (15.35)
+        if (x === -28 || x === -22 || x === -15 || x === -8 || x === 7 || x === 14 || x === 21 || x === 27) {
+          pushVoxel(solidVoxels, x + 0.5, 14.5, -14.5, '#991b1b', 0.02, 0.85, 1.15, 0.85);
+          pushVoxel(solidVoxels, x + 0.5, 15.5, -14.5, '#991b1b', 0.02, 0.85, 1.15, 0.85);
+          if (x === -28 || x === -8 || x === 7 || x === 27) {
+            pushVoxel(glossyVoxels, x + 0.5, 16.25, -14.5, '#fbbf24', 0.01, 0.75, 0.65, 0.75);
+          }
+        }
+      }
+      for (let z = -47; z <= -15; z++) {
+        for (const rx of [-28, 27]) {
+          // Leave opening on East Veranda (rx = 27, z = -30..-25) for the Covered Corridor to the Shamusho
+          if (rx === 27 && z >= -30 && z <= -25) continue;
+          pushVoxel(solidVoxels, rx + 0.5, 14.35, z + 0.5, '#b91c1c', 0.02, 0.72, 0.72, 1.02);
+          pushVoxel(solidVoxels, rx + 0.5, 15.35, z + 0.5, '#7f1d1d', 0.02, 0.82, 0.78, 1.02);
+          if (z === -47 || z === -39 || z === -31 || z === -24 || z === -15) {
+            pushVoxel(solidVoxels, rx + 0.5, 14.5, z + 0.5, '#991b1b', 0.02, 0.85, 1.15, 0.85);
+            pushVoxel(solidVoxels, rx + 0.5, 15.5, z + 0.5, '#991b1b', 0.02, 0.85, 1.15, 0.85);
+            if (z === -47) {
+              pushVoxel(glossyVoxels, rx + 0.5, 16.25, z + 0.5, '#fbbf24', 0.01, 0.75, 0.65, 0.75);
+            }
+          }
+        }
+      }
+
+      // 4. Solid Front Wooden Veranda Steps (z = -14..-11, y = 10..13) with Side Stringers
       for (let s = 0; s < 4; s++) {
-        const sy = 10 + s;
+        const topY = 10 + s;
         const sz = -11 - s;
         for (let x = -7; x <= 6; x++) {
-          pushVoxel(solidVoxels, x + 0.5, sy + 0.5, sz + 0.5, (x === -7 || x === 6) ? '#6e4528' : '#9e663f', 0.02);
+          const isStringer = (x === -7 || x === 6);
+          const stepMaxY = isStringer ? topY + 1 : topY;
+          for (let y = 10; y <= stepMaxY; y++) {
+            pushVoxel(solidVoxels, x + 0.5, y + 0.5, sz + 0.5, isStringer ? '#6e4528' : '#9e663f', 0.02);
+          }
         }
       }
 
@@ -1083,18 +1320,28 @@
       addCollider(-1.8, 2.5, -3.75, 1.8, 3.1, -2.7, 'veranda_steps');
       addCollider(-5.8, 3.5, -11.0, 5.8, 7.2, -5.0, 'shrine_main_hall');
 
-      // Shrine Hall Walls & Sliding Shoji Doors
-      for (let y = 14; y <= 27; y++) {
+      // 5. Shrine Hall Walls, Timber Framing & Sliding Shoji Doors (y = 14..26, x = -22..21, z = -43..-20)
+      for (let y = 14; y <= 26; y++) {
         for (let x = -22; x <= 21; x++) {
           for (let z = -43; z <= -20; z++) {
-            if (x > -22 && x < 21 && z > -43 && z < -20) continue;
+            // 2-voxel-thick perimeter walls so no light leaks through corners or shoji frames
+            if (x > -21 && x < 20 && z > -42 && z < -21) continue;
 
-            const isCornerPillar = ((x === -22 || x === 21) && (z === -43 || z === -20));
+            const isOuterFace = (x === -22 || x === 21 || z === -43 || z === -20);
+            if (!isOuterFace) {
+              // Solid inner backing wall
+              pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, '#5c3a21', 0.02);
+              continue;
+            }
+
+            const isCornerPillar = ((x <= -21 || x >= 20) && (z <= -42 || z >= -21));
             const isFrontPillar = (z === -20 && (x === -12 || x === -7 || x === 6 || x === 11));
-            const isTopBeam = (y >= 26);
+            const isSidePillar = ((x === -22 || x === 21) && (z === -35 || z === -28));
+            const isTopBeam = (y >= 25);
+            const isBaseWainscot = (y <= 15);
 
-            let wallCol = '#f8f5EE';
-            if (isCornerPillar || isFrontPillar || isTopBeam || y === 14) {
+            let wallCol = '#f8f5ee';
+            if (isCornerPillar || isFrontPillar || isSidePillar || isTopBeam || isBaseWainscot) {
               wallCol = '#6e4226';
             } else if (z === -20 && x >= -6 && x <= 5 && y <= 24) {
               const isGrid = (x % 2 === 0 || y % 3 === 0);
@@ -1103,7 +1350,7 @@
                 continue;
               }
               wallCol = '#8c5836';
-            } else if (z === -20 && Math.abs(x) >= 13 && Math.abs(x) <= 18 && y >= 17 && y <= 23) {
+            } else if (z === -20 && ((x >= -19 && x <= -13) || (x >= 12 && x <= 18)) && y >= 17 && y <= 23) {
               if ((x + y) % 2 !== 0) {
                 pushVoxel(lanternGlowVoxels, x + 0.5, y + 0.5, z + 0.5, '#fde68a', 0.01);
                 continue;
@@ -1116,79 +1363,119 @@
         }
       }
 
-      for (const px of [-26, -7, 6, 25]) {
+      // 6. Front Veranda Pillars (px = -26, -16, -7, 6, 15, 25 at z = -16) & Solid Porch Ceiling / Tie-Beams
+      const verandaPillarXs = [-26, -16, -7, 6, 15, 25];
+      for (const px of verandaPillarXs) {
         for (let y = 14; y <= 26; y++) {
-          pushVoxel(solidVoxels, px + 0.5, y + 0.5, -16.5, (y <= 15) ? '#f8fafc' : '#7c4d2f', 0.02);
+          pushVoxel(solidVoxels, px + 0.5, y + 0.5, -15.5, (y === 14) ? '#e2e8f0' : '#7c4d2f', 0.02);
+        }
+        // Cross-tie beams (kōryō) connecting each veranda pillar back to the main hall wall at z = -20
+        for (let z = -19; z <= -16; z++) {
+          pushVoxel(solidVoxels, px + 0.5, 25.5, z + 0.5, '#6e4226', 0.02);
+          pushVoxel(solidVoxels, px + 0.5, 26.5, z + 0.5, '#5c3a21', 0.02);
+        }
+      }
+      // Continuous horizontal lintel beam across all front veranda pillars (z = -16, y = 25..26)
+      for (let x = -27; x <= 26; x++) {
+        pushVoxel(solidVoxels, x + 0.5, 25.5, -15.5, '#6e4226', 0.02);
+        pushVoxel(solidVoxels, x + 0.5, 26.5, -15.5, '#5c3a21', 0.02);
+      }
+      // Solid Eave Ceiling Deck (y = 26) across the entire veranda & hall footprint (-28..27, -47..-15) so looking up never shows gaps
+      for (let x = -28; x <= 27; x++) {
+        for (let z = -47; z <= -15; z++) {
+          if (x > -21 && x < 20 && z > -42 && z < -20) continue;
+          pushVoxel(solidVoxels, x + 0.5, 26.5, z + 0.5, ((x + z) % 2 === 0) ? '#5c3a21' : '#6e4226', 0.02);
         }
       }
 
+      // Sacred Ofuda Talismans on the Central Shrine Pillars
       for (const ox of [-7, 6]) {
-        pushVoxel(solidVoxels, ox + 0.5, 22.5, -15.8, '#fefefe', 0.01, 0.55, 1.4, 0.2);
-        pushVoxel(solidVoxels, ox + 0.5, 22.5, -15.7, '#dc2626', 0.01, 0.3, 0.9, 0.2);
+        pushVoxel(solidVoxels, ox + 0.5, 22.5, -14.85, '#fefefe', 0.01, 0.55, 1.4, 0.25);
+        pushVoxel(solidVoxels, ox + 0.5, 22.5, -14.75, '#dc2626', 0.01, 0.3, 0.9, 0.25);
       }
 
       // Glowing Paper Lanterns hanging under the front veranda eaves & over the offering box
-      for (const lx of [-10, 0, 9]) {
-        const lz = lx === 0 ? -7.0 : -16.5;
-        pushVoxel(solidVoxels, lx + 0.5, 25.5, lz, '#1e1b24', 0.01, 0.6, 0.6, 0.6);
+      for (const lx of [-11, 0, 10]) {
+        const lz = lx === 0 ? -7.0 : -15.5;
+        pushVoxel(solidVoxels, lx + 0.5, 25.5, lz, '#1e1b24', 0.01, 0.6, 0.8, 0.6);
         pushVoxel(lanternGlowVoxels, lx + 0.5, 24.0, lz, '#ffedd5', 0.01, 1.5, 2.1, 1.5);
-        pushVoxel(solidVoxels, lx + 0.5, 22.6, lz, '#1e1b24', 0.01, 1.1, 0.4, 1.1);
+        pushVoxel(solidVoxels, lx + 0.5, 22.6, lz, '#1e1b24', 0.01, 1.1, 0.45, 1.1);
       }
 
       // Giant Braided Shimenawa Rope & White Paper Shide
       for (let x = -11; x <= 10; x++) {
         const normX = (x + 0.5) / 11;
         const thickness = 1.65 * (1.0 - normX * normX * 0.55);
-        const sagY = 25.2 - (1.0 - normX * normX) * 1.1;
+        const sagY = 25.0 - (1.0 - normX * normX) * 1.0;
         const braidCol = (x % 2 === 0) ? '#d4a359' : '#b8863e';
-        pushVoxel(solidVoxels, x + 0.5, sagY, -15.2, braidCol, 0.03, 1.05, thickness, thickness);
+        pushVoxel(solidVoxels, x + 0.5, sagY, -14.4, braidCol, 0.03, 1.12, thickness, thickness);
 
         if (x === -8 || x === -3 || x === 2 || x === 7) {
           for (let s = 0; s < 4; s++) {
-            const zigX = (s % 2 === 0) ? -0.35 : 0.35;
-            pushVoxel(solidVoxels, x + 0.5 + zigX, sagY - 1.1 - s * 0.65, -15.0, '#ffffff', 0.01, 0.65, 0.75, 0.3);
+            const zigX = (s % 2 === 0) ? -0.25 : 0.25;
+            pushVoxel(solidVoxels, x + 0.5 + zigX, sagY - 1.0 - s * 0.6, -14.2, '#ffffff', 0.01, 0.75, 0.8, 0.35);
           }
         }
       }
 
-      // Grand Curved Shrine Roof
+      // 7. Grand Curved Shrine Roof (Irimoya-zukuri) — 100% Solid Overlap & Filled Gable Ends (Zero Gaps!)
+      const centerZ = -31;
+      const getRoofHalfZ = (hVal) => {
+        const p = Math.min(1, Math.max(0, hVal / 13));
+        return Math.round(20 * (1.0 - Math.pow(p, 0.78) * 0.85));
+      };
+      const getRoofHalfX = (hVal) => Math.round(32 - hVal * 0.75);
+
       for (let h = 0; h <= 13; h++) {
         const ry = 27 + h;
-        const progress = h / 13;
-        const curve = Math.pow(progress, 0.72);
-        const halfZ = Math.round(20 * (1.0 - curve * 0.85));
-        const halfX = Math.round(32 - h * 0.85);
-        const centerZ = -31;
+        const halfZ = getRoofHalfZ(h);
+        const nextHalfZ = (h < 13) ? getRoofHalfZ(h + 1) : 0;
+        const halfX = getRoofHalfX(h);
+        const nextHalfX = (h < 13) ? getRoofHalfX(h + 1) : halfX;
 
         for (let x = -halfX; x <= halfX - 1; x++) {
           for (let z = centerZ - halfZ; z <= centerZ + halfZ; z++) {
-            const onEdgeZ = (z <= centerZ - halfZ + 1 || z >= centerZ + halfZ - 1);
-            const onEdgeX = (x <= -halfX + 1 || x >= halfX - 2);
-            if (!onEdgeZ && !onEdgeX && h < 13) continue;
+            const distZ = Math.abs(z - centerZ);
+            const distFromEndX = Math.min(x - (-halfX), (halfX - 1) - x);
 
-            const cornerDist = Math.max(0, Math.abs(x) - (halfX - 6));
-            const eaveLift = (h <= 2) ? cornerDist * 0.25 : 0;
+            // Base soffit layer (h === 0) is completely solid so looking up from underneath never shows holes.
+            // Upper layers overlap the next layer's span by at least 2 voxels in both Z and X so there are zero step gaps!
+            const isSlopeBandZ = (distZ >= Math.max(0, nextHalfZ - 2));
+            const isGableBandX = (distFromEndX <= Math.max(3, (halfX - nextHalfX) + 2));
+            if (h > 0 && h < 13 && !isSlopeBandZ && !isGableBandX) continue;
+
+            // Gentle upturned corner eaves on lower 3 tiers, filled down to ry so lifted tiles never separate
+            const cornerDist = Math.max(0, Math.abs(x + 0.5) - (halfX - 5));
+            const eaveLift = (h <= 2 && isSlopeBandZ) ? Math.min(1.0, cornerDist * 0.16) : 0;
 
             let tileCol = (x % 2 === 0) ? '#334155' : '#475569';
-            if (h === 0) tileCol = '#1e293b';
-            if (onEdgeX && h >= 5 && h <= 10 && Math.abs(z - centerZ) <= halfZ - 2) {
-              tileCol = '#f8fafc';
+            if (h === 0 && !isSlopeBandZ && !isGableBandX) {
+              tileCol = '#4a2c18'; // Dark timber soffit underside
+            } else if (h === 0) {
+              tileCol = '#1e293b';
+            } else if (!isSlopeBandZ && distFromEndX >= 2 && distFromEndX <= 4 && h >= 3 && h <= 10) {
+              // Traditional white shikkui plaster & dark timber bargeboard inside the Irimoya gable triangle
+              tileCol = (h === 3 || h === 10 || z % 4 === 0) ? '#5c3a21' : '#f8fafc';
             }
 
-            pushVoxel(solidVoxels, x + 0.5, ry + 0.5 + eaveLift, z + 0.5, tileCol, 0.025);
+            pushVoxel(solidVoxels, x + 0.5, ry + 0.5 + eaveLift * 0.5, z + 0.5, tileCol, 0.025, 1.02, 1.05 + eaveLift, 1.02);
           }
         }
       }
 
-      for (let x = -22; x <= 21; x++) {
-        pushVoxel(solidVoxels, x + 0.5, 41.5, -31.0, '#1e293b', 0.02, 1, 1.3, 1.6);
+      // Ornamental Roof Ridge (Ōmune) & Golden Shachihoko Finials (ry = 41..44)
+      for (let x = -23; x <= 22; x++) {
+        for (let z = -33; z <= -29; z++) {
+          pushVoxel(solidVoxels, x + 0.5, 40.5, z + 0.5, '#334155', 0.02);
+        }
+        pushVoxel(solidVoxels, x + 0.5, 41.5, -31.0, '#1e293b', 0.02, 1.05, 1.35, 1.8);
         if (x % 4 === 0) {
-          pushVoxel(glossyVoxels, x + 0.5, 42.3, -31.0, '#fbbf24', 0.01, 0.7, 0.6, 1.8);
+          pushVoxel(glossyVoxels, x + 0.5, 42.3, -31.0, '#fbbf24', 0.01, 0.75, 0.65, 1.9);
         }
       }
-      for (const gx of [-22, 21]) {
-        pushVoxel(glossyVoxels, gx + 0.5, 42.8, -31.0, '#f59e0b', 0.01, 1.4, 1.8, 1.4);
-        pushVoxel(glossyVoxels, gx + (gx < 0 ? -0.6 : 0.6), 44.0, -31.0, '#fde047', 0.01, 1.0, 1.4, 1.0);
+      for (const gx of [-23, 22]) {
+        pushVoxel(glossyVoxels, gx + 0.5, 42.8, -31.0, '#f59e0b', 0.01, 1.4, 1.8, 1.5);
+        pushVoxel(glossyVoxels, gx + (gx < 0 ? -0.5 : 0.5), 44.0, -31.0, '#fde047', 0.01, 1.0, 1.4, 1.1);
       }
 
       // Engawa Cushion (Zabuton) & Green Tea Set on Left Veranda (rx -15..-9, rz -19..-16, ry 14)
@@ -1196,44 +1483,124 @@
       pushVoxel(solidVoxels, -9.0, 14.2, -17.5, '#6e4226', 0.02, 2.2, 0.4, 2.2); // Tea tray
       pushVoxel(glossyVoxels, -9.2, 14.8, -17.5, '#52b788', 0.02, 1.1, 1.1, 1.1); // Kyusu teapot
       pushVoxel(glossyVoxels, -8.3, 14.6, -17.2, '#f8fafc', 0.01, 0.65, 0.8, 0.65); // Teacup
+
+      // 8. East Shrine Side Pavilion (Shamusho) & Covered Corridor (Watari-rōka, rx 28..48, rz -36..-19)
+      // Covered Corridor connecting Main Veranda (x = 27) to Shamusho (x = 34)
+      for (let x = 28; x <= 33; x++) {
+        for (let z = -30; z <= -25; z++) {
+          const isEdgeZ = (z === -30 || z === -25);
+          if (isEdgeZ && (x === 28 || x === 31 || x === 33)) {
+            pushVoxel(solidVoxels, x + 0.5, 10.5, z + 0.5, '#78716c', 0.02);
+            pushVoxel(solidVoxels, x + 0.5, 11.5, z + 0.5, '#5c3a21', 0.02);
+            pushVoxel(solidVoxels, x + 0.5, 12.5, z + 0.5, '#5c3a21', 0.02);
+          }
+          // Corridor floor flush at y = 13.5 with main veranda & Shamusho floor
+          pushVoxel(solidVoxels, x + 0.5, 13.5, z + 0.5, isEdgeZ ? '#6e4528' : '#9e663f', 0.02);
+          if (isEdgeZ) {
+            pushVoxel(solidVoxels, x + 0.5, 14.35, z + 0.5, '#b91c1c', 0.02, 1.02, 0.72, 0.72);
+            pushVoxel(solidVoxels, x + 0.5, 15.35, z + 0.5, '#7f1d1d', 0.02, 1.02, 0.78, 0.78);
+            if (x === 30 || x === 33) {
+              for (let y = 14; y <= 21; y++) {
+                pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, '#6e4226', 0.02, 0.85, 1.02, 0.85);
+              }
+            }
+          }
+          // Corridor ceiling & pitched tile roof (y = 21..23)
+          pushVoxel(solidVoxels, x + 0.5, 21.5, z + 0.5, '#5c3a21', 0.02);
+          const cRoofY = 22 + (z >= -28 && z <= -27 ? 1 : 0);
+          pushVoxel(solidVoxels, x + 0.5, cRoofY + 0.5, z + 0.5, (x % 2 === 0) ? '#334155' : '#475569', 0.02);
+        }
+      }
+
+      // Shamusho Foundation (y = 10..12) & Solid Floor (y = 13)
+      pushBoxVoxels(solidVoxels, 34, 10, -36, 48, 12, -19, (x, y) => (y === 10 ? '#78716c' : '#5c3a21'));
+      for (let x = 34; x <= 48; x++) {
+        for (let z = -36; z <= -19; z++) {
+          pushVoxel(solidVoxels, x + 0.5, 13.5, z + 0.5, '#9e663f', 0.02);
+          pushVoxel(solidVoxels, x + 0.5, 22.5, z + 0.5, '#5c3a21', 0.02); // Solid ceiling deck
+        }
+      }
+      // Shamusho Walls (y = 14..22)
+      for (let y = 14; y <= 22; y++) {
+        for (let x = 35; x <= 47; x++) {
+          for (let z = -35; z <= -20; z++) {
+            if (x > 36 && x < 46 && z > -34 && z < -21) continue;
+            const isOuter = (x === 35 || x === 47 || z === -35 || z === -20);
+            if (!isOuter) {
+              pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, '#5c3a21', 0.02);
+              continue;
+            }
+            const isPillar = ((x === 35 || x === 41 || x === 47) && (z === -35 || z === -20));
+            if (z === -20 && x >= 38 && x <= 44 && y >= 16 && y <= 20) {
+              if ((x + y) % 2 === 0) {
+                pushVoxel(lanternGlowVoxels, x + 0.5, y + 0.5, z + 0.5, '#fde68a', 0.01);
+                continue;
+              }
+            }
+            pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, (isPillar || y === 14 || y === 22) ? '#6e4226' : '#f8f5ee', 0.02);
+          }
+        }
+      }
+      // Shamusho Hip Roof (y = 23..29) with 3-voxel-wide overlapping bands so zero diagonal gaps occur
+      for (let h = 0; h <= 6; h++) {
+        const ry = 23 + h;
+        const pad = h;
+        const x0 = 33 + pad, x1 = 49 - pad;
+        const z0 = -37 + pad, z1 = -18 - pad;
+        for (let x = x0; x <= x1; x++) {
+          for (let z = z0; z <= z1; z++) {
+            if (h > 0 && h < 6 && x > x0 + 2 && x < x1 - 2 && z > z0 + 2 && z < z1 - 2) continue;
+            pushVoxel(solidVoxels, x + 0.5, ry + 0.5, z + 0.5, (x % 2 === 0) ? '#334155' : '#475569', 0.025);
+          }
+        }
+      }
+      addCollider(8.4, 2.5, -9.2, 12.2, 6.2, -4.6, 'shrine_shamusho_annex');
     }
 
-    // 5C. TORII GATE, KOMAINU GUARDIANS, TEMIZUYA, OMIKUJI RACK, EMA RACK & DISTANT VILLAGE
+    // 5C. TORII GATES, KOMAINU GUARDIANS, TEMIZUYA, TEA STALL, EMA RACK & DISTANT VILLAGE
     function buildShrineProps() {
-      // 1. GRAND VERMILION TORII GATE AT BOTTOM OF STAIRS (Z = 12.25 -> rz = 49)
-      const toriiZ = 49;
-      for (const px of [-13, 12]) {
-        for (let y = 0; y <= 32; y++) {
-          const isBase = (y <= 4);
-          const col = isBase ? '#1e293b' : '#dc2626';
-          const radiusScale = isBase ? 2.4 : 1.85;
-          pushVoxel(solidVoxels, px + 0.5, y + 0.5, toriiZ + 0.5, col, 0.02, radiusScale, 1.02, radiusScale);
+      // Helper to build a traditional Vermilion Myojin Torii Gate (solidly connected beams & pillars)
+      const buildToriiGate = (toriiZ, scaleH = 1.0, namePrefix = 'torii') => {
+        const topH = Math.round(32 * scaleH);
+        const nukiY = Math.round(25.5 * scaleH);
+        for (const px of [-13, 12]) {
+          for (let y = 0; y <= topH + 1; y++) {
+            const isBase = (y <= 4);
+            const col = isBase ? '#1e293b' : '#dc2626';
+            const radiusScale = isBase ? 2.4 : 1.85;
+            pushVoxel(solidVoxels, px + 0.5, y + 0.5, toriiZ + 0.5, col, 0.02, radiusScale, 1.05, radiusScale);
+          }
         }
-      }
-      for (let x = -17; x <= 16; x++) {
-        pushVoxel(solidVoxels, x + 0.5, 25.5, toriiZ + 0.5, '#dc2626', 0.02, 1.05, 1.4, 1.3);
-        if (x === -13 || x === 12) {
-          pushVoxel(solidVoxels, x + 0.5, 25.5, toriiZ + 0.5, '#1e293b', 0.01, 2.2, 1.6, 1.6);
+        for (let x = -17; x <= 16; x++) {
+          pushVoxel(solidVoxels, x + 0.5, nukiY, toriiZ + 0.5, '#dc2626', 0.02, 1.08, 1.5, 1.35);
+          if (x === -13 || x === 12) {
+            pushVoxel(solidVoxels, x + 0.5, nukiY, toriiZ + 0.5, '#1e293b', 0.01, 2.2, 1.7, 1.65);
+          }
         }
-      }
-      for (let x = -20; x <= 19; x++) {
-        const edgeDist = Math.max(0, Math.abs(x + 0.5) - 12);
-        const curveY = (edgeDist * edgeDist) * 0.045;
-        pushVoxel(solidVoxels, x + 0.5, 31.5 + curveY, toriiZ + 0.5, '#dc2626', 0.02, 1.05, 1.5, 1.9);
-        pushVoxel(solidVoxels, x + 0.5, 32.8 + curveY, toriiZ + 0.5, '#1e293b', 0.02, 1.08, 0.9, 2.2);
-      }
-      for (let y = 26; y <= 31; y++) {
-        pushVoxel(solidVoxels, 0.0, y + 0.5, toriiZ + 0.5, '#1e293b', 0.02, 2.8, 1.05, 1.5);
-        if (y >= 27 && y <= 30) {
-          pushVoxel(glossyVoxels, 0.0, y + 0.5, toriiZ + 1.3, '#fbbf24', 0.01, 1.8, 0.9, 0.4);
+        for (let x = -20; x <= 19; x++) {
+          const edgeDist = Math.max(0, Math.abs(x + 0.5) - 12);
+          const curveY = (edgeDist * edgeDist) * 0.042;
+          pushVoxel(solidVoxels, x + 0.5, topH - 0.4 + curveY, toriiZ + 0.5, '#dc2626', 0.02, 1.1, 1.65, 1.9);
+          pushVoxel(solidVoxels, x + 0.5, topH + 0.85 + curveY, toriiZ + 0.5, '#1e293b', 0.02, 1.12, 1.1, 2.2);
         }
-      }
-      for (const sx of [-9, -3, 3, 9]) {
-        pushVoxel(solidVoxels, sx, 24.2, toriiZ + 0.6, '#ffffff', 0.01, 0.6, 1.2, 0.3);
-        pushVoxel(solidVoxels, sx + 0.25, 23.3, toriiZ + 0.6, '#ffffff', 0.01, 0.6, 1.0, 0.3);
-      }
-      addCollider(-3.6, 0, 11.9, -2.9, 8.2, 12.6, 'torii_pillar_left');
-      addCollider(2.9, 0, 11.9, 3.6, 8.2, 12.6, 'torii_pillar_right');
+        for (let y = nukiY; y <= topH; y++) {
+          pushVoxel(solidVoxels, 0.0, y + 0.5, toriiZ + 0.5, '#1e293b', 0.02, 2.8, 1.1, 1.5);
+          if (y >= nukiY + 2 && y <= topH - 2) {
+            pushVoxel(glossyVoxels, 0.0, y + 0.5, toriiZ + 1.3, '#fbbf24', 0.01, 1.8, 1.0, 0.45);
+          }
+        }
+        for (const sx of [-9, -3, 3, 9]) {
+          pushVoxel(solidVoxels, sx, nukiY - 1.2, toriiZ + 0.6, '#ffffff', 0.01, 0.65, 1.3, 0.35);
+          pushVoxel(solidVoxels, sx + 0.2, nukiY - 2.1, toriiZ + 0.6, '#ffffff', 0.01, 0.65, 1.1, 0.35);
+        }
+        addCollider(-3.6, 0, (toriiZ - 1.4) * RV, -2.9, (topH + 1) * RV, (toriiZ + 1.4) * RV, `${namePrefix}_L`);
+        addCollider(2.9, 0, (toriiZ - 1.4) * RV, 3.6, (topH + 1) * RV, (toriiZ + 1.4) * RV, `${namePrefix}_R`);
+      };
+
+      // 1A. INNER TORII GATE AT BOTTOM OF STAIRS (rz = 49 -> Z = 12.25)
+      buildToriiGate(49, 1.0, 'torii_inner');
+      // 1B. OUTER ENTRANCE TORII GATE ON EXPANDED APPROACH (rz = 72 -> Z = 18.0)
+      buildToriiGate(72, 1.08, 'torii_outer');
 
       // 2. PAIR OF KOMAINU GUARDIAN STATUES FLANKING THE TOP OF THE STAIRS (rx ±11, rz 7, ry 10..17)
       for (const side of [-1, 1]) {
@@ -1254,9 +1621,9 @@
           pushVoxel(solidVoxels, x + 0.5, 10.5, z + 0.5, '#78716c', 0.03);
           if (isRim) {
             pushVoxel(solidVoxels, x + 0.5, 11.5, z + 0.5, '#a8a29e', 0.03);
-            pushVoxel(solidVoxels, x + 0.5, 12.3, z + 0.5, ((x + z) % 3 === 0) ? '#65a30d' : '#78716c', 0.03, 1, 0.7, 1);
+            pushVoxel(solidVoxels, x + 0.5, 12.3, z + 0.5, ((x + z) % 3 === 0) ? '#65a30d' : '#78716c', 0.03, 1, 0.75, 1);
           } else {
-            pushVoxel(waterBaseVoxels, x + 0.5, 11.8, z + 0.5, '#38bdf8', 0.02, 1, 0.8, 1);
+            pushVoxel(waterBaseVoxels, x + 0.5, 11.8, z + 0.5, '#38bdf8', 0.02, 1, 0.85, 1);
           }
         }
       }
@@ -1267,17 +1634,30 @@
         pushVoxel(solidVoxels, -21.5, 12.7, lz, '#e6ccb2', 0.02, 3.8, 0.25, 0.3);
         pushVoxel(solidVoxels, -23.0, 12.8, lz, '#ddb892', 0.02, 0.9, 0.65, 0.9);
       }
+      // Corner Pillars extending all the way into the roof eaves (y = 10..21) + Perimeter Tie-Beams (y = 20)
       for (const px of [-26, -18]) {
         for (const pz of [-10, -3]) {
-          for (let y = 10; y <= 20; y++) {
-            pushVoxel(solidVoxels, px + 0.5, y + 0.5, pz + 0.5, '#6e4226', 0.02, 0.85, 1, 0.85);
+          for (let y = 10; y <= 21; y++) {
+            pushVoxel(solidVoxels, px + 0.5, y + 0.5, pz + 0.5, (y === 10) ? '#94a3b8' : '#6e4226', 0.02, 0.92, 1.02, 0.92);
           }
         }
       }
+      for (let x = -26; x <= -18; x++) {
+        pushVoxel(solidVoxels, x + 0.5, 20.5, -9.5, '#5c3a21', 0.02);
+        pushVoxel(solidVoxels, x + 0.5, 20.5, -2.5, '#5c3a21', 0.02);
+      }
+      for (let z = -10; z <= -3; z++) {
+        pushVoxel(solidVoxels, -25.5, 20.5, z + 0.5, '#5c3a21', 0.02);
+        pushVoxel(solidVoxels, -17.5, 20.5, z + 0.5, '#5c3a21', 0.02);
+      }
+      // Solid Gabled Temizuya Roof (y = 21..24) with no vertical step gaps
       for (let x = -27; x <= -17; x++) {
+        const roofTop = 21 + Math.max(0, 3 - Math.floor(Math.abs(x + 22) * 0.6));
         for (let z = -11; z <= -2; z++) {
-          const roofH = 21 + Math.max(0, 3 - Math.floor(Math.abs(x + 22) * 0.6));
-          pushVoxel(solidVoxels, x + 0.5, roofH + 0.5, z + 0.5, (x % 2 === 0) ? '#334155' : '#475569', 0.02);
+          for (let y = 21; y <= roofTop; y++) {
+            const isTileTop = (y === roofTop);
+            pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, isTileTop ? ((x % 2 === 0) ? '#334155' : '#475569') : '#5c3a21', 0.02);
+          }
         }
       }
       addCollider(-6.6, 2.5, -2.6, -4.4, 3.3, -0.8, 'purification_fountain');
@@ -1291,17 +1671,17 @@
       // 4. EMA WOODEN WISH PLAQUE RACK & OMIKUJI FORTUNE RACK (Right Courtyard: rx 16..28, rz -8..-1)
       for (const px of [16, 24]) {
         for (let y = 10; y <= 19; y++) {
-          pushVoxel(solidVoxels, px + 0.5, y + 0.5, -7.0, '#6e4226', 0.02, 0.9, 1, 0.9);
+          pushVoxel(solidVoxels, px + 0.5, y + 0.5, -7.0, '#6e4226', 0.02, 0.95, 1.02, 0.95);
         }
       }
       for (let x = 15; x <= 25; x++) {
-        pushVoxel(solidVoxels, x + 0.5, 20.2, -7.0, '#334155', 0.02, 1.1, 0.9, 2.2);
+        pushVoxel(solidVoxels, x + 0.5, 20.2, -7.0, '#334155', 0.02, 1.1, 0.95, 2.2);
         if (x >= 17 && x <= 23) {
-          pushVoxel(solidVoxels, x + 0.5, 17.5, -7.0, '#7c4d2f', 0.02, 1, 0.4, 0.4);
-          pushVoxel(solidVoxels, x + 0.5, 14.5, -7.0, '#7c4d2f', 0.02, 1, 0.4, 0.4);
+          pushVoxel(solidVoxels, x + 0.5, 17.5, -7.0, '#7c4d2f', 0.02, 1.05, 0.45, 0.45);
+          pushVoxel(solidVoxels, x + 0.5, 14.5, -7.0, '#7c4d2f', 0.02, 1.05, 0.45, 0.45);
           if (x % 2 === 1 && x !== 21) {
             for (const ey of [16.3, 13.3]) {
-              pushVoxel(solidVoxels, x + 0.5, ey + 0.7, -6.8, '#dc2626', 0.01, 0.25, 0.5, 0.25);
+              pushVoxel(solidVoxels, x + 0.5, ey + 0.7, -6.8, '#dc2626', 0.01, 0.3, 0.6, 0.3);
               pushVoxel(solidVoxels, x + 0.5, ey, -6.8, '#f3d5b5', 0.03, 1.3, 1.1, 0.3);
               pushVoxel(solidVoxels, x + 0.5, ey - 0.1, -6.6, ((x + Math.round(ey)) % 3 === 0) ? '#ef4444' : '#3b82f6', 0.01, 0.6, 0.5, 0.15);
             }
@@ -1313,15 +1693,15 @@
       // Omikuji Fortune Rack with Tied White Papers (rx 17..23, rz -1, ry 10..18)
       for (const px of [17, 23]) {
         for (let y = 10; y <= 18; y++) {
-          pushVoxel(solidVoxels, px + 0.5, y + 0.5, -1.0, '#6e4226', 0.02, 0.8, 1, 0.8);
+          pushVoxel(solidVoxels, px + 0.5, y + 0.5, -1.0, '#6e4226', 0.02, 0.85, 1.02, 0.85);
         }
       }
       for (let x = 16; x <= 24; x++) {
-        pushVoxel(solidVoxels, x + 0.5, 18.8, -1.0, '#dc2626', 0.02, 1.05, 0.8, 1.6);
+        pushVoxel(solidVoxels, x + 0.5, 18.8, -1.0, '#dc2626', 0.02, 1.05, 0.85, 1.6);
       }
       for (const ry of [13.0, 15.2, 17.2]) {
         for (let x = 18; x <= 22; x++) {
-          pushVoxel(solidVoxels, x + 0.5, ry, -1.0, '#8d5b3c', 0.02, 1, 0.35, 0.35);
+          pushVoxel(solidVoxels, x + 0.5, ry, -1.0, '#8d5b3c', 0.02, 1.05, 0.38, 0.38);
           pushVoxel(solidVoxels, x + 0.5, ry, -0.7, '#ffffff', 0.01, 0.55, 1.05, 0.6);
         }
       }
@@ -1345,39 +1725,96 @@
       pushVoxel(solidVoxels, 19.5, 18.8, -17.0, '#78350f', 0.02, 0.9, 0.9, 0.9);
       pushVoxel(glossyVoxels, 13.5, 14.2, -16.8, '#dc2626', 0.01, 1.4, 0.4, 1.4);
 
-      // 6. DISTANT MOUNTAINS & HUMAN VILLAGE IN THE VALLEY (rz -96..-70)
+      // 6. RED-UMBRELLA DANGO & TEA RESTING BENCH (CHAYA) ON LOWER EAST LAWN (rx 22..35, rz 20..28)
+      for (let x = 23; x <= 32; x++) {
+        for (let z = 21; z <= 25; z++) {
+          pushVoxel(solidVoxels, x + 0.5, 1.5, z + 0.5, '#dc2626', 0.02, 1.04, 0.75, 1.04); // Red felt cloth
+          if ((x === 23 || x === 27 || x === 32) && (z === 21 || z === 25)) {
+            pushVoxel(solidVoxels, x + 0.5, 0.5, z + 0.5, '#5c3a21', 0.02, 0.85, 1.25, 0.85);
+          }
+        }
+      }
+      // Tray with Hanami Dango (Pink, White, Green) & Teacup on the bench
+      pushVoxel(solidVoxels, 27.5, 2.1, 23.0, '#4a2c18', 0.02, 2.2, 0.35, 1.6);
+      pushVoxel(glossyVoxels, 26.8, 2.45, 23.0, '#f472b6', 0.01, 0.5, 0.5, 0.5);
+      pushVoxel(glossyVoxels, 27.3, 2.45, 23.0, '#ffffff', 0.01, 0.5, 0.5, 0.5);
+      pushVoxel(glossyVoxels, 27.8, 2.45, 23.0, '#84cc16', 0.01, 0.5, 0.5, 0.5);
+      pushVoxel(glossyVoxels, 28.6, 2.5, 23.2, '#52b788', 0.01, 0.7, 0.85, 0.7);
+      // Tall Vermilion Wagasa (Japanese Parasol) over the bench (solid overlapping canopy)
+      for (let y = 0; y <= 14; y++) {
+        pushVoxel(solidVoxels, 30.5, y + 0.5, 26.5, '#78350f', 0.02, 0.72, 1.08, 0.72);
+      }
+      for (let ux = -7; ux <= 7; ux++) {
+        for (let uz = -7; uz <= 7; uz++) {
+          const r = Math.hypot(ux, uz);
+          if (r <= 7.2) {
+            const uy = 14.5 - r * 0.28;
+            const uCol = (r < 1.8) ? '#fef08a' : ((Math.round(r) % 3 === 0) ? '#b91c1c' : '#dc2626');
+            pushVoxel(solidVoxels, 30.5 + ux, uy, 26.5 + uz, uCol, 0.02, 1.12, 0.85, 1.12);
+          }
+        }
+      }
+      addCollider(5.6, 0.0, 5.1, 8.3, 0.75, 6.6, 'chaya_tea_bench');
+
+      // 7. OVERHEAD FESTIVAL PAPER LANTERN FESTOONS (CHŌCHIN) ALONG COURTYARD
+      for (const side of [-1, 1]) {
+        const px = side * 15;
+        for (const pz of [-12, 4]) {
+          for (let y = 10; y <= 21; y++) {
+            pushVoxel(solidVoxels, px + 0.5, y + 0.5, pz + 0.5, '#5c3a21', 0.02, 0.75, 1.05, 0.75);
+          }
+        }
+        for (let z = -12; z <= 4; z++) {
+          const sag = Math.sin(((z + 12) / 16) * Math.PI) * 1.4;
+          const cy = 21.2 - sag;
+          pushVoxel(solidVoxels, px + 0.5, cy, z + 0.5, '#292524', 0.01, 0.25, 0.25, 1.05);
+          if ((z + 12) % 4 === 2) {
+            pushVoxel(lanternGlowVoxels, px + 0.5, cy - 0.9, z + 0.5, '#ffedd5', 0.01, 1.1, 1.4, 1.1);
+            pushVoxel(solidVoxels, px + 0.5, cy - 0.1, z + 0.5, '#dc2626', 0.01, 0.9, 0.3, 0.9);
+          }
+        }
+      }
+
+      // 8. DISTANT MOUNTAINS & HUMAN VILLAGE IN THE VALLEY (rz -108..-78)
       const mountainPeaks = [
-        { cx: -46, cz: -88, r: 28, h: 42, col: '#4a6b82' },
-        { cx: 2,   cz: -94, r: 34, h: 52, col: '#3d5a73' },
-        { cx: 48,  cz: -85, r: 26, h: 38, col: '#52738a' }
+        { cx: -64, cz: -96,  r: 32, h: 48, col: '#4a6b82' },
+        { cx: -22, cz: -102, r: 30, h: 46, col: '#43627a' },
+        { cx: 14,  cz: -106, r: 38, h: 58, col: '#3d5a73' },
+        { cx: 58,  cz: -94,  r: 32, h: 44, col: '#52738a' }
       ];
       mountainPeaks.forEach((pk) => {
         for (let x = pk.cx - pk.r; x <= pk.cx + pk.r; x += 2) {
           const dist = Math.abs(x - pk.cx);
           const colH = Math.max(0, Math.round(pk.h * (1 - dist / pk.r) + Math.sin(x * 0.3) * 3));
           for (let y = -6; y <= colH; y += 2) {
-            const isSnow = y >= pk.h * 0.72;
-            pushVoxel(solidVoxels, x, y, pk.cz + (dist % 5), isSnow ? '#e2eafc' : pk.col, 0.03, 2.2, 2.2, 2.2);
+            const isSnow = y >= pk.h * 0.70;
+            pushVoxel(solidVoxels, x, y, pk.cz + (dist % 5), isSnow ? '#e2eafc' : pk.col, 0.03, 2.4, 2.4, 2.4);
           }
         }
       });
       // Distant Human Village roofs & glowing windows
-      for (let vx = -24; vx <= 24; vx += 8) {
-        const vz = -64 + (Math.abs(vx) % 3) * 2;
+      for (let vx = -36; vx <= 36; vx += 8) {
+        const vz = -82 + (Math.abs(vx) % 3) * 2;
         pushBoxVoxels(solidVoxels, vx - 1, 2, vz - 1, vx + 1, 4, vz + 1, '#4a3b32', 0.02);
         pushBoxVoxels(solidVoxels, vx - 2, 5, vz - 2, vx + 2, 6, vz + 2, '#2b2d42', 0.02);
         pushVoxel(lanternGlowVoxels, vx + 0.5, 3.5, vz + 1.6, '#ffd166', 0.01, 0.9, 0.9, 0.4);
       }
     }
 
-    // 5D. CHERRY BLOSSOM GROVE, AUTUMN MAPLE TREE & BAMBOO GROVE
+    // 5D. EXPANDED CHERRY BLOSSOM GROVES, AUTUMN MAPLE TREES & BAMBOO FOREST
     function buildGroves() {
       const sakuraTrees = [
-        { rx: -36, ry: 10, rz: -26, scale: 1.15, isMaple: false },
-        { rx: -42, ry: 10, rz: -6,  scale: 1.05, isMaple: true  }, // Autumn Maple Tree on West Hillside!
-        { rx: -38, ry: 0,  rz: 22,  scale: 1.0,  isMaple: false },
-        { rx: -18, ry: 0,  rz: 44,  scale: 0.95, isMaple: false },
-        { rx: 36,  ry: 10, rz: -34, scale: 1.1,  isMaple: false }
+        { rx: -36, ry: 10, rz: -26, scale: 1.18, isMaple: false },
+        { rx: -44, ry: 10, rz: -6,  scale: 1.08, isMaple: true  }, // West Hillside Autumn Maple
+        { rx: -62, ry: 10, rz: -42, scale: 1.25, isMaple: false }, // Ancient NW Weeping Sakura
+        { rx: -58, ry: 10, rz: -14, scale: 1.05, isMaple: false },
+        { rx: -42, ry: 0,  rz: 24,  scale: 1.05, isMaple: false },
+        { rx: -58, ry: 0,  rz: 52,  scale: 1.12, isMaple: true  }, // SW Stream-side Crimson Maple
+        { rx: -19, ry: 0,  rz: 44,  scale: 0.96, isMaple: false },
+        { rx: 36,  ry: 10, rz: -46, scale: 1.15, isMaple: false },
+        { rx: 58,  ry: 10, rz: -28, scale: 1.20, isMaple: true  }, // East Annex Maple
+        { rx: 48,  ry: 0,  rz: 34,  scale: 1.10, isMaple: false }, // Tea Stall Sakura
+        { rx: 22,  ry: 0,  rz: 62,  scale: 1.05, isMaple: false }  // Outer Torii Sakura
       ];
 
       sakuraTrees.forEach((tree, tIdx) => {
@@ -1394,11 +1831,11 @@
         }
 
         const clusters = [
-          { dx: 0, dy: hTrunk + 3, dz: 0, r: 7.2 * tree.scale },
-          { dx: -5, dy: hTrunk + 1, dz: 3, r: 5.2 * tree.scale },
-          { dx: 5, dy: hTrunk + 1, dz: -2, r: 5.4 * tree.scale },
-          { dx: 1, dy: hTrunk + 2, dz: 5, r: 4.8 * tree.scale },
-          { dx: -3, dy: hTrunk + 4, dz: -4, r: 5.0 * tree.scale }
+          { dx: 0, dy: hTrunk + 3, dz: 0, r: 7.4 * tree.scale },
+          { dx: -5, dy: hTrunk + 1, dz: 3, r: 5.4 * tree.scale },
+          { dx: 5, dy: hTrunk + 1, dz: -2, r: 5.5 * tree.scale },
+          { dx: 1, dy: hTrunk + 2, dz: 5, r: 5.0 * tree.scale },
+          { dx: -3, dy: hTrunk + 4, dz: -4, r: 5.2 * tree.scale }
         ];
 
         const sakuraPalette = ['#fbcfe8', '#f9a8d4', '#f472b6', '#fce7f3'];
@@ -1428,10 +1865,12 @@
       });
 
       const bambooStalks = [
-        [30, 10, -18], [34, 10, -14], [38, 10, -20], [42, 10, -12], [33, 10, -6],
-        [39, 10, -4],  [45, 10, -18], [46, 10, -8],  [31, 10, 2],   [37, 10, 4],
-        [43, 10, 1],   [26, 0, 26],   [31, 0, 30],   [36, 0, 24],   [40, 0, 32],
-        [28, 0, 38],   [34, 0, 42],   [42, 0, 38]
+        [30, 10, -14], [34, 10, -10], [52, 10, -20], [56, 10, -12], [50, 10, -6],
+        [58, 10, -4],  [64, 10, -18], [66, 10, -8],  [52, 10, 2],   [58, 10, 4],
+        [64, 10, 1],   [26, 0, 34],   [31, 0, 38],   [38, 0, 28],   [42, 0, 36],
+        [28, 0, 46],   [35, 0, 50],   [44, 0, 44],   [54, 0, 26],   [60, 0, 32],
+        [56, 0, 44],   [64, 0, 40],   [-66, 10, -24], [-70, 10, -16], [-64, 10, -8],
+        [-68, 0, 28],  [-62, 0, 36],  [-70, 0, 44]
       ];
 
       bambooStalks.forEach(([bx, by, bz], idx) => {
@@ -1490,11 +1929,15 @@
         for (let z = -5; z <= 5; z++) {
           if (y === 9 && Math.abs(x) <= 6 && Math.abs(z) <= 3) {
             if (z % 2 === 0) {
-              pushVoxel(saisenWoodVoxels, x, y, z, '#5c3a21', 0.02, 1, 0.7, 0.75);
+              pushVoxel(saisenWoodVoxels, x, y + 0.45, z, '#5c3a21', 0.02, 1.04, 0.75, 0.78);
             }
             continue;
           }
-          if (y === 8 && Math.abs(x) <= 6 && Math.abs(z) <= 3) continue;
+          if (y === 8 && Math.abs(x) <= 6 && Math.abs(z) <= 3) {
+            // Dark recessed interior floor right below the coin slots so no gaps show through the slats
+            pushVoxel(saisenWoodVoxels, x, y + 0.25, z, '#29170b', 0.01, 1.04, 0.8, 1.04);
+            continue;
+          }
           if (x > -8 && x < 8 && y > 0 && y < 8 && z > -5 && z < 5) continue;
 
           const isCornerGold = (Math.abs(x) >= 7 && Math.abs(z) >= 4 && (y === 1 || y === 5 || y === 9));
@@ -1557,7 +2000,7 @@
     for (let y = -3; y >= -18; y--) {
       const col = (Math.abs(y) % 2 === 0) ? '#dc2626' : '#f8fafc';
       const tassel = (y <= -16) ? 0.65 : 1.0;
-      pushVoxel(bellRopeVoxels, 0, y, 0, y === -3 ? '#d4a359' : col, 0.02, 1.3 * tassel, 1.0, 1.3 * tassel);
+      pushVoxel(bellRopeVoxels, 0, y, 0, y === -3 ? '#d4a359' : col, 0.02, 1.3 * tassel, 1.05, 1.3 * tassel);
     }
     const bellBrassMesh = buildVoxelInstancedMesh(bellBrassVoxels, 0.12, goldMaterial, true, false);
     const bellRopeMesh = buildVoxelInstancedMesh(bellRopeVoxels, 0.12, shrineSolidMaterial, true, false);
@@ -1577,7 +2020,7 @@
     for (let x = -3; x <= 3; x++) {
       const topH = 3 - Math.floor(Math.abs(x) * 0.5);
       for (let y = -3; y <= topH; y++) {
-        pushVoxel(emaBoardVoxels, x, y, 0, y === topH ? '#7c4d2f' : '#f3d5b5', 0.02, 1, 1, 0.55);
+        pushVoxel(emaBoardVoxels, x, y, 0, y === topH ? '#7c4d2f' : '#f3d5b5', 0.02, 1.04, 1.04, 0.6);
       }
     }
     pushVoxel(emaBoardVoxels, 0, 3.8, 0, '#dc2626', 0.01, 0.5, 1.2, 0.4);
@@ -1645,15 +2088,19 @@
       }
     }
 
-    // 4. CLICKABLE STONE LANTERNS (Tōrō) LINING THE STAIRS & COURTYARD
+    // 4. CLICKABLE STONE LANTERNS (Tōrō) LINING THE STAIRS, COURTYARD & OUTER APPROACH
     const lanterns = [];
     const lanternLocations = [
+      { rx: -13, ry: 0,  rz: 62, name: 'lantern_outer_L' },
+      { rx: 12,  ry: 0,  rz: 62, name: 'lantern_outer_R' },
       { rx: -13, ry: 0,  rz: 37, name: 'lantern_bottom_L' },
       { rx: 12,  ry: 0,  rz: 37, name: 'lantern_bottom_R' },
       { rx: -13, ry: 5,  rz: 22, name: 'lantern_mid_L' },
       { rx: 12,  ry: 5,  rz: 22, name: 'lantern_mid_R' },
       { rx: -14, ry: 10, rz: 4,  name: 'lantern_top_L' },
-      { rx: 13,  ry: 10, rz: 4,  name: 'lantern_top_R' }
+      { rx: 13,  ry: 10, rz: 4,  name: 'lantern_top_R' },
+      { rx: 31,  ry: 10, rz: -17, name: 'lantern_annex_R' },
+      { rx: 21,  ry: 0,  rz: 20, name: 'lantern_chaya' }
     ];
 
     lanternLocations.forEach((loc, idx) => {
@@ -1664,21 +2111,21 @@
       const lStoneVox = [];
       const lFlameVox = [];
 
-      pushVoxel(lStoneVox, lx, ly + 0.5, lz, '#78716c', 0.03, 2.8, 1.0, 2.8);
-      pushVoxel(lStoneVox, lx, ly + 1.5, lz, '#a8a29e', 0.03, 2.0, 1.0, 2.0);
-      pushVoxel(lStoneVox, lx, ly + 2.8, lz, '#a8a29e', 0.03, 1.3, 2.0, 1.3);
-      pushVoxel(lStoneVox, lx, ly + 4.1, lz, '#78716c', 0.03, 2.4, 0.8, 2.4);
+      pushVoxel(lStoneVox, lx, ly + 0.5, lz, '#78716c', 0.03, 2.8, 1.1, 2.8);
+      pushVoxel(lStoneVox, lx, ly + 1.5, lz, '#a8a29e', 0.03, 2.0, 1.1, 2.0);
+      pushVoxel(lStoneVox, lx, ly + 2.8, lz, '#a8a29e', 0.03, 1.35, 2.1, 1.35);
+      pushVoxel(lStoneVox, lx, ly + 4.1, lz, '#78716c', 0.03, 2.4, 0.95, 2.4);
 
-      pushVoxel(lFlameVox, lx, ly + 5.2, lz, '#fde68a', 0.01, 1.7, 1.6, 1.7);
+      pushVoxel(lFlameVox, lx, ly + 5.2, lz, '#fde68a', 0.01, 1.75, 1.75, 1.75);
       for (const cx of [-0.8, 0.8]) {
         for (const cz of [-0.8, 0.8]) {
-          pushVoxel(lStoneVox, lx + cx, ly + 5.2, lz + cz, '#78716c', 0.02, 0.4, 1.7, 0.4);
+          pushVoxel(lStoneVox, lx + cx, ly + 5.2, lz + cz, '#78716c', 0.02, 0.45, 1.85, 0.45);
         }
       }
 
-      pushVoxel(lStoneVox, lx, ly + 6.4, lz, '#65a30d', 0.04, 3.2, 0.8, 3.2);
-      pushVoxel(lStoneVox, lx, ly + 7.1, lz, '#78716c', 0.03, 2.1, 0.7, 2.1);
-      pushVoxel(lStoneVox, lx, ly + 7.7, lz, '#57534e', 0.03, 0.9, 0.7, 0.9);
+      pushVoxel(lStoneVox, lx, ly + 6.35, lz, '#65a30d', 0.04, 3.2, 0.9, 3.2);
+      pushVoxel(lStoneVox, lx, ly + 7.05, lz, '#78716c', 0.03, 2.1, 0.8, 2.1);
+      pushVoxel(lStoneVox, lx, ly + 7.65, lz, '#57534e', 0.03, 0.95, 0.8, 0.95);
 
       const lStoneMesh = buildVoxelInstancedMesh(lStoneVox, RV, shrineSolidMaterial, true, true);
       const lFlameMat = lanternGlowMaterial.clone();
@@ -1765,25 +2212,55 @@
     interactivePropMeshes.push(catMesh);
 
     // ============================================================================
-    // 6. DYNAMIC ENVIRONMENTAL SYSTEMS & POOLED GOLD COINS
+    // 6. DYNAMIC ENVIRONMENTAL SYSTEMS: WATERFALL, KOI POND, STREAM & GOLD COINS
     // ============================================================================
-    // 6A. Flowing Stream Water with Ripples
+    // 6A. Flowing Stream Water, Plunge Pool & Cascading Waterfall
     const streamCells = [];
-    for (let z = 8; z <= 58; z++) {
-      const streamCenterX = -28 - (z - 28) * 0.28 + Math.sin(z * 0.18) * 2.5;
-      for (let x = Math.floor(streamCenterX - 3.6); x <= Math.ceil(streamCenterX + 3.6); x++) {
-        if (Math.abs(x - streamCenterX) < 3.8) {
+    // Cascading Waterfall cells down the West Cliff (x = -36..-32, z = 4..12)
+    for (let z = 4; z <= 12; z++) {
+      const dropProgress = (z - 4) / 8;
+      const baseWy = 9.2 * (1 - dropProgress) - 0.5 * dropProgress;
+      for (let x = -36; x <= -32; x++) {
+        streamCells.push({
+          rx: x + 0.5,
+          ryBase: baseWy,
+          rz: z + 0.5,
+          isWaterfall: true,
+          phase: x * 0.9 + z * 0.6,
+          baseColor: varyColor('#bae6fd', x, 0, z, 0.02)
+        });
+      }
+    }
+    // Lower Stream & Plunge Pool cells (z = 8..82)
+    for (let z = 8; z <= 82; z++) {
+      const streamCenterX = -30 - (z - 28) * 0.26 + Math.sin(z * 0.16) * 3.0;
+      const xMinScan = Math.floor(streamCenterX - 8.5);
+      const xMaxScan = Math.ceil(streamCenterX + 8.5);
+      for (let x = xMinScan; x <= xMaxScan; x++) {
+        const isPool = (z >= 9 && z <= 21 && Math.hypot(x + 34, z - 14) < 7.2);
+        if (Math.abs(x - streamCenterX) < 4.2 || isPool) {
           streamCells.push({
             rx: x + 0.5,
+            ryBase: -0.65,
             rz: z + 0.5,
+            isWaterfall: false,
+            isPool,
             phase: x * 0.7 + z * 0.35,
-            baseColor: varyColor('#0ea5e9', x, 0, z, 0.03)
+            baseColor: varyColor(isPool ? '#38bdf8' : '#0ea5e9', x, 0, z, 0.03)
           });
         }
       }
     }
     const streamMesh = buildVoxelInstancedMesh(
-      streamCells.map(c => ({ x: c.rx, y: -0.65, z: c.rz, color: c.baseColor, sx: 1.02, sy: 0.7, sz: 1.02 })),
+      streamCells.map(c => ({
+        x: c.rx,
+        y: c.ryBase,
+        z: c.rz,
+        color: c.baseColor,
+        sx: 1.02,
+        sy: c.isWaterfall ? 1.45 : 0.7,
+        sz: 1.02
+      })),
       RV,
       translucentIceMaterial,
       false,
@@ -1791,27 +2268,74 @@
     );
     shrineWorldGroup.add(streamMesh);
 
-    function updateStreamWater(time) {
-      if (!streamMesh) return;
-      for (let i = 0; i < streamCells.length; i++) {
-        const c = streamCells[i];
-        const wave = Math.sin(c.rz * 0.45 - time * 3.8 + Math.cos(c.rx * 0.6 + time));
-        const rippleY = -0.65 + wave * 0.14;
-        tempPos.set(c.rx * RV, rippleY * RV, c.rz * RV);
-        tempQuat.identity();
-        tempScale.set(1.02, 0.7, 1.02);
-        tempMatrix.compose(tempPos, tempQuat, tempScale);
-        streamMesh.setMatrixAt(i, tempMatrix);
+    // Swimming Kohaku Koi Fish in the Plunge Pool & Stream
+    const koiList = [];
+    for (let k = 0; k < 5; k++) {
+      const kGroup = new THREE.Group();
+      const kVox = [
+        { x: 0, y: 0, z: -1, color: new THREE.Color('#f8fafc'), sx: 0.9, sy: 0.7, sz: 1.2 },
+        { x: 0, y: 0.1, z: 0, color: new THREE.Color(k % 2 === 0 ? '#ea580c' : '#ef4444'), sx: 1.1, sy: 0.8, sz: 1.2 },
+        { x: 0, y: 0, z: 1, color: new THREE.Color('#f8fafc'), sx: 0.8, sy: 0.65, sz: 1.0 },
+        { x: 0, y: 0, z: -2.1, color: new THREE.Color('#fb923c'), sx: 0.4, sy: 0.8, sz: 1.0 }
+      ];
+      const kMesh = buildVoxelInstancedMesh(kVox, 0.08, glossyPropMaterial, false, false);
+      if (kMesh) kGroup.add(kMesh);
+      scene.add(kGroup);
+      koiList.push({
+        group: kGroup,
+        cx: -8.5 + (k % 2) * 0.5,
+        cz: 3.6 + k * 0.85,
+        rx: 0.75 + (k % 3) * 0.25,
+        rz: 0.65 + (k % 2) * 0.3,
+        speed: 0.9 + k * 0.18,
+        phase: k * 1.4
+      });
+    }
 
-        if (wave > 0.78) {
-          tempColor.set('#e0f2fe');
-        } else {
-          tempColor.copy(c.baseColor);
+    function updateStreamWater(time) {
+      if (streamMesh) {
+        for (let i = 0; i < streamCells.length; i++) {
+          const c = streamCells[i];
+          if (c.isWaterfall) {
+            const cascade = Math.sin(c.rz * 1.6 - time * 9.5 + c.phase);
+            tempPos.set(c.rx * RV, (c.ryBase + cascade * 0.18) * RV, c.rz * RV);
+            tempQuat.identity();
+            tempScale.set(1.05, 1.5, 1.05);
+            tempMatrix.compose(tempPos, tempQuat, tempScale);
+            streamMesh.setMatrixAt(i, tempMatrix);
+            tempColor.set(cascade > 0.2 ? '#ffffff' : '#bae6fd');
+            streamMesh.setColorAt(i, tempColor);
+          } else {
+            const wave = Math.sin(c.rz * 0.45 - time * 3.8 + Math.cos(c.rx * 0.6 + time));
+            const rippleY = c.ryBase + wave * 0.14;
+            tempPos.set(c.rx * RV, rippleY * RV, c.rz * RV);
+            tempQuat.identity();
+            tempScale.set(1.02, 0.7, 1.02);
+            tempMatrix.compose(tempPos, tempQuat, tempScale);
+            streamMesh.setMatrixAt(i, tempMatrix);
+
+            if (wave > 0.76 || (c.isPool && Math.sin(c.rx + time * 5.0) > 0.82)) {
+              tempColor.set('#e0f2fe');
+            } else {
+              tempColor.copy(c.baseColor);
+            }
+            streamMesh.setColorAt(i, tempColor);
+          }
         }
-        streamMesh.setColorAt(i, tempColor);
+        streamMesh.instanceMatrix.needsUpdate = true;
+        if (streamMesh.instanceColor) streamMesh.instanceColor.needsUpdate = true;
       }
-      streamMesh.instanceMatrix.needsUpdate = true;
-      if (streamMesh.instanceColor) streamMesh.instanceColor.needsUpdate = true;
+
+      for (let k = 0; k < koiList.length; k++) {
+        const koi = koiList[k];
+        const ang = time * koi.speed + koi.phase;
+        const kx = koi.cx + Math.cos(ang) * koi.rx;
+        const kz = koi.cz + Math.sin(ang) * koi.rz;
+        const dx = -Math.sin(ang) * koi.rx;
+        const dz = Math.cos(ang) * koi.rz;
+        koi.group.position.set(kx, -0.09 + Math.sin(time * 4 + k) * 0.015, kz);
+        koi.group.rotation.y = Math.atan2(dx, dz) + Math.sin(time * 7.5 + k) * 0.12;
+      }
     }
 
     // 6B. Interactive Pile of Fallen Voxel Leaves (Swept by Reimu & Pushed by Dragged Fumos!)
@@ -1931,7 +2455,7 @@
     }
 
     // 6C. Drifting Cherry Blossom Petals & Maple Leaves (Shake loose when Bell rings!)
-    const PETAL_COUNT = 220;
+    const PETAL_COUNT = 280;
     const petalData = [];
     const petalGeom = new THREE.BoxGeometry(0.095, 0.025, 0.095);
     const petalMat = new THREE.MeshBasicMaterial({
@@ -1941,12 +2465,12 @@
     });
     const petalMesh = new THREE.InstancedMesh(petalGeom, petalMat, PETAL_COUNT);
     for (let i = 0; i < PETAL_COUNT; i++) {
-      const isMaple = i >= 165;
+      const isMaple = i >= 210;
       petalMesh.setColorAt(i, new THREE.Color(isMaple ? (i % 2 === 0 ? '#e63946' : '#f77f00') : '#ffd6e7'));
       petalData.push({
-        x: -14 + Math.random() * 28,
+        x: -19 + Math.random() * 38,
         y: 0.5 + Math.random() * 14,
-        z: -12 + Math.random() * 28,
+        z: -16 + Math.random() * 36,
         vx: 0.65 + Math.random() * 0.55,
         vy: -(0.55 + Math.random() * 0.45),
         vz: 0.35 + (Math.random() - 0.5) * 0.5,
@@ -1978,10 +2502,10 @@
         p.y += (p.vy + Math.cos(time * 2.1 + p.phase) * 0.18) * mult * dt;
         p.z += (p.vz + Math.sin(time * 1.1 + p.phase) * 0.35) * mult * dt;
 
-        if (p.y < 0.1 || p.x > 15 || p.z > 16) {
-          p.x = -14 + Math.random() * 20;
+        if (p.y < 0.1 || p.x > 20 || p.z > 21) {
+          p.x = -19 + Math.random() * 28;
           p.y = 9.5 + Math.random() * 5.5;
-          p.z = -12 + Math.random() * 22;
+          p.z = -16 + Math.random() * 30;
         }
 
         tempPos.set(p.x, p.y, p.z);
@@ -2081,7 +2605,7 @@
     // 6F. Sky Elements: Clouds, Valley Mist, Full Moon, Fireflies & Aurora
     const cloudGroup = new THREE.Group();
     const cloudVoxels = [];
-    const cloudCenters = [[-14, 15.5, -18], [4, 16.8, -22], [18, 15.0, -14], [-6, 14.5, 8]];
+    const cloudCenters = [[-16, 15.5, -18], [4, 16.8, -22], [19, 15.0, -14], [-8, 14.5, 10], [15, 15.8, 12]];
     cloudCenters.forEach(([cx, cy, cz]) => {
       for (let x = -4; x <= 4; x++) {
         for (let z = -2; z <= 2; z++) {
@@ -2105,8 +2629,8 @@
     });
     const mistPlanes = [];
     for (let m = 0; m < 4; m++) {
-      const mp = new THREE.Mesh(new THREE.PlaneGeometry(34, 3.2), mistMat);
-      mp.position.set(0, 1.35 + m * 0.65, 10.5 - m * 4.5);
+      const mp = new THREE.Mesh(new THREE.PlaneGeometry(42, 3.5), mistMat);
+      mp.position.set(0, 1.35 + m * 0.65, 12.5 - m * 5.2);
       mp.rotation.x = -Math.PI * 0.42;
       scene.add(mp);
       mistPlanes.push({ mesh: mp, baseX: 0, phase: m * 1.7 });
@@ -2129,9 +2653,9 @@
       side: THREE.DoubleSide
     });
     const auroraGroup = new THREE.Group();
-    for (let a = -18; a <= 18; a++) {
+    for (let a = -22; a <= 22; a++) {
       const seg = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 5.5), auroraMat.clone());
-      const c = new THREE.Color().setHSL(0.45 + ((a + 18) / 36) * 0.32, 0.85, 0.62);
+      const c = new THREE.Color().setHSL(0.45 + ((a + 22) / 44) * 0.32, 0.85, 0.62);
       seg.material.color.copy(c);
       seg.position.set(a * 1.1, 14.5, -25.5 - Math.cos(a * 0.2) * 2.5);
       auroraGroup.add(seg);
@@ -2139,7 +2663,7 @@
     }
     scene.add(auroraGroup);
 
-    const FIREFLY_COUNT = 55;
+    const FIREFLY_COUNT = 75;
     const fireflyData = [];
     const fireflyGeom = new THREE.BoxGeometry(0.14, 0.14, 0.14);
     const fireflyMat = new THREE.MeshBasicMaterial({
@@ -2152,9 +2676,9 @@
     const spiritColors = ['#fde047', '#67e8f9', '#a7f3d0', '#f472b6'];
     for (let i = 0; i < FIREFLY_COUNT; i++) {
       fireflyData.push({
-        x: -12 + Math.random() * 24,
-        y: 0.8 + Math.random() * 7.5,
-        z: -10 + Math.random() * 24,
+        x: -18 + Math.random() * 36,
+        y: 0.8 + Math.random() * 8.0,
+        z: -15 + Math.random() * 34,
         phase: Math.random() * Math.PI * 2,
         speed: 0.6 + Math.random() * 0.8
       });
@@ -2807,8 +3331,8 @@
             this.vel.z *= 0.82;
           }
 
-          const minX = -12.5, maxX = 12.5;
-          const minZ = -12.5, maxZ = 14.0;
+          const minX = -19.0, maxX = 19.0;
+          const minZ = -18.0, maxZ = 19.5;
           if (this.pos.x < minX) { this.pos.x = minX; this.vel.x = Math.abs(this.vel.x) * 0.48; }
           if (this.pos.x > maxX) { this.pos.x = maxX; this.vel.x = -Math.abs(this.vel.x) * 0.48; }
           if (this.pos.z < minZ) { this.pos.z = minZ; this.vel.z = Math.abs(this.vel.z) * 0.48; }
@@ -3177,9 +3701,16 @@
     }
 
     const donateBackdrop = document.getElementById('donate-backdrop');
+    const donateCardEl = document.getElementById('donate-card');
+    const qrFrameBoxEl = document.getElementById('qr-frame-box');
     const qrImgEl = document.getElementById('donate-qr-img');
     const qrPlaceholderEl = document.getElementById('donate-qr-placeholder');
     const qrCaptionEl = document.getElementById('donate-qr-caption');
+    const qrScaleSliderEl = document.getElementById('qr-scale-slider');
+    const qrScaleReadoutEl = document.getElementById('qr-scale-readout');
+    const btnQrSmallerEl = document.getElementById('btn-qr-smaller');
+    const btnQrLargerEl = document.getElementById('btn-qr-larger');
+    const donateResizeHandleEl = document.getElementById('donate-resize-handle');
     const bankContainerEl = document.getElementById('bank-details-container');
     const bankLabelEl = document.getElementById('donate-bank-label');
     const copyBankBtn = document.getElementById('btn-copy-bank');
@@ -3187,7 +3718,78 @@
     const kofiBtn = document.getElementById('btn-kofi');
     const kofiLabelEl = document.getElementById('btn-kofi-label');
 
+    let currentQrScalePct = 110;
+    let isResizingDonateCard = false;
+    let resizeStartPointer = { x: 0, y: 0, scalePct: 110 };
+
+    function setQrScale(pct) {
+      currentQrScalePct = THREE.MathUtils.clamp(Math.round(pct), 75, 175);
+      const scaleVal = (currentQrScalePct / 100).toFixed(2);
+      if (donateCardEl) {
+        donateCardEl.style.setProperty('--qr-scale', scaleVal);
+      }
+      if (qrScaleSliderEl) {
+        qrScaleSliderEl.value = String(currentQrScalePct);
+      }
+      if (qrScaleReadoutEl) {
+        qrScaleReadoutEl.textContent = `${currentQrScalePct}%`;
+      }
+      if (qrFrameBoxEl) {
+        qrFrameBoxEl.classList.toggle('is-zoomed', currentQrScalePct >= 135);
+      }
+    }
+
+    const onQrSliderInput = (e) => {
+      setQrScale(Number(e.target.value));
+    };
+    const onQrSmallerClick = () => {
+      setQrScale(currentQrScalePct - 15);
+      soundFX.playPickup();
+    };
+    const onQrLargerClick = () => {
+      setQrScale(currentQrScalePct + 15);
+      soundFX.playPickup();
+    };
+    const onQrReadoutClick = () => {
+      setQrScale(100);
+      soundFX.playPickup();
+    };
+    const onQrFrameClick = () => {
+      setQrScale(currentQrScalePct >= 135 ? 110 : 150);
+      soundFX.playPickup();
+    };
+    const onDonateCardWheel = (e) => {
+      if (e.ctrlKey || Math.abs(e.deltaY) > 0) {
+        // Allow scrolling if card overflows, unless hovering QR frame or holding Ctrl/Shift
+        const overQr = qrFrameBoxEl && qrFrameBoxEl.contains(e.target);
+        if (overQr || e.ctrlKey || e.shiftKey) {
+          e.preventDefault();
+          const step = e.deltaY < 0 ? 8 : -8;
+          setQrScale(currentQrScalePct + step);
+        }
+      }
+    };
+    const onResizeHandleDown = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      isResizingDonateCard = true;
+      resizeStartPointer.x = e.clientX;
+      resizeStartPointer.y = e.clientY;
+      resizeStartPointer.scalePct = currentQrScalePct;
+    };
+    const onResizePointerMove = (e) => {
+      if (!isResizingDonateCard) return;
+      const dx = e.clientX - resizeStartPointer.x;
+      const dy = e.clientY - resizeStartPointer.y;
+      const deltaPct = (dx + dy) * 0.28;
+      setQrScale(resizeStartPointer.scalePct + deltaPct);
+    };
+    const onResizePointerUp = () => {
+      isResizingDonateCard = false;
+    };
+
     function initDonateModalUI() {
+      setQrScale(110);
       qrCaptionEl.textContent = DONATE_CONFIG.qrCaption || 'Scan with your banking app';
 
       const showPlaceholder = () => {
@@ -3421,9 +4023,9 @@
           raycaster.setFromCamera(pointerNDC, camera);
           if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
             const targetPos = dragHitPoint.clone().add(dragOffset);
-            targetPos.x = THREE.MathUtils.clamp(targetPos.x, -12.0, 12.0);
-            targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.25, 13.5);
-            targetPos.z = THREE.MathUtils.clamp(targetPos.z, -11.5, 13.5);
+            targetPos.x = THREE.MathUtils.clamp(targetPos.x, -18.5, 18.5);
+            targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.25, 14.5);
+            targetPos.z = THREE.MathUtils.clamp(targetPos.z, -17.5, 19.0);
 
             const prevPos = selectedFumo.pos.clone();
             selectedFumo.pos.lerp(targetPos, 0.55);
@@ -3709,6 +4311,17 @@
         return;
       }
 
+      if (isDonateModalOpen && (e.key === '+' || e.key === '=')) {
+        e.preventDefault();
+        onQrLargerClick();
+        return;
+      }
+      if (isDonateModalOpen && (e.key === '-' || e.key === '_')) {
+        e.preventDefault();
+        onQrSmallerClick();
+        return;
+      }
+
       // Avoid number keys and bracket keys so the hub can switch scenes
       const key = e.key.toLowerCase();
       if (key === 'e') {
@@ -3743,6 +4356,8 @@
     renderer.domElement.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointermove', onResizePointerMove);
+    window.addEventListener('pointerup', onResizePointerUp);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('resize', onWindowResize);
 
@@ -3755,6 +4370,13 @@
     copyBankBtn.addEventListener('click', onCopyBankClick);
     kofiBtn.addEventListener('click', onKofiClick);
     btnSound.addEventListener('click', onSoundClick);
+    if (qrScaleSliderEl) qrScaleSliderEl.addEventListener('input', onQrSliderInput);
+    if (btnQrSmallerEl) btnQrSmallerEl.addEventListener('click', onQrSmallerClick);
+    if (btnQrLargerEl) btnQrLargerEl.addEventListener('click', onQrLargerClick);
+    if (qrScaleReadoutEl) qrScaleReadoutEl.addEventListener('click', onQrReadoutClick);
+    if (qrFrameBoxEl) qrFrameBoxEl.addEventListener('click', onQrFrameClick);
+    if (donateCardEl) donateCardEl.addEventListener('wheel', onDonateCardWheel, { passive: false });
+    if (donateResizeHandleEl) donateResizeHandleEl.addEventListener('pointerdown', onResizeHandleDown);
 
     // ============================================================================
     // 14. MAIN ANIMATION LOOP & FumoSceneLifecycle INTEGRATION
@@ -3864,6 +4486,8 @@
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointermove', onResizePointerMove);
+      window.removeEventListener('pointerup', onResizePointerUp);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onWindowResize);
 
@@ -3876,6 +4500,13 @@
       copyBankBtn.removeEventListener('click', onCopyBankClick);
       kofiBtn.removeEventListener('click', onKofiClick);
       btnSound.removeEventListener('click', onSoundClick);
+      if (qrScaleSliderEl) qrScaleSliderEl.removeEventListener('input', onQrSliderInput);
+      if (btnQrSmallerEl) btnQrSmallerEl.removeEventListener('click', onQrSmallerClick);
+      if (btnQrLargerEl) btnQrLargerEl.removeEventListener('click', onQrLargerClick);
+      if (qrScaleReadoutEl) qrScaleReadoutEl.removeEventListener('click', onQrReadoutClick);
+      if (qrFrameBoxEl) qrFrameBoxEl.removeEventListener('click', onQrFrameClick);
+      if (donateCardEl) donateCardEl.removeEventListener('wheel', onDonateCardWheel);
+      if (donateResizeHandleEl) donateResizeHandleEl.removeEventListener('pointerdown', onResizeHandleDown);
     }
 
     // Single FumoSceneLifecycle instance (handles hub message events & cleanup)
