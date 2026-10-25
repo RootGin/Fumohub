@@ -53,19 +53,19 @@
       outline: none;
     }
     .glass-panel {
-      background: rgba(255, 255, 255, 0.80);
+      background: rgba(255, 246, 251, 0.84);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.65);
-      box-shadow: 0 10px 28px -6px rgba(20, 15, 45, 0.18), 0 2px 6px rgba(20, 15, 45, 0.08);
-      color: #1e293b;
+      border: 1px solid rgba(251, 207, 232, 0.85);
+      box-shadow: 0 10px 28px -6px rgba(131, 24, 67, 0.16), 0 2px 6px rgba(157, 23, 77, 0.08);
+      color: #3b1c32;
       transition: background 0.5s ease, color 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     body.night-ui .glass-panel {
-      background: rgba(22, 24, 46, 0.82);
-      border-color: rgba(145, 135, 235, 0.32);
-      color: #f3f0ff;
-      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.55), 0 0 18px rgba(130, 110, 255, 0.18);
+      background: rgba(30, 18, 42, 0.84);
+      border-color: rgba(244, 114, 182, 0.36);
+      color: #fdf2f8;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.6), 0 0 20px rgba(236, 72, 153, 0.22);
     }
     .ui-btn {
       cursor: pointer;
@@ -94,12 +94,12 @@
       font-size: 0.72rem;
       line-height: 1.2;
       border-radius: 6px;
-      background: rgba(0, 0, 0, 0.08);
-      border-bottom: 2px solid rgba(0, 0, 0, 0.18);
+      background: rgba(190, 24, 93, 0.10);
+      border-bottom: 2px solid rgba(190, 24, 93, 0.22);
     }
     body.night-ui kbd {
-      background: rgba(255, 255, 255, 0.14);
-      border-bottom-color: rgba(255, 255, 255, 0.28);
+      background: rgba(244, 114, 182, 0.18);
+      border-bottom-color: rgba(244, 114, 182, 0.34);
     }
 
     /* Top-Right Controls (Top-Left kept strictly empty for Hub!) */
@@ -153,13 +153,13 @@
       gap: 10px;
     }
     .donate-chip {
-      background: linear-gradient(135deg, rgba(225, 29, 72, 0.92), rgba(190, 18, 60, 0.92)) !important;
+      background: linear-gradient(135deg, rgba(236, 72, 153, 0.94), rgba(219, 39, 119, 0.94)) !important;
       color: #ffffff !important;
-      border: 1px solid rgba(255, 228, 230, 0.6) !important;
-      box-shadow: 0 8px 24px -4px rgba(225, 29, 72, 0.5), 0 0 16px rgba(251, 191, 36, 0.3) !important;
+      border: 1px solid rgba(252, 231, 243, 0.72) !important;
+      box-shadow: 0 8px 24px -4px rgba(219, 39, 119, 0.52), 0 0 18px rgba(249, 168, 212, 0.42) !important;
     }
     body.night-ui .donate-chip {
-      box-shadow: 0 8px 28px -2px rgba(244, 63, 94, 0.7), 0 0 24px rgba(251, 191, 36, 0.5) !important;
+      box-shadow: 0 8px 28px -2px rgba(236, 72, 153, 0.75), 0 0 24px rgba(244, 114, 182, 0.55) !important;
     }
 
     /* Bottom-Center Hints */
@@ -217,11 +217,11 @@
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: #e11d48;
+      color: #db2777;
       margin-bottom: 2px;
     }
     body.night-ui #speech-bubble .bubble-tag {
-      color: #fbbf24;
+      color: #f9a8d4;
     }
 
     /* Centered Donation Panel Modal (Scalable & Resizable) */
@@ -261,10 +261,10 @@
       flex-direction: column;
       align-items: center;
       text-align: center;
-      border: 1.5px solid rgba(225, 29, 72, 0.28);
+      border: 1.5px solid rgba(236, 72, 153, 0.34);
       box-shadow:
-        0 24px 60px rgba(15, 23, 42, 0.35),
-        0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+        0 24px 60px rgba(80, 18, 52, 0.32),
+        0 0 0 1px rgba(255, 255, 255, 0.55) inset;
       transform: translateY(12px) scale(0.95);
       transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease;
       overflow: hidden;
@@ -276,18 +276,18 @@
       left: 0;
       right: 0;
       height: 5px;
-      background: linear-gradient(90deg, #e11d48, #fbbf24, #e11d48);
-      opacity: 0.9;
+      background: linear-gradient(90deg, #ec4899, #f9a8d4, #fbbf24, #ec4899);
+      opacity: 0.92;
     }
     #donate-backdrop.is-open #donate-card {
       transform: translateY(0) scale(1);
     }
     body.night-ui #donate-card {
-      border-color: rgba(251, 191, 36, 0.58);
+      border-color: rgba(244, 114, 182, 0.58);
       box-shadow:
         0 24px 60px rgba(0, 0, 0, 0.82),
-        0 0 42px rgba(251, 191, 36, 0.32),
-        inset 0 0 20px rgba(251, 191, 36, 0.12);
+        0 0 42px rgba(236, 72, 153, 0.34),
+        inset 0 0 20px rgba(244, 114, 182, 0.14);
     }
     .donate-close-btn {
       position: absolute;
@@ -313,15 +313,15 @@
       gap: 6px;
       padding: 4px 12px;
       border-radius: 999px;
-      background: rgba(225, 29, 72, 0.12);
-      color: #e11d48;
+      background: rgba(236, 72, 153, 0.14);
+      color: #db2777;
       font-size: 11.5px;
       font-weight: 700;
       margin-bottom: 5px;
     }
     body.night-ui .donate-header-badge {
-      background: rgba(251, 191, 36, 0.16);
-      color: #fbbf24;
+      background: rgba(244, 114, 182, 0.18);
+      color: #f9a8d4;
     }
     .donate-title {
       font-size: clamp(18px, calc(16px + 3px * var(--qr-scale)), 24px);
@@ -338,7 +338,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      border: 2px solid rgba(225, 29, 72, 0.24);
+      border: 2px solid rgba(236, 72, 153, 0.28);
       box-shadow:
         0 10px 28px rgba(0, 0, 0, 0.10),
         0 0 0 4px rgba(255, 255, 255, 0.65);
@@ -352,10 +352,10 @@
       cursor: zoom-out;
     }
     body.night-ui .qr-frame {
-      border-color: rgba(251, 191, 36, 0.82);
+      border-color: rgba(244, 114, 182, 0.82);
       box-shadow:
         0 12px 32px rgba(0, 0, 0, 0.45),
-        0 0 30px rgba(251, 191, 36, 0.38);
+        0 0 30px rgba(236, 72, 153, 0.38);
     }
     #donate-qr-img {
       width: 100%;
@@ -427,11 +427,11 @@
     #qr-scale-slider {
       width: 84px;
       height: 5px;
-      accent-color: #e11d48;
+      accent-color: #db2777;
       cursor: pointer;
     }
     body.night-ui #qr-scale-slider {
-      accent-color: #fbbf24;
+      accent-color: #f472b6;
     }
     #qr-scale-readout {
       min-width: 38px;
@@ -440,12 +440,12 @@
       cursor: pointer;
       padding: 2px 5px;
       border-radius: 6px;
-      background: rgba(225, 29, 72, 0.1);
-      color: #e11d48;
+      background: rgba(236, 72, 153, 0.12);
+      color: #db2777;
     }
     body.night-ui #qr-scale-readout {
-      background: rgba(251, 191, 36, 0.18);
-      color: #fbbf24;
+      background: rgba(244, 114, 182, 0.18);
+      color: #f9a8d4;
     }
     .qr-caption {
       font-size: 12.5px;
@@ -494,15 +494,15 @@
       border-radius: 8px;
       font-size: 11.5px;
       font-weight: 700;
-      background: rgba(225, 29, 72, 0.14);
-      color: #e11d48;
+      background: rgba(236, 72, 153, 0.14);
+      color: #db2777;
       display: inline-flex;
       align-items: center;
       gap: 4px;
     }
     body.night-ui #btn-copy-bank {
-      background: rgba(251, 191, 36, 0.2);
-      color: #fbbf24;
+      background: rgba(244, 114, 182, 0.2);
+      color: #f9a8d4;
     }
     #copy-toast {
       font-size: 11px;
@@ -524,9 +524,9 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      background: linear-gradient(135deg, #ff5e5b, #e11d48);
+      background: linear-gradient(135deg, #f472b6, #db2777);
       color: #ffffff;
-      box-shadow: 0 6px 18px -3px rgba(225, 29, 72, 0.45);
+      box-shadow: 0 6px 18px -3px rgba(219, 39, 119, 0.45);
     }
   </style>
 </head>
@@ -541,7 +541,7 @@
       <span id="fumo-badge-status" style="opacity:0.7;">Sweeping</span>
     </div>
 
-    <button id="btn-bell" title="Ring the Shrine Bell (Shortcut: B)" class="glass-panel ui-btn hud-pill-btn">
+    <button id="btn-bell" title="Ring the Shrine Bell & Shake Sakura Petals (Shortcut: B)" class="glass-panel ui-btn hud-pill-btn">
       <span>🔔</span>
       <span>Ring Bell</span>
       <kbd>B</kbd>
@@ -562,22 +562,22 @@
   <!-- Bottom-Right Controls: Permanent Donate Chip & Mute Toggle -->
   <div class="hud-bottom-right">
     <button id="btn-donate-chip" title="Open Shrine Offering Box (Shortcut: E)" class="glass-panel ui-btn hud-pill-btn donate-chip">
-      <span>🪙</span>
+      <span>🌸</span>
       <span class="font-display">Donate</span>
       <kbd style="background:rgba(255,255,255,0.22);color:#fff;border-color:rgba(255,255,255,0.35);">E</kbd>
     </button>
 
-    <button id="btn-sound" title="Toggle Shrine Sound & Koto Ambience (Shortcut: M)" class="glass-panel ui-btn hud-pill-btn">
-      <span id="icon-sound-on">🔊</span>
+    <button id="btn-sound" title="Toggle 'Petals on the Stream' BGM & Shrine Sound (Shortcut: M)" class="glass-panel ui-btn hud-pill-btn">
+      <span id="icon-sound-on">🎵</span>
       <span id="icon-sound-off" style="display:none;opacity:0.6;">🔇</span>
-      <span id="label-sound">Sound</span>
+      <span id="label-sound">Petals on the Stream</span>
       <kbd>M</kbd>
     </button>
   </div>
 
   <!-- Floating Cursor Tooltip -->
   <div id="fumo-tooltip" class="glass-panel" style="position:fixed;z-index:30;opacity:0;padding:6px 12px;border-radius:12px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;">
-    <span id="tooltip-emoji">⛩️</span>
+    <span id="tooltip-emoji">🌸</span>
     <span id="tooltip-text">Reimu Fumo</span>
   </div>
 
@@ -588,10 +588,10 @@
   </div>
 
   <!-- Bottom Center HUD Hints -->
-  <div class="hud-bottom-center">
+  <div id="hud-hints" class="hud-bottom-center">
     <div class="glass-panel hints-bar">
-      <span>🪙 <b>Click Box / <kbd>E</kbd>:</b> Donate</span>
-      <span>🔔 <b>Bell / <kbd>B</kbd>:</b> Ring</span>
+      <span>🌸 <b>Click Box / <kbd>E</kbd>:</b> Donate</span>
+      <span>🔔 <b>Bell / <kbd>B</kbd>:</b> Shake Sakura</span>
       <span>🖱️ <b>Click Fumo:</b> Squeeze</span>
       <span>✋ <b>Drag:</b> Toss Down Stairs</span>
     </div>
@@ -605,8 +605,8 @@
       </button>
 
       <div class="donate-header-badge">
-        <span>⛩️</span>
-        <span>Hakurei Shrine Saisen-bako</span>
+        <span>🌸</span>
+        <span>Hakurei Sakura Shrine Saisen-bako</span>
       </div>
 
       <h2 class="font-display donate-title" id="donate-modal-title">Make a Shrine Offering</h2>
@@ -661,12 +661,11 @@
       qrImageSrc: "../assets/bank-qr.jpg", // a data: URI or a relative path such as "../assets/bank-qr.jpg"
       qrCaption: "Scan with your banking app",
       bankLabel: "",             // optional text shown under the QR, e.g. bank name and account holder
-      thankYouLine: "Thank you for supporting the shrine!",
+      thankYouLine: "Thank you for supporting the Sakura Shrine! 🌸",
     };
 
     // ============================================================================
-    // 1. EXTEND SHARED PlushSoundEngine WITH HAKUREI SHRINE BGM THEME & SFX
-    //    ("Spring Lane ~ Hakurei Shrine" & "Maiden's Capriccio" Multi-Voice Synth)
+    // 1. EXTEND SHARED PlushSoundEngine WITH "PETALS ON THE STREAM" BGM & SHRINE SFX
     // ============================================================================
     class ShrineSoundEngine extends PlushSoundEngine {
       constructor() {
@@ -676,8 +675,21 @@
         this.bgmStepTimer = 0.35;
         this.bgmGain = null;
         this.noiseBuffer = null;
+        this.baseBgmVolume = 0.46;
+        this.duckTimeout = null;
+        this.bgmFailed = false;
+        this.isSuspended = false;
 
-        // Traditional Japanese scale frequencies (D Dorian / Yo & In-sen pentatonic)
+        // Load "../assets/Petals_on_the_Stream.mp3" for the Sakura Shrine BGM
+        this.bgmAudio = new Audio('../assets/Petals_on_the_Stream.mp3');
+        this.bgmAudio.loop = true;
+        this.bgmAudio.preload = 'auto';
+        this.bgmAudio.volume = this.baseBgmVolume;
+        this.bgmAudio.addEventListener('error', () => {
+          this.bgmFailed = true;
+        });
+
+        // Traditional Japanese scale frequencies (fallback synth if audio file fails)
         const N = {
           G2: 98.00, A2: 110.00, Bb2: 116.54, C3: 130.81, D3: 146.83, E3: 164.81, F3: 174.61, G3: 196.00, A3: 220.00,
           Bb3: 233.08, C4: 261.63, D4: 293.66, Eb4: 311.13, E4: 329.63, F4: 349.23, G4: 392.00, A4: 440.00,
@@ -687,13 +699,7 @@
         this.N = N;
         this.kotoScale = [N.D4, N.F4, N.G4, N.A4, N.C5, N.D5, N.F5, N.G5, N.A5];
 
-        // 64-Step (8-Bar) Touhou Hakurei Shrine Theme Arrangement:
-        // Bars 1–2 (0..15):  Section A1 — "Spring Lane ~ Hakurei Courtyard" (Dm7 -> Bbmaj7 -> C6 -> Dm9)
-        // Bars 3–4 (16..31): Section A2 — "Breeze Through the Torii" (Shakuhachi counter-melody enters)
-        // Bars 5–6 (32..47): Section B1 — "Maiden's Capriccio" (ZUN IV-V-vi progression: Bb -> C -> Dm -> Am)
-        // Bars 7–8 (48..63): Section B2 — "Crimson & White Ofuda" (Soaring climax & koto harp turnaround)
         this.hakureiScore = [
-          // --- BAR 1 (Dm7: D - F - A - C) ---
           { koto: N.D4, bass: N.D3, strum: [N.D4, N.F4, N.A4, N.D5], chime: N.D6 },
           { koto: N.F4 },
           { koto: N.G4, arp: N.A3 },
@@ -702,8 +708,6 @@
           { arp: N.F4 },
           { koto: N.A4 },
           { koto: N.G4, arp: N.D4 },
-
-          // --- BAR 2 (Bbmaj7 -> C6: Bb - D - F - A -> C - E - G - A) ---
           { koto: N.F4, bass: N.Bb2, strum: [N.Bb3, N.D4, N.F4, N.A4] },
           { koto: N.D4 },
           { koto: N.F4, arp: N.Bb3 },
@@ -711,67 +715,7 @@
           { koto: N.A4, bass: N.C3, flute: N.G4, fluteDur: 0.95, chime: N.A6 },
           { arp: N.E4 },
           { koto: N.G4, grace: N.A4 },
-          { koto: N.F4, arp: N.C4 },
-
-          // --- BAR 3 (Dm7 -> Gm7: Rising Torii Phrase) ---
-          { koto: N.D4, bass: N.D3, strum: [N.D4, N.A4, N.D5] },
-          { koto: N.F4 },
-          { koto: N.A4, arp: N.F4 },
-          { koto: N.C5 },
-          { koto: N.D5, bass: N.G2, flute: N.F5, fluteDur: 1.15, chime: N.D6 },
-          { koto: N.C5, arp: N.Bb3 },
-          { koto: N.A4, grace: N.C5 },
-          { koto: N.G4, arp: N.D4 },
-
-          // --- BAR 4 (Am7 -> Dm9: Gentle Shrine Cadence) ---
-          { koto: N.A4, bass: N.A2, flute: N.E5, fluteDur: 0.9 },
-          { koto: N.C5 },
-          { koto: N.G4, arp: N.E4 },
-          { koto: N.F4 },
-          { koto: N.D4, bass: N.D3, strum: [N.D4, N.F4, N.A4, N.C5, N.E5], chime: N.A6 },
-          { arp: N.A3 },
-          { koto: N.F4, flute: N.D5, fluteDur: 0.85 },
-          { koto: N.G4, arp: N.D4 },
-
-          // --- BAR 5 (Section B: Maiden's Capriccio — Bbmaj7 -> C) ---
-          { koto: N.F5, bass: N.Bb2, strum: [N.Bb3, N.F4, N.Bb4, N.D5], flute: N.D5, fluteDur: 1.0, chime: N.F6 },
-          { koto: N.E5 },
-          { koto: N.D5, arp: N.F4 },
-          { koto: N.A4 },
-          { koto: N.C5, bass: N.C3, strum: [N.C4, N.G4, N.C5, N.E5], flute: N.E5, fluteDur: 1.0 },
-          { koto: N.D5 },
-          { koto: N.E5, arp: N.G4, grace: N.D5 },
-          { koto: N.G5 },
-
-          // --- BAR 6 (Dm -> Am7: Soaring Hakurei Melody) ---
-          { koto: N.A5, bass: N.D3, strum: [N.D4, N.A4, N.D5, N.F5], flute: N.F5, fluteDur: 1.2, chime: N.A6 },
-          { koto: N.G5 },
-          { koto: N.F5, arp: N.A4 },
-          { koto: N.E5, grace: N.F5 },
-          { koto: N.D5, bass: N.A2, flute: N.C5, fluteDur: 0.95 },
-          { koto: N.C5, arp: N.E4 },
-          { koto: N.A4 },
-          { koto: N.G4, arp: N.C4 },
-
-          // --- BAR 7 (Gm7 -> Am7 -> Bbmaj7: Emotional Touhou Climb) ---
-          { koto: N.Bb4, bass: N.G2, strum: [N.G3, N.D4, N.G4, N.Bb4], flute: N.Bb4, fluteDur: 0.9 },
-          { koto: N.A4 },
-          { koto: N.G4, arp: N.D4 },
-          { koto: N.Bb4 },
-          { koto: N.C5, bass: N.A2, strum: [N.A3, N.E4, N.A4, N.C5], flute: N.C5, fluteDur: 0.95, chime: N.E6 },
-          { koto: N.D5 },
-          { koto: N.F5, bass: N.Bb2, grace: N.E5 },
-          { koto: N.E5, arp: N.F4 },
-
-          // --- BAR 8 (C7sus4 -> Dm9: Shimmering Koto Glissando Turnaround) ---
-          { koto: N.D5, bass: N.C3, strum: [N.D4, N.F4, N.A4, N.D5], flute: N.D5, fluteDur: 1.5, chime: N.D6 },
-          { koto: N.A4 },
-          { koto: N.F4, arp: N.D4 },
-          { koto: N.D4 },
-          { bass: N.D3, strum: [N.D4, N.F4, N.A4, N.C5, N.D5, N.F5, N.A5], chime: N.A6 },
-          { arp: N.A4 },
-          { koto: N.F4, arp: N.D4 },
-          { koto: N.E4, arp: N.A3 }
+          { koto: N.F4, arp: N.C4 }
         ];
       }
 
@@ -783,7 +727,6 @@
           this.bgmGain.connect(this.ctx.destination);
         }
         if (this.ctx && !this.noiseBuffer) {
-          // 0.25s reusable white-noise buffer for shakuhachi breath chiff & koto plectrum transient
           const len = Math.floor(this.ctx.sampleRate * 0.25);
           this.noiseBuffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
           const data = this.noiseBuffer.getChannelData(0);
@@ -791,10 +734,72 @@
             data[i] = Math.random() * 2 - 1;
           }
         }
+        this.startBGM();
+      }
+
+      startBGM() {
+        if (!this.enabled || this.isSuspended || !this.bgmAudio || this.bgmFailed) return;
+        if (this.bgmAudio.paused) {
+          this.bgmAudio.play().catch(() => {});
+        }
+      }
+
+      stopBGM() {
+        if (this.bgmAudio && !this.bgmAudio.paused) {
+          try {
+            this.bgmAudio.pause();
+          } catch (e) {}
+        }
+      }
+
+      setMuted(muted) {
+        this.enabled = !muted;
+        if (this.enabled) {
+          this.init();
+          this.startBGM();
+        } else {
+          this.stopBGM();
+        }
+      }
+
+      suspend() {
+        this.isSuspended = true;
+        this.stopBGM();
+        super.suspend();
+      }
+
+      resume() {
+        this.isSuspended = false;
+        super.resume();
+        if (this.enabled) {
+          this.startBGM();
+        }
+      }
+
+      dispose() {
+        this.isSuspended = true;
+        if (this.duckTimeout) clearTimeout(this.duckTimeout);
+        if (this.bgmAudio) {
+          try {
+            this.bgmAudio.pause();
+            this.bgmAudio.src = '';
+          } catch (e) {}
+          this.bgmAudio = null;
+        }
+        super.dispose();
       }
 
       // Gently duck BGM when ceremonial shrine SFX (bell, coins, claps) play
       duckBGM(dipGain = 0.32, recoverSec = 1.35) {
+        if (this.bgmAudio && !this.bgmAudio.paused) {
+          this.bgmAudio.volume = Math.max(0.08, this.baseBgmVolume * dipGain);
+          if (this.duckTimeout) clearTimeout(this.duckTimeout);
+          this.duckTimeout = setTimeout(() => {
+            if (this.bgmAudio) {
+              this.bgmAudio.volume = this.baseBgmVolume;
+            }
+          }, recoverSec * 1000);
+        }
         if (!this.ctx || !this.bgmGain) return;
         try {
           const now = this.ctx.currentTime;
@@ -811,7 +816,7 @@
         try {
           this.init();
           if (!this.ctx) return;
-          this.duckBGM(0.28, 1.4);
+          this.duckBGM(0.35, 1.4);
           const now = this.ctx.currentTime;
           const partials = [784, 1568, 2380, 3120];
           partials.forEach((freq, idx) => {
@@ -863,7 +868,7 @@
         try {
           this.init();
           if (!this.ctx) return;
-          this.duckBGM(0.35, 1.1);
+          this.duckBGM(0.42, 1.1);
           const t0 = this.ctx.currentTime + delaySec;
           const bufferSize = Math.floor(this.ctx.sampleRate * 0.09);
           const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
@@ -889,244 +894,43 @@
         } catch (e) {}
       }
 
-      // Authentic Japanese Koto plucked string synthesis (tsume plectrum attack + warm paulownia body resonance)
-      playKotoNote(freq, delaySec = 0, duration = 1.35, volume = 0.026, isNight = false) {
+      // Fallback Koto pluck synthesis (only used if Petals_on_the_Stream.mp3 fails to load)
+      playKotoNote(freq, delaySec = 0, duration = 1.35, volume = 0.022, isNight = false) {
         if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
         try {
           const dest = this.bgmGain || this.ctx.destination;
           const t0 = this.ctx.currentTime + delaySec;
-
-          const filter = this.ctx.createBiquadFilter();
-          filter.type = 'lowpass';
-          const peakCutoff = isNight ? Math.min(2600, freq * 3.6) : Math.min(3400, freq * 4.5);
-          filter.frequency.setValueAtTime(peakCutoff, t0);
-          filter.frequency.exponentialRampToValueAtTime(Math.max(420, freq * 1.35), t0 + duration * 0.85);
-          filter.Q.setValueAtTime(1.1, t0);
-
-          const gain = this.ctx.createGain();
-          gain.gain.setValueAtTime(0.0001, t0);
-          gain.gain.linearRampToValueAtTime(volume, t0 + 0.009);
-          gain.gain.exponentialRampToValueAtTime(volume * 0.32, t0 + 0.22);
-          gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
-
-          // Fundamental string oscillator with slight pitch-bend pluck transient
           const osc1 = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
           osc1.type = 'triangle';
-          osc1.frequency.setValueAtTime(freq * 1.016, t0);
-          osc1.frequency.exponentialRampToValueAtTime(freq, t0 + 0.022);
-          osc1.frequency.exponentialRampToValueAtTime(freq * 0.997, t0 + duration);
-
-          // Octave harmonic shimmer
-          const osc2 = this.ctx.createOscillator();
-          const harmGain = this.ctx.createGain();
-          osc2.type = 'sine';
-          osc2.frequency.setValueAtTime(freq * 2.0, t0);
-          harmGain.gain.setValueAtTime(0.28, t0);
-          harmGain.gain.exponentialRampToValueAtTime(0.02, t0 + duration * 0.45);
-
-          osc1.connect(filter);
-          osc2.connect(harmGain);
-          harmGain.connect(filter);
-          filter.connect(gain);
-          gain.connect(dest);
-
-          osc1.start(t0);
-          osc2.start(t0);
-          osc1.stop(t0 + duration + 0.03);
-          osc2.stop(t0 + duration + 0.03);
-        } catch (e) {}
-      }
-
-      // Expressive Shakuhachi bamboo flute voice with breath chiff, pitch scoop, and delayed vibrato
-      playShakuhachiNote(freq, delaySec = 0, duration = 1.0, volume = 0.017, isNight = false) {
-        if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
-        try {
-          const dest = this.bgmGain || this.ctx.destination;
-          const t0 = this.ctx.currentTime + delaySec;
-          const dur = isNight ? duration * 1.22 : duration;
-
-          const filter = this.ctx.createBiquadFilter();
-          filter.type = 'lowpass';
-          filter.frequency.setValueAtTime(isNight ? 1350 : 1750, t0);
-
-          const gain = this.ctx.createGain();
+          osc1.frequency.setValueAtTime(freq, t0);
           gain.gain.setValueAtTime(0.0001, t0);
-          gain.gain.linearRampToValueAtTime(volume, t0 + 0.09);
-          gain.gain.setValueAtTime(volume * 0.9, t0 + dur * 0.65);
-          gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-
-          const osc = this.ctx.createOscillator();
-          osc.type = 'sine';
-          // Traditional shakuhachi "atari" upward pitch scoop at note onset
-          osc.frequency.setValueAtTime(freq * 0.974, t0);
-          osc.frequency.exponentialRampToValueAtTime(freq, t0 + 0.075);
-
-          // Warm woody 2nd harmonic
-          const oscHarm = this.ctx.createOscillator();
-          const harmGain = this.ctx.createGain();
-          oscHarm.type = 'triangle';
-          oscHarm.frequency.setValueAtTime(freq, t0);
-          harmGain.gain.setValueAtTime(0.32, t0);
-
-          // Delayed expressive vibrato LFO
-          const vibrato = this.ctx.createOscillator();
-          const vibGain = this.ctx.createGain();
-          vibrato.frequency.setValueAtTime(5.1, t0);
-          vibGain.gain.setValueAtTime(0.0, t0);
-          vibGain.gain.linearRampToValueAtTime(freq * 0.0085, t0 + Math.min(0.28, dur * 0.4));
-          vibrato.connect(vibGain);
-          vibGain.connect(osc.frequency);
-          vibGain.connect(oscHarm.frequency);
-
-          // Soft bamboo breath chiff at attack
-          if (this.noiseBuffer) {
-            const breath = this.ctx.createBufferSource();
-            breath.buffer = this.noiseBuffer;
-            const breathFilter = this.ctx.createBiquadFilter();
-            breathFilter.type = 'bandpass';
-            breathFilter.frequency.setValueAtTime(freq * 2.5, t0);
-            breathFilter.Q.setValueAtTime(4.0, t0);
-            const breathGain = this.ctx.createGain();
-            breathGain.gain.setValueAtTime(volume * 0.45, t0);
-            breathGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.09);
-            breath.connect(breathFilter);
-            breathFilter.connect(breathGain);
-            breathGain.connect(dest);
-            breath.start(t0);
-            breath.stop(t0 + 0.1);
-          }
-
-          osc.connect(filter);
-          oscHarm.connect(harmGain);
-          harmGain.connect(filter);
-          filter.connect(gain);
-          gain.connect(dest);
-
-          osc.start(t0);
-          oscHarm.start(t0);
-          vibrato.start(t0);
-          osc.stop(t0 + dur + 0.03);
-          oscHarm.stop(t0 + dur + 0.03);
-          vibrato.stop(t0 + dur + 0.03);
-        } catch (e) {}
-      }
-
-      // Deep 17-string Bass Koto (Jūshichigen) root & fifth resonance
-      playBassKoto(freq, duration = 1.5, volume = 0.022) {
-        if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
-        try {
-          const dest = this.bgmGain || this.ctx.destination;
-          const t0 = this.ctx.currentTime;
-
-          const osc = this.ctx.createOscillator();
-          const oscFifth = this.ctx.createOscillator();
-          const fifthGain = this.ctx.createGain();
-          const filter = this.ctx.createBiquadFilter();
-          const gain = this.ctx.createGain();
-
-          osc.type = 'triangle';
-          osc.frequency.setValueAtTime(freq * 1.01, t0);
-          osc.frequency.exponentialRampToValueAtTime(freq, t0 + 0.025);
-
-          oscFifth.type = 'sine';
-          oscFifth.frequency.setValueAtTime(freq * 1.498, t0);
-          fifthGain.gain.setValueAtTime(0.26, t0);
-
-          filter.type = 'lowpass';
-          filter.frequency.setValueAtTime(520, t0);
-          filter.frequency.exponentialRampToValueAtTime(190, t0 + duration);
-
-          gain.gain.setValueAtTime(0.0001, t0);
-          gain.gain.linearRampToValueAtTime(volume, t0 + 0.012);
+          gain.gain.linearRampToValueAtTime(volume, t0 + 0.01);
           gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
-
-          osc.connect(filter);
-          oscFifth.connect(fifthGain);
-          fifthGain.connect(filter);
-          filter.connect(gain);
+          osc1.connect(gain);
           gain.connect(dest);
-
-          osc.start(t0);
-          oscFifth.start(t0);
-          osc.stop(t0 + duration + 0.03);
-          oscFifth.stop(t0 + duration + 0.03);
+          osc1.start(t0);
+          osc1.stop(t0 + duration + 0.03);
         } catch (e) {}
       }
 
-      // Shimmering Kagura Suzu / Wind Chime accent on phrase boundaries
-      playKaguraChime(freq, volume = 0.0085) {
-        if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
-        try {
-          const dest = this.bgmGain || this.ctx.destination;
-          const t0 = this.ctx.currentTime;
-          [1.0, 2.0, 2.756].forEach((ratio, idx) => {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(freq * ratio, t0);
-            const amp = volume / (idx * 1.6 + 1);
-            gain.gain.setValueAtTime(0.0001, t0);
-            gain.gain.linearRampToValueAtTime(amp, t0 + 0.008);
-            gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.25 - idx * 0.25);
-            osc.connect(gain);
-            gain.connect(dest);
-            osc.start(t0);
-            osc.stop(t0 + 1.3);
-          });
-        } catch (e) {}
-      }
-
-      // Advance one step of the Hakurei Shrine BGM score
-      playKotoPluck(isNight = false) {
-        if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
-        const step = this.hakureiScore[this.bgmStep % this.hakureiScore.length];
-        this.bgmStep = (this.bgmStep + 1) % this.hakureiScore.length;
-        if (!step) return;
-
-        // In Night Mode, subtly inflect E -> Eb (In-sen nocturnal mode) on select turnaround phrases
-        const nightPitch = (f) => {
-          if (!isNight || !f) return f;
-          if (Math.abs(f - this.N.E4) < 1) return this.N.Eb4;
-          if (Math.abs(f - this.N.E5) < 1 && this.bgmStep < 32) return this.N.Eb5;
-          return f;
-        };
-
-        if (step.bass) {
-          this.playBassKoto(step.bass, isNight ? 1.75 : 1.45, isNight ? 0.020 : 0.023);
-        }
-        if (step.strum) {
-          step.strum.forEach((f, idx) => {
-            this.playKotoNote(nightPitch(f), idx * 0.036, isNight ? 1.65 : 1.35, 0.013, isNight);
-          });
-        }
-        if (step.grace && step.koto) {
-          this.playKotoNote(nightPitch(step.grace), 0, 0.35, 0.014, isNight);
-          this.playKotoNote(nightPitch(step.koto), 0.055, isNight ? 1.55 : 1.30, isNight ? 0.023 : 0.027, isNight);
-        } else if (step.koto) {
-          this.playKotoNote(nightPitch(step.koto), 0, isNight ? 1.55 : 1.30, isNight ? 0.023 : 0.027, isNight);
-        }
-        if (step.arp) {
-          this.playKotoNote(nightPitch(step.arp), 0.01, isNight ? 1.25 : 1.0, 0.014, isNight);
-        }
-        if (step.flute) {
-          this.playShakuhachiNote(nightPitch(step.flute), 0.02, step.fluteDur || 0.95, isNight ? 0.018 : 0.016, isNight);
-        }
-        if (step.chime) {
-          this.playKaguraChime(step.chime, isNight ? 0.010 : 0.0075);
-        }
-      }
-
-      // Frame-driven sequencer tick called from main animate() loop
+      // Frame-driven BGM updater called from main animate() loop
       updateBGM(dt, isNight = false) {
-        if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
+        if (!this.enabled || this.isSuspended) return;
+        this.baseBgmVolume = isNight ? 0.40 : 0.48;
+        if (this.bgmAudio && !this.bgmFailed) {
+          if (!this.duckTimeout) {
+            this.bgmAudio.volume = this.baseBgmVolume;
+          }
+          return;
+        }
+        if (!this.ctx || this.ctx.state !== 'running') return;
         this.bgmStepTimer -= dt;
         if (this.bgmStepTimer <= 0) {
-          this.playKotoPluck(isNight);
-          // Day: lively ~112 BPM eighth-note pulse (0.268s); Night: serene ~86 BPM pulse (0.348s)
-          const baseStep = isNight ? 0.348 : 0.268;
-          // Slight expressive rubato on bar endings (every 16th step)
-          const isPhraseEnd = (this.bgmStep % 16 === 0);
-          this.bgmStepTimer = baseStep + (isPhraseEnd ? 0.045 : 0);
+          const step = this.hakureiScore[this.bgmStep % this.hakureiScore.length];
+          this.bgmStep = (this.bgmStep + 1) % this.hakureiScore.length;
+          if (step && step.koto) this.playKotoNote(step.koto, 0, 1.3, 0.02, isNight);
+          this.bgmStepTimer = isNight ? 0.348 : 0.268;
         }
       }
 
@@ -1145,7 +949,7 @@
             osc.frequency.setValueAtTime(f * 1.05, now + 0.09);
             osc.frequency.exponentialRampToValueAtTime(f * 1.35, now + 0.18);
             gain.gain.setValueAtTime(0.0001, now);
-            gain.gain.linearRampToValueAtTime(0.014, now + 0.02);
+            gain.gain.linearRampToValueAtTime(0.010, now + 0.02);
             gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.21);
             osc.connect(gain);
             gain.connect(this.ctx.destination);
@@ -1155,7 +959,7 @@
             const f = 3800 + Math.random() * 250;
             osc.frequency.setValueAtTime(f, now);
             gain.gain.setValueAtTime(0.0001, now);
-            gain.gain.linearRampToValueAtTime(0.009, now + 0.02);
+            gain.gain.linearRampToValueAtTime(0.007, now + 0.02);
             gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
             osc.connect(gain);
             gain.connect(this.ctx.destination);
@@ -1219,8 +1023,8 @@
     // ============================================================================
     const container = document.getElementById('canvas-container');
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#cce8ff');
-    scene.fog = new THREE.FogExp2('#cce8ff', 0.0062);
+    scene.background = new THREE.Color('#fae8f2');
+    scene.fog = new THREE.FogExp2('#fae8f2', 0.0062);
 
     const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.5, 240);
     // Start the camera framing the Saisen-bako offering box and the expanded Hakurei Shrine grounds
@@ -1242,7 +1046,7 @@
       const renderPass = new THREE.RenderPass(scene, camera);
       bloomPass = new THREE.UnrealBloomPass(
         new THREE.Vector2(window.innerWidth, window.innerHeight),
-        0.16,
+        0.18,
         0.55,
         0.82
       );
@@ -1276,11 +1080,11 @@
     // ============================================================================
     // 4. LIGHTING & MATERIALS (Capped Dynamic Lights for Performance)
     // ============================================================================
-    const hemiLight = new THREE.HemisphereLight(0xfff9ee, 0x8ea885, 0.72);
+    const hemiLight = new THREE.HemisphereLight(0xfff0f7, 0xa3b899, 0.76);
     hemiLight.position.set(0, 30, 0);
     scene.add(hemiLight);
 
-    const sunDirLight = new THREE.DirectionalLight(0xfff2d6, 1.32);
+    const sunDirLight = new THREE.DirectionalLight(0xfff0f5, 1.32);
     sunDirLight.position.set(26, 32, 22);
     sunDirLight.target.position.set(0, 2, -2);
     scene.add(sunDirLight.target);
@@ -1298,12 +1102,12 @@
     sunDirLight.shadow.radius = 2.2;
     scene.add(sunDirLight);
 
-    const fillLight = new THREE.DirectionalLight(0xdbeafe, 0.32);
+    const fillLight = new THREE.DirectionalLight(0xfce7f3, 0.36);
     fillLight.position.set(-18, 12, 10);
     scene.add(fillLight);
 
     // Shrine Veranda & Offering Box Warm Lantern Point Light
-    const shrineLanternLight = new THREE.PointLight(0xffa94d, 0.25, 22, 1.5);
+    const shrineLanternLight = new THREE.PointLight(0xff9ebb, 0.28, 22, 1.5);
     shrineLanternLight.position.set(0, 6.2, -2.2);
     shrineLanternLight.castShadow = true;
     shrineLanternLight.shadow.mapSize.width = 1024;
@@ -1312,12 +1116,12 @@
     scene.add(shrineLanternLight);
 
     // Stone Staircase & Approach Lanterns Point Light
-    const stairLanternLight = new THREE.PointLight(0xffb74d, 0.0, 26, 1.4);
+    const stairLanternLight = new THREE.PointLight(0xffb3c6, 0.0, 26, 1.4);
     stairLanternLight.position.set(0, 3.8, 8.5);
     scene.add(stairLanternLight);
 
     // Mountain Stream & Waterfall Spirit Glow Point Light
-    const streamGlowLight = new THREE.PointLight(0x67e8f9, 0.1, 18, 1.6);
+    const streamGlowLight = new THREE.PointLight(0xf9a8d4, 0.16, 18, 1.6);
     streamGlowLight.position.set(-8.5, 2.5, 6.5);
     scene.add(streamGlowLight);
 
@@ -1343,9 +1147,9 @@
       emissiveIntensity: 0.25
     });
     const lanternGlowMaterial = new THREE.MeshStandardMaterial({
-      color: 0xfff3c4,
-      emissive: new THREE.Color(0xffa726),
-      emissiveIntensity: 0.35,
+      color: 0xfff0f6,
+      emissive: new THREE.Color(0xff85a1),
+      emissiveIntensity: 0.38,
       roughness: 0.2
     });
 
@@ -1412,7 +1216,13 @@
             pushVoxel(solidVoxels, x + 0.5, -1.5, z + 0.5, pebbleCol, 0.04);
             if (!isPlungePool && distToStream >= 4.2) {
               pushVoxel(solidVoxels, x + 0.5, -0.5, z + 0.5, '#78716c', 0.05);
-              if ((x * z) % 5 === 0) pushVoxel(solidVoxels, x + 0.5, 0.3, z + 0.5, '#65a30d', 0.04, 1, 0.6, 1);
+              // Sakura petals drifted along the mossy stream banks ("Petals on the Stream")
+              if ((x + z) % 2 === 0) {
+                const bankPetalCol = ((x * z) % 3 === 0) ? '#f9a8d4' : '#fbcfe8';
+                pushVoxel(solidVoxels, x + 0.5, 0.22, z + 0.5, bankPetalCol, 0.03, 0.85, 0.35, 0.85);
+              } else if ((x * z) % 5 === 0) {
+                pushVoxel(solidVoxels, x + 0.5, 0.3, z + 0.5, '#65a30d', 0.04, 1, 0.6, 1);
+              }
             }
             continue;
           }
@@ -1421,11 +1231,15 @@
           if (x >= -9 && x <= 8) {
             const flagstone = ((Math.floor((x + 12) / 3) + Math.floor(z / 3)) % 2 === 0);
             groundCol = flagstone ? '#9ca3af' : '#94a3b8';
-            if (Math.abs(x + 0.5) >= 7.5) groundCol = '#78716c';
+            if (Math.abs(x + 0.5) >= 7.5) groundCol = '#fbcfe8'; // Sakura petal border along the Sandō approach!
           } else if (z >= 18 && z <= 30 && x >= 18 && x <= 38) {
-            // Gravel path & stone patio leading to the Red-Umbrella Tea Stall
-            groundCol = ((x + z) % 2 === 0) ? '#d6ccc2' : '#c7b8ea';
+            // Sakura-dusted gravel path & stone patio leading to the Red-Umbrella Tea Stall
+            groundCol = ((x + z) % 2 === 0) ? '#f5d0e6' : '#e3d5ca';
             if (x <= 22 && Math.abs(z - 24) <= 2) groundCol = '#94a3b8';
+          } else if (((x * 13 + z * 7) % 11) === 0) {
+            groundCol = '#fbcfe8'; // Fallen cherry blossom carpet patches on the spring grass
+          } else if (((x * 7 + z * 19) % 17) === 0) {
+            groundCol = '#f9a8d4';
           } else if (((x * 13 + z * 7) % 9) === 0) {
             groundCol = '#4d7c0f';
           } else if (((x * 5 + z * 17) % 23) === 0) {
@@ -1433,10 +1247,10 @@
           }
           pushVoxel(solidVoxels, x + 0.5, -0.5, z + 0.5, groundCol, 0.035);
 
-          // Scatter tiny wildflowers & mossy stones on outer meadows
-          if (Math.abs(x) > 16 && ((x * 31 + z * 19) % 47) === 0 && z < Z_MAX - 2) {
-            const flowerCol = ((x + z) % 3 === 0) ? '#fbcfe8' : (((x + z) % 2 === 0) ? '#fde047' : '#f8fafc');
-            pushVoxel(solidVoxels, x + 0.5, 0.25, z + 0.5, flowerCol, 0.02, 0.6, 0.4, 0.6);
+          // Scatter fallen sakura petals & spring blossoms across the meadows
+          if (Math.abs(x) > 10 && ((x * 31 + z * 19) % 19) === 0 && z < Z_MAX - 2) {
+            const flowerCol = ((x + z) % 3 === 0) ? '#f472b6' : (((x + z) % 2 === 0) ? '#fbcfe8' : '#fce7f3');
+            pushVoxel(solidVoxels, x + 0.5, 0.22, z + 0.5, flowerCol, 0.025, 0.75, 0.32, 0.75);
           }
 
           if (x === X_MIN || x === X_MAX || z === Z_MAX) {
@@ -1458,7 +1272,8 @@
           for (let y = 0; y <= topY; y++) {
             if (y < topY - 2 && z > 8 && z < 22 && x > X_MIN && x < X_MAX && x !== -12 && x !== 11 && x !== -38 && x !== -30) continue;
             const isTop = (y === topY);
-            const col = isTop ? '#65a30d' : ((y % 3 === 0) ? '#78716c' : '#57534e');
+            const isSakuraSlope = isTop && ((x * 11 + z * 5) % 6 === 0);
+            const col = isSakuraSlope ? '#fbcfe8' : (isTop ? '#65a30d' : ((y % 3 === 0) ? '#78716c' : '#57534e'));
             pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, col, 0.04);
           }
         }
@@ -1499,13 +1314,16 @@
             const minFillY = (isBalustrade || z === zStart || z === zEnd || x === -11 || x === 10) ? 0 : Math.max(0, ry - 1);
             for (let y = minFillY; y <= stepTopY; y++) {
               let sCol = isBalustrade ? '#78716c' : ((x + step) % 4 === 0 ? '#94a3b8' : '#a8a29e');
-              if (!isBalustrade && Math.abs(x) >= 7 && ((x + z) % 3 === 0)) sCol = '#84a98c';
+              if (!isBalustrade && Math.abs(x) >= 6 && ((x + z) % 2 === 0)) sCol = '#fbcfe8';
               pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, sCol, 0.03);
             }
           }
-          for (const sideX of [-9, -8, 7, 8]) {
-            if ((sideX + z) % 2 === 0) {
-              pushVoxel(solidVoxels, sideX + 0.5, ry + 1.15, z + 0.5, '#fbcfe8', 0.03, 0.9, 0.3, 0.9);
+          // Lush Sakura petal drifts along the staircase edges & balustrades
+          for (const sideX of [-10, -9, -8, -7, 6, 7, 8, 9]) {
+            if ((sideX + z + step) % 2 === 0) {
+              const pY = (sideX <= -10 || sideX >= 9) ? ry + 3.1 : ry + 1.15;
+              const pCol = ((sideX + z) % 3 === 0) ? '#f472b6' : '#fbcfe8';
+              pushVoxel(solidVoxels, sideX + 0.5, pY, z + 0.5, pCol, 0.03, 0.92, 0.3, 0.92);
             }
           }
         }
@@ -1531,21 +1349,28 @@
           }
 
           const isBorder = (x === X_MIN || x === X_MAX || z === Z_MIN || z === 8);
-          let courtCol = '#d6ccc2';
+          let courtCol = '#e6d7df';
           if (x >= -8 && x <= 7 && z >= -18) {
             const tile = ((Math.floor((x + 8) / 3) + Math.floor((z + 20) / 3)) % 2 === 0);
             courtCol = tile ? '#94a3b8' : '#a8a29e';
-            if (Math.abs(x) === 8) courtCol = '#78716c';
+            if (Math.abs(x) === 8) courtCol = '#fbcfe8';
           } else if (z >= -28 && z <= -22 && x >= 22 && x <= 34) {
             // Flagstone walkway to East Shrine Pavilion (Shamusho)
             courtCol = ((x + z) % 2 === 0) ? '#94a3b8' : '#cbd5e1';
           } else if (x < -30 || x > 48 || z < -54) {
-            courtCol = ((x + z) % 5 === 0) ? '#4d7c0f' : '#65a30d';
+            courtCol = ((x * 7 + z * 13) % 7 === 0) ? '#fbcfe8' : (((x + z) % 5 === 0) ? '#4d7c0f' : '#65a30d');
+          } else if (((x * 17 + z * 23) % 13) === 0) {
+            courtCol = '#fbcfe8';
           } else if (z % 2 === 0) {
-            courtCol = '#e3d5ca';
+            courtCol = '#f2e2ec';
           }
 
           pushVoxel(solidVoxels, x + 0.5, 9.5, z + 0.5, courtCol, 0.025);
+          // Scatter fallen sakura petals on the upper courtyard gravel & around the shrine
+          if ((x < -10 || x > 10) && z > -50 && z < 6 && ((x * 29 + z * 17) % 19) === 0) {
+            const cPetal = ((x + z) % 2 === 0) ? '#f9a8d4' : '#fce7f3';
+            pushVoxel(solidVoxels, x + 0.5, 10.12, z + 0.5, cPetal, 0.025, 0.8, 0.25, 0.8);
+          }
           // Solid sub-layer under the courtyard border & front cliff edge so no seam ever shows
           if (isBorder || (z >= 6 && z <= 8)) {
             pushVoxel(solidVoxels, x + 0.5, 8.5, z + 0.5, '#57534e', 0.025);
@@ -1747,7 +1572,7 @@
       for (const lx of [-11, 0, 10]) {
         const lz = lx === 0 ? -7.0 : -15.5;
         pushVoxel(solidVoxels, lx + 0.5, 25.5, lz, '#1e1b24', 0.01, 0.6, 0.8, 0.6);
-        pushVoxel(lanternGlowVoxels, lx + 0.5, 24.0, lz, '#ffedd5', 0.01, 1.5, 2.1, 1.5);
+        pushVoxel(lanternGlowVoxels, lx + 0.5, 24.0, lz, '#fbcfe8', 0.01, 1.5, 2.1, 1.5);
         pushVoxel(solidVoxels, lx + 0.5, 22.6, lz, '#1e1b24', 0.01, 1.1, 0.45, 1.1);
       }
 
@@ -1805,6 +1630,9 @@
             } else if (!isSlopeBandZ && distFromEndX >= 2 && distFromEndX <= 4 && h >= 3 && h <= 10) {
               // Traditional white shikkui plaster & dark timber bargeboard inside the Irimoya gable triangle
               tileCol = (h === 3 || h === 10 || z % 4 === 0) ? '#5c3a21' : '#f8fafc';
+            } else if (isSlopeBandZ && ((x * 13 + z * 7 + h) % 29 === 0)) {
+              // Fallen sakura petals resting on the dark slate shrine roof tiles!
+              tileCol = '#fbcfe8';
             }
 
             pushVoxel(solidVoxels, x + 0.5, ry + 0.5 + eaveLift * 0.5, z + 0.5, tileCol, 0.025, 1.02, 1.05 + eaveLift, 1.02);
@@ -1828,7 +1656,7 @@
       }
 
       // Engawa Cushion (Zabuton) & Green Tea Set on Left Veranda (rx -15..-9, rz -19..-16, ry 14)
-      pushBoxVoxels(solidVoxels, -15, 14, -19, -11, 14, -16, '#9d4edd', 0.025);
+      pushBoxVoxels(solidVoxels, -15, 14, -19, -11, 14, -16, '#ec4899', 0.025);
       pushVoxel(solidVoxels, -9.0, 14.2, -17.5, '#6e4226', 0.02, 2.2, 0.4, 2.2); // Tea tray
       pushVoxel(glossyVoxels, -9.2, 14.8, -17.5, '#52b788', 0.02, 1.1, 1.1, 1.1); // Kyusu teapot
       pushVoxel(glossyVoxels, -8.3, 14.6, -17.2, '#f8fafc', 0.01, 0.65, 0.8, 0.65); // Teacup
@@ -1970,9 +1798,13 @@
           pushVoxel(solidVoxels, x + 0.5, 10.5, z + 0.5, '#78716c', 0.03);
           if (isRim) {
             pushVoxel(solidVoxels, x + 0.5, 11.5, z + 0.5, '#a8a29e', 0.03);
-            pushVoxel(solidVoxels, x + 0.5, 12.3, z + 0.5, ((x + z) % 3 === 0) ? '#65a30d' : '#78716c', 0.03, 1, 0.75, 1);
+            pushVoxel(solidVoxels, x + 0.5, 12.3, z + 0.5, ((x + z) % 3 === 0) ? '#fbcfe8' : '#78716c', 0.03, 1, 0.75, 1);
           } else {
             pushVoxel(waterBaseVoxels, x + 0.5, 11.8, z + 0.5, '#38bdf8', 0.02, 1, 0.85, 1);
+            // Floating sakura blossoms in the Temizuya water basin (Hana-Chōzu!)
+            if ((x + z) % 2 === 0) {
+              pushVoxel(solidVoxels, x + 0.5, 12.28, z + 0.5, ((x * z) % 2 === 0) ? '#f472b6' : '#fce7f3', 0.02, 0.65, 0.2, 0.65);
+            }
           }
         }
       }
@@ -2030,28 +1862,28 @@
           pushVoxel(solidVoxels, x + 0.5, 14.5, -7.0, '#7c4d2f', 0.02, 1.05, 0.45, 0.45);
           if (x % 2 === 1 && x !== 21) {
             for (const ey of [16.3, 13.3]) {
-              pushVoxel(solidVoxels, x + 0.5, ey + 0.7, -6.8, '#dc2626', 0.01, 0.3, 0.6, 0.3);
+              pushVoxel(solidVoxels, x + 0.5, ey + 0.7, -6.8, '#ec4899', 0.01, 0.3, 0.6, 0.3);
               pushVoxel(solidVoxels, x + 0.5, ey, -6.8, '#f3d5b5', 0.03, 1.3, 1.1, 0.3);
-              pushVoxel(solidVoxels, x + 0.5, ey - 0.1, -6.6, ((x + Math.round(ey)) % 3 === 0) ? '#ef4444' : '#3b82f6', 0.01, 0.6, 0.5, 0.15);
+              pushVoxel(solidVoxels, x + 0.5, ey - 0.1, -6.6, ((x + Math.round(ey)) % 3 === 0) ? '#f472b6' : '#ec4899', 0.01, 0.6, 0.5, 0.15);
             }
           }
         }
       }
       addCollider(3.9, 2.5, -2.0, 6.3, 5.1, -1.4, 'ema_plaque_rack');
 
-      // Omikuji Fortune Rack with Tied White Papers (rx 17..23, rz -1, ry 10..18)
+      // Omikuji Fortune Rack with Tied Pink & White Sakura Fortune Papers (rx 17..23, rz -1, ry 10..18)
       for (const px of [17, 23]) {
         for (let y = 10; y <= 18; y++) {
           pushVoxel(solidVoxels, px + 0.5, y + 0.5, -1.0, '#6e4226', 0.02, 0.85, 1.02, 0.85);
         }
       }
       for (let x = 16; x <= 24; x++) {
-        pushVoxel(solidVoxels, x + 0.5, 18.8, -1.0, '#dc2626', 0.02, 1.05, 0.85, 1.6);
+        pushVoxel(solidVoxels, x + 0.5, 18.8, -1.0, '#db2777', 0.02, 1.05, 0.85, 1.6);
       }
       for (const ry of [13.0, 15.2, 17.2]) {
         for (let x = 18; x <= 22; x++) {
           pushVoxel(solidVoxels, x + 0.5, ry, -1.0, '#8d5b3c', 0.02, 1.05, 0.38, 0.38);
-          pushVoxel(solidVoxels, x + 0.5, ry, -0.7, '#ffffff', 0.01, 0.55, 1.05, 0.6);
+          pushVoxel(solidVoxels, x + 0.5, ry, -0.7, (x % 2 === 0) ? '#fce7f3' : '#ffffff', 0.01, 0.55, 1.05, 0.6);
         }
       }
       addCollider(4.1, 2.5, -0.6, 6.0, 4.8, 0.1, 'omikuji_rack');
@@ -2062,7 +1894,7 @@
         for (let x = bx; x <= bx + 3; x++) {
           for (let z = bz; z <= bz + 2; z++) {
             for (let y = by; y <= by + 3; y++) {
-              const c = (y === by + 1 || y === by + 2) ? '#1e3a8a' : '#e6ccb2';
+              const c = (y === by + 1 || y === by + 2) ? '#be185d' : '#e6ccb2';
               pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, c, 0.03);
             }
           }
@@ -2074,10 +1906,10 @@
       pushVoxel(solidVoxels, 19.5, 18.8, -17.0, '#78350f', 0.02, 0.9, 0.9, 0.9);
       pushVoxel(glossyVoxels, 13.5, 14.2, -16.8, '#dc2626', 0.01, 1.4, 0.4, 1.4);
 
-      // 6. RED-UMBRELLA DANGO & TEA RESTING BENCH (CHAYA) ON LOWER EAST LAWN (rx 22..35, rz 20..28)
+      // 6. HANAMI SAKURA DANGO & TEA RESTING BENCH (CHAYA) ON LOWER EAST LAWN (rx 22..35, rz 20..28)
       for (let x = 23; x <= 32; x++) {
         for (let z = 21; z <= 25; z++) {
-          pushVoxel(solidVoxels, x + 0.5, 1.5, z + 0.5, '#dc2626', 0.02, 1.04, 0.75, 1.04); // Red felt cloth
+          pushVoxel(solidVoxels, x + 0.5, 1.5, z + 0.5, '#db2777', 0.02, 1.04, 0.75, 1.04); // Sakura-crimson felt cloth
           if ((x === 23 || x === 27 || x === 32) && (z === 21 || z === 25)) {
             pushVoxel(solidVoxels, x + 0.5, 0.5, z + 0.5, '#5c3a21', 0.02, 0.85, 1.25, 0.85);
           }
@@ -2089,7 +1921,7 @@
       pushVoxel(glossyVoxels, 27.3, 2.45, 23.0, '#ffffff', 0.01, 0.5, 0.5, 0.5);
       pushVoxel(glossyVoxels, 27.8, 2.45, 23.0, '#84cc16', 0.01, 0.5, 0.5, 0.5);
       pushVoxel(glossyVoxels, 28.6, 2.5, 23.2, '#52b788', 0.01, 0.7, 0.85, 0.7);
-      // Tall Vermilion Wagasa (Japanese Parasol) over the bench (solid overlapping canopy)
+      // Tall Sakura Wagasa (Japanese Parasol) over the bench (solid overlapping canopy)
       for (let y = 0; y <= 14; y++) {
         pushVoxel(solidVoxels, 30.5, y + 0.5, 26.5, '#78350f', 0.02, 0.72, 1.08, 0.72);
       }
@@ -2098,14 +1930,14 @@
           const r = Math.hypot(ux, uz);
           if (r <= 7.2) {
             const uy = 14.5 - r * 0.28;
-            const uCol = (r < 1.8) ? '#fef08a' : ((Math.round(r) % 3 === 0) ? '#b91c1c' : '#dc2626');
+            const uCol = (r < 1.8) ? '#fce7f3' : ((Math.round(r) % 3 === 0) ? '#f472b6' : '#db2777');
             pushVoxel(solidVoxels, 30.5 + ux, uy, 26.5 + uz, uCol, 0.02, 1.12, 0.85, 1.12);
           }
         }
       }
       addCollider(5.6, 0.0, 5.1, 8.3, 0.75, 6.6, 'chaya_tea_bench');
 
-      // 7. OVERHEAD FESTIVAL PAPER LANTERN FESTOONS (CHŌCHIN) ALONG COURTYARD
+      // 7. OVERHEAD HANAMI SAKURA PAPER LANTERN FESTOONS (CHŌCHIN) ALONG COURTYARD
       for (const side of [-1, 1]) {
         const px = side * 15;
         for (const pz of [-12, 4]) {
@@ -2118,18 +1950,18 @@
           const cy = 21.2 - sag;
           pushVoxel(solidVoxels, px + 0.5, cy, z + 0.5, '#292524', 0.01, 0.25, 0.25, 1.05);
           if ((z + 12) % 4 === 2) {
-            pushVoxel(lanternGlowVoxels, px + 0.5, cy - 0.9, z + 0.5, '#ffedd5', 0.01, 1.1, 1.4, 1.1);
-            pushVoxel(solidVoxels, px + 0.5, cy - 0.1, z + 0.5, '#dc2626', 0.01, 0.9, 0.3, 0.9);
+            pushVoxel(lanternGlowVoxels, px + 0.5, cy - 0.9, z + 0.5, '#fbcfe8', 0.01, 1.15, 1.45, 1.15);
+            pushVoxel(solidVoxels, px + 0.5, cy - 0.1, z + 0.5, '#db2777', 0.01, 0.9, 0.3, 0.9);
           }
         }
       }
 
       // 8. DISTANT MOUNTAINS & HUMAN VILLAGE IN THE VALLEY (rz -108..-78)
       const mountainPeaks = [
-        { cx: -64, cz: -96,  r: 32, h: 48, col: '#4a6b82' },
-        { cx: -22, cz: -102, r: 30, h: 46, col: '#43627a' },
-        { cx: 14,  cz: -106, r: 38, h: 58, col: '#3d5a73' },
-        { cx: 58,  cz: -94,  r: 32, h: 44, col: '#52738a' }
+        { cx: -64, cz: -96,  r: 32, h: 48, col: '#5a527a' },
+        { cx: -22, cz: -102, r: 30, h: 46, col: '#4f486e' },
+        { cx: 14,  cz: -106, r: 38, h: 58, col: '#463f62' },
+        { cx: 58,  cz: -94,  r: 32, h: 44, col: '#635985' }
       ];
       mountainPeaks.forEach((pk) => {
         for (let x = pk.cx - pk.r; x <= pk.cx + pk.r; x += 2) {
@@ -2137,7 +1969,7 @@
           const colH = Math.max(0, Math.round(pk.h * (1 - dist / pk.r) + Math.sin(x * 0.3) * 3));
           for (let y = -6; y <= colH; y += 2) {
             const isSnow = y >= pk.h * 0.70;
-            pushVoxel(solidVoxels, x, y, pk.cz + (dist % 5), isSnow ? '#e2eafc' : pk.col, 0.03, 2.4, 2.4, 2.4);
+            pushVoxel(solidVoxels, x, y, pk.cz + (dist % 5), isSnow ? '#fdf2f8' : pk.col, 0.03, 2.4, 2.4, 2.4);
           }
         }
       });
@@ -2150,21 +1982,28 @@
       }
     }
 
-    // 5D. EXPANDED CHERRY BLOSSOM GROVES, AUTUMN MAPLE TREES & BAMBOO FOREST
+    // 5D. EXPANDED FULL-BLOOM SAKURA CHERRY BLOSSOM GROVES, WEEPING BOUGHS & STREAM CANOPY
     function buildGroves() {
       const sakuraTrees = [
-        { rx: -36, ry: 10, rz: -26, scale: 1.18, isMaple: false },
-        { rx: -44, ry: 10, rz: -6,  scale: 1.08, isMaple: true  }, // West Hillside Autumn Maple
-        { rx: -62, ry: 10, rz: -42, scale: 1.25, isMaple: false }, // Ancient NW Weeping Sakura
-        { rx: -58, ry: 10, rz: -14, scale: 1.05, isMaple: false },
-        { rx: -42, ry: 0,  rz: 24,  scale: 1.05, isMaple: false },
-        { rx: -58, ry: 0,  rz: 52,  scale: 1.12, isMaple: true  }, // SW Stream-side Crimson Maple
-        { rx: -19, ry: 0,  rz: 44,  scale: 0.96, isMaple: false },
-        { rx: 36,  ry: 10, rz: -46, scale: 1.15, isMaple: false },
-        { rx: 58,  ry: 10, rz: -28, scale: 1.20, isMaple: true  }, // East Annex Maple
-        { rx: 48,  ry: 0,  rz: 34,  scale: 1.10, isMaple: false }, // Tea Stall Sakura
-        { rx: 22,  ry: 0,  rz: 62,  scale: 1.05, isMaple: false }  // Outer Torii Sakura
+        { rx: -36, ry: 10, rz: -26, scale: 1.24, weeping: true  }, // Upper West Shrine Sakura (Shion's tree!)
+        { rx: -44, ry: 10, rz: -6,  scale: 1.16, weeping: true  }, // Overhanging Waterfall Cliff Sakura
+        { rx: -62, ry: 10, rz: -42, scale: 1.30, weeping: true  }, // Ancient NW Weeping Sakura
+        { rx: -58, ry: 10, rz: -14, scale: 1.10, weeping: false },
+        { rx: -28, ry: 10, rz: 4,   scale: 1.08, weeping: true  }, // Waterfall Top Rim Sakura
+        { rx: -42, ry: 0,  rz: 24,  scale: 1.15, weeping: true  }, // Plunge Pool & Stream Bank Sakura
+        { rx: -26, ry: 0,  rz: 30,  scale: 1.04, weeping: true  }, // Red Bridge East Bank Sakura
+        { rx: -48, ry: 0,  rz: 40,  scale: 1.12, weeping: true  }, // Red Bridge West Bank Sakura
+        { rx: -58, ry: 0,  rz: 52,  scale: 1.18, weeping: false }, // SW Stream-side Full-Bloom Sakura
+        { rx: -19, ry: 0,  rz: 44,  scale: 1.04, weeping: true  }, // Inner Torii Left Sakura
+        { rx: 19,  ry: 0,  rz: 44,  scale: 1.04, weeping: true  }, // Inner Torii Right Sakura
+        { rx: 36,  ry: 10, rz: -46, scale: 1.22, weeping: true  }, // NE Shrine Hall Sakura
+        { rx: 58,  ry: 10, rz: -28, scale: 1.25, weeping: true  }, // East Shamusho Annex Sakura
+        { rx: 28,  ry: 10, rz: 2,   scale: 1.06, weeping: false }, // Upper East Courtyard Edge Sakura
+        { rx: 48,  ry: 0,  rz: 34,  scale: 1.16, weeping: true  }, // Chaya Tea Stall Canopy Sakura
+        { rx: 22,  ry: 0,  rz: 62,  scale: 1.10, weeping: true  }  // Outer Torii Entrance Sakura
       ];
+
+      const sakuraPalette = ['#fce7f3', '#fbcfe8', '#f9a8d4', '#f472b6', '#fda4af', '#ffffff'];
 
       sakuraTrees.forEach((tree, tIdx) => {
         const tx = tree.rx;
@@ -2172,39 +2011,64 @@
         const tz = tree.rz;
         const hTrunk = Math.round(13 * tree.scale);
 
+        // Ring of fallen sakura petals around the roots of each tree
+        for (let rx = -4; rx <= 4; rx++) {
+          for (let rz = -4; rz <= 4; rz++) {
+            const rd = Math.hypot(rx, rz);
+            if (rd >= 1.6 && rd <= 4.2 && ((rx * 7 + rz * 13 + tIdx) % 2 === 0)) {
+              const pCol = sakuraPalette[Math.abs(rx + rz + tIdx) % sakuraPalette.length];
+              pushVoxel(solidVoxels, tx + rx, ty + 0.15, tz + rz, pCol, 0.03, 0.9, 0.28, 0.9);
+            }
+          }
+        }
+
+        // Gnarled Dark Cherry Bark Trunk
         for (let y = 0; y <= hTrunk; y++) {
           const swayX = Math.sin(y * 0.25 + tIdx) * 1.2;
           const swayZ = Math.cos(y * 0.2 + tIdx) * 0.8;
           const thick = Math.max(1.4, 3.0 - y * 0.12);
-          pushVoxel(solidVoxels, tx + swayX, ty + y + 0.5, tz + swayZ, '#4a3228', 0.03, thick, 1.1, thick);
+          pushVoxel(solidVoxels, tx + swayX, ty + y + 0.5, tz + swayZ, '#4a2c2a', 0.03, thick, 1.1, thick);
         }
 
         const clusters = [
-          { dx: 0, dy: hTrunk + 3, dz: 0, r: 7.4 * tree.scale },
-          { dx: -5, dy: hTrunk + 1, dz: 3, r: 5.4 * tree.scale },
-          { dx: 5, dy: hTrunk + 1, dz: -2, r: 5.5 * tree.scale },
-          { dx: 1, dy: hTrunk + 2, dz: 5, r: 5.0 * tree.scale },
-          { dx: -3, dy: hTrunk + 4, dz: -4, r: 5.2 * tree.scale }
+          { dx: 0,  dy: hTrunk + 3.5, dz: 0,  r: 7.8 * tree.scale },
+          { dx: -5, dy: hTrunk + 1.2, dz: 3,  r: 5.8 * tree.scale },
+          { dx: 5,  dy: hTrunk + 1.2, dz: -2, r: 5.9 * tree.scale },
+          { dx: 1,  dy: hTrunk + 2.2, dz: 5,  r: 5.4 * tree.scale },
+          { dx: -3, dy: hTrunk + 4.2, dz: -4, r: 5.6 * tree.scale },
+          { dx: 4,  dy: hTrunk + 3.0, dz: 4,  r: 4.8 * tree.scale }
         ];
-
-        const sakuraPalette = ['#fbcfe8', '#f9a8d4', '#f472b6', '#fce7f3'];
-        const maplePalette = ['#e63946', '#f77f00', '#d62828', '#ea580c'];
-        const palette = tree.isMaple ? maplePalette : sakuraPalette;
 
         clusters.forEach((c) => {
           const rCeil = Math.ceil(c.r);
           for (let x = -rCeil; x <= rCeil; x += 2) {
             for (let y = -rCeil; y <= rCeil; y += 2) {
               for (let z = -rCeil; z <= rCeil; z += 2) {
-                const d = Math.sqrt(x * x + (y * 1.35) * (y * 1.35) + z * z);
-                if (d <= c.r && d >= c.r - 2.6) {
-                  const col = palette[Math.abs(x + y + z + tIdx) % palette.length];
-                  pushVoxel(solidVoxels, tx + c.dx + x, ty + c.dy + y, tz + c.dz + z, col, 0.035, 2.1, 1.8, 2.1);
+                const d = Math.sqrt(x * x + (y * 1.32) * (y * 1.32) + z * z);
+                if (d <= c.r && d >= c.r - 2.8) {
+                  const col = sakuraPalette[Math.abs(x + y + z + tIdx) % sakuraPalette.length];
+                  pushVoxel(solidVoxels, tx + c.dx + x, ty + c.dy + y, tz + c.dz + z, col, 0.035, 2.2, 1.85, 2.2);
                 }
               }
             }
           }
         });
+
+        // Cascading Weeping Sakura Blossom Tendrils (Shidarezakura)
+        if (tree.weeping) {
+          for (let w = 0; w < 10; w++) {
+            const ang = (w / 10) * Math.PI * 2 + tIdx * 0.4;
+            const rad = (5.2 + (w % 3) * 1.3) * tree.scale;
+            const wx = tx + Math.cos(ang) * rad;
+            const wz = tz + Math.sin(ang) * rad;
+            const startY = ty + hTrunk - 0.5;
+            const dropLen = 3 + (w % 3);
+            for (let dy = 0; dy < dropLen; dy++) {
+              const bCol = sakuraPalette[(w + dy + tIdx) % sakuraPalette.length];
+              pushVoxel(solidVoxels, wx, startY - dy * 1.05, wz, bCol, 0.03, 1.15, 1.05, 1.15);
+            }
+          }
+        }
 
         addCollider(
           (tx - 1.8) * RV, ty * RV, (tz - 1.8) * RV,
@@ -2235,6 +2099,11 @@
             const sideZ = ((y * idx) % 2 === 0) ? 1.5 : -1.5;
             pushVoxel(solidVoxels, bx + 0.5 + sideX, by + y + 0.5, bz + 0.5 + sideZ, '#84cc16', 0.03, 2.4, 0.6, 1.4);
           }
+        }
+        // Pink Spring Azalea (Tsutsuji) & Sakura Shrubs at the base of the bamboo grove
+        if (idx % 3 === 0) {
+          pushVoxel(solidVoxels, bx + 1.4, by + 0.8, bz + 1.2, '#f472b6', 0.03, 1.9, 1.4, 1.9);
+          pushVoxel(solidVoxels, bx + 1.4, by + 1.6, bz + 1.2, '#fbcfe8', 0.03, 1.3, 0.9, 1.3);
         }
       });
     }
@@ -2641,6 +2510,32 @@
       });
     }
 
+    // Floating Sakura Petals on the Stream ("Hanaikada" — Petals on the Stream!)
+    const STREAM_PETAL_COUNT = 165;
+    const streamPetalData = [];
+    const streamPetalGeom = new THREE.BoxGeometry(0.11, 0.022, 0.11);
+    const streamPetalMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.45,
+      metalness: 0.05,
+      emissive: new THREE.Color('#f472b6'),
+      emissiveIntensity: 0.18
+    });
+    const streamPetalMesh = new THREE.InstancedMesh(streamPetalGeom, streamPetalMat, STREAM_PETAL_COUNT);
+    const streamPetalColors = ['#ffffff', '#fce7f3', '#fbcfe8', '#f9a8d4', '#f472b6', '#fda4af'];
+    for (let i = 0; i < STREAM_PETAL_COUNT; i++) {
+      streamPetalMesh.setColorAt(i, new THREE.Color(streamPetalColors[i % streamPetalColors.length]));
+      streamPetalData.push({
+        progress: (i / STREAM_PETAL_COUNT) + Math.random() * 0.02, // 0..1 along full stream path
+        laneOffset: (Math.random() - 0.5) * 2.1, // lateral offset in voxel units
+        speed: 0.022 + Math.random() * 0.016,
+        spinPhase: Math.random() * Math.PI * 2,
+        scale: 0.65 + Math.random() * 0.65
+      });
+    }
+    if (streamPetalMesh.instanceColor) streamPetalMesh.instanceColor.needsUpdate = true;
+    scene.add(streamPetalMesh);
+
     function updateStreamWater(time) {
       if (streamMesh) {
         for (let i = 0; i < streamCells.length; i++) {
@@ -2652,7 +2547,7 @@
             tempScale.set(1.05, 1.5, 1.05);
             tempMatrix.compose(tempPos, tempQuat, tempScale);
             streamMesh.setMatrixAt(i, tempMatrix);
-            tempColor.set(cascade > 0.2 ? '#ffffff' : '#bae6fd');
+            tempColor.set(cascade > 0.2 ? '#fff0f7' : '#bae6fd');
             streamMesh.setColorAt(i, tempColor);
           } else {
             const wave = Math.sin(c.rz * 0.45 - time * 3.8 + Math.cos(c.rx * 0.6 + time));
@@ -2663,8 +2558,10 @@
             tempMatrix.compose(tempPos, tempQuat, tempScale);
             streamMesh.setMatrixAt(i, tempMatrix);
 
-            if (wave > 0.76 || (c.isPool && Math.sin(c.rx + time * 5.0) > 0.82)) {
-              tempColor.set('#e0f2fe');
+            if (wave > 0.78) {
+              tempColor.set('#fce7f3');
+            } else if (c.isPool && Math.sin(c.rx + time * 5.0) > 0.80) {
+              tempColor.set('#fbcfe8');
             } else {
               tempColor.copy(c.baseColor);
             }
@@ -2674,6 +2571,48 @@
         streamMesh.instanceMatrix.needsUpdate = true;
         if (streamMesh.instanceColor) streamMesh.instanceColor.needsUpdate = true;
       }
+
+      // Animate Sakura Petals floating along the Upper Stream, Waterfall & Winding Lower Stream
+      for (let i = 0; i < STREAM_PETAL_COUNT; i++) {
+        const sp = streamPetalData[i];
+        const tProg = (sp.progress + time * sp.speed) % 1.0;
+        // Map tProg (0..1) to voxel Z from -42 to 82
+        const rz = -42 + tProg * 124;
+        let rx = -34;
+        let ry = 9.45;
+        let pitchX = 0;
+
+        if (rz < 4) {
+          // Upper cliff stream channel
+          rx = -34 + sp.laneOffset * 0.75 + Math.sin(rz * 0.25 + time * 1.8 + sp.spinPhase) * 0.35;
+          ry = 9.42 + Math.sin(rz * 0.5 - time * 3.5) * 0.08;
+        } else if (rz <= 12) {
+          // Cascading down waterfall
+          const dropT = (rz - 4) / 8;
+          rx = -34 + sp.laneOffset * 0.85;
+          ry = 9.42 * (1 - dropT) - 0.28 * dropT + Math.sin(time * 9.0 + sp.spinPhase) * 0.15;
+          pitchX = 0.85;
+        } else {
+          // Plunge pool & lower winding stream
+          const streamCenterX = -30 - (rz - 28) * 0.26 + Math.sin(rz * 0.16) * 3.0;
+          const poolSwirl = (rz < 22) ? Math.cos(time * 1.6 + sp.spinPhase) * 1.4 : 0;
+          rx = streamCenterX + sp.laneOffset * 1.55 + poolSwirl + Math.sin(rz * 0.22 - time * 2.2 + sp.spinPhase) * 0.45;
+          const wave = Math.sin(rz * 0.45 - time * 3.8 + Math.cos(rx * 0.6 + time));
+          ry = -0.26 + wave * 0.12;
+        }
+
+        tempPos.set(rx * RV, ry * RV, rz * RV);
+        tempEuler.set(
+          pitchX + Math.sin(time * 2.5 + sp.spinPhase) * 0.12,
+          time * 0.85 + sp.spinPhase,
+          Math.cos(time * 2.1 + sp.spinPhase) * 0.12
+        );
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(sp.scale, 1, sp.scale);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        streamPetalMesh.setMatrixAt(i, tempMatrix);
+      }
+      streamPetalMesh.instanceMatrix.needsUpdate = true;
 
       for (let k = 0; k < koiList.length; k++) {
         const koi = koiList[k];
@@ -2687,25 +2626,25 @@
       }
     }
 
-    // 6B. Interactive Pile of Fallen Voxel Leaves (Swept by Reimu & Pushed by Dragged Fumos!)
-    const LEAF_COUNT = 95;
+    // 6B. Interactive Pile of Fallen Sakura Petals (Swept by Reimu & Pushed by Dragged Fumos!)
+    const LEAF_COUNT = 115;
     const leaves = [];
-    const leafGeom = new THREE.BoxGeometry(0.16, 0.05, 0.16);
-    const leafMat = new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0.02 });
+    const leafGeom = new THREE.BoxGeometry(0.15, 0.045, 0.15);
+    const leafMat = new THREE.MeshStandardMaterial({ roughness: 0.78, metalness: 0.02 });
     const leafMesh = new THREE.InstancedMesh(leafGeom, leafMat, LEAF_COUNT);
     leafMesh.castShadow = true;
     leafMesh.receiveShadow = true;
 
-    const leafPalette = ['#ea580c', '#d97706', '#f59e0b', '#dc2626', '#f472b6', '#84cc16'];
+    const leafPalette = ['#fce7f3', '#fbcfe8', '#f9a8d4', '#f472b6', '#fda4af', '#ffffff'];
     const leafPileCenter = new THREE.Vector3(-2.6, 2.52, -1.5);
 
     for (let i = 0; i < LEAF_COUNT; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const dist = Math.pow(Math.random(), 0.7) * 1.35;
+      const dist = Math.pow(Math.random(), 0.7) * 1.45;
       const lx = leafPileCenter.x + Math.cos(angle) * dist;
       const lz = leafPileCenter.z + Math.sin(angle) * dist;
-      const ly = 2.53 + Math.max(0, (1.35 - dist) * 0.18) + Math.random() * 0.04;
-      const col = varyColor(leafPalette[i % leafPalette.length], i, 0, i, 0.04);
+      const ly = 2.53 + Math.max(0, (1.45 - dist) * 0.18) + Math.random() * 0.04;
+      const col = varyColor(leafPalette[i % leafPalette.length], i, 0, i, 0.03);
 
       leaves.push({
         homePos: new THREE.Vector3(lx, ly, lz),
@@ -2803,28 +2742,28 @@
       leafMesh.instanceMatrix.needsUpdate = true;
     }
 
-    // 6C. Drifting Cherry Blossom Petals & Maple Leaves (Shake loose when Bell rings!)
-    const PETAL_COUNT = 280;
+    // 6C. Swirling Sakura Blizzard ("Sakura Fubuki" — Shakes loose when Bell rings!)
+    const PETAL_COUNT = 420;
     const petalData = [];
-    const petalGeom = new THREE.BoxGeometry(0.095, 0.025, 0.095);
+    const petalGeom = new THREE.BoxGeometry(0.095, 0.024, 0.095);
     const petalMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0.92
+      opacity: 0.94
     });
     const petalMesh = new THREE.InstancedMesh(petalGeom, petalMat, PETAL_COUNT);
+    const airPetalColors = ['#ffffff', '#fce7f3', '#fbcfe8', '#f9a8d4', '#f472b6', '#fda4af'];
     for (let i = 0; i < PETAL_COUNT; i++) {
-      const isMaple = i >= 210;
-      petalMesh.setColorAt(i, new THREE.Color(isMaple ? (i % 2 === 0 ? '#e63946' : '#f77f00') : '#ffd6e7'));
+      petalMesh.setColorAt(i, new THREE.Color(airPetalColors[i % airPetalColors.length]));
       petalData.push({
         x: -19 + Math.random() * 38,
         y: 0.5 + Math.random() * 14,
         z: -16 + Math.random() * 36,
-        vx: 0.65 + Math.random() * 0.55,
-        vy: -(0.55 + Math.random() * 0.45),
+        vx: 0.62 + Math.random() * 0.55,
+        vy: -(0.48 + Math.random() * 0.42),
         vz: 0.35 + (Math.random() - 0.5) * 0.5,
         phase: Math.random() * Math.PI * 2,
-        scale: 0.65 + Math.random() * 0.75,
+        scale: 0.65 + Math.random() * 0.78,
         boost: 0
       });
     }
@@ -2951,7 +2890,7 @@
     flyingBroomGroup.position.copy(broomBasePos);
     scene.add(flyingBroomGroup);
 
-    // 6F. Sky Elements: Clouds, Valley Mist, Full Moon, Fireflies & Aurora
+    // 6F. Sky Elements: Clouds, Valley Mist, Full Moon, Fireflies & Yozakura Aurora
     const cloudGroup = new THREE.Group();
     const cloudVoxels = [];
     const cloudCenters = [[-16, 15.5, -18], [4, 16.8, -22], [19, 15.0, -14], [-8, 14.5, 10], [15, 15.8, 12]];
@@ -2959,18 +2898,18 @@
       for (let x = -4; x <= 4; x++) {
         for (let z = -2; z <= 2; z++) {
           if (Math.hypot(x * 0.6, z) <= 2.4) {
-            cloudVoxels.push({ x: cx + x * 0.7, y: cy + (Math.abs(x) < 2 ? 0.35 : 0), z: cz + z * 0.7, color: new THREE.Color('#ffffff'), sx: 1.5, sy: 0.8, sz: 1.5 });
+            cloudVoxels.push({ x: cx + x * 0.7, y: cy + (Math.abs(x) < 2 ? 0.35 : 0), z: cz + z * 0.7, color: new THREE.Color('#fff5f9'), sx: 1.5, sy: 0.8, sz: 1.5 });
           }
         }
       }
     });
-    const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.78 });
+    const cloudMat = new THREE.MeshBasicMaterial({ color: 0xfff5f9, transparent: true, opacity: 0.78 });
     const cloudMesh = buildVoxelInstancedMesh(cloudVoxels, 0.45, cloudMat, false, false);
     if (cloudMesh) cloudGroup.add(cloudMesh);
     scene.add(cloudGroup);
 
     const mistMat = new THREE.MeshBasicMaterial({
-      color: 0xf1f5f9,
+      color: 0xfdf2f8,
       transparent: true,
       opacity: 0.22,
       depthWrite: false,
@@ -2985,7 +2924,7 @@
       mistPlanes.push({ mesh: mp, baseX: 0, phase: m * 1.7 });
     }
 
-    const moonMat = new THREE.MeshBasicMaterial({ color: 0xfef9c3, transparent: true, opacity: 0.0 });
+    const moonMat = new THREE.MeshBasicMaterial({ color: 0xffe4f0, transparent: true, opacity: 0.0 });
     const moonGroup = new THREE.Group();
     const moonMesh = new THREE.Mesh(new THREE.BoxGeometry(3.4, 3.4, 0.5), moonMat);
     moonGroup.add(moonMesh);
@@ -2994,7 +2933,7 @@
 
     const auroraSegments = [];
     const auroraMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
+      color: 0xf472b6,
       transparent: true,
       opacity: 0.0,
       blending: THREE.AdditiveBlending,
@@ -3004,7 +2943,7 @@
     const auroraGroup = new THREE.Group();
     for (let a = -22; a <= 22; a++) {
       const seg = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 5.5), auroraMat.clone());
-      const c = new THREE.Color().setHSL(0.45 + ((a + 22) / 44) * 0.32, 0.85, 0.62);
+      const c = new THREE.Color().setHSL(0.82 + ((a + 22) / 44) * 0.16, 0.88, 0.66);
       seg.material.color.copy(c);
       seg.position.set(a * 1.1, 14.5, -25.5 - Math.cos(a * 0.2) * 2.5);
       auroraGroup.add(seg);
@@ -3012,7 +2951,7 @@
     }
     scene.add(auroraGroup);
 
-    const FIREFLY_COUNT = 75;
+    const FIREFLY_COUNT = 85;
     const fireflyData = [];
     const fireflyGeom = new THREE.BoxGeometry(0.14, 0.14, 0.14);
     const fireflyMat = new THREE.MeshBasicMaterial({
@@ -3022,7 +2961,7 @@
       blending: THREE.AdditiveBlending
     });
     const fireflyMesh = new THREE.InstancedMesh(fireflyGeom, fireflyMat, FIREFLY_COUNT);
-    const spiritColors = ['#fde047', '#67e8f9', '#a7f3d0', '#f472b6'];
+    const spiritColors = ['#f472b6', '#fbcfe8', '#fde047', '#e879f9'];
     for (let i = 0; i < FIREFLY_COUNT; i++) {
       fireflyData.push({
         x: -18 + Math.random() * 36,
@@ -4505,18 +4444,18 @@
     let dayNightProgress = 0.0; // 0.0 = Day, 1.0 = Night
     let dayNightTarget = 0.0;
 
-    const daySkyColor = new THREE.Color('#cce8ff');
-    const nightSkyColor = new THREE.Color('#090d1e');
-    const daySunLightCol = new THREE.Color('#fff2d6');
-    const nightMoonLightCol = new THREE.Color('#7aa2f7');
-    const dayHemiSky = new THREE.Color('#fff9ee');
-    const nightHemiSky = new THREE.Color('#23294d');
-    const dayHemiGround = new THREE.Color('#8ea885');
-    const nightHemiGround = new THREE.Color('#0f1424');
-    const dayPetalCol = new THREE.Color('#ffd6e7');
-    const nightPetalCol = new THREE.Color('#c4b5fd');
-    const dayMistCol = new THREE.Color('#f8fafc');
-    const nightMistCol = new THREE.Color('#312e81');
+    const daySkyColor = new THREE.Color('#fae8f2');
+    const nightSkyColor = new THREE.Color('#12091c');
+    const daySunLightCol = new THREE.Color('#fff0f5');
+    const nightMoonLightCol = new THREE.Color('#e879f9');
+    const dayHemiSky = new THREE.Color('#fff0f7');
+    const nightHemiSky = new THREE.Color('#2e1538');
+    const dayHemiGround = new THREE.Color('#a3b899');
+    const nightHemiGround = new THREE.Color('#140b1d');
+    const dayPetalCol = new THREE.Color('#ffffff');
+    const nightPetalCol = new THREE.Color('#f9a8d4');
+    const dayMistCol = new THREE.Color('#fdf2f8');
+    const nightMistCol = new THREE.Color('#3b1d4e');
 
     function notifyParentMode() {
       const modeStr = isNightMode ? 'night' : 'day';
@@ -4570,42 +4509,43 @@
 
       scene.background.lerpColors(daySkyColor, nightSkyColor, t);
       scene.fog.color.copy(scene.background);
-      scene.fog.density = THREE.MathUtils.lerp(0.008, 0.0115, t);
+      scene.fog.density = THREE.MathUtils.lerp(0.0075, 0.011, t);
 
       sunDirLight.color.lerpColors(daySunLightCol, nightMoonLightCol, t);
-      sunDirLight.intensity = THREE.MathUtils.lerp(1.32, 0.42, t);
+      sunDirLight.intensity = THREE.MathUtils.lerp(1.32, 0.45, t);
 
       hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
       hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
-      hemiLight.intensity = THREE.MathUtils.lerp(0.72, 0.26, t);
-      fillLight.intensity = THREE.MathUtils.lerp(0.32, 0.1, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.75, 0.30, t);
+      fillLight.intensity = THREE.MathUtils.lerp(0.35, 0.14, t);
 
-      shrineLanternLight.intensity = THREE.MathUtils.lerp(0.18, 1.65, t);
+      shrineLanternLight.intensity = THREE.MathUtils.lerp(0.22, 1.75, t);
       const litLanternCount = lanterns.filter(l => l.lit).length;
-      stairLanternLight.intensity = THREE.MathUtils.lerp(0.05, 1.45, t) * (litLanternCount / Math.max(1, lanterns.length));
-      streamGlowLight.intensity = THREE.MathUtils.lerp(0.08, 1.15, t);
+      stairLanternLight.intensity = THREE.MathUtils.lerp(0.08, 1.55, t) * (litLanternCount / Math.max(1, lanterns.length));
+      streamGlowLight.intensity = THREE.MathUtils.lerp(0.12, 1.25, t);
 
-      lanternGlowMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.25, 2.35, t);
+      lanternGlowMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.30, 2.45, t);
       goldMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.18, 0.72, t);
-      translucentIceMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.2, 0.78, t);
+      translucentIceMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.22, 0.82, t);
+      streamPetalMat.emissiveIntensity = THREE.MathUtils.lerp(0.18, 0.68, t);
 
       lanterns.forEach((l) => {
         l.flameMat.emissiveIntensity = l.lit ? THREE.MathUtils.lerp(0.35, 2.35, t) : 0.02;
         l.flameMat.color.set(l.lit ? '#fff3c4' : '#475569');
       });
 
-      cloudMat.opacity = THREE.MathUtils.lerp(0.78, 0.08, t);
+      cloudMat.opacity = THREE.MathUtils.lerp(0.78, 0.10, t);
       moonMat.opacity = t;
       moonGroup.position.y = THREE.MathUtils.lerp(13.0, 16.8, t);
 
       petalMat.color.lerpColors(dayPetalCol, nightPetalCol, t);
       mistMat.color.lerpColors(dayMistCol, nightMistCol, t);
-      mistMat.opacity = THREE.MathUtils.lerp(0.22, 0.14, t);
+      mistMat.opacity = THREE.MathUtils.lerp(0.22, 0.15, t);
       fireflyMat.opacity = t;
 
       if (bloomPass) {
-        bloomPass.strength = THREE.MathUtils.lerp(0.15, 0.72, t);
-        bloomPass.threshold = THREE.MathUtils.lerp(0.84, 0.60, t);
+        bloomPass.strength = THREE.MathUtils.lerp(0.16, 0.75, t);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.84, 0.58, t);
       }
     }
 
@@ -4625,7 +4565,7 @@
     function syncSoundUI() {
       iconSoundOn.style.display = soundFX.enabled ? 'inline' : 'none';
       iconSoundOff.style.display = soundFX.enabled ? 'none' : 'inline';
-      labelSound.textContent = soundFX.enabled ? 'Sound' : 'Muted';
+      labelSound.textContent = soundFX.enabled ? '🎵 Petals on the Stream' : 'Muted';
     }
     syncSoundUI();
 
@@ -4639,10 +4579,11 @@
       updateUIBadge(null, '');
     };
     const onSoundClick = () => {
-      soundFX.enabled = !soundFX.enabled;
+      const nextMuted = soundFX.enabled;
+      soundFX.setMuted(nextMuted);
       syncSoundUI();
       try {
-        localStorage.setItem(STORAGE_MUTE_KEY, String(!soundFX.enabled));
+        localStorage.setItem(STORAGE_MUTE_KEY, String(nextMuted));
       } catch (e) {}
       if (soundFX.enabled) soundFX.playCoinClink(0);
     };
@@ -4703,7 +4644,15 @@
       if (composer) composer.setSize(window.innerWidth, window.innerHeight);
     }
 
+    const unlockAudioOnFirstGesture = () => {
+      if (soundFX.enabled) {
+        soundFX.init();
+        soundFX.startBGM();
+      }
+    };
+
     renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointerdown', unlockAudioOnFirstGesture, { passive: true });
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointermove', onResizePointerMove);
@@ -4794,7 +4743,7 @@
       resolveFumoToFumoCollisions();
       updateSpeechBubblePosition();
 
-      // Synthesized Hakurei Shrine BGM Theme & Day Birds / Night Crickets
+      // Petals on the Stream BGM & Day Birds / Night Crickets
       soundFX.updateBGM(dt, isNightMode);
       nextNatureTimer -= dt;
       if (nextNatureTimer <= 0) {
@@ -4829,6 +4778,7 @@
       pauseRenderLoop();
       if (bubbleHideTimer) clearTimeout(bubbleHideTimer);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerdown', unlockAudioOnFirstGesture);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointermove', onResizePointerMove);
@@ -4851,7 +4801,7 @@
       if (qrScaleReadoutEl) qrScaleReadoutEl.removeEventListener('click', onQrReadoutClick);
       if (qrFrameBoxEl) qrFrameBoxEl.removeEventListener('click', onQrFrameClick);
       if (donateCardEl) donateCardEl.removeEventListener('wheel', onDonateCardWheel);
-      if (donateResizeHandleEl) donateResizeHandleEl.removeEventListener('pointerdown', onResizeHandleDown);
+      if (donateResizeHandleEl) donateResizeHandleEl.addEventListener('pointerdown', onResizeHandleDown);
     }
 
     // Single FumoSceneLifecycle instance (handles hub message events & cleanup)
@@ -4878,6 +4828,10 @@
 
       setDayNightMode(initialNight, { immediate: true, playSound: false });
       updateDayNightTransition(0);
+
+      if (soundFX.enabled) {
+        soundFX.startBGM();
+      }
 
       fumos.forEach((f, idx) => {
         setTimeout(() => {
