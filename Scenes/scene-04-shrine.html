@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
 
-  <!-- Three.js r128 + OrbitControls + Post-Processing (UnrealBloomPass) -->
+  <!-- Three.js r128 + OrbitControls + Post-Processing (UnrealBloomPass) FIRST -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
@@ -18,6 +18,8 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <!-- Shared Fumo Core (reads THREE at load time) -->
   <script src="../Shared/fumo-core.js"></script>
 
   <style>
@@ -34,8 +36,9 @@
       overflow: hidden;
       font-family: 'Quicksand', sans-serif;
       background-color: #0e1324;
+      color: #1e293b;
     }
-    h1, .font-display {
+    h1, h2, .font-display {
       font-family: 'Fredoka', sans-serif;
     }
     #canvas-container {
@@ -50,27 +53,35 @@
       outline: none;
     }
     .glass-panel {
-      background: rgba(255, 255, 255, 0.78);
+      background: rgba(255, 255, 255, 0.80);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border: 1px solid rgba(255, 255, 255, 0.65);
       box-shadow: 0 10px 28px -6px rgba(20, 15, 45, 0.18), 0 2px 6px rgba(20, 15, 45, 0.08);
-      transition: background 0.5s ease, color 0.5s ease, border-color 0.5s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      color: #1e293b;
+      transition: background 0.5s ease, color 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     body.night-ui .glass-panel {
-      background: rgba(22, 24, 46, 0.78);
-      border-color: rgba(145, 135, 235, 0.28);
+      background: rgba(22, 24, 46, 0.82);
+      border-color: rgba(145, 135, 235, 0.32);
       color: #f3f0ff;
-      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.55), 0 0 16px rgba(130, 110, 255, 0.15);
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.55), 0 0 18px rgba(130, 110, 255, 0.18);
     }
     .ui-btn {
       cursor: pointer;
+      border: none;
+      outline: none;
+      font-family: inherit;
     }
-    .ui-btn:hover {
+    .ui-btn:hover:not(:disabled) {
       transform: translateY(-2px) scale(1.03);
     }
-    .ui-btn:active {
+    .ui-btn:active:not(:disabled) {
       transform: translateY(1px) scale(0.97);
+    }
+    .ui-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
     }
     #fumo-tooltip {
       pointer-events: none;
@@ -80,7 +91,7 @@
       font-family: 'Fredoka', sans-serif;
       display: inline-block;
       padding: 1px 6px;
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       line-height: 1.2;
       border-radius: 6px;
       background: rgba(0, 0, 0, 0.08);
@@ -90,180 +101,616 @@
       background: rgba(255, 255, 255, 0.14);
       border-bottom-color: rgba(255, 255, 255, 0.28);
     }
+
+    /* Top-Right Controls (Top-Left kept strictly empty for Hub!) */
+    .hud-top-right {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .hud-pill-btn {
+      border-radius: 16px;
+      padding: 9px 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    #fumo-badge {
+      border-radius: 16px;
+      padding: 9px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+    #fumo-badge.is-visible {
+      display: inline-flex;
+    }
+    .badge-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    /* Bottom-Right Permanent Donate Chip & Mute Toggle */
+    .hud-bottom-right {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      z-index: 25;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .donate-chip {
+      background: linear-gradient(135deg, rgba(225, 29, 72, 0.92), rgba(190, 18, 60, 0.92)) !important;
+      color: #ffffff !important;
+      border: 1px solid rgba(255, 228, 230, 0.6) !important;
+      box-shadow: 0 8px 24px -4px rgba(225, 29, 72, 0.5), 0 0 16px rgba(251, 191, 36, 0.3) !important;
+    }
+    body.night-ui .donate-chip {
+      box-shadow: 0 8px 28px -2px rgba(244, 63, 94, 0.7), 0 0 24px rgba(251, 191, 36, 0.5) !important;
+    }
+
+    /* Bottom-Center Hints */
+    .hud-bottom-center {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      pointer-events: none;
+      width: max-content;
+      max-width: calc(100vw - 260px);
+    }
+    .hints-bar {
+      border-radius: 16px;
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 6px 14px;
+      opacity: 0.92;
+    }
+    @media (max-width: 900px) {
+      .hud-bottom-center {
+        display: none;
+      }
+    }
+
+    /* 3D World-Anchored Speech Bubble (Reimu Thank You & Omikuji Fortunes) */
+    #speech-bubble {
+      position: fixed;
+      z-index: 28;
+      pointer-events: none;
+      opacity: 0;
+      max-width: 290px;
+      padding: 10px 15px;
+      border-radius: 16px;
+      font-size: 12.5px;
+      font-weight: 700;
+      line-height: 1.4;
+      text-align: center;
+      transform: translate(-50%, -115%) scale(0.92);
+      transition: opacity 0.24s ease, transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    #speech-bubble.is-visible {
+      opacity: 1;
+      transform: translate(-50%, -125%) scale(1);
+    }
+    #speech-bubble .bubble-tag {
+      display: block;
+      font-family: 'Fredoka', sans-serif;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #e11d48;
+      margin-bottom: 2px;
+    }
+    body.night-ui #speech-bubble .bubble-tag {
+      color: #fbbf24;
+    }
+
+    /* Centered Donation Panel Modal */
+    #donate-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(10, 12, 26, 0.48);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      opacity: 0;
+      pointer-events: none;
+      visibility: hidden;
+      transition: opacity 0.25s ease, visibility 0.25s ease;
+    }
+    #donate-backdrop.is-open {
+      opacity: 1;
+      pointer-events: auto;
+      visibility: visible;
+    }
+    #donate-card {
+      width: 100%;
+      max-width: 390px;
+      border-radius: 24px;
+      padding: 22px 22px 20px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      transform: translateY(12px) scale(0.95);
+      transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease;
+    }
+    #donate-backdrop.is-open #donate-card {
+      transform: translateY(0) scale(1);
+    }
+    body.night-ui #donate-card {
+      border-color: rgba(251, 191, 36, 0.55);
+      box-shadow:
+        0 20px 50px rgba(0, 0, 0, 0.78),
+        0 0 38px rgba(251, 191, 36, 0.32),
+        inset 0 0 18px rgba(251, 191, 36, 0.12);
+    }
+    .donate-close-btn {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(0, 0, 0, 0.07);
+      color: inherit;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    body.night-ui .donate-close-btn {
+      background: rgba(255, 255, 255, 0.12);
+    }
+    .donate-header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 11px;
+      border-radius: 999px;
+      background: rgba(225, 29, 72, 0.12);
+      color: #e11d48;
+      font-size: 11.5px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    body.night-ui .donate-header-badge {
+      background: rgba(251, 191, 36, 0.16);
+      color: #fbbf24;
+    }
+    .donate-title {
+      font-size: 19px;
+      font-weight: 700;
+      margin: 0 0 12px;
+    }
+    .qr-frame {
+      width: 220px;
+      height: 220px;
+      border-radius: 18px;
+      background: #ffffff;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid rgba(225, 29, 72, 0.22);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    body.night-ui .qr-frame {
+      border-color: rgba(251, 191, 36, 0.78);
+      box-shadow: 0 0 28px rgba(251, 191, 36, 0.38);
+    }
+    #donate-qr-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+      display: block;
+    }
+    #donate-qr-placeholder {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px;
+      color: #475569;
+      background: repeating-linear-gradient(-45deg, #fff5f5, #fff5f5 10px, #ffe4e6 10px, #ffe4e6 20px);
+      width: 100%;
+      height: 100%;
+      border-radius: 12px;
+      border: 2px dashed #f43f5e;
+    }
+    .placeholder-title {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: #be123c;
+    }
+    .placeholder-sub {
+      font-size: 11px;
+      color: #64748b;
+      line-height: 1.3;
+    }
+    .qr-caption {
+      font-size: 12.5px;
+      font-weight: 700;
+      opacity: 0.85;
+      margin-bottom: 6px;
+    }
+    .bank-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    #donate-bank-label {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.06);
+    }
+    body.night-ui #donate-bank-label {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    #btn-copy-bank {
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 11.5px;
+      font-weight: 700;
+      background: rgba(225, 29, 72, 0.14);
+      color: #e11d48;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    body.night-ui #btn-copy-bank {
+      background: rgba(251, 191, 36, 0.2);
+      color: #fbbf24;
+    }
+    #copy-toast {
+      font-size: 11px;
+      font-weight: 700;
+      color: #10b981;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    #copy-toast.is-visible {
+      opacity: 1;
+    }
+    .kofi-btn {
+      width: 100%;
+      padding: 11px 16px;
+      border-radius: 14px;
+      font-size: 13.5px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #ff5e5b, #e11d48);
+      color: #ffffff;
+      box-shadow: 0 6px 18px -3px rgba(225, 29, 72, 0.45);
+    }
   </style>
 </head>
-<body class="text-slate-800">
+<body>
   <div id="canvas-container"></div>
 
-  <!-- Top-Right Controls: Active Fumo Badge, Squeeze All, Reset, Sound (Top-Left kept clear for Hub) -->
-  <div class="fixed top-4 right-4 z-20 flex items-center gap-2.5">
-    <div id="fumo-badge" class="glass-panel rounded-2xl px-3.5 py-2.5 text-xs font-semibold hidden items-center gap-2 transition-all">
-      <span id="fumo-badge-dot" class="w-2.5 h-2.5 rounded-full inline-block bg-rose-500"></span>
+  <!-- Top-Right Controls: Active Fumo Badge, Ring Bell, Squeeze All, Reset (Top-Left kept clear for Hub) -->
+  <div class="hud-top-right">
+    <div id="fumo-badge" class="glass-panel">
+      <span id="fumo-badge-dot" class="badge-dot" style="background:#f43f5e;"></span>
       <span id="fumo-badge-name">Reimu Hakurei</span>
-      <span id="fumo-badge-status" class="opacity-70 ml-1">Sweeping</span>
+      <span id="fumo-badge-status" style="opacity:0.7;">Sweeping</span>
     </div>
 
-    <button id="btn-squeeze-all" title="Squeeze All Fumos! (Space)"
-      class="glass-panel ui-btn rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-xs sm:text-sm font-semibold">
-      <span class="text-base leading-none">🌸</span>
-      <span class="hidden md:inline">Squeeze All</span>
+    <button id="btn-bell" title="Ring the Shrine Bell (Shortcut: B)" class="glass-panel ui-btn hud-pill-btn">
+      <span>🔔</span>
+      <span>Ring Bell</span>
+      <kbd>B</kbd>
     </button>
 
-    <button id="btn-reset" title="Return Fumos to Shrine Spots (R)"
-      class="glass-panel ui-btn rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-xs sm:text-sm font-semibold">
-      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-        <path d="M3 3v5h5"/>
-      </svg>
-      <span class="hidden sm:inline">Reset</span>
+    <button id="btn-squeeze-all" title="Squeeze All Fumos! (Space)" class="glass-panel ui-btn hud-pill-btn">
+      <span>🌸</span>
+      <span>Squeeze All</span>
     </button>
 
-    <button id="btn-sound" title="Toggle Plush Sound Effects (M)"
-      class="glass-panel ui-btn rounded-2xl p-2.5 flex items-center justify-center">
-      <svg id="icon-sound-on" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
-      </svg>
-      <svg id="icon-sound-off" class="w-5 h-5 hidden opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-        <line x1="23" y1="9" x2="17" y2="15"></line>
-        <line x1="17" y1="9" x2="23" y2="15"></line>
-      </svg>
+    <button id="btn-reset" title="Return Fumos to Shrine Spots (R)" class="glass-panel ui-btn hud-pill-btn">
+      <span>⛩️</span>
+      <span>Reset</span>
+      <kbd>R</kbd>
     </button>
   </div>
 
-  <!-- Floating Cursor Tooltip for Hovered Fumo -->
-  <div id="fumo-tooltip" class="fixed z-30 opacity-0 px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold flex items-center gap-2 shadow-lg">
+  <!-- Bottom-Right Controls: Permanent Donate Chip & Mute Toggle -->
+  <div class="hud-bottom-right">
+    <button id="btn-donate-chip" title="Open Shrine Offering Box (Shortcut: E)" class="glass-panel ui-btn hud-pill-btn donate-chip">
+      <span>🪙</span>
+      <span class="font-display">Donate</span>
+      <kbd style="background:rgba(255,255,255,0.22);color:#fff;border-color:rgba(255,255,255,0.35);">E</kbd>
+    </button>
+
+    <button id="btn-sound" title="Toggle Shrine Sound & Koto Ambience (Shortcut: M)" class="glass-panel ui-btn hud-pill-btn">
+      <span id="icon-sound-on">🔊</span>
+      <span id="icon-sound-off" style="display:none;opacity:0.6;">🔇</span>
+      <span id="label-sound">Sound</span>
+      <kbd>M</kbd>
+    </button>
+  </div>
+
+  <!-- Floating Cursor Tooltip -->
+  <div id="fumo-tooltip" class="glass-panel" style="position:fixed;z-index:30;opacity:0;padding:6px 12px;border-radius:12px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;">
     <span id="tooltip-emoji">⛩️</span>
     <span id="tooltip-text">Reimu Fumo</span>
   </div>
 
+  <!-- 3D World-Anchored Speech Bubble (Thank You Line & Omikuji Fortunes) -->
+  <div id="speech-bubble" class="glass-panel">
+    <span class="bubble-tag" id="bubble-speaker">Reimu Hakurei</span>
+    <span id="bubble-message">Thank you for supporting the shrine!</span>
+  </div>
+
   <!-- Bottom Center HUD Hints -->
-  <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none w-max max-w-[94vw]">
-    <div class="glass-panel rounded-2xl px-4 py-2 text-xs font-semibold flex flex-wrap items-center justify-center gap-x-4 gap-y-1 opacity-90">
+  <div class="hud-bottom-center">
+    <div class="glass-panel hints-bar">
+      <span>🪙 <b>Click Box / <kbd>E</kbd>:</b> Donate</span>
+      <span>🔔 <b>Bell / <kbd>B</kbd>:</b> Ring</span>
       <span>🖱️ <b>Click Fumo:</b> Squeeze</span>
-      <span>✋ <b>Drag & Release:</b> Toss Down Stairs / Push Leaves</span>
-      <span>🔄 <b>Drag Background:</b> Orbit Shrine</span>
-      <span class="hidden sm:inline"><kbd>R</kbd> Reset Plushies</span>
-      <span class="hidden md:inline"><kbd>Space</kbd> Squeeze All</span>
+      <span>✋ <b>Drag:</b> Toss Down Stairs</span>
+    </div>
+  </div>
+
+  <!-- Centered Glass-Panel Donation Modal -->
+  <div id="donate-backdrop" role="dialog" aria-modal="true" aria-labelledby="donate-modal-title">
+    <div id="donate-card" class="glass-panel">
+      <button type="button" class="ui-btn donate-close-btn" id="btn-donate-close" title="Close (Esc)" aria-label="Close Donation Panel">
+        ✕
+      </button>
+
+      <div class="donate-header-badge">
+        <span>⛩️</span>
+        <span>Hakurei Shrine Saisen-bako</span>
+      </div>
+
+      <h2 class="font-display donate-title" id="donate-modal-title">Make a Shrine Offering</h2>
+
+      <!-- Regular HTML <img> QR Container (Stays razor-sharp and works on file://) -->
+      <div class="qr-frame">
+        <img id="donate-qr-img" alt="Bank Donation QR Code" />
+        <div id="donate-qr-placeholder">
+          <span style="font-size:32px;line-height:1;">⛩️🧾</span>
+          <div class="placeholder-title">Add your QR in DONATE_CONFIG</div>
+          <div class="placeholder-sub">Set <code>qrImageSrc</code> at the top of the script</div>
+        </div>
+      </div>
+
+      <div class="qr-caption" id="donate-qr-caption">Scan with your banking app</div>
+
+      <!-- Optional Bank Label + Copy Button -->
+      <div class="bank-label-row" id="bank-details-container" style="display: none;">
+        <span id="donate-bank-label"></span>
+        <button type="button" class="ui-btn" id="btn-copy-bank" title="Copy bank details">
+          <span>📋</span>
+          <span>Copy bank details</span>
+        </button>
+        <span id="copy-toast">Copied!</span>
+      </div>
+
+      <!-- Support on Ko-fi Button -->
+      <button type="button" id="btn-kofi" class="ui-btn kofi-btn">
+        <span>☕</span>
+        <span id="btn-kofi-label">Support on Ko-fi</span>
+      </button>
     </div>
   </div>
 
   <script>
     // ============================================================================
-    // 1. PROCEDURAL WEB AUDIO SYNTHESIZER (Soft Plush Squeaks, Boings & Thuds)
+    // DONATION CONFIG (Edit your Ko-fi URL, QR image path/data URI, and bank info)
     // ============================================================================
-    class PlushSoundEngine {
+    const DONATE_CONFIG = {
+      kofiUrl: "https://ko-fi.com/YOUR_NAME",
+      qrImageSrc: "../assets/bank-qr.jpg", // a data: URI or a relative path such as "../assets/bank-qr.jpg"
+      qrCaption: "Scan with your banking app",
+      bankLabel: "",             // optional text shown under the QR, e.g. bank name and account holder
+      thankYouLine: "Thank you for supporting the shrine!",
+    };
+
+    // ============================================================================
+    // 1. EXTEND SHARED PlushSoundEngine WITH BELL, COINS, CLAP, KOTO & NATURE
+    // ============================================================================
+    class ShrineSoundEngine extends PlushSoundEngine {
       constructor() {
-        this.ctx = null;
-        this.enabled = true;
+        super();
+        this.kotoIdx = 0;
+        // Traditional Japanese In-sen pentatonic scale
+        this.kotoScale = [293.66, 311.13, 392.00, 440.00, 523.25, 587.33, 622.25, 783.99];
       }
 
-      init() {
-        if (!this.ctx) {
-          const AudioCtx = window.AudioContext || window.webkitAudioContext;
-          if (AudioCtx) {
-            this.ctx = new AudioCtx();
+      // Metallic bronze suzu shrine bell ring
+      playShrineBell() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const partials = [784, 1568, 2380, 3120];
+          partials.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
+            osc.frequency.setValueAtTime(freq + (Math.random() - 0.5) * 12, now);
+            osc.frequency.exponentialRampToValueAtTime(freq * 0.992, now + 0.9);
+            const amp = 0.075 / (idx + 1);
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.linearRampToValueAtTime(amp, now + 0.015);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.85 + idx * 0.12);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 1.15);
+          });
+        } catch (e) {}
+      }
+
+      // Synthesized gold coin clink into the wooden offering box
+      playCoinClink(delaySec = 0) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const t0 = this.ctx.currentTime + delaySec;
+          const f1 = 2150 + Math.random() * 450;
+          const f2 = f1 * 1.414;
+          [f1, f2].forEach((freq, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, t0);
+            gain.gain.setValueAtTime(0.0001, t0);
+            gain.gain.linearRampToValueAtTime(i === 0 ? 0.065 : 0.04, t0 + 0.006);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(t0);
+            osc.stop(t0 + 0.24);
+          });
+        } catch (e) {}
+      }
+
+      // Ceremonial Shinto Kashiwade clap
+      playClap(delaySec = 0) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const t0 = this.ctx.currentTime + delaySec;
+          const bufferSize = Math.floor(this.ctx.sampleRate * 0.09);
+          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.016));
           }
-        }
-        if (this.ctx && this.ctx.state === 'suspended') {
-          this.ctx.resume();
-        }
-      }
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = buffer;
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.setValueAtTime(1150, t0);
+          filter.Q.setValueAtTime(2.5, t0);
 
-      playSqueeze(pitchMultiplier = 1.0) {
-        if (!this.enabled) return;
-        try {
-          this.init();
-          if (!this.ctx) return;
-          const now = this.ctx.currentTime;
+          const gain = this.ctx.createGain();
+          gain.gain.setValueAtTime(0.18, t0);
+          gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.085);
 
-          const osc1 = this.ctx.createOscillator();
-          const gain1 = this.ctx.createGain();
-          osc1.type = 'sine';
-          const baseFreq = (520 + Math.random() * 80) * pitchMultiplier;
-          osc1.frequency.setValueAtTime(baseFreq, now);
-          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.085);
-          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.16);
-
-          gain1.gain.setValueAtTime(0.001, now);
-          gain1.gain.linearRampToValueAtTime(0.11, now + 0.025);
-          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
-
-          osc1.connect(gain1);
-          gain1.connect(this.ctx.destination);
-          osc1.start(now);
-          osc1.stop(now + 0.18);
-
-          const osc2 = this.ctx.createOscillator();
-          const gain2 = this.ctx.createGain();
-          osc2.type = 'triangle';
-          osc2.frequency.setValueAtTime(baseFreq * 1.1, now + 0.11);
-          osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.65, now + 0.21);
-
-          gain2.gain.setValueAtTime(0.001, now + 0.11);
-          gain2.gain.linearRampToValueAtTime(0.08, now + 0.13);
-          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
-
-          osc2.connect(gain2);
-          gain2.connect(this.ctx.destination);
-          osc2.start(now + 0.11);
-          osc2.stop(now + 0.25);
+          noise.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.ctx.destination);
+          noise.start(t0);
         } catch (e) {}
       }
 
-      playBounce(intensity = 0.5) {
-        if (!this.enabled || intensity < 0.08) return;
+      // Soft plucked Japanese Koto note
+      playKotoPluck() {
+        if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
         try {
-          this.init();
-          if (!this.ctx) return;
           const now = this.ctx.currentTime;
-          const vol = Math.min(0.14, intensity * 0.12);
+          const freq = this.kotoScale[this.kotoIdx % this.kotoScale.length];
+          this.kotoIdx = (this.kotoIdx + (Math.random() < 0.65 ? 1 : 2)) % this.kotoScale.length;
 
           const osc = this.ctx.createOscillator();
           const gain = this.ctx.createGain();
-          osc.type = 'sine';
-          const startFreq = 115 + Math.min(80, intensity * 35);
-          osc.frequency.setValueAtTime(startFreq, now);
-          osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now);
+          osc.frequency.exponentialRampToValueAtTime(freq * 0.996, now + 1.4);
 
-          gain.gain.setValueAtTime(vol, now);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          gain.gain.setValueAtTime(0.0001, now);
+          gain.gain.linearRampToValueAtTime(0.022, now + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.45);
 
           osc.connect(gain);
           gain.connect(this.ctx.destination);
           osc.start(now);
-          osc.stop(now + 0.1);
+          osc.stop(now + 1.5);
         } catch (e) {}
       }
 
-      playPickup() {
-        if (!this.enabled) return;
+      // Daytime Bird Chirp or Nighttime Cricket Trill
+      playNatureChirp(isNight) {
+        if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
         try {
-          this.init();
-          if (!this.ctx) return;
           const now = this.ctx.currentTime;
           const osc = this.ctx.createOscillator();
           const gain = this.ctx.createGain();
           osc.type = 'sine';
-          osc.frequency.setValueAtTime(280, now);
-          osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
-          gain.gain.setValueAtTime(0.001, now);
-          gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
-          osc.connect(gain);
-          gain.connect(this.ctx.destination);
-          osc.start(now);
-          osc.stop(now + 0.1);
+          if (!isNight) {
+            const f = 1900 + Math.random() * 500;
+            osc.frequency.setValueAtTime(f, now);
+            osc.frequency.exponentialRampToValueAtTime(f * 1.28, now + 0.07);
+            osc.frequency.setValueAtTime(f * 1.05, now + 0.09);
+            osc.frequency.exponentialRampToValueAtTime(f * 1.35, now + 0.18);
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.linearRampToValueAtTime(0.016, now + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.21);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.22);
+          } else {
+            const f = 3800 + Math.random() * 250;
+            osc.frequency.setValueAtTime(f, now);
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.linearRampToValueAtTime(0.011, now + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.17);
+          }
         } catch (e) {}
       }
     }
 
-    const soundFX = new PlushSoundEngine();
+    const soundFX = new ShrineSoundEngine();
+    const STORAGE_MUTE_KEY = 'voxel_fumo_shrine_mute';
+    const STORAGE_MODE_KEY = 'voxel_fumo_shrine_mode';
+
+    try {
+      const savedMute = localStorage.getItem(STORAGE_MUTE_KEY);
+      if (savedMute === 'true') soundFX.enabled = false;
+    } catch (e) {}
 
     // ============================================================================
-    // 2. COLOR & VOXEL HELPER UTILITIES
+    // 2. VOXEL INSTANCED MESH HELPER (Uses createSoftVoxelGeometry, voxelHash, varyColor from ../Shared/fumo-core.js)
     // ============================================================================
     const tempColor = new THREE.Color();
     const tempMatrix = new THREE.Matrix4();
@@ -271,24 +718,6 @@
     const tempQuat = new THREE.Quaternion();
     const tempScale = new THREE.Vector3();
     const tempEuler = new THREE.Euler();
-
-    function voxelHash(x, y, z) {
-      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
-      return n - Math.floor(n);
-    }
-
-    function varyColor(hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
-      tempColor.set(hexOrString);
-      const h = voxelHash(x, y, z);
-      const delta = (h - 0.5) * 2 * variance - seamDarken;
-      tempColor.offsetHSL(0, (h - 0.5) * 0.03, delta);
-      return tempColor.clone();
-    }
-
-    function createSoftVoxelGeometry(size = 1) {
-      const s = size * 0.985;
-      return new THREE.BoxGeometry(s, s, s);
-    }
 
     function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
       if (!voxels || voxels.length === 0) return null;
@@ -325,7 +754,8 @@
     scene.fog = new THREE.FogExp2('#cce8ff', 0.0082);
 
     const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.5, 160);
-    camera.position.set(19.5, 13.8, 25.5);
+    // Start the camera framing the Saisen-bako offering box and the Hakurei Shrine main hall
+    camera.position.set(14.5, 11.2, 18.5);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -355,17 +785,18 @@
     }
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.target.set(0.0, 4.2, 0.5);
+    controls.target.set(0.0, 3.8, -1.2);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
     controls.maxPolarAngle = Math.PI * 0.475;
     controls.minPolarAngle = Math.PI * 0.08;
-    controls.minDistance = 8;
+    controls.minDistance = 7;
     controls.maxDistance = 48;
     controls.autoRotate = false;
     controls.autoRotateSpeed = 0.42;
 
     let lastUserInteractionTime = performance.now();
+    let isDonateModalOpen = false;
     const recordInteraction = () => {
       lastUserInteractionTime = performance.now();
       controls.autoRotate = false;
@@ -375,12 +806,10 @@
     // ============================================================================
     // 4. LIGHTING & MATERIALS (Capped Dynamic Lights for Performance)
     // ============================================================================
-    // 1. Hemisphere Light
     const hemiLight = new THREE.HemisphereLight(0xfff9ee, 0x8ea885, 0.72);
     hemiLight.position.set(0, 30, 0);
     scene.add(hemiLight);
 
-    // 2. Main Sun / Moon Directional Light (Casts soft shadows across the shrine hillside)
     const sunDirLight = new THREE.DirectionalLight(0xfff2d6, 1.32);
     sunDirLight.position.set(22, 26, 18);
     sunDirLight.target.position.set(0, 2, -2);
@@ -399,46 +828,40 @@
     sunDirLight.shadow.radius = 2.2;
     scene.add(sunDirLight);
 
-    // 3. Soft Valley Bounce Fill Light
     const fillLight = new THREE.DirectionalLight(0xdbeafe, 0.32);
     fillLight.position.set(-18, 12, 10);
     scene.add(fillLight);
 
-    // 4. Shrine Veranda Warm Lantern Point Light
-    const shrineLanternLight = new THREE.PointLight(0xffa94d, 0.0, 16, 1.6);
-    shrineLanternLight.position.set(0, 6.2, -3.2);
+    // Shrine Veranda & Offering Box Warm Lantern Point Light
+    const shrineLanternLight = new THREE.PointLight(0xffa94d, 0.25, 16, 1.6);
+    shrineLanternLight.position.set(0, 6.2, -2.2);
     shrineLanternLight.castShadow = true;
     shrineLanternLight.shadow.mapSize.width = 1024;
     shrineLanternLight.shadow.mapSize.height = 1024;
     shrineLanternLight.shadow.bias = -0.001;
     scene.add(shrineLanternLight);
 
-    // 5. Stone Staircase Lanterns Point Light
+    // Stone Staircase Lanterns Point Light
     const stairLanternLight = new THREE.PointLight(0xffb74d, 0.0, 18, 1.5);
     stairLanternLight.position.set(0, 3.8, 6.5);
     scene.add(stairLanternLight);
 
-    // 6. Mountain Stream Fairy / Spirit Glow Point Light
+    // Mountain Stream Fairy / Spirit Glow Point Light
     const streamGlowLight = new THREE.PointLight(0x67e8f9, 0.1, 12, 1.7);
     streamGlowLight.position.set(-7.5, 2.2, 6.5);
     scene.add(streamGlowLight);
 
     // Shared Materials
-    const plushMaterial = new THREE.MeshStandardMaterial({
-      roughness: 0.92,
-      metalness: 0.02
+    const plushMaterial = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0.02 });
+    const shrineSolidMaterial = new THREE.MeshStandardMaterial({ roughness: 0.84, metalness: 0.04 });
+    const glossyPropMaterial = new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.14 });
+    const goldMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffd166,
+      roughness: 0.28,
+      metalness: 0.72,
+      emissive: new THREE.Color(0xffaa00),
+      emissiveIntensity: 0.2
     });
-
-    const shrineSolidMaterial = new THREE.MeshStandardMaterial({
-      roughness: 0.84,
-      metalness: 0.04
-    });
-
-    const glossyPropMaterial = new THREE.MeshStandardMaterial({
-      roughness: 0.3,
-      metalness: 0.14
-    });
-
     const translucentIceMaterial = new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
       transparent: true,
@@ -449,7 +872,6 @@
       emissive: new THREE.Color(0x38bdf8),
       emissiveIntensity: 0.25
     });
-
     const lanternGlowMaterial = new THREE.MeshStandardMaterial({
       color: 0xfff3c4,
       emissive: new THREE.Color(0xffa726),
@@ -461,7 +883,8 @@
     // 5. HAKUREI SHRINE ARCHITECTURE, HILLSIDE, GROVES & COLLIDER REGISTRY
     // ============================================================================
     const RV = 0.25; // 1 Architectural Voxel = 0.25 world units
-    const furnitureColliders = []; // { min: Vector3, max: Vector3, name }
+    const furnitureColliders = [];
+    const interactivePropMeshes = [];
 
     function addCollider(minX, minY, minZ, maxX, maxY, maxZ, name = 'prop') {
       furnitureColliders.push({
@@ -478,9 +901,7 @@
 
     function pushVoxel(list, rx, ry, rz, colorHex, variance = 0.03, sx = 1, sy = 1, sz = 1) {
       list.push({
-        x: rx,
-        y: ry,
-        z: rz,
+        x: rx, y: ry, z: rz,
         color: varyColor(colorHex, rx, ry, rz, variance),
         sx, sy, sz
       });
@@ -498,49 +919,35 @@
       }
     }
 
-    // ----------------------------------------------------------------------------
     // 5A. GENSOKYO HILLSIDE TERRAIN, STONE STAIRCASE, STREAM & WOODEN BRIDGE
-    // ----------------------------------------------------------------------------
-    // World Coordinate Layout (1 unit = 4 RV):
-    // - Lower Approach & Torii Gate: Z in [9.0, 15.0] (rz 36..60), Ground Y = 0.0 (ry = -1)
-    // - Stone Staircase: Z in [2.0, 9.0] (rz 8..36), X in [-2.5, 2.5] (rx -10..9), climbing Y = 0.0 -> Y = 2.5 (ry 0..9)
-    // - Upper Shrine Courtyard: Z in [-14.0, 2.0] (rz -56..8), Ground Y = 2.5 (ry = 9)
-    // - Main Shrine Hall (Haiden): Z in [-12.5, -4.0] (rz -50..-16), Veranda Y = 3.5 (ry = 13)
     function buildHillsideAndStairs() {
-      // 1. Lower Approach Terrace & Stream Bed (rz 8..60, rx -56..55)
       for (let x = -54; x <= 53; x++) {
         for (let z = 8; z <= 58; z++) {
-          // Mountain Stream channel carving diagonally on the left (West) side:
           const streamCenterX = -28 - (z - 28) * 0.28 + Math.sin(z * 0.18) * 2.5;
           const distToStream = Math.abs(x - streamCenterX);
 
-          // Skip central staircase footprint for z <= 36
           if (z <= 36 && x >= -11 && x <= 10) continue;
 
           if (distToStream < 5.2) {
-            // Stream bed gravel at ry = -2
             const pebbleCol = ((x + z) % 3 === 0) ? '#64748b' : '#475569';
             pushVoxel(solidVoxels, x + 0.5, -1.5, z + 0.5, pebbleCol, 0.04);
             if (distToStream >= 4.0) {
-              // Mossy stream bank rocks
               pushVoxel(solidVoxels, x + 0.5, -0.5, z + 0.5, '#78716c', 0.05);
               if ((x * z) % 5 === 0) pushVoxel(solidVoxels, x + 0.5, 0.3, z + 0.5, '#65a30d', 0.04, 1, 0.6, 1);
             }
             continue;
           }
 
-          // Stone paved approach path in the center (x in -9..8, z in 36..58)
-          let groundCol = '#65a30d'; // Lush Gensokyo spring grass
+          let groundCol = '#65a30d';
           if (x >= -8 && x <= 7) {
             const flagstone = ((Math.floor((x + 10) / 3) + Math.floor(z / 3)) % 2 === 0);
             groundCol = flagstone ? '#9ca3af' : '#94a3b8';
-            if (Math.abs(x) >= 7) groundCol = '#78716c'; // Stone curb
+            if (Math.abs(x) >= 7) groundCol = '#78716c';
           } else if (((x * 13 + z * 7) % 11) === 0) {
-            groundCol = '#4d7c0f'; // Richer clover patch
+            groundCol = '#4d7c0f';
           }
           pushVoxel(solidVoxels, x + 0.5, -0.5, z + 0.5, groundCol, 0.035);
 
-          // Outer diorama skirt border
           if (x === -54 || x === 53 || z === 58) {
             pushVoxel(solidVoxels, x + 0.5, -1.5, z + 0.5, '#57534e', 0.02);
             pushVoxel(solidVoxels, x + 0.5, -2.5, z + 0.5, '#44403c', 0.02);
@@ -548,9 +955,9 @@
         }
       }
 
-      // 2. Tiered Retaining Wall & Hillside Slopes between Lower (ry = -1) and Upper Courtyard (ry = 9)
+      // Tiered Retaining Wall & Hillside Slopes
       for (let x = -54; x <= 53; x++) {
-        if (x >= -11 && x <= 10) continue; // Staircase gap
+        if (x >= -11 && x <= 10) continue;
         for (let z = 8; z <= 22; z++) {
           const t = 1.0 - (z - 8) / 14;
           const topY = Math.floor(t * 10);
@@ -563,10 +970,9 @@
         }
       }
 
-      // 3. Long Stone Staircase (10 broad steps from Z = 9.0 down to Z = 2.0, ry = 0..9)
-      // Each step is 2.8 RV deep so Fumos physically bounce down every step!
+      // Long Stone Staircase (10 broad steps from Z = 9.0 down to Z = 2.0, ry = 0..9)
       for (let step = 0; step < 10; step++) {
-        const ry = 9 - step; // ry = 9 at top (z = 9..11), ry = 0 at bottom (z = 34..36)
+        const ry = 9 - step;
         const zStart = 9 + step * 3;
         const zEnd = zStart + 2;
 
@@ -577,12 +983,10 @@
             for (let y = 0; y <= stepTopY; y++) {
               if (y < stepTopY && z > zStart && x > -11 && x < 10) continue;
               let sCol = isBalustrade ? '#78716c' : ((x + step) % 4 === 0 ? '#94a3b8' : '#a8a29e');
-              // Moss patches on outer step edges
               if (!isBalustrade && Math.abs(x) >= 7 && ((x + z) % 3 === 0)) sCol = '#84a98c';
               pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, sCol, 0.03);
             }
           }
-          // Cherry blossom petal drifts gathered in the corners of the stone steps!
           for (const sideX of [-9, -8, 7, 8]) {
             if ((sideX + z) % 2 === 0) {
               pushVoxel(solidVoxels, sideX + 0.5, ry + 1.15, z + 0.5, '#fbcfe8', 0.03, 0.9, 0.3, 0.9);
@@ -590,33 +994,28 @@
           }
         }
 
-        // Register individual step collider for authentic stair-tumbling physics!
         addCollider(
           -2.5, 0, zStart * RV,
           2.5, (ry + 1) * RV, (zEnd + 1) * RV,
           `stair_step_${step}`
         );
       }
-      // Staircase side stone balustrades colliders
       addCollider(-3.0, 0, 2.0, -2.3, 3.1, 9.5, 'stair_rail_left');
       addCollider(2.3, 0, 2.0, 3.0, 3.1, 9.5, 'stair_rail_right');
 
-      // 4. Upper Shrine Courtyard Platform (rz -54..8, rx -54..53, top surface at Y = 2.5 -> ry = 9)
+      // Upper Shrine Courtyard Platform (top surface at Y = 2.5 -> ry = 9)
       for (let x = -54; x <= 53; x++) {
         for (let z = -54; z <= 8; z++) {
-          // Only render surface layer & outer cliff border
           const isBorder = (x === -54 || x === 53 || z === -54);
-          let courtCol = '#d6ccc2'; // Traditional raked shrine gravel
-          // Central stone footpath leading from stairs to Shrine Hall (x in -9..8, z in -16..8)
+          let courtCol = '#d6ccc2';
           if (x >= -8 && x <= 7 && z >= -18) {
             const tile = ((Math.floor((x + 8) / 3) + Math.floor((z + 20) / 3)) % 2 === 0);
             courtCol = tile ? '#94a3b8' : '#a8a29e';
             if (Math.abs(x) === 8) courtCol = '#78716c';
           } else if (x < -22 || x > 22 || z < -42) {
-            // Grassy forest floor under the Cherry Blossom & Bamboo groves
             courtCol = ((x + z) % 5 === 0) ? '#4d7c0f' : '#65a30d';
           } else if (z % 2 === 0) {
-            courtCol = '#e3d5ca'; // Subtle raked gravel lines
+            courtCol = '#e3d5ca';
           }
 
           pushVoxel(solidVoxels, x + 0.5, 9.5, z + 0.5, courtCol, 0.025);
@@ -627,23 +1026,21 @@
           }
         }
       }
-      // Register Upper Courtyard Collider (Y = 2.5)
       addCollider(-13.8, 0.0, -13.8, 13.5, 2.5, 2.25, 'upper_courtyard');
       addCollider(-13.8, 0.0, 2.25, -2.5, 2.3, 4.8, 'slope_left');
       addCollider(2.5, 0.0, 2.25, 13.5, 2.3, 4.8, 'slope_right');
 
-      // 5. Small Arched Red Wooden Bridge over the Mountain Stream (rx -35..-23, rz 34..40)
+      // Small Arched Red Wooden Bridge over the Mountain Stream
       for (let x = -35; x <= -23; x++) {
-        const t = (x + 29) / 6; // -1 to +1
+        const t = (x + 29) / 6;
         const archY = Math.round((1 - t * t) * 2.5);
         for (let z = 35; z <= 39; z++) {
-          pushVoxel(solidVoxels, x + 0.5, archY + 0.5, z + 0.5, '#9e6840', 0.025); // Wooden planks
+          pushVoxel(solidVoxels, x + 0.5, archY + 0.5, z + 0.5, '#9e6840', 0.025);
           if (z === 35 || z === 39) {
-            // Vermilion bridge railings & posts
             pushVoxel(solidVoxels, x + 0.5, archY + 1.5, z + 0.5, '#dc2626', 0.02);
             if (x === -35 || x === -29 || x === -23) {
               pushVoxel(solidVoxels, x + 0.5, archY + 2.5, z + 0.5, '#dc2626', 0.02);
-              pushVoxel(glossyVoxels, x + 0.5, archY + 3.2, z + 0.5, '#fbbf24', 0.01, 0.8, 0.6, 0.8); // Brass giboshi cap
+              pushVoxel(glossyVoxels, x + 0.5, archY + 3.2, z + 0.5, '#fbbf24', 0.01, 0.8, 0.6, 0.8);
             }
           }
         }
@@ -651,29 +1048,18 @@
       addCollider(-8.8, 0.0, 8.6, -5.6, 0.85, 10.0, 'stream_bridge');
     }
 
-    // ----------------------------------------------------------------------------
     // 5B. MAIN HAKUREI SHRINE HALL (HAIDEN), CURVED ROOF, VERANDA & SHIMENAWA
-    // ----------------------------------------------------------------------------
     function buildShrineMainHall() {
-      // Footprint: X in [-7.0, 7.0] (rx -28..27), Z in [-12.0, -4.0] (rz -48..-16)
-      // Base sits on Upper Courtyard (ry = 10), Veranda floor at ry = 13 (World Y = 3.5)
-
-      // 1. Stone Foundation & Wooden Veranda Deck (Engawa)
-      pushBoxVoxels(solidVoxels, -26, 10, -46, 25, 12, -16, (x, y, z) => {
-        if (y === 10) return '#78716c'; // Stone foundation base
-        return '#5c3a21'; // Dark wood under-porch lattice
-      });
-      // Wide Veranda Floor Planks (ry = 13 -> Top surface at Y = 3.5)
+      pushBoxVoxels(solidVoxels, -26, 10, -46, 25, 12, -16, (x, y) => (y === 10 ? '#78716c' : '#5c3a21'));
       for (let x = -28; x <= 27; x++) {
         for (let z = -47; z <= -15; z++) {
-          if (x > -22 && x < 21 && z > -43 && z < -21) continue; // Interior floor core
+          if (x > -22 && x < 21 && z > -43 && z < -21) continue;
           const plankCol = (x % 3 === 0) ? '#9e663f' : '#ad7249';
           pushVoxel(solidVoxels, x + 0.5, 13.5, z + 0.5, plankCol, 0.025);
         }
       }
-      // Veranda Low Wooden Railing on Left, Right, and Front Flanks (leaving center steps open)
       for (let x = -28; x <= 27; x++) {
-        if (x >= -7 && x <= 6) continue; // Front entrance opening
+        if (x >= -7 && x <= 6) continue;
         pushVoxel(solidVoxels, x + 0.5, 14.5, -15.5, '#b91c1c', 0.02, 1, 0.6, 0.6);
         pushVoxel(solidVoxels, x + 0.5, 15.6, -15.5, '#7f1d1d', 0.02, 1, 0.6, 0.7);
       }
@@ -684,7 +1070,7 @@
         }
       }
 
-      // Front Wooden Veranda Steps (rx -7..6, rz -14..-11, climbing ry 10..13)
+      // Front Wooden Veranda Steps
       for (let s = 0; s < 4; s++) {
         const sy = 10 + s;
         const sz = -11 - s;
@@ -693,32 +1079,36 @@
         }
       }
 
-      // Register Veranda & Shrine Hall Colliders
       addCollider(-7.0, 2.5, -12.0, 7.0, 3.5, -3.75, 'shrine_veranda');
       addCollider(-1.8, 2.5, -3.75, 1.8, 3.1, -2.7, 'veranda_steps');
       addCollider(-5.8, 3.5, -11.0, 5.8, 7.2, -5.0, 'shrine_main_hall');
 
-      // 2. Shrine Hall Walls, Timber Pillars, Sliding Shoji Doors & Paper Ofuda Charms
-      // Hall bounds: rx -22..21, rz -43..-20, ry 14..27
+      // Shrine Hall Walls & Sliding Shoji Doors
       for (let y = 14; y <= 27; y++) {
         for (let x = -22; x <= 21; x++) {
           for (let z = -43; z <= -20; z++) {
-            if (x > -22 && x < 21 && z > -43 && z < -20) continue; // Hollow interior
+            if (x > -22 && x < 21 && z > -43 && z < -20) continue;
 
             const isCornerPillar = ((x === -22 || x === 21) && (z === -43 || z === -20));
             const isFrontPillar = (z === -20 && (x === -12 || x === -7 || x === 6 || x === 11));
             const isTopBeam = (y >= 26);
 
-            let wallCol = '#f8f5EE'; // Traditional white shikkui plaster
+            let wallCol = '#f8f5EE';
             if (isCornerPillar || isFrontPillar || isTopBeam || y === 14) {
-              wallCol = '#6e4226'; // Dark cypress timber frame
+              wallCol = '#6e4226';
             } else if (z === -20 && x >= -6 && x <= 5 && y <= 24) {
-              // Front sliding lattice doors (shoji)
               const isGrid = (x % 2 === 0 || y % 3 === 0);
-              wallCol = isGrid ? '#8c5836' : '#fffdf7';
+              if (!isGrid) {
+                pushVoxel(lanternGlowVoxels, x + 0.5, y + 0.5, z + 0.5, '#fff3d6', 0.01);
+                continue;
+              }
+              wallCol = '#8c5836';
             } else if (z === -20 && Math.abs(x) >= 13 && Math.abs(x) <= 18 && y >= 17 && y <= 23) {
-              // Circular/octagonal lattice windows on left & right front bays
-              wallCol = ((x + y) % 2 === 0) ? '#7c4d2f' : '#fef3c7';
+              if ((x + y) % 2 !== 0) {
+                pushVoxel(lanternGlowVoxels, x + 0.5, y + 0.5, z + 0.5, '#fde68a', 0.01);
+                continue;
+              }
+              wallCol = '#7c4d2f';
             }
 
             pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, wallCol, 0.02);
@@ -726,27 +1116,26 @@
         }
       }
 
-      // Outer Veranda Support Pillars at front corners & steps
       for (const px of [-26, -7, 6, 25]) {
         for (let y = 14; y <= 26; y++) {
           pushVoxel(solidVoxels, px + 0.5, y + 0.5, -16.5, (y <= 15) ? '#f8fafc' : '#7c4d2f', 0.02);
         }
       }
 
-      // Paper Ofuda Charms stuck on the front pillars!
       for (const ox of [-7, 6]) {
         pushVoxel(solidVoxels, ox + 0.5, 22.5, -15.8, '#fefefe', 0.01, 0.55, 1.4, 0.2);
         pushVoxel(solidVoxels, ox + 0.5, 22.5, -15.7, '#dc2626', 0.01, 0.3, 0.9, 0.2);
       }
 
-      // Glowing Paper Lanterns hanging under the front veranda eaves
-      for (const lx of [-10, 9]) {
-        pushVoxel(solidVoxels, lx + 0.5, 25.5, -16.5, '#1e1b24', 0.01, 0.6, 0.6, 0.6);
-        pushVoxel(lanternGlowVoxels, lx + 0.5, 24.0, -16.5, '#ffedd5', 0.01, 1.5, 2.1, 1.5);
-        pushVoxel(solidVoxels, lx + 0.5, 22.6, -16.5, '#1e1b24', 0.01, 1.1, 0.4, 1.1);
+      // Glowing Paper Lanterns hanging under the front veranda eaves & over the offering box
+      for (const lx of [-10, 0, 9]) {
+        const lz = lx === 0 ? -7.0 : -16.5;
+        pushVoxel(solidVoxels, lx + 0.5, 25.5, lz, '#1e1b24', 0.01, 0.6, 0.6, 0.6);
+        pushVoxel(lanternGlowVoxels, lx + 0.5, 24.0, lz, '#ffedd5', 0.01, 1.5, 2.1, 1.5);
+        pushVoxel(solidVoxels, lx + 0.5, 22.6, lz, '#1e1b24', 0.01, 1.1, 0.4, 1.1);
       }
 
-      // 3. GIANT BRAIDED SHIMENAWA ROPE & WHITE PAPER SHIDE ACROSS FRONT EAVES
+      // Giant Braided Shimenawa Rope & White Paper Shide
       for (let x = -11; x <= 10; x++) {
         const normX = (x + 0.5) / 11;
         const thickness = 1.65 * (1.0 - normX * normX * 0.55);
@@ -754,7 +1143,6 @@
         const braidCol = (x % 2 === 0) ? '#d4a359' : '#b8863e';
         pushVoxel(solidVoxels, x + 0.5, sagY, -15.2, braidCol, 0.03, 1.05, thickness, thickness);
 
-        // Zigzag white paper Shide hanging from the Shimenawa
         if (x === -8 || x === -3 || x === 2 || x === 7) {
           for (let s = 0; s < 4; s++) {
             const zigX = (s % 2 === 0) ? -0.35 : 0.35;
@@ -763,11 +1151,9 @@
         }
       }
 
-      // 4. GRAND CURVED SHRINE ROOF (Irimoya Kawara Tiled Roof with Upturned Eaves)
-      // Spans rx -33..32, rz -51..-11, ry 27..41
+      // Grand Curved Shrine Roof
       for (let h = 0; h <= 13; h++) {
         const ry = 27 + h;
-        // Curved concave roof profile: wide overhang at bottom that sweeps steeply up to the ridge
         const progress = h / 13;
         const curve = Math.pow(progress, 0.72);
         const halfZ = Math.round(20 * (1.0 - curve * 0.85));
@@ -776,19 +1162,15 @@
 
         for (let x = -halfX; x <= halfX - 1; x++) {
           for (let z = centerZ - halfZ; z <= centerZ + halfZ; z++) {
-            // Only outer shell of roof
             const onEdgeZ = (z <= centerZ - halfZ + 1 || z >= centerZ + halfZ - 1);
             const onEdgeX = (x <= -halfX + 1 || x >= halfX - 2);
             if (!onEdgeZ && !onEdgeX && h < 13) continue;
 
-            // Upturned corner eaves curve (sori)
             const cornerDist = Math.max(0, Math.abs(x) - (halfX - 6));
             const eaveLift = (h <= 2) ? cornerDist * 0.25 : 0;
 
-            // Kawara tile ridges every 2 voxels in X
             let tileCol = (x % 2 === 0) ? '#334155' : '#475569';
-            if (h === 0) tileCol = '#1e293b'; // Eave trim
-            // White gable wall triangle on left/right sides (irimoya gable)
+            if (h === 0) tileCol = '#1e293b';
             if (onEdgeX && h >= 5 && h <= 10 && Math.abs(z - centerZ) <= halfZ - 2) {
               tileCol = '#f8fafc';
             }
@@ -798,27 +1180,28 @@
         }
       }
 
-      // Grand Roof Ridge Beam (O-mune) & Golden Shachihoko / Finials at Ends (ry = 41..43)
       for (let x = -22; x <= 21; x++) {
         pushVoxel(solidVoxels, x + 0.5, 41.5, -31.0, '#1e293b', 0.02, 1, 1.3, 1.6);
         if (x % 4 === 0) {
-          pushVoxel(glossyVoxels, x + 0.5, 42.3, -31.0, '#fbbf24', 0.01, 0.7, 0.6, 1.8); // Gold ridge crest
+          pushVoxel(glossyVoxels, x + 0.5, 42.3, -31.0, '#fbbf24', 0.01, 0.7, 0.6, 1.8);
         }
       }
-      // Upturned Golden Roof Horns (Chigi / Katsuogi accents)
       for (const gx of [-22, 21]) {
         pushVoxel(glossyVoxels, gx + 0.5, 42.8, -31.0, '#f59e0b', 0.01, 1.4, 1.8, 1.4);
         pushVoxel(glossyVoxels, gx + (gx < 0 ? -0.6 : 0.6), 44.0, -31.0, '#fde047', 0.01, 1.0, 1.4, 1.0);
       }
+
+      // Engawa Cushion (Zabuton) & Green Tea Set on Left Veranda (rx -15..-9, rz -19..-16, ry 14)
+      pushBoxVoxels(solidVoxels, -15, 14, -19, -11, 14, -16, '#9d4edd', 0.025);
+      pushVoxel(solidVoxels, -9.0, 14.2, -17.5, '#6e4226', 0.02, 2.2, 0.4, 2.2); // Tea tray
+      pushVoxel(glossyVoxels, -9.2, 14.8, -17.5, '#52b788', 0.02, 1.1, 1.1, 1.1); // Kyusu teapot
+      pushVoxel(glossyVoxels, -8.3, 14.6, -17.2, '#f8fafc', 0.01, 0.65, 0.8, 0.65); // Teacup
     }
 
-    // ----------------------------------------------------------------------------
-    // 5C. TORII GATE, SAISEN DONATION BOX, PURIFICATION FOUNTAIN, LANTERNS & PROPS
-    // ----------------------------------------------------------------------------
+    // 5C. TORII GATE, KOMAINU GUARDIANS, TEMIZUYA, OMIKUJI RACK, EMA RACK & DISTANT VILLAGE
     function buildShrineProps() {
       // 1. GRAND VERMILION TORII GATE AT BOTTOM OF STAIRS (Z = 12.25 -> rz = 49)
       const toriiZ = 49;
-      // Black stone base pedestals & towering vermilion pillars (rx = -13 and rx = 12, ry = 0..32)
       for (const px of [-13, 12]) {
         for (let y = 0; y <= 32; y++) {
           const isBase = (y <= 4);
@@ -827,29 +1210,24 @@
           pushVoxel(solidVoxels, px + 0.5, y + 0.5, toriiZ + 0.5, col, 0.02, radiusScale, 1.02, radiusScale);
         }
       }
-      // Lower crossbeam (Nuki) at ry = 25
       for (let x = -17; x <= 16; x++) {
         pushVoxel(solidVoxels, x + 0.5, 25.5, toriiZ + 0.5, '#dc2626', 0.02, 1.05, 1.4, 1.3);
-        // Black wedges where Nuki pierces pillars
         if (x === -13 || x === 12) {
           pushVoxel(solidVoxels, x + 0.5, 25.5, toriiZ + 0.5, '#1e293b', 0.01, 2.2, 1.6, 1.6);
         }
       }
-      // Upper curved lintel beam (Kasagi) with upturned tips & black cap (ry = 31..33)
       for (let x = -20; x <= 19; x++) {
         const edgeDist = Math.max(0, Math.abs(x + 0.5) - 12);
         const curveY = (edgeDist * edgeDist) * 0.045;
         pushVoxel(solidVoxels, x + 0.5, 31.5 + curveY, toriiZ + 0.5, '#dc2626', 0.02, 1.05, 1.5, 1.9);
         pushVoxel(solidVoxels, x + 0.5, 32.8 + curveY, toriiZ + 0.5, '#1e293b', 0.02, 1.08, 0.9, 2.2);
       }
-      // Central strut (Gakuzuka) & Gold-rimmed Shrine Name Tablet ("博麗神社")
       for (let y = 26; y <= 31; y++) {
         pushVoxel(solidVoxels, 0.0, y + 0.5, toriiZ + 0.5, '#1e293b', 0.02, 2.8, 1.05, 1.5);
         if (y >= 27 && y <= 30) {
           pushVoxel(glossyVoxels, 0.0, y + 0.5, toriiZ + 1.3, '#fbbf24', 0.01, 1.8, 0.9, 0.4);
         }
       }
-      // White paper Shide hanging beneath the Torii Nuki beam
       for (const sx of [-9, -3, 3, 9]) {
         pushVoxel(solidVoxels, sx, 24.2, toriiZ + 0.6, '#ffffff', 0.01, 0.6, 1.2, 0.3);
         pushVoxel(solidVoxels, sx + 0.25, 23.3, toriiZ + 0.6, '#ffffff', 0.01, 0.6, 1.0, 0.3);
@@ -857,79 +1235,19 @@
       addCollider(-3.6, 0, 11.9, -2.9, 8.2, 12.6, 'torii_pillar_left');
       addCollider(2.9, 0, 11.9, 3.6, 8.2, 12.6, 'torii_pillar_right');
 
-      // 2. ALWAYS-EMPTY SAISEN DONATION BOX + TINY JOKE SIGN (In front of veranda steps: rx -5..4, rz -9..-5, ry 10..14)
-      for (let x = -5; x <= 4; x++) {
-        for (let y = 10; y <= 14; y++) {
-          for (let z = -9; z <= -5; z++) {
-            const isRim = (x === -5 || x === 4 || z === -9 || z === -5);
-            if (y === 14) {
-              // Slatted coin-drop grate on top (hollow in center so Shion Fumo is stuck head-first!)
-              if (isRim || z === -7) {
-                pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, '#5c3a21', 0.02, 1, 0.7, 0.7);
-              }
-              continue;
-            }
-            if (!isRim && y > 10) continue; // Hollow box interior
-            const boxCol = ((y === 11 || y === 13) && (x === -5 || x === 4)) ? '#1e293b' : '#7c4d2f';
-            pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, boxCol, 0.025);
-          }
-        }
+      // 2. PAIR OF KOMAINU GUARDIAN STATUES FLANKING THE TOP OF THE STAIRS (rx ±11, rz 7, ry 10..17)
+      for (const side of [-1, 1]) {
+        const kx = side === -1 ? -11 : 10;
+        const kz = 6;
+        pushBoxVoxels(solidVoxels, kx - 1, 10, kz - 1, kx + 1, 12, kz + 1, '#78716c', 0.03);
+        pushBoxVoxels(solidVoxels, kx - 1, 13, kz - 1, kx + 1, 15, kz, '#a8a29e', 0.035);
+        pushBoxVoxels(solidVoxels, kx - 1, 15, kz, kx + 1, 17, kz + 1, '#9ca3af', 0.035);
+        pushVoxel(glossyVoxels, kx - 0.3, 16.5, kz + 1.6, '#fbbf24', 0.01, 0.4, 0.4, 0.3);
+        pushVoxel(glossyVoxels, kx + 0.9, 16.5, kz + 1.6, '#fbbf24', 0.01, 0.4, 0.4, 0.3);
+        addCollider((kx - 1.5) * RV, 2.5, (kz - 1.5) * RV, (kx + 2.0) * RV, 4.4, (kz + 2.0) * RV, 'komainu_statue');
       }
-      // White painted "賽銭" character strokes on front of Saisen Box
-      pushVoxel(solidVoxels, -1.5, 12.5, -4.8, '#f8fafc', 0.01, 1.2, 1.6, 0.2);
-      pushVoxel(solidVoxels, 1.2, 12.5, -4.8, '#f8fafc', 0.01, 1.2, 1.6, 0.2);
 
-      // Tiny Joke Sign next to Saisen Box ("Donations: 0 Yen — Please Give!! ᗜ˰ᗜ")
-      pushVoxel(solidVoxels, 6.5, 10.5, -6.5, '#6e4528', 0.02, 0.5, 3.2, 0.5); // Signpost
-      pushVoxel(solidVoxels, 6.5, 12.5, -6.5, '#fef3c7', 0.02, 3.4, 2.2, 0.4); // Wooden placard
-      pushVoxel(solidVoxels, 5.8, 12.6, -6.25, '#dc2626', 0.01, 0.9, 1.1, 0.2); // Red "0"
-      pushVoxel(solidVoxels, 7.1, 12.4, -6.25, '#3b82f6', 0.01, 0.5, 0.8, 0.2); // Painted sweat drop / tear
-      addCollider(-1.4, 2.5, -2.4, 1.3, 3.75, -1.1, 'saisen_donation_box');
-
-      // 3. SIX TRADITIONAL STONE LANTERNS (Tōrō) LINING THE STAIRS & COURTYARD
-      const lanternLocations = [
-        { rx: -13, ry: 0,  rz: 37, name: 'lantern_bottom_L' },
-        { rx: 12,  ry: 0,  rz: 37, name: 'lantern_bottom_R' },
-        { rx: -13, ry: 5,  rz: 22, name: 'lantern_mid_L' },
-        { rx: 12,  ry: 5,  rz: 22, name: 'lantern_mid_R' },
-        { rx: -14, ry: 10, rz: 4,  name: 'lantern_top_L' },
-        { rx: 13,  ry: 10, rz: 4,  name: 'lantern_top_R' } // Aunn Fumo naps on top of this one!
-      ];
-
-      lanternLocations.forEach((loc) => {
-        const lx = loc.rx + 0.5;
-        const ly = loc.ry;
-        const lz = loc.rz + 0.5;
-
-        // Stone base & pedestal post
-        pushVoxel(solidVoxels, lx, ly + 0.5, lz, '#78716c', 0.03, 2.8, 1.0, 2.8);
-        pushVoxel(solidVoxels, lx, ly + 1.5, lz, '#a8a29e', 0.03, 2.0, 1.0, 2.0);
-        pushVoxel(solidVoxels, lx, ly + 2.8, lz, '#a8a29e', 0.03, 1.3, 2.0, 1.3);
-        pushVoxel(solidVoxels, lx, ly + 4.1, lz, '#78716c', 0.03, 2.4, 0.8, 2.4);
-
-        // Glowing firebox chamber (Hibukuro)
-        pushVoxel(lanternGlowVoxels, lx, ly + 5.2, lz, '#fde68a', 0.01, 1.7, 1.6, 1.7);
-        // Stone corner mullions around firebox
-        for (const cx of [-0.8, 0.8]) {
-          for (const cz of [-0.8, 0.8]) {
-            pushVoxel(solidVoxels, lx + cx, ly + 5.2, lz + cz, '#78716c', 0.02, 0.4, 1.7, 0.4);
-          }
-        }
-
-        // Broad pagoda stone roof (Kasa) & top jewel (Hoju) -> Top at ly + 7.5
-        pushVoxel(solidVoxels, lx, ly + 6.4, lz, '#65a30d', 0.04, 3.2, 0.8, 3.2); // Mossy stone roof
-        pushVoxel(solidVoxels, lx, ly + 7.1, lz, '#78716c', 0.03, 2.1, 0.7, 2.1);
-        pushVoxel(solidVoxels, lx, ly + 7.7, lz, '#57534e', 0.03, 0.9, 0.7, 0.9);
-
-        addCollider(
-          (lx - 1.6) * RV, ly * RV, (lz - 1.6) * RV,
-          (lx + 1.6) * RV, (ly + 8.0) * RV, (lz + 1.6) * RV,
-          loc.name
-        );
-      });
-
-      // 4. PURIFICATION FOUNTAIN (CHŌZUYA / TEMIZUYA) WITH BAMBOO LADLES (Left Courtyard: rx -26..-18, rz -10..-3)
-      // Stone water basin (ry 10..12)
+      // 3. PURIFICATION FOUNTAIN (TEMIZUYA) WITH BAMBOO LADLES (Left Courtyard: rx -26..-18, rz -10..-3)
       for (let x = -25; x <= -19; x++) {
         for (let z = -9; z <= -4; z++) {
           const isRim = (x === -25 || x === -19 || z === -9 || z === -4);
@@ -938,21 +1256,17 @@
             pushVoxel(solidVoxels, x + 0.5, 11.5, z + 0.5, '#a8a29e', 0.03);
             pushVoxel(solidVoxels, x + 0.5, 12.3, z + 0.5, ((x + z) % 3 === 0) ? '#65a30d' : '#78716c', 0.03, 1, 0.7, 1);
           } else {
-            // Clear spring water filling the basin
             pushVoxel(waterBaseVoxels, x + 0.5, 11.8, z + 0.5, '#38bdf8', 0.02, 1, 0.8, 1);
           }
         }
       }
-      // Green Bamboo Water Spout Pipe & Two Wooden Ladles (Hishaku) resting across the basin
-      pushVoxel(solidVoxels, -24.5, 13.5, -6.5, '#4d7c0f', 0.02, 0.9, 2.2, 0.9); // Vertical bamboo pipe
-      pushVoxel(solidVoxels, -23.2, 14.0, -6.5, '#65a30d', 0.02, 2.4, 0.7, 0.7); // Horizontal spout
-      pushVoxel(waterBaseVoxels, -22.0, 13.0, -6.5, '#bae6fd', 0.01, 0.45, 1.8, 0.45); // Pouring water stream
-      // Wooden ladles
+      pushVoxel(solidVoxels, -24.5, 13.5, -6.5, '#4d7c0f', 0.02, 0.9, 2.2, 0.9);
+      pushVoxel(solidVoxels, -23.2, 14.0, -6.5, '#65a30d', 0.02, 2.4, 0.7, 0.7);
+      pushVoxel(waterBaseVoxels, -22.0, 13.0, -6.5, '#bae6fd', 0.01, 0.45, 1.8, 0.45);
       for (const lz of [-7.5, -5.2]) {
-        pushVoxel(solidVoxels, -21.5, 12.7, lz, '#e6ccb2', 0.02, 3.8, 0.25, 0.3); // Ladle handle
-        pushVoxel(solidVoxels, -23.0, 12.8, lz, '#ddb892', 0.02, 0.9, 0.65, 0.9); // Ladle cup
+        pushVoxel(solidVoxels, -21.5, 12.7, lz, '#e6ccb2', 0.02, 3.8, 0.25, 0.3);
+        pushVoxel(solidVoxels, -23.0, 12.8, lz, '#ddb892', 0.02, 0.9, 0.65, 0.9);
       }
-      // Four wooden pavilion posts & tiled canopy roof over the fountain
       for (const px of [-26, -18]) {
         for (const pz of [-10, -3]) {
           for (let y = 10; y <= 20; y++) {
@@ -968,20 +1282,24 @@
       }
       addCollider(-6.6, 2.5, -2.6, -4.4, 3.3, -0.8, 'purification_fountain');
 
-      // 5. EMA WOODEN WISH PLAQUE RACK (Right Courtyard: rx 16..24, rz -8..-6)
+      // Small Purification Area with Gohei Stand beside the Fountain (rx -16..-13, rz -5..-2)
+      pushBoxVoxels(solidVoxels, -16, 10, -5, -13, 10, -2, '#e2e8f0', 0.02);
+      pushVoxel(solidVoxels, -14.5, 12.0, -3.5, '#8d5b3c', 0.02, 0.5, 3.2, 0.5);
+      pushVoxel(solidVoxels, -15.2, 13.0, -3.5, '#ffffff', 0.01, 0.6, 1.2, 0.3);
+      pushVoxel(solidVoxels, -13.8, 13.0, -3.5, '#ffffff', 0.01, 0.6, 1.2, 0.3);
+
+      // 4. EMA WOODEN WISH PLAQUE RACK & OMIKUJI FORTUNE RACK (Right Courtyard: rx 16..28, rz -8..-1)
       for (const px of [16, 24]) {
         for (let y = 10; y <= 19; y++) {
           pushVoxel(solidVoxels, px + 0.5, y + 0.5, -7.0, '#6e4226', 0.02, 0.9, 1, 0.9);
         }
       }
-      // Small roof bar & 2 rows of hanging wooden Ema plaques
       for (let x = 15; x <= 25; x++) {
         pushVoxel(solidVoxels, x + 0.5, 20.2, -7.0, '#334155', 0.02, 1.1, 0.9, 2.2);
         if (x >= 17 && x <= 23) {
           pushVoxel(solidVoxels, x + 0.5, 17.5, -7.0, '#7c4d2f', 0.02, 1, 0.4, 0.4);
           pushVoxel(solidVoxels, x + 0.5, 14.5, -7.0, '#7c4d2f', 0.02, 1, 0.4, 0.4);
-          if (x % 2 === 1) {
-            // Pentagonal Ema plaques with red ties & cute painted designs
+          if (x % 2 === 1 && x !== 21) {
             for (const ey of [16.3, 13.3]) {
               pushVoxel(solidVoxels, x + 0.5, ey + 0.7, -6.8, '#dc2626', 0.01, 0.25, 0.5, 0.25);
               pushVoxel(solidVoxels, x + 0.5, ey, -6.8, '#f3d5b5', 0.03, 1.3, 1.1, 0.3);
@@ -992,37 +1310,74 @@
       }
       addCollider(3.9, 2.5, -2.0, 6.3, 5.1, -1.4, 'ema_plaque_rack');
 
-      // 6. CEREMONIAL SAKE BARREL (KOMODARU) & SUIKA'S GIANT IBUKI SAKE GOURD ON THE VERANDA
-      // Sake barrel on left veranda (rx -19..-16, rz -19..-16, ry 14..17)
-      for (let x = -19; x <= -16; x++) {
-        for (let z = -19; z <= -16; z++) {
-          for (let y = 14; y <= 17; y++) {
-            const c = (y === 15 || y === 16) ? '#1e3a8a' : '#e6ccb2'; // Woven straw & indigo band
-            pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, c, 0.03);
-          }
+      // Omikuji Fortune Rack with Tied White Papers (rx 17..23, rz -1, ry 10..18)
+      for (const px of [17, 23]) {
+        for (let y = 10; y <= 18; y++) {
+          pushVoxel(solidVoxels, px + 0.5, y + 0.5, -1.0, '#6e4226', 0.02, 0.8, 1, 0.8);
         }
       }
-      // Suika's Giant Ibuki Sake Gourd on right veranda (rx 18..21, rz -18..-15, ry 14..19)
-      // Lower bulb + narrow waist with red rope + upper bulb + cork
-      pushVoxel(glossyVoxels, 19.5, 15.0, -17.0, '#d97706', 0.02, 2.8, 2.2, 2.8); // Lower gourd belly
-      pushVoxel(solidVoxels, 19.5, 16.5, -17.0, '#dc2626', 0.02, 1.5, 0.8, 1.5);  // Red braided waist cord
-      pushVoxel(glossyVoxels, 19.5, 17.6, -17.0, '#f59e0b', 0.02, 2.0, 1.7, 2.0); // Upper gourd bulb
-      pushVoxel(solidVoxels, 19.5, 18.8, -17.0, '#78350f', 0.02, 0.9, 0.9, 0.9);  // Wooden stopper
-      // Red sake dish (Sakazuki) next to Suika
+      for (let x = 16; x <= 24; x++) {
+        pushVoxel(solidVoxels, x + 0.5, 18.8, -1.0, '#dc2626', 0.02, 1.05, 0.8, 1.6);
+      }
+      for (const ry of [13.0, 15.2, 17.2]) {
+        for (let x = 18; x <= 22; x++) {
+          pushVoxel(solidVoxels, x + 0.5, ry, -1.0, '#8d5b3c', 0.02, 1, 0.35, 0.35);
+          pushVoxel(solidVoxels, x + 0.5, ry, -0.7, '#ffffff', 0.01, 0.55, 1.05, 0.6);
+        }
+      }
+      addCollider(4.1, 2.5, -0.6, 6.0, 4.8, 0.1, 'omikuji_rack');
+
+      // 5. CEREMONIAL SAKE BARREL STACK (KOMODARU) & SUIKA'S GIANT IBUKI SAKE GOURD
+      const barrelCoords = [[-20, 14, -19], [-16, 14, -19], [-18, 17.5, -19]];
+      barrelCoords.forEach(([bx, by, bz]) => {
+        for (let x = bx; x <= bx + 3; x++) {
+          for (let z = bz; z <= bz + 2; z++) {
+            for (let y = by; y <= by + 3; y++) {
+              const c = (y === by + 1 || y === by + 2) ? '#1e3a8a' : '#e6ccb2';
+              pushVoxel(solidVoxels, x + 0.5, y + 0.5, z + 0.5, c, 0.03);
+            }
+          }
+        }
+      });
+      pushVoxel(glossyVoxels, 19.5, 15.0, -17.0, '#d97706', 0.02, 2.8, 2.2, 2.8);
+      pushVoxel(solidVoxels, 19.5, 16.5, -17.0, '#dc2626', 0.02, 1.5, 0.8, 1.5);
+      pushVoxel(glossyVoxels, 19.5, 17.6, -17.0, '#f59e0b', 0.02, 2.0, 1.7, 2.0);
+      pushVoxel(solidVoxels, 19.5, 18.8, -17.0, '#78350f', 0.02, 0.9, 0.9, 0.9);
       pushVoxel(glossyVoxels, 13.5, 14.2, -16.8, '#dc2626', 0.01, 1.4, 0.4, 1.4);
+
+      // 6. DISTANT MOUNTAINS & HUMAN VILLAGE IN THE VALLEY (rz -96..-70)
+      const mountainPeaks = [
+        { cx: -46, cz: -88, r: 28, h: 42, col: '#4a6b82' },
+        { cx: 2,   cz: -94, r: 34, h: 52, col: '#3d5a73' },
+        { cx: 48,  cz: -85, r: 26, h: 38, col: '#52738a' }
+      ];
+      mountainPeaks.forEach((pk) => {
+        for (let x = pk.cx - pk.r; x <= pk.cx + pk.r; x += 2) {
+          const dist = Math.abs(x - pk.cx);
+          const colH = Math.max(0, Math.round(pk.h * (1 - dist / pk.r) + Math.sin(x * 0.3) * 3));
+          for (let y = -6; y <= colH; y += 2) {
+            const isSnow = y >= pk.h * 0.72;
+            pushVoxel(solidVoxels, x, y, pk.cz + (dist % 5), isSnow ? '#e2eafc' : pk.col, 0.03, 2.2, 2.2, 2.2);
+          }
+        }
+      });
+      // Distant Human Village roofs & glowing windows
+      for (let vx = -24; vx <= 24; vx += 8) {
+        const vz = -64 + (Math.abs(vx) % 3) * 2;
+        pushBoxVoxels(solidVoxels, vx - 1, 2, vz - 1, vx + 1, 4, vz + 1, '#4a3b32', 0.02);
+        pushBoxVoxels(solidVoxels, vx - 2, 5, vz - 2, vx + 2, 6, vz + 2, '#2b2d42', 0.02);
+        pushVoxel(lanternGlowVoxels, vx + 0.5, 3.5, vz + 1.6, '#ffd166', 0.01, 0.9, 0.9, 0.4);
+      }
     }
 
-    // ----------------------------------------------------------------------------
-    // 5D. CHERRY BLOSSOM GROVE (WEST) & BAMBOO GROVE (EAST)
-    // ----------------------------------------------------------------------------
+    // 5D. CHERRY BLOSSOM GROVE, AUTUMN MAPLE TREE & BAMBOO GROVE
     function buildGroves() {
-      // 1. CHERRY BLOSSOM (SAKURA) TREES
       const sakuraTrees = [
-        { rx: -36, ry: 10, rz: -26, scale: 1.15 },
-        { rx: -42, ry: 10, rz: -6,  scale: 1.05 },
-        { rx: -38, ry: 0,  rz: 22,  scale: 1.0  },
-        { rx: -18, ry: 0,  rz: 44,  scale: 0.95 },
-        { rx: 36,  ry: 10, rz: -34, scale: 1.1  }
+        { rx: -36, ry: 10, rz: -26, scale: 1.15, isMaple: false },
+        { rx: -42, ry: 10, rz: -6,  scale: 1.05, isMaple: true  }, // Autumn Maple Tree on West Hillside!
+        { rx: -38, ry: 0,  rz: 22,  scale: 1.0,  isMaple: false },
+        { rx: -18, ry: 0,  rz: 44,  scale: 0.95, isMaple: false },
+        { rx: 36,  ry: 10, rz: -34, scale: 1.1,  isMaple: false }
       ];
 
       sakuraTrees.forEach((tree, tIdx) => {
@@ -1031,7 +1386,6 @@
         const tz = tree.rz;
         const hTrunk = Math.round(13 * tree.scale);
 
-        // Gnarled dark bark trunk
         for (let y = 0; y <= hTrunk; y++) {
           const swayX = Math.sin(y * 0.25 + tIdx) * 1.2;
           const swayZ = Math.cos(y * 0.2 + tIdx) * 0.8;
@@ -1039,7 +1393,6 @@
           pushVoxel(solidVoxels, tx + swayX, ty + y + 0.5, tz + swayZ, '#4a3228', 0.03, thick, 1.1, thick);
         }
 
-        // Fluffy multi-cluster Sakura Blossom Canopy
         const clusters = [
           { dx: 0, dy: hTrunk + 3, dz: 0, r: 7.2 * tree.scale },
           { dx: -5, dy: hTrunk + 1, dz: 3, r: 5.2 * tree.scale },
@@ -1049,6 +1402,9 @@
         ];
 
         const sakuraPalette = ['#fbcfe8', '#f9a8d4', '#f472b6', '#fce7f3'];
+        const maplePalette = ['#e63946', '#f77f00', '#d62828', '#ea580c'];
+        const palette = tree.isMaple ? maplePalette : sakuraPalette;
+
         clusters.forEach((c) => {
           const rCeil = Math.ceil(c.r);
           for (let x = -rCeil; x <= rCeil; x += 2) {
@@ -1056,7 +1412,7 @@
               for (let z = -rCeil; z <= rCeil; z += 2) {
                 const d = Math.sqrt(x * x + (y * 1.35) * (y * 1.35) + z * z);
                 if (d <= c.r && d >= c.r - 2.6) {
-                  const col = sakuraPalette[Math.abs(x + y + z + tIdx) % sakuraPalette.length];
+                  const col = palette[Math.abs(x + y + z + tIdx) % palette.length];
                   pushVoxel(solidVoxels, tx + c.dx + x, ty + c.dy + y, tz + c.dz + z, col, 0.035, 2.1, 1.8, 2.1);
                 }
               }
@@ -1067,11 +1423,10 @@
         addCollider(
           (tx - 1.8) * RV, ty * RV, (tz - 1.8) * RV,
           (tx + 1.8) * RV, (ty + hTrunk) * RV, (tz + 1.8) * RV,
-          `sakura_trunk_${tIdx}`
+          `tree_trunk_${tIdx}`
         );
       });
 
-      // 2. BAMBOO GROVE ON THE EAST HILLSIDE & SHRINE FLANK
       const bambooStalks = [
         [30, 10, -18], [34, 10, -14], [38, 10, -20], [42, 10, -12], [33, 10, -6],
         [39, 10, -4],  [45, 10, -18], [46, 10, -8],  [31, 10, 2],   [37, 10, 4],
@@ -1087,7 +1442,6 @@
           const s = isNode ? 1.15 : 0.95;
           pushVoxel(solidVoxels, bx + 0.5, by + y + 0.5, bz + 0.5, col, 0.025, s, 1.02, s);
 
-          // Feathery bamboo leaf clusters near top
           if (y >= stalkH - 6 && y % 3 === 0) {
             const sideX = ((y + idx) % 2 === 0) ? 1.8 : -1.8;
             const sideZ = ((y * idx) % 2 === 0) ? 1.5 : -1.5;
@@ -1116,14 +1470,303 @@
     if (fountainWaterMesh) shrineWorldGroup.add(fountainWaterMesh);
 
     // ============================================================================
-    // 6. DYNAMIC ENVIRONMENTAL SYSTEMS:
-    //    - Flowing Stream Water with White Foam Ripples
-    //    - Interactive Pile of Fallen Voxel Leaves (Swept by Reimu & Pushed by Fumos)
-    //    - Drifting Cherry Blossom Petals
-    //    - Marisa's Hovering Flying Broom
-    //    - Valley Mist, Drifting Day Clouds, Full Moon, Night Fireflies & Aurora
+    // 5E. INTERACTIVE DONATION & SHRINE PROPS:
+    //     - Saisen-bako (Offering Box) with Slatted Top & Pulsing Hint Ring
+    //     - Shrine Bell (Suzu) & Braided Bell Rope above Saisen-bako
+    //     - Wooden Ema Plaque with Mini QR Texture
+    //     - Clickable Stone Lanterns, Omikuji Rack, Temizuya Frog & Roof Cat
     // ============================================================================
 
+    // 1. THE SAISEN-BAKO (OFFERING BOX) AT (0, 2.5, -1.75)
+    const saisenGroup = new THREE.Group();
+    saisenGroup.position.set(0, 2.5, -1.75);
+    scene.add(saisenGroup);
+
+    const saisenWoodVoxels = [];
+    const saisenGoldVoxels = [];
+    const SV = 0.14;
+    for (let x = -8; x <= 8; x++) {
+      for (let y = 0; y <= 9; y++) {
+        for (let z = -5; z <= 5; z++) {
+          if (y === 9 && Math.abs(x) <= 6 && Math.abs(z) <= 3) {
+            if (z % 2 === 0) {
+              pushVoxel(saisenWoodVoxels, x, y, z, '#5c3a21', 0.02, 1, 0.7, 0.75);
+            }
+            continue;
+          }
+          if (y === 8 && Math.abs(x) <= 6 && Math.abs(z) <= 3) continue;
+          if (x > -8 && x < 8 && y > 0 && y < 8 && z > -5 && z < 5) continue;
+
+          const isCornerGold = (Math.abs(x) >= 7 && Math.abs(z) >= 4 && (y === 1 || y === 5 || y === 9));
+          const isFrontCrest = (z === 5 && y >= 3 && y <= 6 && Math.abs(x) <= 2 && ((Math.abs(x) + y) % 2 === 0));
+          if (isCornerGold || isFrontCrest) {
+            pushVoxel(saisenGoldVoxels, x, y + 0.5, z, '#ffd166', 0.015);
+          } else {
+            const isFrame = (Math.abs(x) === 8 || Math.abs(z) === 5 || y === 0 || y === 9);
+            const woodCol = isFrame ? '#4a2c18' : ((y % 2 === 0) ? '#7c4d2f' : '#6e4226');
+            pushVoxel(saisenWoodVoxels, x, y + 0.5, z, woodCol, 0.025);
+          }
+        }
+      }
+    }
+    const saisenWoodMesh = buildVoxelInstancedMesh(saisenWoodVoxels, SV, shrineSolidMaterial, true, true);
+    const saisenGoldMesh = buildVoxelInstancedMesh(saisenGoldVoxels, SV, goldMaterial, true, true);
+    saisenWoodMesh.userData = { propType: 'saisen', label: '🪙 Saisen-bako (Click or Press E to Donate)' };
+    saisenGoldMesh.userData = { propType: 'saisen', label: '🪙 Saisen-bako (Click or Press E to Donate)' };
+    saisenGroup.add(saisenWoodMesh, saisenGoldMesh);
+    interactivePropMeshes.push(saisenWoodMesh, saisenGoldMesh);
+
+    addCollider(-1.25, 2.5, -2.55, 1.25, 3.88, -0.95, 'saisen_donation_box');
+
+    // Glowing Pulsing Hint Ring around the Saisen-bako
+    const hintRingGroup = new THREE.Group();
+    hintRingGroup.position.set(0, 2.54, -1.75);
+    scene.add(hintRingGroup);
+
+    const ringVoxels = [];
+    for (let i = 0; i < 36; i++) {
+      const ang = (i / 36) * Math.PI * 2;
+      ringVoxels.push({
+        x: Math.cos(ang) * 13.5,
+        y: 0,
+        z: Math.sin(ang) * 9.5,
+        color: new THREE.Color('#fbbf24'),
+        sx: 1.2, sy: 0.4, sz: 1.2
+      });
+    }
+    const hintRingMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.72 });
+    const hintRingMesh = buildVoxelInstancedMesh(ringVoxels, 0.12, hintRingMat, false, false);
+    hintRingGroup.add(hintRingMesh);
+
+    // 2. SHRINE BELL (SUZU) & BRAIDED ROPE ABOVE THE SAISEN-BAKO
+    const bellPivot = new THREE.Group();
+    bellPivot.position.set(0, 6.2, -1.75);
+    scene.add(bellPivot);
+
+    const bellBrassVoxels = [];
+    const bellRopeVoxels = [];
+    for (let x = -2; x <= 2; x++) {
+      for (let y = -2; y <= 0; y++) {
+        for (let z = -2; z <= 2; z++) {
+          if (Math.hypot(x, y + 1, z) <= 2.3) {
+            pushVoxel(bellBrassVoxels, x, y, z, y === -1 ? '#d97706' : '#fbbf24', 0.015);
+          }
+        }
+      }
+    }
+    for (let y = -3; y >= -18; y--) {
+      const col = (Math.abs(y) % 2 === 0) ? '#dc2626' : '#f8fafc';
+      const tassel = (y <= -16) ? 0.65 : 1.0;
+      pushVoxel(bellRopeVoxels, 0, y, 0, y === -3 ? '#d4a359' : col, 0.02, 1.3 * tassel, 1.0, 1.3 * tassel);
+    }
+    const bellBrassMesh = buildVoxelInstancedMesh(bellBrassVoxels, 0.12, goldMaterial, true, false);
+    const bellRopeMesh = buildVoxelInstancedMesh(bellRopeVoxels, 0.12, shrineSolidMaterial, true, false);
+    bellBrassMesh.userData = { propType: 'bell', label: '🔔 Ring Shrine Bell (Shortcut: B)' };
+    bellRopeMesh.userData = { propType: 'bell', label: '🔔 Ring Shrine Bell (Shortcut: B)' };
+    bellPivot.add(bellBrassMesh, bellRopeMesh);
+    interactivePropMeshes.push(bellBrassMesh, bellRopeMesh);
+    let bellSwingAngle = 0;
+    let bellSwingVel = 0;
+
+    // 3. WOODEN EMA PLAQUE WITH MINI QR TEXTURE ON THE EMA RACK (X = 5.38, Y = 4.1, Z = -1.68)
+    const emaQrGroup = new THREE.Group();
+    emaQrGroup.position.set(5.38, 4.05, -1.68);
+    scene.add(emaQrGroup);
+
+    const emaBoardVoxels = [];
+    for (let x = -3; x <= 3; x++) {
+      const topH = 3 - Math.floor(Math.abs(x) * 0.5);
+      for (let y = -3; y <= topH; y++) {
+        pushVoxel(emaBoardVoxels, x, y, 0, y === topH ? '#7c4d2f' : '#f3d5b5', 0.02, 1, 1, 0.55);
+      }
+    }
+    pushVoxel(emaBoardVoxels, 0, 3.8, 0, '#dc2626', 0.01, 0.5, 1.2, 0.4);
+    const emaBoardMesh = buildVoxelInstancedMesh(emaBoardVoxels, 0.075, shrineSolidMaterial, true, true);
+    emaBoardMesh.userData = { propType: 'ema', label: '🪧 Shrine QR Ema Plaque (Click to Open Donation Panel)' };
+    emaQrGroup.add(emaBoardMesh);
+    interactivePropMeshes.push(emaBoardMesh);
+
+    const emaQrPlaneMat = new THREE.MeshBasicMaterial({ color: 0xffffff, visible: false });
+    const emaQrPlane = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.38), emaQrPlaneMat);
+    emaQrPlane.position.set(0, -0.04, 0.03);
+    emaQrPlane.userData = { propType: 'ema', label: '🪧 Shrine QR Ema Plaque (Click to Open Donation Panel)' };
+    emaQrGroup.add(emaQrPlane);
+    interactivePropMeshes.push(emaQrPlane);
+
+    if (DONATE_CONFIG.qrImageSrc && DONATE_CONFIG.qrImageSrc.trim() !== '') {
+      const src = DONATE_CONFIG.qrImageSrc.trim();
+      if (window.location.protocol === 'file:' && !src.startsWith('data:')) {
+        // On file:// protocol, WebGL texImage2D blocks local image files as cross-origin.
+        // Render a crisp procedural QR CanvasTexture on the 3D Ema plaque while the HTML modal <img> shows the real QR file.
+        const qrCanvas = document.createElement('canvas');
+        qrCanvas.width = 64;
+        qrCanvas.height = 64;
+        const qctx = qrCanvas.getContext('2d');
+        qctx.fillStyle = '#ffffff';
+        qctx.fillRect(0, 0, 64, 64);
+        qctx.fillStyle = '#1e293b';
+        const drawFinder = (ox, oy) => {
+          qctx.fillRect(ox, oy, 14, 14);
+          qctx.fillStyle = '#ffffff';
+          qctx.fillRect(ox + 2, oy + 2, 10, 10);
+          qctx.fillStyle = '#1e293b';
+          qctx.fillRect(ox + 4, oy + 4, 6, 6);
+        };
+        drawFinder(4, 4);
+        drawFinder(46, 4);
+        drawFinder(4, 46);
+        for (let gx = 0; gx < 13; gx++) {
+          for (let gy = 0; gy < 13; gy++) {
+            if ((gx < 4 && gy < 4) || (gx > 8 && gy < 4) || (gx < 4 && gy > 8)) continue;
+            if (((gx * 17 + gy * 31) % 3) !== 0) {
+              qctx.fillRect(6 + gx * 4, 6 + gy * 4, 3, 3);
+            }
+          }
+        }
+        const tex = new THREE.CanvasTexture(qrCanvas);
+        tex.magFilter = THREE.NearestFilter;
+        emaQrPlaneMat.map = tex;
+        emaQrPlaneMat.visible = true;
+        emaQrPlaneMat.needsUpdate = true;
+      } else {
+        const qrTexImg = new Image();
+        qrTexImg.crossOrigin = 'anonymous';
+        qrTexImg.onload = () => {
+          const tex = new THREE.Texture(qrTexImg);
+          tex.needsUpdate = true;
+          emaQrPlaneMat.map = tex;
+          emaQrPlaneMat.visible = true;
+          emaQrPlaneMat.needsUpdate = true;
+        };
+        qrTexImg.onerror = () => {
+          emaQrPlaneMat.visible = false;
+        };
+        qrTexImg.src = src;
+      }
+    }
+
+    // 4. CLICKABLE STONE LANTERNS (Tōrō) LINING THE STAIRS & COURTYARD
+    const lanterns = [];
+    const lanternLocations = [
+      { rx: -13, ry: 0,  rz: 37, name: 'lantern_bottom_L' },
+      { rx: 12,  ry: 0,  rz: 37, name: 'lantern_bottom_R' },
+      { rx: -13, ry: 5,  rz: 22, name: 'lantern_mid_L' },
+      { rx: 12,  ry: 5,  rz: 22, name: 'lantern_mid_R' },
+      { rx: -14, ry: 10, rz: 4,  name: 'lantern_top_L' },
+      { rx: 13,  ry: 10, rz: 4,  name: 'lantern_top_R' }
+    ];
+
+    lanternLocations.forEach((loc, idx) => {
+      const lx = loc.rx + 0.5;
+      const ly = loc.ry;
+      const lz = loc.rz + 0.5;
+
+      const lStoneVox = [];
+      const lFlameVox = [];
+
+      pushVoxel(lStoneVox, lx, ly + 0.5, lz, '#78716c', 0.03, 2.8, 1.0, 2.8);
+      pushVoxel(lStoneVox, lx, ly + 1.5, lz, '#a8a29e', 0.03, 2.0, 1.0, 2.0);
+      pushVoxel(lStoneVox, lx, ly + 2.8, lz, '#a8a29e', 0.03, 1.3, 2.0, 1.3);
+      pushVoxel(lStoneVox, lx, ly + 4.1, lz, '#78716c', 0.03, 2.4, 0.8, 2.4);
+
+      pushVoxel(lFlameVox, lx, ly + 5.2, lz, '#fde68a', 0.01, 1.7, 1.6, 1.7);
+      for (const cx of [-0.8, 0.8]) {
+        for (const cz of [-0.8, 0.8]) {
+          pushVoxel(lStoneVox, lx + cx, ly + 5.2, lz + cz, '#78716c', 0.02, 0.4, 1.7, 0.4);
+        }
+      }
+
+      pushVoxel(lStoneVox, lx, ly + 6.4, lz, '#65a30d', 0.04, 3.2, 0.8, 3.2);
+      pushVoxel(lStoneVox, lx, ly + 7.1, lz, '#78716c', 0.03, 2.1, 0.7, 2.1);
+      pushVoxel(lStoneVox, lx, ly + 7.7, lz, '#57534e', 0.03, 0.9, 0.7, 0.9);
+
+      const lStoneMesh = buildVoxelInstancedMesh(lStoneVox, RV, shrineSolidMaterial, true, true);
+      const lFlameMat = lanternGlowMaterial.clone();
+      const lFlameMesh = buildVoxelInstancedMesh(lFlameVox, RV, lFlameMat, false, false);
+
+      const lanternObj = {
+        index: idx,
+        lit: true,
+        flameMat: lFlameMat,
+        worldPos: new THREE.Vector3(lx * RV, (ly + 5.2) * RV, lz * RV)
+      };
+
+      lStoneMesh.userData = { propType: 'lantern', lantern: lanternObj, label: '🏮 Stone Lantern (Click to Toggle Light)' };
+      lFlameMesh.userData = { propType: 'lantern', lantern: lanternObj, label: '🏮 Stone Lantern (Click to Toggle Light)' };
+      shrineWorldGroup.add(lStoneMesh, lFlameMesh);
+      interactivePropMeshes.push(lStoneMesh, lFlameMesh);
+      lanterns.push(lanternObj);
+
+      addCollider(
+        (lx - 1.6) * RV, ly * RV, (lz - 1.6) * RV,
+        (lx + 1.6) * RV, (ly + 8.0) * RV, (lz + 1.6) * RV,
+        loc.name
+      );
+    });
+
+    // 5. OMIKUJI HITBOX, TEMIZUYA FROG & ROOF CAT
+    const omikujiHitMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1.8, 2.2, 0.6),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    omikujiHitMesh.position.set(5.1, 3.8, -0.2);
+    omikujiHitMesh.userData = { propType: 'omikuji', label: '📜 Omikuji Fortune Rack (Click to Draw a Fortune!)' };
+    scene.add(omikujiHitMesh);
+    interactivePropMeshes.push(omikujiHitMesh);
+
+    // Unexpected Spot: Cute Voxel Frog on the Temizuya Stone Basin Rim
+    const frogGroup = new THREE.Group();
+    const frogHomeY = 3.22;
+    frogGroup.position.set(-4.75, frogHomeY, -1.05);
+    frogGroup.rotation.y = 0.55;
+    scene.add(frogGroup);
+
+    const frogVoxels = [];
+    for (let x = -2; x <= 2; x++) {
+      for (let y = 0; y <= 2; y++) {
+        for (let z = -2; z <= 2; z++) {
+          if (Math.hypot(x, y, z) <= 2.3) {
+            pushVoxel(frogVoxels, x, y, z, (y === 0 && z >= 1) ? '#fefae0' : '#52b788', 0.03);
+          }
+        }
+      }
+    }
+    pushVoxel(frogVoxels, -1.2, 2.8, 1.2, '#ffffff', 0.01, 0.9, 0.9, 0.9);
+    pushVoxel(frogVoxels, 1.2, 2.8, 1.2, '#ffffff', 0.01, 0.9, 0.9, 0.9);
+    pushVoxel(frogVoxels, -1.2, 2.9, 1.7, '#1e293b', 0.01, 0.5, 0.5, 0.4);
+    pushVoxel(frogVoxels, 1.2, 2.9, 1.7, '#1e293b', 0.01, 0.5, 0.5, 0.4);
+    const frogMesh = buildVoxelInstancedMesh(frogVoxels, 0.06, plushMaterial, true, true);
+    frogMesh.userData = { propType: 'frog', label: '🐸 Temizuya Frog (Click to Hop!)' };
+    frogGroup.add(frogMesh);
+    interactivePropMeshes.push(frogMesh);
+    let frogHopVel = 0;
+
+    // Unexpected Spot: Tiny Calico Cat on the Shrine Roof Ridge
+    const roofCatGroup = new THREE.Group();
+    roofCatGroup.position.set(2.4, 10.65, -7.75);
+    roofCatGroup.rotation.y = -0.3;
+    scene.add(roofCatGroup);
+
+    const catVoxels = [];
+    pushBoxVoxels(catVoxels, -1, 0, -2, 1, 2, 1, '#f8fafc', 0.02);
+    pushVoxel(catVoxels, -0.5, 2.2, -0.8, '#f77f00', 0.02);
+    pushVoxel(catVoxels, 1.2, 1.2, -1.5, '#1e1b24', 0.02);
+    pushBoxVoxels(catVoxels, -1, 2, 0, 1, 4, 2, '#f8fafc', 0.02);
+    pushVoxel(catVoxels, -0.8, 5.0, 1.2, '#f77f00', 0.02, 0.8, 0.9, 0.8);
+    pushVoxel(catVoxels, 1.2, 5.0, 1.2, '#1e1b24', 0.02, 0.8, 0.9, 0.8);
+    pushVoxel(catVoxels, -0.5, 3.6, 2.6, '#10b981', 0.01, 0.45, 0.45, 0.3);
+    pushVoxel(catVoxels, 0.9, 3.6, 2.6, '#10b981', 0.01, 0.45, 0.45, 0.3);
+    for (let t = 0; t < 4; t++) {
+      pushVoxel(catVoxels, 0.2, 1.2 + t * 0.8, -2.2 - t * 0.3, '#1e1b24', 0.02, 0.6, 0.8, 0.6);
+    }
+    const catMesh = buildVoxelInstancedMesh(catVoxels, 0.075, plushMaterial, true, true);
+    catMesh.userData = { propType: 'cat', label: '🐱 Shrine Roof Cat (Click to Pet!)' };
+    roofCatGroup.add(catMesh);
+    interactivePropMeshes.push(catMesh);
+
+    // ============================================================================
+    // 6. DYNAMIC ENVIRONMENTAL SYSTEMS & POOLED GOLD COINS
+    // ============================================================================
     // 6A. Flowing Stream Water with Ripples
     const streamCells = [];
     for (let z = 8; z <= 58; z++) {
@@ -1161,7 +1804,7 @@
         streamMesh.setMatrixAt(i, tempMatrix);
 
         if (wave > 0.78) {
-          tempColor.set('#e0f2fe'); // Sparkling white foam ripple
+          tempColor.set('#e0f2fe');
         } else {
           tempColor.copy(c.baseColor);
         }
@@ -1171,7 +1814,7 @@
       if (streamMesh.instanceColor) streamMesh.instanceColor.needsUpdate = true;
     }
 
-    // 6B. Interactive Pile of Fallen Voxel Leaves (Near Veranda Steps, Swept by Reimu & Pushed by Dragged Fumos!)
+    // 6B. Interactive Pile of Fallen Voxel Leaves (Swept by Reimu & Pushed by Dragged Fumos!)
     const LEAF_COUNT = 95;
     const leaves = [];
     const leafGeom = new THREE.BoxGeometry(0.16, 0.05, 0.16);
@@ -1214,7 +1857,6 @@
     }
 
     function updateInteractiveLeaves(dt, time) {
-      // Reimu's sweeping broom tip position in world space (when Reimu is near her porch/steps spot)
       const reimu = fumos[0];
       let broomTip = null;
       if (reimu && !reimu.isDragged && reimu.pos.distanceTo(reimu.homePos) < 1.2) {
@@ -1229,7 +1871,6 @@
       for (let i = 0; i < LEAF_COUNT; i++) {
         const lf = leaves[i];
 
-        // 1. Check interaction with any Fumo (dragged or tumbling!)
         for (let f = 0; f < fumos.length; f++) {
           const fumo = fumos[f];
           const dx = lf.pos.x - fumo.pos.x;
@@ -1246,7 +1887,6 @@
           }
         }
 
-        // 2. Reimu's broom sweeping nudge keeps gathering leaves toward the pile center
         if (broomTip) {
           const bDist = lf.pos.distanceTo(broomTip);
           if (bDist < 0.95) {
@@ -1258,13 +1898,11 @@
           }
         }
 
-        // 3. Leaf gravity, air flutter & terrain landing
         lf.vel.y -= 9.5 * dt;
         lf.vel.x *= Math.pow(0.92, dt * 60);
         lf.vel.z *= Math.pow(0.92, dt * 60);
         lf.pos.addScaledVector(lf.vel, dt);
 
-        // Determine ground height under leaf (Upper courtyard Y=2.5 vs stairs vs lower Y=0)
         let groundY = 0.03;
         if (lf.pos.z <= 2.25) {
           groundY = 2.53;
@@ -1292,17 +1930,19 @@
       leafMesh.instanceMatrix.needsUpdate = true;
     }
 
-    // 6C. Drifting Cherry Blossom Petals
+    // 6C. Drifting Cherry Blossom Petals & Maple Leaves (Shake loose when Bell rings!)
     const PETAL_COUNT = 220;
     const petalData = [];
     const petalGeom = new THREE.BoxGeometry(0.095, 0.025, 0.095);
     const petalMat = new THREE.MeshBasicMaterial({
-      color: 0xffd6e7,
+      color: 0xffffff,
       transparent: true,
       opacity: 0.92
     });
     const petalMesh = new THREE.InstancedMesh(petalGeom, petalMat, PETAL_COUNT);
     for (let i = 0; i < PETAL_COUNT; i++) {
+      const isMaple = i >= 165;
+      petalMesh.setColorAt(i, new THREE.Color(isMaple ? (i % 2 === 0 ? '#e63946' : '#f77f00') : '#ffd6e7'));
       petalData.push({
         x: -14 + Math.random() * 28,
         y: 0.5 + Math.random() * 14,
@@ -1311,17 +1951,32 @@
         vy: -(0.55 + Math.random() * 0.45),
         vz: 0.35 + (Math.random() - 0.5) * 0.5,
         phase: Math.random() * Math.PI * 2,
-        scale: 0.65 + Math.random() * 0.75
+        scale: 0.65 + Math.random() * 0.75,
+        boost: 0
       });
     }
+    if (petalMesh.instanceColor) petalMesh.instanceColor.needsUpdate = true;
     scene.add(petalMesh);
+
+    function shakeTreePetals() {
+      for (let i = 0; i < PETAL_COUNT; i++) {
+        petalData[i].boost = 2.0 + Math.random() * 1.5;
+      }
+      for (let i = 0; i < LEAF_COUNT; i++) {
+        leaves[i].vel.y += 1.2 + Math.random() * 1.5;
+        leaves[i].vel.x += (Math.random() - 0.5) * 2.5;
+        leaves[i].vel.z += (Math.random() - 0.5) * 2.5;
+      }
+    }
 
     function updateSakuraPetals(time, dt) {
       for (let i = 0; i < PETAL_COUNT; i++) {
         const p = petalData[i];
-        p.x += (p.vx + Math.sin(time * 1.4 + p.phase) * 0.45) * dt;
-        p.y += (p.vy + Math.cos(time * 2.1 + p.phase) * 0.18) * dt;
-        p.z += (p.vz + Math.sin(time * 1.1 + p.phase) * 0.35) * dt;
+        p.boost = Math.max(0, p.boost - 2.2 * dt);
+        const mult = 1.0 + p.boost;
+        p.x += (p.vx + Math.sin(time * 1.4 + p.phase) * 0.45) * mult * dt;
+        p.y += (p.vy + Math.cos(time * 2.1 + p.phase) * 0.18) * mult * dt;
+        p.z += (p.vz + Math.sin(time * 1.1 + p.phase) * 0.35) * mult * dt;
 
         if (p.y < 0.1 || p.x > 15 || p.z > 16) {
           p.x = -14 + Math.random() * 20;
@@ -1339,14 +1994,75 @@
       petalMesh.instanceMatrix.needsUpdate = true;
     }
 
-    // 6D. Marisa's Hovering Flying Voxel Broom (Gently bobs in the air above the courtyard!)
+    // 6D. Pooled Falling Gold Coin Voxels (Triggered when Donation Panel opens!)
+    const COIN_MAX = 32;
+    const coinData = [];
+    const coinGeom = new THREE.BoxGeometry(0.14, 0.05, 0.14);
+    const coinMesh = new THREE.InstancedMesh(coinGeom, goldMaterial, COIN_MAX);
+    const coinInitColor = new THREE.Color('#ffd166');
+    for (let i = 0; i < COIN_MAX; i++) {
+      coinData.push({ active: false, pos: new THREE.Vector3(), vel: new THREE.Vector3(), rot: new THREE.Euler(), delay: 0 });
+      tempMatrix.makeScale(0, 0, 0);
+      coinMesh.setMatrixAt(i, tempMatrix);
+      coinMesh.setColorAt(i, coinInitColor);
+    }
+    coinMesh.instanceMatrix.needsUpdate = true;
+    if (coinMesh.instanceColor) coinMesh.instanceColor.needsUpdate = true;
+    scene.add(coinMesh);
+
+    function triggerCoinShower() {
+      for (let i = 0; i < COIN_MAX; i++) {
+        const c = coinData[i];
+        c.active = true;
+        c.delay = i * 0.045;
+        c.pos.set((Math.random() - 0.5) * 1.1, 5.2 + Math.random() * 1.2, -1.75 + (Math.random() - 0.5) * 0.55);
+        c.vel.set((Math.random() - 0.5) * 0.8, -1.5, (Math.random() - 0.5) * 0.6);
+        c.rot.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+        if (i < 7) {
+          soundFX.playCoinClink(0.12 + i * 0.09);
+        }
+      }
+      spawnSqueezeParticles(new THREE.Vector3(0, 3.8, -1.75), '#ffd166');
+    }
+
+    function updateCoins(dt) {
+      let dirty = false;
+      for (let i = 0; i < COIN_MAX; i++) {
+        const c = coinData[i];
+        if (!c.active) continue;
+        dirty = true;
+        if (c.delay > 0) {
+          c.delay -= dt;
+          tempMatrix.makeScale(0, 0, 0);
+          coinMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        c.vel.y -= 14.0 * dt;
+        c.pos.addScaledVector(c.vel, dt);
+        c.rot.x += 9.0 * dt;
+        c.rot.y += 7.0 * dt;
+
+        // Sink through the slatted bars of the saisen-bako at Y = 3.7
+        if (c.pos.y <= 3.68) {
+          c.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          coinMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        tempQuat.setFromEuler(c.rot);
+        tempScale.set(1, 1, 1);
+        tempMatrix.compose(c.pos, tempQuat, tempScale);
+        coinMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) coinMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // 6E. Marisa's Hovering Flying Voxel Broom
     const flyingBroomGroup = new THREE.Group();
     const broomVoxels = [];
     for (let z = -8; z <= 6; z++) {
-      // Wooden bamboo shaft
       broomVoxels.push({ x: 0, y: 0, z, color: varyColor('#8d5b3c', 0, 0, z, 0.03), sx: 0.85, sy: 0.85, sz: 1.05 });
     }
-    // Golden straw bristle tail at back (z = -12..-7)
     for (let z = -12; z <= -7; z++) {
       const spread = (z === -7) ? 1 : 2;
       for (let x = -spread; x <= spread; x++) {
@@ -1358,18 +2074,15 @@
     }
     const flyingBroomMesh = buildVoxelInstancedMesh(broomVoxels, 0.12, plushMaterial, true, true);
     if (flyingBroomMesh) flyingBroomGroup.add(flyingBroomMesh);
-    const broomBasePos = new THREE.Vector3(5.2, 4.35, 1.2);
+    const broomBasePos = new THREE.Vector3(-3.1, 3.62, -4.2);
     flyingBroomGroup.position.copy(broomBasePos);
     scene.add(flyingBroomGroup);
 
-    // 6E. Sky Elements: Drifting Day Clouds, Valley Mist, Night Full Moon, Fireflies & Aurora Shimmer
-    // Drifting Voxel Clouds (Daytime)
+    // 6F. Sky Elements: Clouds, Valley Mist, Full Moon, Fireflies & Aurora
     const cloudGroup = new THREE.Group();
     const cloudVoxels = [];
-    const cloudCenters = [
-      [-14, 15.5, -18], [4, 16.8, -22], [18, 15.0, -14], [-6, 14.5, 8]
-    ];
-    cloudCenters.forEach(([cx, cy, cz], idx) => {
+    const cloudCenters = [[-14, 15.5, -18], [4, 16.8, -22], [18, 15.0, -14], [-6, 14.5, 8]];
+    cloudCenters.forEach(([cx, cy, cz]) => {
       for (let x = -4; x <= 4; x++) {
         for (let z = -2; z <= 2; z++) {
           if (Math.hypot(x * 0.6, z) <= 2.4) {
@@ -1383,7 +2096,6 @@
     if (cloudMesh) cloudGroup.add(cloudMesh);
     scene.add(cloudGroup);
 
-    // Drifting Valley Mist Bands
     const mistMat = new THREE.MeshBasicMaterial({
       color: 0xf1f5f9,
       transparent: true,
@@ -1400,19 +2112,13 @@
       mistPlanes.push({ mesh: mp, baseX: 0, phase: m * 1.7 });
     }
 
-    // Glowing Full Moon over the Shrine (Night Mode)
-    const moonMat = new THREE.MeshBasicMaterial({
-      color: 0xfef9c3,
-      transparent: true,
-      opacity: 0.0
-    });
+    const moonMat = new THREE.MeshBasicMaterial({ color: 0xfef9c3, transparent: true, opacity: 0.0 });
     const moonGroup = new THREE.Group();
     const moonMesh = new THREE.Mesh(new THREE.BoxGeometry(3.4, 3.4, 0.5), moonMat);
     moonGroup.add(moonMesh);
     moonGroup.position.set(-11, 16.5, -24);
     scene.add(moonGroup);
 
-    // Faint Aurora-Like Shimmer above the Gensokyo Mountains (Night Mode)
     const auroraSegments = [];
     const auroraMat = new THREE.MeshBasicMaterial({
       color: 0x38bdf8,
@@ -1433,7 +2139,6 @@
     }
     scene.add(auroraGroup);
 
-    // Floating Spirit-Orb Fireflies (Night Mode)
     const FIREFLY_COUNT = 55;
     const fireflyData = [];
     const fireflyGeom = new THREE.BoxGeometry(0.14, 0.14, 0.14);
@@ -1453,33 +2158,30 @@
         phase: Math.random() * Math.PI * 2,
         speed: 0.6 + Math.random() * 0.8
       });
+      tempMatrix.makeScale(0, 0, 0);
+      fireflyMesh.setMatrixAt(i, tempMatrix);
       fireflyMesh.setColorAt(i, new THREE.Color(spiritColors[i % spiritColors.length]));
     }
+    fireflyMesh.instanceMatrix.needsUpdate = true;
     if (fireflyMesh.instanceColor) fireflyMesh.instanceColor.needsUpdate = true;
     scene.add(fireflyMesh);
 
-    function updateAtmosphere(time, dt) {
-      // Clouds slow drift
+    function updateAtmosphere(time) {
       cloudGroup.position.x = Math.sin(time * 0.08) * 3.5;
 
-      // Valley mist gentle drift
       for (let i = 0; i < mistPlanes.length; i++) {
         const m = mistPlanes[i];
         m.mesh.position.x = Math.sin(time * 0.25 + m.phase) * 2.2;
       }
 
-      // Aurora curtain wave
       const nightStrength = dayNightProgress;
       for (let i = 0; i < auroraSegments.length; i++) {
         const seg = auroraSegments[i];
-        const waveY = Math.sin(time * 1.1 + seg.idx * 0.35) * 0.65;
-        const waveZ = Math.cos(time * 0.8 + seg.idx * 0.25) * 0.85;
-        seg.mesh.position.y = seg.baseY + waveY;
-        seg.mesh.position.z = seg.baseZ + waveZ;
+        seg.mesh.position.y = seg.baseY + Math.sin(time * 1.1 + seg.idx * 0.35) * 0.65;
+        seg.mesh.position.z = seg.baseZ + Math.cos(time * 0.8 + seg.idx * 0.25) * 0.85;
         seg.mesh.material.opacity = nightStrength * (0.14 + 0.08 * Math.sin(time * 1.8 + seg.idx * 0.4));
       }
 
-      // Spirit-Orb Fireflies
       if (nightStrength > 0.02) {
         for (let i = 0; i < FIREFLY_COUNT; i++) {
           const ff = fireflyData[i];
@@ -1507,10 +2209,14 @@
     const popMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const popMesh = new THREE.InstancedMesh(popGeom, popMat, POP_MAX);
     for (let i = 0; i < POP_MAX; i++) {
-      popParticles.push({ active: false, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, maxLife: 1, color: new THREE.Color('#ff85a1') });
+      const initCol = new THREE.Color('#ff85a1');
+      popParticles.push({ active: false, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, maxLife: 1, color: initCol });
       tempMatrix.makeScale(0, 0, 0);
       popMesh.setMatrixAt(i, tempMatrix);
+      popMesh.setColorAt(i, initCol);
     }
+    popMesh.instanceMatrix.needsUpdate = true;
+    if (popMesh.instanceColor) popMesh.instanceColor.needsUpdate = true;
     scene.add(popMesh);
 
     function spawnSqueezeParticles(origin, accentHex) {
@@ -1560,7 +2266,6 @@
 
     // ============================================================================
     // 8. TOUHOU FUMO VOXEL PLUSHIE BUILDER & SOFT-BODY PHYSICS CLASS
-    //    (Using the exact hollow head & 'ᗜˬᗜ' face design from room.html)
     // ============================================================================
     const allFumoRaycastMeshes = [];
     const fumos = [];
@@ -1572,15 +2277,17 @@
         this.emoji = config.emoji || '🎀';
         this.accentColor = config.accentColor || '#ef4444';
         this.scaleFactor = config.scale || 1.0;
-        this.FV = 0.082 * this.scaleFactor; // Fine voxel size per fumo block
+        this.FV = 0.082 * this.scaleFactor;
         this.radius = 0.85 * this.scaleFactor;
         this.pitchAudio = config.pitchAudio || 1.0;
+        this.opensDonateOnClick = Boolean(config.opensDonateOnClick);
 
         this.homePos = config.homePos.clone();
         this.homeYaw = config.homeYaw || 0;
         this.homePitch = config.homePitch || 0;
         this.homeRoll = config.homeRoll || 0;
-        this.specialPose = config.specialPose || null; // 'sweeping' | 'broomHover' | 'upsideDownBox' | 'napping'
+        this.specialPose = config.specialPose || null; // 'sweeping' | 'airHover' | 'stuckTree' | 'napping'
+        this.bowTimer = 0;
 
         this.pos = this.homePos.clone();
         this.vel = new THREE.Vector3();
@@ -1660,7 +2367,7 @@
           });
         };
 
-        // 1. STUBBY SITTING TORSO (Local y: 0..7, x: -4..4, z: -3..3)
+        // 1. STUBBY SITTING TORSO
         for (let y = 0; y <= 7; y++) {
           const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
           for (let x = -4; x <= 4; x++) {
@@ -1676,13 +2383,13 @@
                 col = '#fcfcfc';
               }
               if (this.id === 'aya' && y >= 4) {
-                col = '#ffffff'; // Aya crisp white tengu blouse above black skirt
+                col = '#ffffff';
               }
               if (this.id === 'suika' && y >= 4) {
-                col = '#f3e8ff'; // Suika light lavender top above deep purple skirt
+                col = '#f3e8ff';
               }
               if (this.id === 'daiyousei' && z >= 1 && Math.abs(x) <= 2 && y >= 2 && y <= 6) {
-                col = '#fef08a'; // Daiyousei yellow-green front ribbon trim
+                col = '#fef08a';
               }
               if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
                 col = '#ffffff';
@@ -1694,7 +2401,7 @@
           }
         }
 
-        // 2. SHORT DANGLING ARMS (+ Handheld Props for Reimu & Aya)
+        // 2. SHORT DANGLING ARMS (+ Handheld Props for Reimu, Marisa, Suika & Aya)
         for (const side of [-1, 1]) {
           const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
           for (let y = -3; y <= 0; y++) {
@@ -1710,7 +2417,7 @@
           }
         }
 
-        // Reimu's Bamboo Sweeping Broom held in her right arm
+        // Reimu's Gohei & Bamboo Sweeping Broom
         if (this.id === 'reimu') {
           for (let by = -9; by <= 4; by++) {
             addPlushVoxel(rightArmVoxels, 0.8, by * 0.65, 2.2, '#a37b4c', false, 0.65, 0.8, 0.65);
@@ -1721,20 +2428,34 @@
               addPlushVoxel(rightArmVoxels, 0.4 + bx * 0.65, by * 0.6, 2.2, bCol, false, 0.75, 0.75, 0.9);
             }
           }
+          // Left hand Gohei wand with white shide streamers
+          for (let gy = -2; gy <= 6; gy++) {
+            addPlushVoxel(leftArmVoxels, -0.8, gy * 0.7, 2.0, '#8d5b3c', false, 0.5, 0.8, 0.5);
+          }
+          for (let s = 0; s < 3; s++) {
+            addPlushVoxel(leftArmVoxels, -1.6, 4.2 - s * 0.9, 2.0, '#ffffff', false, 0.65, 0.75, 0.3);
+            addPlushVoxel(leftArmVoxels, 0.0, 4.2 - s * 0.9, 2.0, '#ffffff', false, 0.65, 0.75, 0.3);
+          }
         }
 
-        // Aya's Vintage Reporter Camera held in her right hand
+        // Marisa's Warm Green Teacup held on the Veranda
+        if (this.id === 'marisa') {
+          addPlushVoxel(rightArmVoxels, 0.4, -3.0, 1.8, '#f8fafc', false, 1.2, 1.2, 1.2);
+          addPlushVoxel(rightArmVoxels, 0.4, -2.2, 1.8, '#52b788', false, 0.9, 0.5, 0.9);
+        }
+
+        // Aya's Vintage Reporter Camera
         if (this.id === 'aya') {
           for (let cx = -1; cx <= 2; cx++) {
             for (let cy = -4; cy <= -2; cy++) {
               addPlushVoxel(rightArmVoxels, cx * 0.8, cy, 2.4, '#1e293b', false, 0.85, 0.85, 1.1);
             }
           }
-          addPlushVoxel(rightArmVoxels, 0.4, -3.0, 3.4, '#94a3b8', false, 1.2, 1.2, 0.8); // Camera lens barrel
-          addPlushVoxel(rightArmVoxels, 0.4, -3.0, 3.9, '#38bdf8', false, 0.8, 0.8, 0.4); // Cyan lens glass
+          addPlushVoxel(rightArmVoxels, 0.4, -3.0, 3.4, '#94a3b8', false, 1.2, 1.2, 0.8);
+          addPlushVoxel(rightArmVoxels, 0.4, -3.0, 3.9, '#38bdf8', false, 0.8, 0.8, 0.4);
         }
 
-        // Suika's Mini Golden Sake Dish & Gourd Chain Charm on her left arm
+        // Suika's Sake Dish & Gourd
         if (this.id === 'suika') {
           addPlushVoxel(leftArmVoxels, -1.2, -3.2, 1.8, '#dc2626', false, 1.6, 0.5, 1.6);
         }
@@ -1841,7 +2562,6 @@
         }
 
         if (this.id === 'suika') {
-          // Long flowing orange-brown hair locks with geometric cube hair ties
           for (const side of [-1, 1]) {
             for (let y = -2; y <= 4; y++) {
               addPlushVoxel(headVoxels, side * 6.7, y, 1.5, cfg.hairColor);
@@ -1849,7 +2569,6 @@
             const hairTieCol = (side === -1) ? '#dc2626' : '#facc15';
             addPlushVoxel(headVoxels, side * 6.9, 5.5, 2.2, hairTieCol, false, 1.3, 1.3, 1.3);
           }
-          // Two Iconic Curved Oni Horns rising from top of her head!
           for (const side of [-1, 1]) {
             for (let h = 0; h <= 7; h++) {
               const hx = side * (3.2 + Math.sin(h * 0.35) * 2.1);
@@ -1859,13 +2578,11 @@
               const s = Math.max(0.65, 1.45 - h * 0.1);
               addPlushVoxel(headVoxels, hx, hy, hz, hCol, false, s, s, s);
             }
-            // Small white ribbon at base of each horn
             addPlushVoxel(headVoxels, side * 3.2, 11.2, 1.2, '#ffffff', false, 1.5, 0.8, 1.2);
           }
         }
 
         if (this.id === 'aya') {
-          // Red Tengu Tokin Hat perched on top-front of her black bob hair + white pom-poms
           for (let hx = -2; hx <= 2; hx++) {
             for (let hz = 0; hz <= 4; hz++) {
               for (let hy = 11; hy <= 14; hy++) {
@@ -1875,11 +2592,9 @@
               }
             }
           }
-          // White pom-pom tassels on sides of tokin hat
           addPlushVoxel(headVoxels, -3.5, 10.5, 3.2, '#ffffff', false, 1.3, 1.3, 1.3);
           addPlushVoxel(headVoxels, 3.5, 10.5, 3.2, '#ffffff', false, 1.3, 1.3, 1.3);
 
-          // Black Crow Wings on her back
           for (const side of [-1, 1]) {
             for (let wx = 1; wx <= 7; wx++) {
               const topY = 2.5 + Math.sin((wx / 7) * Math.PI) * 2.5;
@@ -1919,11 +2634,9 @@
         }
 
         if (this.id === 'daiyousei') {
-          // Long green right side ponytail tied with a bright yellow ribbon
           for (let py = 0; py <= 7; py++) {
             addPlushVoxel(headVoxels, -6.8 - (7 - py) * 0.25, py, 0.8, py === 6 ? '#facc15' : cfg.hairColor);
           }
-          // Translucent Leaf-Green & Yellow Fairy Wings
           const wingAngles = [0.35, -0.25];
           for (const side of [-1, 1]) {
             for (let w = 0; w < 2; w++) {
@@ -1942,7 +2655,6 @@
         }
 
         if (this.id === 'aunn') {
-          // Single central Komainu horn on forehead + floppy mint dog/lion ears on sides!
           for (let hy = 11; hy <= 13; hy++) {
             addPlushVoxel(headVoxels, 0, hy, 3.8, '#fde047', false, 1.1, 0.9, 1.1);
           }
@@ -1954,7 +2666,6 @@
         }
 
         if (this.id === 'shion') {
-          // Blue poverty-god hair bow & side ribbon tail
           for (let bx = -4; bx <= 4; bx++) {
             addPlushVoxel(headVoxels, bx, 11.5, -2.5, '#1d4ed8');
           }
@@ -1993,6 +2704,13 @@
         soundFX.playSqueeze(this.pitchAudio);
       }
 
+      performBow() {
+        this.bowTimer = 1.4;
+        this.squash = 0.82;
+        this.squashVel = 1.8;
+        this.headPitchVel = 8.5;
+      }
+
       resetToHome() {
         this.pos.copy(this.homePos);
         this.vel.set(0, 0, 0);
@@ -2018,10 +2736,12 @@
         // 2. Oversized Head Wobble Spring
         const headStiff = 140.0;
         const headDamp = 7.5;
-        const idleHeadBob = Math.sin(time * 2.2 + this.homePos.x) * 0.025;
+        if (this.bowTimer > 0) this.bowTimer = Math.max(0, this.bowTimer - dt);
+        const bowOffset = this.bowTimer > 0 ? Math.sin(Math.min(1, this.bowTimer * 2.5) * Math.PI) * 0.42 : 0;
+        const idleHeadBob = Math.sin(time * 2.2 + this.homePos.x) * 0.025 + bowOffset;
         this.headPitchVel += ((idleHeadBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
         this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
-        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.58, 0.58);
         this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
 
         // 3. Dangling Limb Springs
@@ -2033,21 +2753,23 @@
         this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.8, 0.9);
         this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
 
-        // 4. Special Home Poses (Marisa hovering on flying broom, Shion stuck head-first in Saisen Box)
+        // 4. Special Home Poses (Aya hovering in air taking photos, Shion stuck in cherry tree)
         if (!this.isDragged && !this.hasLeftHome) {
-          if (this.specialPose === 'broomHover') {
-            const bobY = Math.sin(time * 2.4) * 0.22;
-            const tiltZ = Math.cos(time * 1.8) * 0.05;
-            this.pos.set(this.homePos.x, this.homePos.y + bobY, this.homePos.z);
-            this.roll = tiltZ;
+          if (this.specialPose === 'airHover') {
+            this.pos.set(
+              this.homePos.x + Math.sin(time * 1.1) * 0.35,
+              this.homePos.y + Math.sin(time * 2.4) * 0.22,
+              this.homePos.z + Math.cos(time * 0.9) * 0.25
+            );
+            this.roll = Math.cos(time * 1.8) * 0.06;
             this.isGrounded = true;
             this.syncTransform(time);
             return;
           }
-          if (this.specialPose === 'upsideDownBox') {
+          if (this.specialPose === 'stuckTree') {
             this.pos.copy(this.homePos);
-            this.pitch = this.homePitch + Math.sin(time * 4.5) * 0.06;
-            this.limbPitch = Math.sin(time * 7.5) * 0.35; // Kicking legs in the air!
+            this.pitch = this.homePitch + Math.sin(time * 4.2) * 0.06;
+            this.limbPitch = Math.sin(time * 6.5) * 0.32;
             this.isGrounded = true;
             this.syncTransform(time);
             return;
@@ -2068,7 +2790,6 @@
 
           this.isGrounded = false;
 
-          // Base Lower Ground / Stream Collision (Y = 0)
           if (this.pos.y < 0) {
             const impact = -this.vel.y;
             this.pos.y = 0;
@@ -2086,7 +2807,6 @@
             this.vel.z *= 0.82;
           }
 
-          // Shrine Grounds Boundary Clamping
           const minX = -12.5, maxX = 12.5;
           const minZ = -12.5, maxZ = 14.0;
           if (this.pos.x < minX) { this.pos.x = minX; this.vel.x = Math.abs(this.vel.x) * 0.48; }
@@ -2094,7 +2814,6 @@
           if (this.pos.z < minZ) { this.pos.z = minZ; this.vel.z = Math.abs(this.vel.z) * 0.48; }
           if (this.pos.z > maxZ) { this.pos.z = maxZ; this.vel.z = -Math.abs(this.vel.z) * 0.48; }
 
-          // Furniture, Staircase Steps, Lanterns & Veranda AABB Collisions
           const r = this.radius * 0.72;
           const centerY = this.pos.y + r;
 
@@ -2149,9 +2868,8 @@
             }
           }
 
-          // Self-righting plushie torque when resting on a surface
           if (this.isGrounded) {
-            const targetPitch = (!this.hasLeftHome && this.specialPose === 'napping') ? this.homePitch : 0;
+            const targetPitch = (!this.hasLeftHome && this.specialPose === 'napping') ? this.homePitch : (this.bowTimer > 0 ? 0.28 : 0);
             const targetRoll = (!this.hasLeftHome && this.specialPose === 'napping') ? this.homeRoll : 0;
             this.pitch = THREE.MathUtils.lerp(this.pitch, targetPitch, Math.min(1, dt * 9.5));
             this.roll = THREE.MathUtils.lerp(this.roll, targetRoll, Math.min(1, dt * 9.5));
@@ -2173,7 +2891,6 @@
 
         this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
 
-        // Reimu sweeping arm motion when at her home spot
         let rightArmSweep = 0;
         if (this.id === 'reimu' && !this.isDragged && !this.hasLeftHome) {
           rightArmSweep = Math.sin(time * 3.6) * 0.38;
@@ -2184,7 +2901,8 @@
         this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
         this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
 
-        const wingFlutter = Math.sin(time * 3.8 + this.homePos.x) * 0.07 + (1.0 - this.squash) * 0.35;
+        const wingSpeed = (this.specialPose === 'airHover') ? 10.5 : 3.8;
+        const wingFlutter = Math.sin(time * wingSpeed + this.homePos.x) * 0.08 + (1.0 - this.squash) * 0.35;
         this.wingsPivot.rotation.x = wingFlutter;
       }
     }
@@ -2195,7 +2913,7 @@
     const fumoConfigs = [
       {
         id: 'reimu',
-        name: 'Reimu Hakurei (Sweeping Shrine Maiden Fumo)',
+        name: 'Reimu Hakurei (Click to Donate & Bow! ⛩️)',
         emoji: '⛩️',
         accentColor: '#ef4444',
         hairColor: '#2b1e23',
@@ -2205,15 +2923,16 @@
         tieColor: '#facc15',
         shoeColor: '#451a03',
         hasWhiteApron: false,
-        // Sweeping fallen leaves at the foot of the Shrine porch steps!
-        homePos: new THREE.Vector3(-2.1, 2.5, -2.15),
-        homeYaw: -0.25,
+        opensDonateOnClick: true,
+        // Standing beside the Saisen-bako sweeping the porch!
+        homePos: new THREE.Vector3(-2.1, 2.5, -1.85),
+        homeYaw: 0.25,
         pitchAudio: 1.0
       },
       {
         id: 'marisa',
-        name: 'Marisa Kirisame (Flying Broom Fumo)',
-        emoji: '🧹',
+        name: 'Marisa Kirisame (Sipping Tea on the Porch 🍵)',
+        emoji: '🌟',
         accentColor: '#facc15',
         hairColor: '#fde047',
         eyeColor: '#ca8a04',
@@ -2222,15 +2941,14 @@
         tieColor: '#ffffff',
         shoeColor: '#111827',
         hasWhiteApron: true,
-        // Hovering in mid-air on her flying broomstick above the courtyard!
-        homePos: new THREE.Vector3(5.2, 4.42, 1.2),
-        homeYaw: -0.55,
-        specialPose: 'broomHover',
+        // Sitting on the Veranda (Engawa) cushion drinking green tea with her broom beside her!
+        homePos: new THREE.Vector3(-3.25, 3.55, -4.35),
+        homeYaw: 0.35,
         pitchAudio: 0.96
       },
       {
         id: 'suika',
-        name: 'Suika Ibuki (Oni Sake Lover Fumo)',
+        name: 'Suika Ibuki (Lounging on the Stone Steps 🍶)',
         emoji: '🍶',
         accentColor: '#f97316',
         hairColor: '#d97706',
@@ -2240,14 +2958,17 @@
         tieColor: '#ef4444',
         shoeColor: '#3b0764',
         hasWhiteApron: false,
-        // Sitting on the Shrine Veranda beside the giant Ibuki sake gourd!
-        homePos: new THREE.Vector3(3.9, 3.5, -4.1),
-        homeYaw: -0.35,
+        // Lying relaxed on the stone steps!
+        homePos: new THREE.Vector3(-1.1, 1.5, 4.1),
+        homeYaw: 0.45,
+        homePitch: -0.35,
+        homeRoll: 0.22,
+        specialPose: 'napping',
         pitchAudio: 1.08
       },
       {
         id: 'aya',
-        name: 'Aya Shameimaru (Tengu Reporter Fumo)',
+        name: 'Aya Shameimaru (Taking Photos from the Air 📸)',
         emoji: '📸',
         accentColor: '#ef4444',
         hairColor: '#1e1b24',
@@ -2257,14 +2978,15 @@
         tieColor: '#dc2626',
         shoeColor: '#111827',
         hasWhiteApron: false,
-        // Perched near the top of the stone staircase snapping photos with her camera!
-        homePos: new THREE.Vector3(-3.8, 2.5, 1.3),
-        homeYaw: 0.45,
+        // Hovering in the air above the courtyard snapping photos!
+        homePos: new THREE.Vector3(-3.8, 5.2, 1.8),
+        homeYaw: 0.55,
+        specialPose: 'airHover',
         pitchAudio: 1.04
       },
       {
         id: 'cirno',
-        name: 'Cirno (Stream Splash Ice Fairy Fumo)',
+        name: 'Cirno (Sitting on a Stone Lantern ❄️)',
         emoji: '❄️',
         accentColor: '#38bdf8',
         hairColor: '#7dd3fc',
@@ -2274,14 +2996,14 @@
         tieColor: '#ef4444',
         shoeColor: '#1e3a8a',
         hasWhiteApron: false,
-        // Playing in the cool mountain stream beside the wooden bridge!
-        homePos: new THREE.Vector3(-7.4, 0.0, 7.6),
-        homeYaw: 0.55,
+        // Perched on top of the right stone lantern!
+        homePos: new THREE.Vector3(3.38, 4.5, 1.12),
+        homeYaw: -0.4,
         pitchAudio: 1.16
       },
       {
         id: 'daiyousei',
-        name: 'Daiyousei (Lake Fairy Fumo)',
+        name: 'Daiyousei (Hiding Behind the Offering Box! 🌿)',
         emoji: '🌿',
         accentColor: '#84cc16',
         hairColor: '#4ade80',
@@ -2291,34 +3013,15 @@
         tieColor: '#facc15',
         shoeColor: '#166534',
         hasWhiteApron: false,
-        // Playing in the stream with Cirno!
-        homePos: new THREE.Vector3(-5.8, 0.0, 10.6),
-        homeYaw: -0.65,
+        scale: 0.88,
+        // Hiding right behind the Saisen-bako offering box!
+        homePos: new THREE.Vector3(0.85, 2.5, -2.75),
+        homeYaw: 0.55,
         pitchAudio: 1.24
       },
       {
-        id: 'shion',
-        name: 'Shion Yorigami (Stuck in Donation Box Fumo!)',
-        emoji: '💸',
-        accentColor: '#60a5fa',
-        hairColor: '#93c5fd',
-        eyeColor: '#1d4ed8',
-        outfitMain: '#3b82f6',
-        sleeveColor: '#e2e8f0',
-        tieColor: '#1e3a8a',
-        shoeColor: '#1e293b',
-        hasWhiteApron: false,
-        scale: 0.85,
-        // Unexpected Spot #1: Stuck head-first inside the empty Saisen Donation Box!
-        homePos: new THREE.Vector3(-0.15, 4.15, -1.75),
-        homeYaw: 0.15,
-        homePitch: Math.PI * 0.92,
-        specialPose: 'upsideDownBox',
-        pitchAudio: 1.32
-      },
-      {
         id: 'aunn',
-        name: 'Aunn Komano (Napping on Stone Lantern Fumo!)',
+        name: 'Aunn Komano (Napping in Offering Box Shadow 💤)',
         emoji: '💤',
         accentColor: '#34d399',
         hairColor: '#a7f3d0',
@@ -2329,19 +3032,41 @@
         shoeColor: '#065f46',
         hasWhiteApron: false,
         scale: 0.88,
-        // Unexpected Spot #2: Peacefully napping on top of the right stone lantern!
-        homePos: new THREE.Vector3(3.38, 4.5, 1.12),
-        homeYaw: -0.4,
+        // Unexpected Spot #1: Napping peacefully in the offering box's shadow!
+        homePos: new THREE.Vector3(1.55, 2.5, -1.65),
+        homeYaw: -0.55,
         homePitch: 0.18,
-        homeRoll: 0.25,
+        homeRoll: 0.28,
         specialPose: 'napping',
         pitchAudio: 1.18
+      },
+      {
+        id: 'shion',
+        name: 'Shion Yorigami (Stuck in the Cherry Tree! 🌸)',
+        emoji: '🌸',
+        accentColor: '#60a5fa',
+        hairColor: '#93c5fd',
+        eyeColor: '#1d4ed8',
+        outfitMain: '#3b82f6',
+        sleeveColor: '#e2e8f0',
+        tieColor: '#1e3a8a',
+        shoeColor: '#1e293b',
+        hasWhiteApron: false,
+        scale: 0.86,
+        // Unexpected Spot #2: Stuck upside-down in the Cherry Blossom Tree branches!
+        homePos: new THREE.Vector3(-8.2, 6.4, -5.8),
+        homeYaw: 0.45,
+        homePitch: Math.PI * 0.78,
+        specialPose: 'stuckTree',
+        pitchAudio: 1.32
       }
     ];
 
     fumoConfigs.forEach(cfg => {
       fumos.push(new VoxelFumo(cfg));
     });
+
+    const reimuFumo = fumos[0];
 
     function resolveFumoToFumoCollisions() {
       for (let i = 0; i < fumos.length; i++) {
@@ -2398,7 +3123,193 @@
     }
 
     // ============================================================================
-    // 10. POINTER INTERACTION: RAYCASTING, SQUEEZE, PICK UP, DRAG & THROW
+    // 10. SPEECH BUBBLES, DONATION PANEL & SHRINE INTERACTIONS
+    // ============================================================================
+    const speechBubbleEl = document.getElementById('speech-bubble');
+    const bubbleSpeakerEl = document.getElementById('bubble-speaker');
+    const bubbleMessageEl = document.getElementById('bubble-message');
+    let activeBubbleWorldPos = new THREE.Vector3(0, 4.2, -1.75);
+    let bubbleHideTimer = null;
+
+    const OMIKUJI_FORTUNES = [
+      { rank: '✨ Great Blessing (Dai-kichi)', text: 'A warm cup of green tea and a soft Fumo will bring you endless luck today!' },
+      { rank: '🌸 Medium Blessing (Chuu-kichi)', text: 'Look up at the cherry blossoms—something sweet is drifting your way!' },
+      { rank: '⛩️ Shrine Blessing (Kichi)', text: 'Reimu says your offering has warded off all stray danmaku for the week!' },
+      { rank: '❄️ Fairy Blessing (Cirno-kichi)', text: '999% Luck! Today you are officially the Strongest in Gensokyo!' },
+      { rank: '🌟 Star Blessing (Hoshi-kichi)', text: 'Marisa says: "Borrowing good fortune counts as finding it yourself, ze!"' }
+    ];
+
+    function showSpeechBubble(speaker, message, worldPos, durationMs = 4500) {
+      bubbleSpeakerEl.textContent = speaker;
+      bubbleMessageEl.textContent = message;
+      activeBubbleWorldPos.copy(worldPos);
+      speechBubbleEl.classList.add('is-visible');
+      if (bubbleHideTimer) clearTimeout(bubbleHideTimer);
+      bubbleHideTimer = setTimeout(() => {
+        speechBubbleEl.classList.remove('is-visible');
+      }, durationMs);
+    }
+
+    function updateSpeechBubblePosition() {
+      if (!speechBubbleEl.classList.contains('is-visible')) return;
+      const proj = activeBubbleWorldPos.clone().project(camera);
+      if (proj.z > 1) return;
+      const x = (proj.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-proj.y * 0.5 + 0.5) * window.innerHeight;
+      speechBubbleEl.style.left = `${THREE.MathUtils.clamp(x, 150, window.innerWidth - 150)}px`;
+      speechBubbleEl.style.top = `${THREE.MathUtils.clamp(y, 70, window.innerHeight - 60)}px`;
+    }
+
+    function ringShrineBell(showBubble = true) {
+      bellSwingVel = 11.5;
+      soundFX.playShrineBell();
+      shakeTreePetals();
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.76;
+          f.squashVel = 2.5;
+          f.headPitchVel = 6.0;
+        }, idx * 35);
+      });
+      if (showBubble) {
+        showSpeechBubble('Shrine Bell (Suzu)', '🔔 *Chari-in~* Petals shake loose across the Hakurei Shrine!', new THREE.Vector3(0, 5.2, -1.75), 2800);
+      }
+    }
+
+    const donateBackdrop = document.getElementById('donate-backdrop');
+    const qrImgEl = document.getElementById('donate-qr-img');
+    const qrPlaceholderEl = document.getElementById('donate-qr-placeholder');
+    const qrCaptionEl = document.getElementById('donate-qr-caption');
+    const bankContainerEl = document.getElementById('bank-details-container');
+    const bankLabelEl = document.getElementById('donate-bank-label');
+    const copyBankBtn = document.getElementById('btn-copy-bank');
+    const copyToastEl = document.getElementById('copy-toast');
+    const kofiBtn = document.getElementById('btn-kofi');
+    const kofiLabelEl = document.getElementById('btn-kofi-label');
+
+    function initDonateModalUI() {
+      qrCaptionEl.textContent = DONATE_CONFIG.qrCaption || 'Scan with your banking app';
+
+      const showPlaceholder = () => {
+        qrImgEl.style.display = 'none';
+        qrPlaceholderEl.style.display = 'flex';
+      };
+
+      if (!DONATE_CONFIG.qrImageSrc || DONATE_CONFIG.qrImageSrc.trim() === '') {
+        showPlaceholder();
+      } else {
+        qrImgEl.onload = () => {
+          qrImgEl.style.display = 'block';
+          qrPlaceholderEl.style.display = 'none';
+        };
+        qrImgEl.onerror = showPlaceholder;
+        qrImgEl.src = DONATE_CONFIG.qrImageSrc;
+      }
+
+      if (DONATE_CONFIG.bankLabel && DONATE_CONFIG.bankLabel.trim() !== '') {
+        bankContainerEl.style.display = 'flex';
+        bankLabelEl.textContent = DONATE_CONFIG.bankLabel;
+      } else {
+        bankContainerEl.style.display = 'none';
+      }
+
+      const url = (DONATE_CONFIG.kofiUrl || '').trim();
+      if (!url || url.includes('YOUR_NAME')) {
+        kofiBtn.style.display = 'none';
+      } else {
+        kofiBtn.style.display = 'inline-flex';
+        kofiBtn.disabled = false;
+        kofiLabelEl.textContent = 'Support on Ko-fi';
+      }
+    }
+    initDonateModalUI();
+
+    function openDonatePanel() {
+      if (isDonateModalOpen) return;
+      isDonateModalOpen = true;
+      controls.autoRotate = false;
+      donateBackdrop.classList.add('is-open');
+
+      // Cosmetic Shrine Reaction: Reimu bows, bell rings, ceremonial claps, and gold coin voxels fall into the box!
+      reimuFumo.performBow();
+      ringShrineBell(false);
+      soundFX.playClap(0.32);
+      soundFX.playClap(0.54);
+      triggerCoinShower();
+    }
+
+    function closeDonatePanel() {
+      if (!isDonateModalOpen) return;
+      isDonateModalOpen = false;
+      donateBackdrop.classList.remove('is-open');
+      lastUserInteractionTime = performance.now();
+
+      const line = DONATE_CONFIG.thankYouLine || 'Thank you for supporting the shrine!';
+      showSpeechBubble(
+        'Reimu Hakurei ᗜˬᗜ',
+        line,
+        reimuFumo.pos.clone().add(new THREE.Vector3(0, 1.85, 0)),
+        4800
+      );
+    }
+
+    function onCopyBankClick() {
+      const text = DONATE_CONFIG.bankLabel || '';
+      if (!text) return;
+
+      const showCopiedToast = () => {
+        copyToastEl.classList.add('is-visible');
+        soundFX.playCoinClink(0);
+        setTimeout(() => copyToastEl.classList.remove('is-visible'), 2000);
+      };
+
+      const fallbackCopy = () => {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          showCopiedToast();
+        } catch (e) {}
+      };
+
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(showCopiedToast).catch(fallbackCopy);
+        } else {
+          fallbackCopy();
+        }
+      } catch (e) {
+        fallbackCopy();
+      }
+    }
+
+    function onKofiClick() {
+      const url = (DONATE_CONFIG.kofiUrl || '').trim();
+      if (!url || url.includes('YOUR_NAME')) return;
+      soundFX.playCoinClink(0);
+      let win = null;
+      try {
+        win = window.open(url, '_blank', 'noopener,noreferrer');
+      } catch (e) {}
+      if (!win) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    }
+
+    // ============================================================================
+    // 11. POINTER INTERACTION: RAYCASTING, SQUEEZE, PICK UP, DRAG, THROW & PROPS
     // ============================================================================
     const raycaster = new THREE.Raycaster();
     const pointerNDC = new THREE.Vector2();
@@ -2409,6 +3320,7 @@
     let hoveredFumo = null;
     let selectedFumo = null;
     let isDraggingFumo = false;
+    let pointerDownProp = null;
     let pointerDownScreen = new THREE.Vector2();
     let dragHistory = [];
 
@@ -2426,39 +3338,46 @@
       pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     }
 
-    function pickFumoUnderPointer() {
+    function raycastScene() {
       raycaster.setFromCamera(pointerNDC, camera);
-      const hits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
-      if (hits.length > 0 && hits[0].object.userData.fumo) {
-        return { fumo: hits[0].object.userData.fumo, point: hits[0].point };
+      const fumoHits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      const propHits = raycaster.intersectObjects(interactivePropMeshes, false);
+      const fumoHit = fumoHits.length > 0 ? fumoHits[0] : null;
+      const propHit = propHits.length > 0 ? propHits[0] : null;
+
+      if (fumoHit && (!propHit || fumoHit.distance <= propHit.distance)) {
+        return { type: 'fumo', fumo: fumoHit.object.userData.fumo, point: fumoHit.point };
+      }
+      if (propHit) {
+        return { type: 'prop', propData: propHit.object.userData, point: propHit.point };
       }
       return null;
     }
 
     function updateUIBadge(fumo, statusText) {
       if (!fumo) {
-        badgeEl.classList.add('hidden');
-        badgeEl.classList.remove('flex');
+        badgeEl.classList.remove('is-visible');
         return;
       }
-      badgeEl.classList.remove('hidden');
-      badgeEl.classList.add('flex');
+      badgeEl.classList.add('is-visible');
       badgeDotEl.style.backgroundColor = fumo.accentColor;
       badgeNameEl.textContent = fumo.name;
       badgeStatusEl.textContent = statusText;
     }
 
-    renderer.domElement.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0) return;
+    function onPointerDown(e) {
+      if (e.button !== 0 || isDonateModalOpen) return;
       recordInteraction();
       updatePointerNDC(e);
       pointerDownScreen.set(e.clientX, e.clientY);
 
-      const hit = pickFumoUnderPointer();
-      if (hit) {
+      const hit = raycastScene();
+      if (!hit) return;
+
+      if (hit.type === 'fumo') {
         selectedFumo = hit.fumo;
         isDraggingFumo = false;
-        controls.enabled = false;
+        controls.enabled = false; // Dragging a fumo must never rotate the camera
 
         const camDir = new THREE.Vector3();
         camera.getWorldDirection(camDir);
@@ -2472,10 +3391,16 @@
 
         dragHistory = [{ pos: selectedFumo.pos.clone(), time: performance.now() }];
         updateUIBadge(selectedFumo, 'Selected');
+      } else if (hit.type === 'prop') {
+        pointerDownProp = hit.propData;
       }
-    });
+    }
 
-    window.addEventListener('pointermove', (e) => {
+    function onPointerMove(e) {
+      if (isDonateModalOpen) {
+        tooltipEl.style.opacity = '0';
+        return;
+      }
       updatePointerNDC(e);
 
       if (selectedFumo) {
@@ -2520,83 +3445,125 @@
         }
       }
 
-      const hit = pickFumoUnderPointer();
+      const hit = raycastScene();
       if (hit) {
-        hoveredFumo = hit.fumo;
-        renderer.domElement.style.cursor = 'grab';
-        tooltipEmojiEl.textContent = hoveredFumo.emoji;
-        tooltipTextEl.textContent = hoveredFumo.name;
         tooltipEl.style.opacity = '1';
         tooltipEl.style.left = `${e.clientX + 14}px`;
         tooltipEl.style.top = `${e.clientY - 18}px`;
+        if (hit.type === 'fumo') {
+          hoveredFumo = hit.fumo;
+          renderer.domElement.style.cursor = 'grab';
+          tooltipEmojiEl.textContent = hoveredFumo.emoji;
+          tooltipTextEl.textContent = hoveredFumo.name;
+        } else {
+          hoveredFumo = null;
+          renderer.domElement.style.cursor = 'pointer';
+          tooltipEmojiEl.textContent = '✨';
+          tooltipTextEl.textContent = hit.propData.label || 'Interact';
+        }
       } else {
         hoveredFumo = null;
         renderer.domElement.style.cursor = 'default';
         tooltipEl.style.opacity = '0';
       }
-    });
+    }
 
-    window.addEventListener('pointerup', () => {
-      if (!selectedFumo) return;
-      controls.enabled = true;
-      recordInteraction();
+    function onPointerUp(e) {
+      if (selectedFumo) {
+        controls.enabled = true;
+        recordInteraction();
 
-      if (!isDraggingFumo) {
-        selectedFumo.squeeze(1.0);
-        updateUIBadge(selectedFumo, 'Squeezed! ᗜˬᗜ');
-      } else {
-        selectedFumo.isDragged = false;
-        const now = performance.now();
-        while (dragHistory.length > 1 && now - dragHistory[0].time > 140) {
-          dragHistory.shift();
-        }
-        if (dragHistory.length >= 2) {
-          const first = dragHistory[0];
-          const last = dragHistory[dragHistory.length - 1];
-          const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
-          const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
-          if (throwVel.length() > 24) throwVel.setLength(24);
-          selectedFumo.vel.copy(throwVel);
-
-          const speed = throwVel.length();
-          selectedFumo.angVel.set(
-            throwVel.z * 0.65 + (Math.random() - 0.5) * speed * 0.4,
-            (Math.random() - 0.5) * speed * 0.5,
-            -throwVel.x * 0.65 + (Math.random() - 0.5) * speed * 0.4
-          );
+        if (!isDraggingFumo) {
+          selectedFumo.squeeze(1.0);
+          updateUIBadge(selectedFumo, 'Squeezed! ᗜˬᗜ');
+          if (selectedFumo.opensDonateOnClick) {
+            openDonatePanel();
+          }
         } else {
-          selectedFumo.vel.set(0, 0, 0);
+          selectedFumo.isDragged = false;
+          const now = performance.now();
+          while (dragHistory.length > 1 && now - dragHistory[0].time > 140) {
+            dragHistory.shift();
+          }
+          if (dragHistory.length >= 2) {
+            const first = dragHistory[0];
+            const last = dragHistory[dragHistory.length - 1];
+            const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+            const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+            if (throwVel.length() > 24) throwVel.setLength(24);
+            selectedFumo.vel.copy(throwVel);
+
+            const speed = throwVel.length();
+            selectedFumo.angVel.set(
+              throwVel.z * 0.65 + (Math.random() - 0.5) * speed * 0.4,
+              (Math.random() - 0.5) * speed * 0.5,
+              -throwVel.x * 0.65 + (Math.random() - 0.5) * speed * 0.4
+            );
+          } else {
+            selectedFumo.vel.set(0, 0, 0);
+          }
+          updateUIBadge(selectedFumo, 'Tossed!');
         }
-        updateUIBadge(selectedFumo, 'Tossed!');
+
+        selectedFumo = null;
+        isDraggingFumo = false;
+        renderer.domElement.style.cursor = hoveredFumo ? 'grab' : 'default';
+        return;
       }
 
-      selectedFumo = null;
-      isDraggingFumo = false;
-      renderer.domElement.style.cursor = hoveredFumo ? 'grab' : 'default';
-    });
+      if (pointerDownProp) {
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+        const prop = pointerDownProp;
+        pointerDownProp = null;
+        if (moveDist <= 7) {
+          handlePropClick(prop);
+        }
+      }
+    }
+
+    function handlePropClick(prop) {
+      if (prop.propType === 'saisen' || prop.propType === 'ema') {
+        openDonatePanel();
+      } else if (prop.propType === 'bell') {
+        ringShrineBell(true);
+      } else if (prop.propType === 'omikuji') {
+        soundFX.playPickup();
+        const fortune = OMIKUJI_FORTUNES[Math.floor(Math.random() * OMIKUJI_FORTUNES.length)];
+        spawnSqueezeParticles(new THREE.Vector3(5.1, 3.8, -0.2), '#ff85a1');
+        showSpeechBubble(fortune.rank, fortune.text, new THREE.Vector3(5.1, 4.9, -0.2), 5200);
+      } else if (prop.propType === 'lantern' && prop.lantern) {
+        prop.lantern.lit = !prop.lantern.lit;
+        soundFX.playCoinClink(0);
+        spawnSqueezeParticles(prop.lantern.worldPos, '#fbbf24');
+      } else if (prop.propType === 'frog') {
+        frogHopVel = 4.2;
+        soundFX.playSqueeze(1.45);
+        spawnSqueezeParticles(frogGroup.position, '#4ade80');
+        showSpeechBubble('Temizuya Frog 🐸', '*Kero kero!* Pure Hakurei mountain spring water!', frogGroup.position.clone().add(new THREE.Vector3(0, 0.8, 0)), 3000);
+      } else if (prop.propType === 'cat') {
+        soundFX.playSqueeze(1.6);
+        spawnSqueezeParticles(roofCatGroup.position, '#fbbf24');
+        showSpeechBubble('Shrine Roof Cat 🐱', '*Nyaa~* Best view of Gensokyo from up here!', roofCatGroup.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 3200);
+      }
+    }
 
     // ============================================================================
-    // 11. DAY / NIGHT SMOOTH INTERPOLATION (~2 SECONDS) & HUB INTEGRATION
+    // 12. DAY / NIGHT SMOOTH INTERPOLATION (~2 SECONDS) & HUB INTEGRATION
     // ============================================================================
-    const STORAGE_MODE_KEY = 'voxel_fumo_shrine_mode';
     let isNightMode = false;
     let dayNightProgress = 0.0; // 0.0 = Day, 1.0 = Night
     let dayNightTarget = 0.0;
 
     const daySkyColor = new THREE.Color('#cce8ff');
     const nightSkyColor = new THREE.Color('#090d1e');
-
     const daySunLightCol = new THREE.Color('#fff2d6');
     const nightMoonLightCol = new THREE.Color('#7aa2f7');
-
     const dayHemiSky = new THREE.Color('#fff9ee');
     const nightHemiSky = new THREE.Color('#23294d');
     const dayHemiGround = new THREE.Color('#8ea885');
     const nightHemiGround = new THREE.Color('#0f1424');
-
     const dayPetalCol = new THREE.Color('#ffd6e7');
     const nightPetalCol = new THREE.Color('#c4b5fd');
-
     const dayMistCol = new THREE.Color('#f8fafc');
     const nightMistCol = new THREE.Color('#312e81');
 
@@ -2609,8 +3576,13 @@
       } catch (e) {}
     }
 
+    // onSetMode(mode) is absolute and does nothing if already in that mode
     function setDayNightMode(night, { immediate = false, playSound = true } = {}) {
-      isNightMode = Boolean(night);
+      const targetNight = Boolean(night);
+      if (targetNight === isNightMode && !immediate) {
+        return;
+      }
+      isNightMode = targetNight;
       dayNightTarget = isNightMode ? 1.0 : 0.0;
       if (immediate) {
         dayNightProgress = dayNightTarget;
@@ -2645,29 +3617,31 @@
         ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
         : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
 
-      // 1. Sky Background & Valley Fog
       scene.background.lerpColors(daySkyColor, nightSkyColor, t);
       scene.fog.color.copy(scene.background);
       scene.fog.density = THREE.MathUtils.lerp(0.008, 0.0115, t);
 
-      // 2. Sunlight -> Moonlight Directional Light
       sunDirLight.color.lerpColors(daySunLightCol, nightMoonLightCol, t);
       sunDirLight.intensity = THREE.MathUtils.lerp(1.32, 0.42, t);
 
-      // 3. Hemisphere & Fill Lights
       hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
       hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
       hemiLight.intensity = THREE.MathUtils.lerp(0.72, 0.26, t);
       fillLight.intensity = THREE.MathUtils.lerp(0.32, 0.1, t);
 
-      // 4. Shrine & Stone Lantern Dynamic Lights
-      shrineLanternLight.intensity = THREE.MathUtils.lerp(0.05, 1.55, t);
-      stairLanternLight.intensity = THREE.MathUtils.lerp(0.05, 1.45, t);
+      shrineLanternLight.intensity = THREE.MathUtils.lerp(0.18, 1.65, t);
+      const litLanternCount = lanterns.filter(l => l.lit).length;
+      stairLanternLight.intensity = THREE.MathUtils.lerp(0.05, 1.45, t) * (litLanternCount / Math.max(1, lanterns.length));
       streamGlowLight.intensity = THREE.MathUtils.lerp(0.08, 1.15, t);
 
-      // 5. Emissives, Clouds, Moon, Petals & Mist
       lanternGlowMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.25, 2.35, t);
+      goldMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.18, 0.72, t);
       translucentIceMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.2, 0.78, t);
+
+      lanterns.forEach((l) => {
+        l.flameMat.emissiveIntensity = l.lit ? THREE.MathUtils.lerp(0.35, 2.35, t) : 0.02;
+        l.flameMat.color.set(l.lit ? '#fff3c4' : '#475569');
+      });
 
       cloudMat.opacity = THREE.MathUtils.lerp(0.78, 0.08, t);
       moonMat.opacity = t;
@@ -2678,65 +3652,118 @@
       mistMat.opacity = THREE.MathUtils.lerp(0.22, 0.14, t);
       fireflyMat.opacity = t;
 
-      // 6. UnrealBloomPass Strength
       if (bloomPass) {
         bloomPass.strength = THREE.MathUtils.lerp(0.15, 0.72, t);
         bloomPass.threshold = THREE.MathUtils.lerp(0.84, 0.60, t);
       }
     }
 
-    // Button & Keyboard Event Listeners
-    document.getElementById('btn-reset').addEventListener('click', () => {
-      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 45));
-      resetLeafPile();
-      updateUIBadge(null, '');
-    });
-
-    document.getElementById('btn-squeeze-all').addEventListener('click', () => {
-      fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 55));
-    });
-
+    // ============================================================================
+    // 13. UI BUTTONS, KEYBOARD SHORTCUTS & LIFECYCLE MANAGEMENT
+    // ============================================================================
+    const btnBell = document.getElementById('btn-bell');
+    const btnSqueezeAll = document.getElementById('btn-squeeze-all');
+    const btnReset = document.getElementById('btn-reset');
+    const btnDonateChip = document.getElementById('btn-donate-chip');
+    const btnDonateClose = document.getElementById('btn-donate-close');
     const btnSound = document.getElementById('btn-sound');
     const iconSoundOn = document.getElementById('icon-sound-on');
     const iconSoundOff = document.getElementById('icon-sound-off');
-    btnSound.addEventListener('click', () => {
-      soundFX.enabled = !soundFX.enabled;
-      iconSoundOn.classList.toggle('hidden', !soundFX.enabled);
-      iconSoundOff.classList.toggle('hidden', soundFX.enabled);
-      if (soundFX.enabled) soundFX.playPickup();
-    });
+    const labelSound = document.getElementById('label-sound');
 
-    window.addEventListener('keydown', (e) => {
+    function syncSoundUI() {
+      iconSoundOn.style.display = soundFX.enabled ? 'inline' : 'none';
+      iconSoundOff.style.display = soundFX.enabled ? 'none' : 'inline';
+      labelSound.textContent = soundFX.enabled ? 'Sound' : 'Muted';
+    }
+    syncSoundUI();
+
+    const onBellClick = () => ringShrineBell(true);
+    const onSqueezeAllClick = () => {
+      fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 55));
+    };
+    const onResetClick = () => {
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 45));
+      resetLeafPile();
+      updateUIBadge(null, '');
+    };
+    const onSoundClick = () => {
+      soundFX.enabled = !soundFX.enabled;
+      syncSoundUI();
+      try {
+        localStorage.setItem(STORAGE_MUTE_KEY, String(!soundFX.enabled));
+      } catch (e) {}
+      if (soundFX.enabled) soundFX.playCoinClink(0);
+    };
+    const onDonateBackdropClick = (e) => {
+      if (e.target === donateBackdrop) closeDonatePanel();
+    };
+
+    function onKeyDown(e) {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+      if (e.key === 'Escape' && isDonateModalOpen) {
+        e.preventDefault();
+        closeDonatePanel();
+        return;
+      }
+
+      // Avoid number keys and bracket keys so the hub can switch scenes
       const key = e.key.toLowerCase();
-      if (key === 'n') {
+      if (key === 'e') {
+        e.preventDefault();
+        if (isDonateModalOpen) closeDonatePanel();
+        else openDonatePanel();
+      } else if (key === 'b') {
+        e.preventDefault();
+        ringShrineBell(true);
+      } else if (key === 'n') {
         e.preventDefault();
         toggleDayNight();
       } else if (key === 'r') {
-        fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 45));
-        resetLeafPile();
+        e.preventDefault();
+        onResetClick();
       } else if (key === ' ') {
         e.preventDefault();
-        fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 55));
+        onSqueezeAllClick();
       } else if (key === 'm') {
-        btnSound.click();
+        e.preventDefault();
+        onSoundClick();
       }
-    });
+    }
 
-    window.addEventListener('resize', () => {
+    function onWindowResize() {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
       if (composer) composer.setSize(window.innerWidth, window.innerHeight);
-    });
+    }
+
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('resize', onWindowResize);
+
+    btnBell.addEventListener('click', onBellClick);
+    btnSqueezeAll.addEventListener('click', onSqueezeAllClick);
+    btnReset.addEventListener('click', onResetClick);
+    btnDonateChip.addEventListener('click', openDonatePanel);
+    btnDonateClose.addEventListener('click', closeDonatePanel);
+    donateBackdrop.addEventListener('click', onDonateBackdropClick);
+    copyBankBtn.addEventListener('click', onCopyBankClick);
+    kofiBtn.addEventListener('click', onKofiClick);
+    btnSound.addEventListener('click', onSoundClick);
 
     // ============================================================================
-    // 12. MAIN ANIMATION, PAUSE / RESUME & HUB MESSAGE LISTENER
+    // 14. MAIN ANIMATION LOOP & FumoSceneLifecycle INTEGRATION
     // ============================================================================
     let prevTime = performance.now();
     let isPaused = false;
     let rafId = null;
+    let nextKotoTimer = 1.8;
+    let nextNatureTimer = 2.6;
 
     function animate(now) {
       if (isPaused) return;
@@ -2746,28 +3773,67 @@
       prevTime = now;
       const elapsed = now * 0.001;
 
-      if (!selectedFumo && (now - lastUserInteractionTime > 4500)) {
+      if (!selectedFumo && !isDonateModalOpen && (now - lastUserInteractionTime > 4500)) {
         controls.autoRotate = true;
+      } else if (isDonateModalOpen) {
+        controls.autoRotate = false;
       }
 
       controls.update();
       updateDayNightTransition(dt);
 
-      // Update Marisa's hovering flying broom
-      flyingBroomGroup.position.y = broomBasePos.y + Math.sin(elapsed * 2.4) * 0.22;
-      flyingBroomGroup.rotation.y = -0.55 + Math.PI * 0.5;
-      flyingBroomGroup.rotation.x = Math.cos(elapsed * 1.8) * 0.06;
+      // Offering Box Pulsing Hint Ring
+      const ringPulse = 1.0 + Math.sin(elapsed * 3.0) * 0.045;
+      hintRingGroup.scale.set(ringPulse, 1, ringPulse);
+      hintRingMat.opacity = 0.45 + 0.32 * Math.sin(elapsed * 3.0);
 
+      // Shrine Bell Rope Swing Spring
+      const bellForce = -65.0 * bellSwingAngle - 4.2 * bellSwingVel;
+      bellSwingVel += bellForce * dt;
+      bellSwingAngle += bellSwingVel * dt;
+      bellPivot.rotation.z = Math.sin(elapsed * 1.3) * 0.02 + bellSwingAngle * 0.08;
+      bellPivot.rotation.x = bellSwingAngle * 0.05;
+
+      // Temizuya Frog Hop & Roof Cat Sway
+      if (frogHopVel !== 0 || frogGroup.position.y > frogHomeY) {
+        frogGroup.position.y += frogHopVel * dt;
+        frogHopVel -= 14.0 * dt;
+        if (frogGroup.position.y <= frogHomeY) {
+          frogGroup.position.y = frogHomeY;
+          frogHopVel = 0;
+        }
+      }
+      roofCatGroup.rotation.z = Math.sin(elapsed * 2.2) * 0.05;
+
+      // Update Marisa's hovering broom beside the veranda
+      flyingBroomGroup.position.y = broomBasePos.y + Math.sin(elapsed * 2.4) * 0.08;
+      flyingBroomGroup.rotation.y = 0.35 + Math.PI * 0.5;
+      flyingBroomGroup.rotation.x = Math.cos(elapsed * 1.8) * 0.04;
+
+      updateCoins(dt);
       updateStreamWater(elapsed);
       updateInteractiveLeaves(dt, elapsed);
       updateSakuraPetals(elapsed, dt);
-      updateAtmosphere(elapsed, dt);
+      updateAtmosphere(elapsed);
       updatePopParticles(dt);
 
       for (let i = 0; i < fumos.length; i++) {
         fumos[i].updatePhysics(dt, elapsed);
       }
       resolveFumoToFumoCollisions();
+      updateSpeechBubblePosition();
+
+      // Synthesized Koto Plucks & Day Birds / Night Crickets
+      nextKotoTimer -= dt;
+      if (nextKotoTimer <= 0) {
+        soundFX.playKotoPluck();
+        nextKotoTimer = 1.6 + Math.random() * 2.4;
+      }
+      nextNatureTimer -= dt;
+      if (nextNatureTimer <= 0) {
+        soundFX.playNatureChirp(isNightMode);
+        nextNatureTimer = 3.2 + Math.random() * 4.0;
+      }
 
       if (composer) {
         composer.render();
@@ -2792,24 +3858,39 @@
       rafId = requestAnimationFrame(animate);
     }
 
-    // Listen for messages from the parent scene browser hub
-    // Lifecycle management: Day/Night sync, pause/resume on tab visibility, and WebGL resource cleanup on destroy
+    function disposeScene() {
+      pauseRenderLoop();
+      if (bubbleHideTimer) clearTimeout(bubbleHideTimer);
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('resize', onWindowResize);
+
+      btnBell.removeEventListener('click', onBellClick);
+      btnSqueezeAll.removeEventListener('click', onSqueezeAllClick);
+      btnReset.removeEventListener('click', onResetClick);
+      btnDonateChip.removeEventListener('click', openDonatePanel);
+      btnDonateClose.removeEventListener('click', closeDonatePanel);
+      donateBackdrop.removeEventListener('click', onDonateBackdropClick);
+      copyBankBtn.removeEventListener('click', onCopyBankClick);
+      kofiBtn.removeEventListener('click', onKofiClick);
+      btnSound.removeEventListener('click', onSoundClick);
+    }
+
+    // Single FumoSceneLifecycle instance (handles hub message events & cleanup)
     const _sceneLifecycle = new FumoSceneLifecycle({
       renderer,
       scene,
-      composer: typeof composer !== 'undefined' ? composer : null,
-      audio: typeof soundFX !== 'undefined' ? soundFX : (typeof audio !== 'undefined' ? audio : null),
-      onToggleMode: typeof toggleDayNight === 'function' ? toggleDayNight : null,
+      composer: composer || null,
+      audio: soundFX,
+      onToggleMode: toggleDayNight,
       onSetMode: (mode) => {
-        if (typeof setDayNightMode === 'function') {
-          setDayNightMode(mode === 'night', { immediate: false });
-        } else if (typeof toggleDayNight === 'function') {
-          const isNight = document.body.classList.contains('night-ui');
-          if (isNight !== (mode === 'night')) toggleDayNight();
-        }
+        setDayNightMode(mode === 'night', { immediate: false, playSound: false });
       },
-      onPause: typeof pauseRenderLoop === 'function' ? pauseRenderLoop : (typeof pauseScene === 'function' ? pauseScene : null),
-      onResume: typeof resumeRenderLoop === 'function' ? resumeRenderLoop : (typeof resumeScene === 'function' ? resumeScene : null)
+      onPause: pauseRenderLoop,
+      onResume: resumeRenderLoop,
+      onDispose: disposeScene
     });
 
     window.onload = function () {
