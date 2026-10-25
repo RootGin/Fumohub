@@ -1,0 +1,3373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Kappa River Fishing Spot — Touhou Fumo Voxel Diorama</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Shared Hub Stylesheet -->
+  <link rel="stylesheet" href="../Shared/fumo-scene.css" />
+
+  <!-- Three.js r128 + Post-Processing Addons FIRST -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <!-- Shared Fumo Core Library SECOND (reads THREE at load time) -->
+  <script src="../Shared/fumo-core.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #101b2b;
+    }
+    h1, h2, .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      box-shadow: 0 10px 28px -6px rgba(15, 32, 55, 0.2), 0 2px 6px rgba(15, 32, 55, 0.08);
+      transition: background 0.45s ease, color 0.45s ease, border-color 0.45s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      color: #1e293b;
+    }
+    body.night-ui .glass-panel {
+      background: rgba(18, 25, 46, 0.84);
+      border-color: rgba(110, 175, 255, 0.28);
+      color: #eef6ff;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.6), 0 0 18px rgba(56, 189, 248, 0.16);
+    }
+    .ui-btn {
+      cursor: pointer;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+    #fumo-tooltip {
+      pointer-events: none;
+      transition: opacity 0.16s ease, transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.09);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.2);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.14);
+      border-bottom-color: rgba(255, 255, 255, 0.28);
+    }
+    @keyframes pulse-exclamation {
+      0%, 100% { transform: translate(-50%, -100%) scale(1); }
+      50% { transform: translate(-50%, -112%) scale(1.14); }
+    }
+    .bite-badge {
+      animation: pulse-exclamation 0.35s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="text-slate-800">
+  <div id="canvas-container"></div>
+
+  <!-- Floating 3D-tracked Bobber Bite / Tension Mini-Game Overlay -->
+  <div id="fishing-overlay" class="fixed z-30 pointer-events-none hidden" style="left: 50%; top: 50%;">
+    <!-- Bite Prompt -->
+    <div id="bite-alert" class="bite-badge hidden glass-panel rounded-2xl px-3.5 py-1.5 border-2 border-amber-400 text-center shadow-xl">
+      <div class="font-display font-bold text-sm text-rose-500 tracking-wide">❗ BITE! CLICK WATER!</div>
+    </div>
+
+    <!-- Wobbling Tension Reel-In Mini-Game -->
+    <div id="tension-game" class="hidden glass-panel rounded-2xl p-3 w-56 -translate-x-1/2 -translate-y-full shadow-2xl pointer-events-auto">
+      <div class="flex items-center justify-between text-xs font-bold mb-1">
+        <span id="reel-fish-label" class="font-display text-sky-500">🐟 Hooked! Hold/Click!</span>
+        <span id="reel-progress-pct" class="font-mono">0%</span>
+      </div>
+      <!-- Tension Zone Track -->
+      <div class="relative w-full h-4 bg-slate-900/30 rounded-full overflow-hidden border border-white/30 mb-1.5">
+        <!-- Moving Sweet Spot -->
+        <div id="tension-sweetspot" class="absolute top-0 bottom-0 bg-emerald-400/55 border-x-2 border-emerald-300 rounded" style="left: 35%; width: 32%;"></div>
+        <!-- Player Tension Marker -->
+        <div id="tension-marker" class="absolute top-0 bottom-0 w-2.5 bg-amber-300 rounded-full shadow-md border border-slate-900" style="left: 50%;"></div>
+      </div>
+      <!-- Catch Progress Bar -->
+      <div class="w-full h-2 bg-slate-900/25 rounded-full overflow-hidden">
+        <div id="reel-progress-bar" class="h-full bg-gradient-to-r from-sky-400 to-emerald-400 transition-all duration-75" style="width: 30%;"></div>
+      </div>
+      <div class="text-[10px] opacity-75 text-center mt-1 font-semibold">
+        Hold / Click to raise tension into green zone!
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Cursor Tooltip for Hovered Fumo or Water -->
+  <div id="fumo-tooltip" class="fixed z-30 opacity-0 px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold flex items-center gap-2 shadow-lg">
+    <span id="tooltip-emoji">🥒</span>
+    <span id="tooltip-text">Nitori Fumo</span>
+  </div>
+
+  <!-- Fish Book Collection Modal (Opens from Bottom-Right Counter) -->
+  <div id="fish-book-modal" class="fixed bottom-20 right-4 z-30 w-80 sm:w-96 glass-panel rounded-3xl p-4 hidden flex-col gap-3 shadow-2xl">
+    <div class="flex items-center justify-between border-b border-current/10 pb-2">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">📖</span>
+        <div>
+          <h2 class="font-display font-bold text-sm sm:text-base leading-tight">Kappa River Fish Book</h2>
+          <p class="text-[11px] opacity-75 font-semibold">Rare species appear at Dusk & Night!</p>
+        </div>
+      </div>
+      <button id="btn-close-book" class="ui-btn rounded-xl px-2.5 py-1 text-xs font-bold bg-black/10 hover:bg-black/20">✕</button>
+    </div>
+    <div id="fish-book-grid" class="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1"></div>
+    <div class="flex items-center justify-between text-[11px] opacity-80 pt-1 border-t border-current/10 font-semibold">
+      <span id="total-catches-stat">Total Basket Catches: 0</span>
+      <span>Yuyuko is very happy ᗜˬᗜ</span>
+    </div>
+  </div>
+
+  <!-- BOTTOM-RIGHT HUD (Strict Hub Rule: ZERO UI in Top-Left!) -->
+  <div class="fixed bottom-4 right-4 z-20 flex flex-col items-end gap-2 max-w-[96vw]">
+    <!-- Status & Toast Row -->
+    <div class="flex flex-wrap items-center justify-end gap-2">
+      <!-- Catch / Action Toast Pill -->
+      <div id="catch-toast" class="glass-panel rounded-2xl px-3.5 py-1.5 text-xs font-bold hidden items-center gap-2 border-2 border-emerald-400/70">
+        <span id="catch-toast-icon">✨</span>
+        <span id="catch-toast-text">Caught a Golden Carp!</span>
+      </div>
+
+      <!-- Active Fumo / Fishing State Indicator -->
+      <div id="fumo-badge" class="glass-panel rounded-2xl px-3.5 py-1.5 text-xs font-semibold flex items-center gap-2">
+        <span id="fumo-badge-dot" class="w-2.5 h-2.5 rounded-full inline-block bg-cyan-500"></span>
+        <span id="fumo-badge-name">Click Pond to Cast</span>
+        <span id="fumo-badge-status" class="opacity-70 ml-1">Idle</span>
+      </div>
+    </div>
+
+    <!-- Primary Controls Bar (Bottom-Right) -->
+    <div class="flex flex-wrap items-center justify-end gap-2">
+      <!-- Bait Selector Button (F Key) -->
+      <button id="btn-bait" title="Switch Fishing Bait (Shortcut: F)"
+        class="glass-panel ui-btn rounded-2xl px-3 py-2 flex items-center gap-2 text-xs font-semibold">
+        <span id="bait-icon" class="text-base leading-none">🥒</span>
+        <div class="text-left leading-tight">
+          <div class="text-[10px] opacity-65 font-bold uppercase tracking-wider">Bait <kbd>F</kbd></div>
+          <div id="bait-name" class="font-display font-semibold text-xs">Kappa Cucumber</div>
+        </div>
+      </button>
+
+      <!-- Fish Book Collection Counter Button -->
+      <button id="btn-fish-book" title="Open Fish Collection Book (Shortcut: B)"
+        class="glass-panel ui-btn rounded-2xl px-3.5 py-2 flex items-center gap-2 text-xs font-semibold">
+        <span class="text-base leading-none">🐟</span>
+        <div class="text-left leading-tight">
+          <div class="text-[10px] opacity-65 font-bold uppercase tracking-wider">Fish Book</div>
+          <div id="fish-counter-text" class="font-display font-semibold text-xs">0 / 8 Caught</div>
+        </div>
+      </button>
+
+      <!-- Squeeze All Fumos Button -->
+      <button id="btn-squeeze-all" title="Squeeze All Fumos! (Shortcut: Space)"
+        class="glass-panel ui-btn rounded-2xl px-3 py-2.5 flex items-center gap-1.5 text-xs font-semibold">
+        <span class="text-sm leading-none">✨</span>
+        <span class="hidden sm:inline">Squeeze</span>
+      </button>
+
+      <!-- Reset Fumos Button -->
+      <button id="btn-reset" title="Return Fumos to Cozy Spots (Shortcut: R)"
+        class="glass-panel ui-btn rounded-2xl px-3 py-2.5 flex items-center gap-1.5 text-xs font-semibold">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+        </svg>
+        <span class="hidden md:inline">Reset</span>
+      </button>
+
+      <!-- Sound / Mute Toggle Button (M Key) -->
+      <button id="btn-sound" title="Toggle Sound & Lo-Fi River Audio (Shortcut: M)"
+        class="glass-panel ui-btn rounded-2xl p-2.5 flex items-center justify-center">
+        <svg id="icon-sound-on" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+        </svg>
+        <svg id="icon-sound-off" class="w-4 h-4 hidden opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <line x1="23" y1="9" x2="17" y2="15"></line>
+          <line x1="17" y1="9" x2="23" y2="15"></line>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 1. SHARED CORE INTEGRATION & EXTENDED SYNTHESIZED SOUND ENGINE
+    // ============================================================================
+    const _voxelHash = typeof voxelHash === 'function' ? voxelHash : function(x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    };
+
+    const _tempCol = new THREE.Color();
+    const _varyColor = typeof varyColor === 'function' ? varyColor : function(hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
+      _tempCol.set(hexOrString);
+      const h = _voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      _tempCol.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return _tempCol.clone();
+    };
+
+    const _createSoftVoxelGeometry = typeof createSoftVoxelGeometry === 'function' ? createSoftVoxelGeometry : function(size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    };
+
+    const _getOptimalPixelRatio = typeof getOptimalPixelRatio === 'function' ? getOptimalPixelRatio : function() {
+      return Math.min(window.devicePixelRatio || 1, 2);
+    };
+
+    const BaseSoundEngine = typeof PlushSoundEngine !== 'undefined' ? PlushSoundEngine : class {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+      }
+      playSqueeze(pitchMultiplier = 1.0) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc1 = this.ctx.createOscillator();
+          const gain1 = this.ctx.createGain();
+          osc1.type = 'sine';
+          const baseFreq = (520 + Math.random() * 80) * pitchMultiplier;
+          osc1.frequency.setValueAtTime(baseFreq, now);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.085);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.16);
+          gain1.gain.setValueAtTime(0.001, now);
+          gain1.gain.linearRampToValueAtTime(0.11, now + 0.025);
+          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+          osc1.connect(gain1);
+          gain1.connect(this.ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.18);
+
+          const osc2 = this.ctx.createOscillator();
+          const gain2 = this.ctx.createGain();
+          osc2.type = 'triangle';
+          osc2.frequency.setValueAtTime(baseFreq * 1.1, now + 0.11);
+          osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.65, now + 0.21);
+          gain2.gain.setValueAtTime(0.001, now + 0.11);
+          gain2.gain.linearRampToValueAtTime(0.08, now + 0.13);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+          osc2.connect(gain2);
+          gain2.connect(this.ctx.destination);
+          osc2.start(now + 0.11);
+          osc2.stop(now + 0.25);
+        } catch (e) {}
+      }
+      playBounce(intensity = 0.5) {
+        if (!this.enabled || intensity < 0.08) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const vol = Math.min(0.14, intensity * 0.12);
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(115 + Math.min(80, intensity * 35), now);
+          osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+      playPickup() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(280, now);
+          osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+    };
+
+    class FishingSoundEngine extends BaseSoundEngine {
+      constructor() {
+        super();
+        this.ambientStarted = false;
+        this.waterfallGain = null;
+        this.lofiTimer = null;
+        this.lofiStep = 0;
+        this.isPausedState = false;
+      }
+
+      ensureAmbient() {
+        if (!this.enabled || this.isPausedState) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+
+          if (!this.ambientStarted) {
+            this.ambientStarted = true;
+            const bufferSize = this.ctx.sampleRate * 2;
+            const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+            for (let i = 0; i < bufferSize; i++) {
+              const white = Math.random() * 2 - 1;
+              b0 = 0.99886 * b0 + white * 0.0555179;
+              b1 = 0.99332 * b1 + white * 0.0750759;
+              b2 = 0.96900 * b2 + white * 0.1538520;
+              b3 = 0.86650 * b3 + white * 0.3104856;
+              b4 = 0.55000 * b4 + white * 0.5329522;
+              b5 = -0.7616 * b5 - white * 0.0168980;
+              output[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.04;
+              b6 = white * 0.115926;
+            }
+
+            const whiteNoise = this.ctx.createBufferSource();
+            whiteNoise.buffer = noiseBuffer;
+            whiteNoise.loop = true;
+
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.value = 520;
+            filter.Q.value = 0.7;
+
+            this.waterfallGain = this.ctx.createGain();
+            this.waterfallGain.gain.value = 0.055;
+
+            whiteNoise.connect(filter);
+            filter.connect(this.waterfallGain);
+            this.waterfallGain.connect(this.ctx.destination);
+            whiteNoise.start(0);
+
+            this.startLofiLoop();
+          }
+
+          if (this.waterfallGain) {
+            this.waterfallGain.gain.setTargetAtTime(0.055, this.ctx.currentTime, 0.2);
+          }
+        } catch (e) {}
+      }
+
+      startLofiLoop() {
+        if (this.lofiTimer) clearInterval(this.lofiTimer);
+        const scale = [293.66, 349.23, 392.00, 440.00, 523.25, 587.33, 698.46];
+        const bassNotes = [146.83, 174.61, 196.00, 130.81];
+
+        this.lofiTimer = setInterval(() => {
+          if (!this.enabled || this.isPausedState || !this.ctx || this.ctx.state !== 'running') return;
+          try {
+            const now = this.ctx.currentTime;
+            if (this.lofiStep % 4 === 0) {
+              const bFreq = bassNotes[(this.lofiStep / 4) % bassNotes.length];
+              const bOsc = this.ctx.createOscillator();
+              const bGain = this.ctx.createGain();
+              bOsc.type = 'sine';
+              bOsc.frequency.setValueAtTime(bFreq, now);
+              bGain.gain.setValueAtTime(0.001, now);
+              bGain.gain.linearRampToValueAtTime(0.032, now + 0.08);
+              bGain.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+              bOsc.connect(bGain);
+              bGain.connect(this.ctx.destination);
+              bOsc.start(now);
+              bOsc.stop(now + 1.65);
+            }
+
+            if (Math.random() < 0.72) {
+              const note = scale[(this.lofiStep * 2 + Math.floor(Math.random() * 3)) % scale.length];
+              const osc = this.ctx.createOscillator();
+              const gain = this.ctx.createGain();
+              osc.type = 'triangle';
+              osc.frequency.setValueAtTime(note, now);
+              gain.gain.setValueAtTime(0.001, now);
+              gain.gain.linearRampToValueAtTime(0.022, now + 0.02);
+              gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.75);
+              osc.connect(gain);
+              gain.connect(this.ctx.destination);
+              osc.start(now);
+              osc.stop(now + 0.8);
+            }
+            this.lofiStep++;
+          } catch (e) {}
+        }, 460);
+      }
+
+      syncMuteState() {
+        if (!this.ctx || !this.waterfallGain) return;
+        try {
+          const target = (this.enabled && !this.isPausedState) ? 0.055 : 0.0001;
+          this.waterfallGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.1);
+        } catch (e) {}
+      }
+
+      playBobberPlop() {
+        if (!this.enabled) return;
+        try {
+          this.ensureAmbient();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(220, now);
+          osc.frequency.exponentialRampToValueAtTime(580, now + 0.09);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.11, now + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.12);
+        } catch (e) {}
+      }
+
+      playWaterSplash(intensity = 1.0) {
+        if (!this.enabled) return;
+        try {
+          this.ensureAmbient();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(140, now);
+          osc.frequency.exponentialRampToValueAtTime(340, now + 0.18);
+          gain.gain.setValueAtTime(Math.min(0.14, 0.09 * intensity), now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.24);
+        } catch (e) {}
+      }
+
+      playNibble() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(360, now);
+          osc.frequency.exponentialRampToValueAtTime(480, now + 0.05);
+          gain.gain.setValueAtTime(0.04, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.065);
+        } catch (e) {}
+      }
+
+      playBiteAlert() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          [660, 880].forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.07);
+            gain.gain.setValueAtTime(0.09, now + idx * 0.07);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.07 + 0.09);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now + idx * 0.07);
+            osc.stop(now + idx * 0.07 + 0.1);
+          });
+        } catch (e) {}
+      }
+
+      playReelClick(pitch = 1.0) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(750 * pitch, now);
+          osc.frequency.exponentialRampToValueAtTime(280, now + 0.022);
+          gain.gain.setValueAtTime(0.035, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.028);
+        } catch (e) {}
+      }
+
+      playCatchJingle(isRare = false) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const notes = isRare
+            ? [523.25, 659.25, 783.99, 1046.50, 1318.51]
+            : [440.00, 554.37, 659.25, 880.00];
+          notes.forEach((freq, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            const t0 = now + i * 0.075;
+            osc.frequency.setValueAtTime(freq, t0);
+            gain.gain.setValueAtTime(0.001, t0);
+            gain.gain.linearRampToValueAtTime(0.11, t0 + 0.015);
+            gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.28);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(t0);
+            osc.stop(t0 + 0.3);
+          });
+        } catch (e) {}
+      }
+
+      dispose() {
+        if (this.lofiTimer) {
+          clearInterval(this.lofiTimer);
+          this.lofiTimer = null;
+        }
+        if (this.ctx) {
+          try { this.ctx.close(); } catch (e) {}
+        }
+      }
+    }
+
+    const soundFX = new FishingSoundEngine();
+
+    const STORAGE_MUTE_KEY = 'fumo_fishing_mute';
+    const STORAGE_MODE_KEY = 'fumo_fishing_mode';
+    try {
+      const savedMute = localStorage.getItem(STORAGE_MUTE_KEY);
+      if (savedMute === 'true') {
+        soundFX.enabled = false;
+      }
+    } catch (e) {}
+
+    // ============================================================================
+    // 2. SCENE, CAMERA, RENDERER & POST-PROCESSING
+    // ============================================================================
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    const tempEuler = new THREE.Euler();
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = _createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        if (v.rx || v.ry || v.rz) {
+          tempEuler.set(v.rx || 0, v.ry || 0, v.rz || 0);
+          tempQuat.setFromEuler(tempEuler);
+        } else {
+          tempQuat.identity();
+        }
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#a8d8ff');
+    scene.fog = new THREE.FogExp2('#a8d8ff', 0.0075);
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.5, 140);
+    camera.position.set(19.5, 13.8, 20.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(_getOptimalPixelRatio());
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.92;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.10,
+        0.50,
+        0.88
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (err) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0.0, 1.8, 0.5);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.47;
+    controls.minPolarAngle = Math.PI * 0.08;
+    controls.minDistance = 8;
+    controls.maxDistance = 42;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.42;
+
+    let lastUserInteractionTime = performance.now();
+    const recordInteraction = () => {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+      soundFX.ensureAmbient();
+    };
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 3. CAPPED DYNAMIC LIGHTING & SHARED MATERIALS
+    // ============================================================================
+    const hemiLight = new THREE.HemisphereLight(0xfff6e5, 0x5c7a62, 0.52);
+    hemiLight.position.set(0, 25, 0);
+    scene.add(hemiLight);
+
+    const sunDirLight = new THREE.DirectionalLight(0xffefd2, 0.96);
+    sunDirLight.position.set(16, 22, 12);
+    sunDirLight.castShadow = true;
+    sunDirLight.shadow.mapSize.width = 2048;
+    sunDirLight.shadow.mapSize.height = 2048;
+    sunDirLight.shadow.camera.near = 2;
+    sunDirLight.shadow.camera.far = 52;
+    const dCam = 15.5;
+    sunDirLight.shadow.camera.left = -dCam;
+    sunDirLight.shadow.camera.right = dCam;
+    sunDirLight.shadow.camera.top = dCam;
+    sunDirLight.shadow.camera.bottom = -dCam;
+    sunDirLight.shadow.bias = -0.0006;
+    sunDirLight.shadow.radius = 2.2;
+    scene.add(sunDirLight);
+
+    const stoneLanternLight = new THREE.PointLight(0xffa63b, 0.05, 13.5, 1.6);
+    stoneLanternLight.position.set(-4.0, 2.75, -1.75);
+    scene.add(stoneLanternLight);
+
+    const hutLanternLight = new THREE.PointLight(0xffb84d, 0.05, 14.0, 1.6);
+    hutLanternLight.position.set(-3.2, 3.6, 3.5);
+    scene.add(hutLanternLight);
+
+    const pondGlowLight = new THREE.PointLight(0x38bdf8, 0.08, 12.0, 1.7);
+    pondGlowLight.position.set(3.2, 1.5, 1.5);
+    scene.add(pondGlowLight);
+
+    // Shared Materials (Using MeshStandardMaterial for water/ice avoids r128 transmission washout)
+    const plushMaterial = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0.02 });
+    const terrainMaterial = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0.04 });
+    const glossyMaterial = new THREE.MeshStandardMaterial({ roughness: 0.30, metalness: 0.12 });
+
+    const waterMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.68,
+      roughness: 0.16,
+      metalness: 0.08,
+      emissive: new THREE.Color(0x0284c7),
+      emissiveIntensity: 0.10
+    });
+
+    const subsurfaceWaterMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.46,
+      roughness: 0.25,
+      metalness: 0.05,
+      emissive: new THREE.Color(0x0369a1),
+      emissiveIntensity: 0.08
+    });
+
+    const translucentIceMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.88,
+      roughness: 0.18,
+      metalness: 0.08,
+      emissive: new THREE.Color(0x38bdf8),
+      emissiveIntensity: 0.18
+    });
+
+    const lanternEmissiveMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfff5d6,
+      emissive: new THREE.Color(0xff9e2c),
+      emissiveIntensity: 0.35,
+      roughness: 0.2
+    });
+
+    const glowingFishMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0xfde047),
+      emissiveIntensity: 0.3,
+      roughness: 0.25
+    });
+
+    // ============================================================================
+    // 4. DIORAMA WORLD ARCHITECTURE (WITH 100% SOLID UNDER-SURFACES & RIVERBEDS)
+    // ============================================================================
+    const RV = 0.25; // 1 Terrain Voxel = 0.25 world units
+    const WATER_SURFACE_Y = 0.0;
+    const POND_FLOOR_Y = -1.25; // Riverbed at gy = -5 (Y = -1.25)
+
+    const furnitureColliders = [];
+    function addCollider(minX, minY, minZ, maxX, maxY, maxZ, name = 'prop') {
+      furnitureColliders.push({
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        name
+      });
+    }
+
+    const solidWorldVoxels = [];
+    const glossyWorldVoxels = [];
+    const lanternBulbVoxels = [];
+    const icePatchVoxels = [];
+    const subsurfaceWaterVoxels = [];
+
+    function pushVoxel(list, rx, ry, rz, colorHex, variance = 0.035, sx = 1, sy = 1, sz = 1) {
+      list.push({
+        x: rx, y: ry, z: rz,
+        color: _varyColor(colorHex, rx, ry, rz, variance),
+        sx, sy, sz
+      });
+    }
+
+    function pushBox(list, x0, y0, z0, x1, y1, z1, colorFnOrHex, variance = 0.03) {
+      for (let x = x0; x <= x1; x++) {
+        for (let y = y0; y <= y1; y++) {
+          for (let z = z0; z <= z1; z++) {
+            if (x > x0 && x < x1 && y > y0 && y < y1 && z > z0 && z < z1) continue;
+            const c = typeof colorFnOrHex === 'function' ? colorFnOrHex(x, y, z) : colorFnOrHex;
+            if (c) pushVoxel(list, x + 0.5, y + 0.5, z + 0.5, c, variance);
+          }
+        }
+      }
+    }
+
+    function isPointInPond(wx, wz) {
+      const inMainPond = (wx >= -4.8 && wx <= 8.8 && wz >= -6.2 && wz <= 8.6);
+      const inInlet = (wx >= -2.5 && wx <= 8.5 && wz >= -9.0 && wz <= -5.5);
+      return inMainPond || inInlet;
+    }
+
+    // Heightmap for every grid cell (gx, gz) in [-38..37]
+    function getBankGridHeight(gx, gz) {
+      // Diorama outer stone containment rim on front & right pond edges so water is enclosed
+      if (gx >= 36 || gz >= 36) {
+        if (gx <= -19) return 3;
+        if (gx <= -14 && gz >= 14) return 2;
+        if (gx >= 29 && gz >= -16 && gz <= 6) return 3;
+        return 0; // Neat mossy stone retaining wall at water level along front/right diorama border
+      }
+
+      // Back-Right Mountain Cliff for the Waterfall (gx >= 8, gz <= -18)
+      if (gx >= 8 && gz <= -18) {
+        const distFromCorner = Math.hypot(38 - gx, -38 - gz);
+        if (gx >= 18 && gx <= 25 && gz >= -36 && gz <= -18) {
+          if (gz <= -28) return 22; // Upper waterfall pool ledge
+          return -5; // Plunge pool riverbed
+        }
+        if (distFromCorner < 24) {
+          return Math.max(4, Math.min(26, Math.floor(26 - distFromCorner * 0.9)));
+        }
+      }
+
+      // Left grassy bank (where Nitori's Kappa Bait Hut & Drying Rack stand: gx <= -19)
+      if (gx <= -19) {
+        return 3; // Top at Y = 1.0
+      }
+
+      // Back grassy bank (left of waterfall: gz <= -24 and gx < 12)
+      if (gz <= -24 && gx < 12) {
+        return 3;
+      }
+
+      // Front-left stepped bank slope (gx <= -14, gz >= 14)
+      if (gx <= -14 && gz >= 14) {
+        return 2; // Top at Y = 0.75
+      }
+
+      // Right rock outcrop where Marisa fishes with her Mini-Hakkero (gx >= 29, gz -16..6)
+      if (gx >= 29 && gz >= -16 && gz <= 6) {
+        return 3; // Top at Y = 1.0
+      }
+
+      // Otherwise it's the underwater riverbed basin!
+      const pebbleBump = ((Math.abs(gx * 7 + gz * 13) % 7 === 0) && gx < 33 && gz < 33) ? 1 : 0;
+      return -5 + pebbleBump; // Riverbed at gy = -5..-4
+    }
+
+    function buildMountainRiverScene() {
+      const MIN_BASE_Y = -8; // Solid diorama foundation base at gy = -8 (Y = -2.0)
+
+      // Pre-compute heightmap table for fast neighbor lookups
+      const heightMap = {};
+      for (let gx = -38; gx <= 37; gx++) {
+        for (let gz = -38; gz <= 37; gz++) {
+          heightMap[`${gx},${gz}`] = getBankGridHeight(gx, gz);
+        }
+      }
+
+      // 1. SOLID TERRAIN BANKS, CLIFF WALLS, RIVERBED & DIORAMA FOUNDATION
+      for (let gx = -38; gx <= 37; gx++) {
+        for (let gz = -38; gz <= 37; gz++) {
+          const topY = heightMap[`${gx},${gz}`];
+
+          // Find lowest neighbor height within a 2-voxel radius so EVERY riverbank wall,
+          // cliff step, and underwater drop-off is 100% filled with zero hollow gaps!
+          let minNeighborY = topY;
+          for (let dx = -2; dx <= 2; dx++) {
+            for (let dz = -2; dz <= 2; dz++) {
+              const nh = heightMap[`${gx + dx},${gz + dz}`];
+              if (nh !== undefined && nh < minNeighborY) {
+                minNeighborY = nh;
+              }
+            }
+          }
+
+          const isOuterBoundary = (gx === -38 || gx === 37 || gz === -38 || gz === 37);
+
+          for (let gy = MIN_BASE_Y; gy <= topY; gy++) {
+            // Fill the outer diorama walls, the bottom foundation slab, the riverbed,
+            // and ALL exposed vertical/stepped riverbank walls down past the lowest neighbor!
+            const isExposedOrStructural =
+              isOuterBoundary ||
+              gy === MIN_BASE_Y ||
+              gy >= minNeighborY - 2 ||
+              gy <= -5;
+
+            if (!isExposedOrStructural) continue;
+
+            let col = '#6b472e'; // Rich earthy soil wall
+            if (gy === MIN_BASE_Y) {
+              col = '#3d281a'; // Dark foundation base trim
+            } else if (gy === topY) {
+              if (topY <= -4) {
+                // Underwater riverbed sand, mossy stones & pebbles
+                const h = _voxelHash(gx, gy, gz);
+                col = h > 0.72 ? '#6b705c' : (h > 0.35 ? '#a59478' : '#8a7961');
+              } else if (topY === 0 && (gx >= 36 || gz >= 36)) {
+                // Mossy stone retaining wall along the pond edge
+                col = ((gx + gz) % 2 === 0) ? '#64748b' : '#52796f';
+              } else if (topY >= 7) {
+                // Mountain cliff rock & alpine moss cap
+                col = (gy >= 18 && _voxelHash(gx, gy, gz) > 0.35) ? '#4d7c43' : '#64748b';
+              } else {
+                // Lush riverside grass top
+                col = ((gx + gz) % 3 === 0) ? '#4d9043' : '#5ca34e';
+              }
+            } else if (gy === topY - 1 && topY >= 1 && topY <= 4) {
+              // Grass-to-soil overhang lip along riverbanks
+              col = ((gx + gz) % 2 === 0) ? '#4d7c43' : '#7a5236';
+            } else if (topY >= 5 && gy >= 1) {
+              col = ((gx + gy) % 3 === 0) ? '#475569' : '#64748b'; // Slate cliff face
+            } else if (gy <= -1) {
+              // Underwater bank wall (mossy river stone & wet earth beneath water level)
+              col = ((gx + gy + gz) % 2 === 0) ? '#4a5759' : '#5c4028';
+            }
+
+            pushVoxel(solidWorldVoxels, gx + 0.5, gy + 0.5, gz + 0.5, col, 0.035);
+          }
+
+          // 1B. SUBSURFACE WATER VOLUME & UNDERWATER KELP / BOULDERS
+          // Fill the space between the riverbed (topY <= -4) and the water surface (gy = -1)
+          if (topY <= -4 && gx > -19 && gx < 36 && gz > -36 && gz < 36) {
+            // Subsurface water blocks (2x2x2 grouped voxels for performance & lush depth)
+            if (gx % 2 === 0 && gz % 2 === 0) {
+              pushVoxel(
+                subsurfaceWaterVoxels,
+                gx + 1.0,
+                -2.2,
+                gz + 1.0,
+                '#0ea5e9',
+                0.02,
+                1.98, 2.6, 1.98
+              );
+            }
+
+            // Underwater mossy river boulders & swaying green waterweeds on the riverbed
+            const bedHash = _voxelHash(gx, -4, gz);
+            if (bedHash > 0.93 && gx < 32 && gz < 32) {
+              const weedH = 2 + (Math.abs(gx + gz) % 2);
+              for (let wy = 1; wy <= weedH; wy++) {
+                pushVoxel(
+                  solidWorldVoxels,
+                  gx + 0.5,
+                  topY + wy * 0.85,
+                  gz + 0.5,
+                  wy === weedH ? '#65a30d' : '#3f6212',
+                  0.03,
+                  0.55, 0.9, 0.55
+                );
+              }
+            } else if (bedHash < 0.04) {
+              pushVoxel(solidWorldVoxels, gx + 0.5, topY + 0.8, gz + 0.5, '#64748b', 0.03, 1.35, 0.9, 1.35);
+            }
+          }
+        }
+      }
+
+      // Register Bank & Cliff Colliders
+      addCollider(-9.5, -2.0, -9.5, -4.6, 1.0, 9.5, 'left_bank');
+      addCollider(-9.5, -2.0, 3.5, -3.4, 0.75, 9.5, 'front_left_bank');
+      addCollider(-9.5, -2.0, -9.5, 3.0, 1.0, -5.8, 'back_bank');
+      addCollider(3.0, -2.0, -9.5, 9.5, 6.5, -5.2, 'waterfall_cliff');
+      addCollider(7.1, -2.0, -4.0, 9.5, 1.0, 1.6, 'marisa_rock_ledge');
+
+      // 2. SUNKEN OLD BOOT ON THE POND BOTTOM (at gx = 10, gz = 14, gy = -4)
+      pushBox(solidWorldVoxels, 10, -4, 14, 11, -2, 15, '#5c3a21');
+      pushBox(solidWorldVoxels, 10, -4, 15, 12, -3, 17, '#4a2e19');
+      pushBox(solidWorldVoxels, 10, -4, 14, 12, -4, 17, '#29190e');
+
+      // 3. WOODEN FISHING DOCK (Extending from Left Bank out into the Pond)
+      for (let gx = -19; gx <= -2; gx++) {
+        for (let gz = 6; gz <= 17; gz++) {
+          const isEdgeBeam = (gz === 6 || gz === 17 || gx === -2);
+          const plankCol = isEdgeBeam ? '#6e472b' : ((gx % 2 === 0) ? '#9c6644' : '#8d5b3a');
+          pushVoxel(solidWorldVoxels, gx + 0.5, 4.5, gz + 0.5, plankCol, 0.03);
+          // Solid under-beam support joists beneath dock planks so the dock never looks thin
+          if (isEdgeBeam || gx % 4 === 0) {
+            pushVoxel(solidWorldVoxels, gx + 0.5, 3.6, gz + 0.5, '#5c3a21', 0.02);
+          }
+        }
+      }
+      // Dock Wooden Support Pilings Going All the Way Down into the Riverbed (gy = -5..4)
+      for (const px of [-17, -10, -3]) {
+        for (const pz of [7, 16]) {
+          for (let py = -5; py <= 4; py++) {
+            pushVoxel(solidWorldVoxels, px + 0.5, py + 0.5, pz + 0.5, '#4a2f1b', 0.02, 1.15, 1.05, 1.15);
+          }
+        }
+      }
+      // Dock Lantern Post & Hanging Warm Lantern at corner (gx = -3, gz = 7)
+      for (let py = 5; py <= 13; py++) {
+        pushVoxel(solidWorldVoxels, -2.5, py + 0.5, 7.5, '#5c3a21', 0.02, 0.75, 1, 0.75);
+      }
+      for (let lx = -2; lx <= 0; lx++) {
+        pushVoxel(solidWorldVoxels, lx + 0.5, 13.5, 7.5, '#5c3a21', 0.02, 1, 0.7, 0.7);
+      }
+      pushVoxel(lanternBulbVoxels, 0.5, 12.2, 7.5, '#ffea85', 0.01, 1.3, 1.6, 1.3);
+      pushVoxel(solidWorldVoxels, 0.5, 13.2, 7.5, '#3b2313', 0.01, 1.7, 0.4, 1.7);
+
+      // Reimu's Bamboo Fishing Rod Mounted at Dock Tip
+      for (let r = 0; r < 14; r++) {
+        pushVoxel(
+          solidWorldVoxels,
+          -2.0 + r * 0.65,
+          6.2 + r * 0.42,
+          12.5,
+          r % 3 === 0 ? '#a3b18a' : '#ccd5ae',
+          0.02,
+          0.65, 0.45, 0.45
+        );
+      }
+      addCollider(-4.8, 0.8, 1.5, -0.4, 1.25, 4.5, 'wooden_dock');
+
+      // 4. NITORI'S KAPPA BAIT-AND-TACKLE HUT & CUCUMBER STAND (Left Bank: gx -36..-21, gz -18..2)
+      pushBox(solidWorldVoxels, -36, 4, -18, -21, 4, 2, '#7f5539');
+      pushBox(solidWorldVoxels, -36, 5, -18, -26, 14, -17, '#8d5b3a');
+      pushBox(solidWorldVoxels, -36, 5, -18, -35, 14, 2, '#8d5b3a');
+      pushBox(solidWorldVoxels, -36, 5, 1, -26, 14, 2, '#8d5b3a');
+      for (let py = 5; py <= 14; py++) {
+        pushVoxel(solidWorldVoxels, -21.5, py + 0.5, -17.5, '#5c3a21');
+        pushVoxel(solidWorldVoxels, -21.5, py + 0.5, 1.5, '#5c3a21');
+      }
+      // Counter & Cucumber Stand Display in Front
+      pushBox(solidWorldVoxels, -24, 5, -15, -21, 8, -2, (x, y, z) => {
+        if (y === 8) return '#a9714b';
+        return ((z + 20) % 2 === 0) ? '#386641' : '#6a994e';
+      });
+      for (let cz = -14; cz <= -8; cz++) {
+        pushVoxel(icePatchVoxels, -22.5, 9.2, cz + 0.5, '#e0f2fe', 0.02, 1.8, 0.5, 0.9);
+        if (cz % 2 === 0) {
+          pushVoxel(solidWorldVoxels, -22.5, 9.7, cz + 0.5, '#2b9348', 0.03, 1.6, 0.55, 0.55);
+        }
+      }
+      pushVoxel(lanternBulbVoxels, -22.5, 9.5, -5.5, '#fde047', 0.01, 0.9, 1.2, 0.9);
+      pushVoxel(lanternBulbVoxels, -22.5, 9.5, -3.5, '#38bdf8', 0.01, 0.9, 1.2, 0.9);
+
+      for (let rx = -37; rx <= -19; rx++) {
+        const ry = 19 - Math.floor((rx + 37) * 0.25);
+        for (let rz = -19; rz <= 3; rz++) {
+          const roofCol = (rz % 2 === 0) ? '#0284c7' : '#0ea5e9';
+          pushVoxel(solidWorldVoxels, rx + 0.5, ry + 0.5, rz + 0.5, roofCol, 0.025);
+        }
+      }
+      for (let sz = -12; sz <= -4; sz++) {
+        pushVoxel(solidWorldVoxels, -19.5, 16.5, sz + 0.5, '#fefae0', 0.01, 0.5, 2.2, 1);
+        if (sz >= -10 && sz <= -6) {
+          pushVoxel(solidWorldVoxels, -19.1, 16.5, sz + 0.5, '#2b9348', 0.02, 0.3, 0.9, 1);
+        }
+      }
+      pushVoxel(lanternBulbVoxels, -20.5, 13.5, -8.5, '#ffb703', 0.01, 1.2, 1.5, 1.2);
+
+      addCollider(-9.2, 1.0, -4.6, -5.1, 2.35, 0.6, 'kappa_counter');
+      addCollider(-9.2, 1.0, -4.6, -6.4, 4.5, 0.6, 'kappa_hut');
+
+      // 5. FISH DRYING RACK (On Left Bank near Dock: gx -28..-22, gz 19..27)
+      for (const rz of [19, 27]) {
+        for (let h = 0; h <= 7; h++) {
+          pushVoxel(solidWorldVoxels, -26.5 + h * 0.25, 3 + h + 0.5, rz + 0.5, '#6c462c', 0.02, 0.6, 1, 0.6);
+          pushVoxel(solidWorldVoxels, -22.5 - h * 0.25, 3 + h + 0.5, rz + 0.5, '#6c462c', 0.02, 0.6, 1, 0.6);
+        }
+      }
+      for (let rz = 18; rz <= 28; rz++) {
+        pushVoxel(solidWorldVoxels, -24.5, 10.2, rz + 0.5, '#8a5a36', 0.02, 0.5, 0.5, 1);
+        if (rz >= 20 && rz <= 26 && rz % 2 === 0) {
+          pushVoxel(solidWorldVoxels, -24.5, 8.8, rz + 0.5, '#e07a5f', 0.03, 0.45, 1.6, 0.8);
+          pushVoxel(solidWorldVoxels, -24.5, 7.6, rz + 0.5, '#f4a261', 0.03, 0.35, 0.8, 1.1);
+        }
+      }
+      addCollider(-7.0, 0.8, 4.6, -5.4, 2.7, 7.0, 'drying_rack');
+
+      // 6. TRADITIONAL STONE LANTERN (TŌRŌ) BY THE POND EDGE (gx -17..-15, gz -9..-7)
+      // Include solid stone foundation pillar below gy = 4 down to riverbed!
+      pushBox(solidWorldVoxels, -17, -5, -9, -15, 4, -7, '#64748b');
+      pushBox(solidWorldVoxels, -16, 5, -8, -16, 8, -8, '#cbd5e1');
+      pushBox(solidWorldVoxels, -17, 9, -9, -15, 9, -7, '#94a3b8');
+      pushVoxel(lanternBulbVoxels, -15.5, 10.5, -7.5, '#ffaa33', 0.01, 1.5, 1.6, 1.5);
+      pushBox(solidWorldVoxels, -18, 11, -10, -14, 11, -6, '#64748b');
+      pushVoxel(solidWorldVoxels, -15.5, 12.5, -7.5, '#4d7c43', 0.03, 1.4, 1.2, 1.4);
+      addCollider(-4.5, 1.0, -2.5, -3.5, 3.3, -1.5, 'stone_lantern');
+
+      // 7. ARCHED RED-RAILED WOODEN BRIDGE WITH SOLID STONE ABUTMENT PIERS
+      for (const pierX of [-8, 10]) {
+        pushBox(solidWorldVoxels, pierX - 1, -5, -22, pierX + 1, 4, -16, '#64748b');
+      }
+      for (let gx = -8; gx <= 10; gx++) {
+        const normX = (gx - 1) / 9;
+        const archY = Math.round((1 - normX * normX) * 4.5) + 4;
+        for (let gz = -22; gz <= -16; gz++) {
+          pushVoxel(solidWorldVoxels, gx + 0.5, archY + 0.5, gz + 0.5, (gx % 2 === 0) ? '#9c6644' : '#7f4f24', 0.025);
+          // Under-arch wooden support beams
+          if (gz === -22 || gz === -16) {
+            pushVoxel(solidWorldVoxels, gx + 0.5, archY - 0.4, gz + 0.5, '#5c3a21', 0.02);
+            if (gx % 3 === 0 || gx === -8 || gx === 10) {
+              pushVoxel(solidWorldVoxels, gx + 0.5, archY + 1.5, gz + 0.5, '#d90429', 0.02, 0.7, 1, 0.7);
+              pushVoxel(solidWorldVoxels, gx + 0.5, archY + 2.5, gz + 0.5, '#d90429', 0.02, 0.7, 1, 0.7);
+              if (gx === -8 || gx === 10 || gx === 1) {
+                pushVoxel(glossyWorldVoxels, gx + 0.5, archY + 3.3, gz + 0.5, '#eab308', 0.01, 0.85, 0.7, 0.85);
+              }
+            }
+            pushVoxel(solidWorldVoxels, gx + 0.5, archY + 2.5, gz + 0.5, '#ef233c', 0.02, 1, 0.55, 0.55);
+          }
+        }
+      }
+      addCollider(-2.0, 1.0, -5.6, 2.6, 2.25, -3.9, 'arched_bridge');
+
+      // 8. CIRNO'S FROZEN ICE PATCH FLOATING ON THE POND (With submerged ice keel underneath!)
+      for (let gx = 11; gx <= 21; gx++) {
+        for (let gz = 3; gz <= 13; gz++) {
+          const dist = Math.hypot(gx - 16, gz - 8);
+          if (dist <= 5.2) {
+            const iceCol = dist > 4.0 ? '#e0f2fe' : '#bae6fd';
+            pushVoxel(icePatchVoxels, gx + 0.5, 0.35, gz + 0.5, iceCol, 0.02, 1, 0.9, 1);
+            if (dist <= 4.2) {
+              // Submerged iceberg base below water surface so it looks thick and solid
+              pushVoxel(icePatchVoxels, gx + 0.5, -0.55, gz + 0.5, '#7dd3fc', 0.02, 1, 1.1, 1);
+            }
+            if (dist > 3.8 && ((gx * 3 + gz * 5) % 7 === 0)) {
+              pushVoxel(icePatchVoxels, gx + 0.5, 1.1, gz + 0.5, '#7dd3fc', 0.02, 0.7, 1.4, 0.7);
+            }
+          }
+        }
+      }
+      addCollider(2.8, -0.2, 0.8, 5.2, 0.22, 3.2, 'cirno_ice_patch');
+
+      // 9. YUYUKO'S HUGE WOVEN CATCH BASKET OVERFLOWING WITH FISH (gx -15..-11, gz 19..23, gy 3..7)
+      for (let gx = -15; gx <= -11; gx++) {
+        for (let gz = 19; gz <= 23; gz++) {
+          const r = Math.hypot(gx + 13, gz - 21);
+          if (r <= 2.6) {
+            for (let gy = 3; gy <= 6; gy++) {
+              if (gy > 4 && r < 1.6) {
+                if (gy === 6) {
+                  const fCol = ((gx + gz) % 2 === 0) ? '#fb8500' : '#38bdf8';
+                  pushVoxel(glossyWorldVoxels, gx + 0.5, gy + 0.6, gz + 0.5, fCol, 0.03, 0.8, 1.2, 0.8);
+                }
+                continue;
+              }
+              const weaveCol = ((gx + gy + gz) % 2 === 0) ? '#bc6c25' : '#dda15e';
+              pushVoxel(solidWorldVoxels, gx + 0.5, gy + 0.5, gz + 0.5, weaveCol, 0.03);
+            }
+          }
+        }
+      }
+      addCollider(-3.9, 0.8, 4.7, -2.6, 1.85, 5.9, 'yuyuko_basket');
+
+      // 10. WEEPING WILLOW TREES (With solid root bases anchored into the banks) & CATTAIL REEDS
+      const willowSpots = [
+        { cx: -28, cz: -30, trunkH: 18, baseY: 2 },
+        { cx: 32, cz: 2, trunkH: 16, baseY: 2 }
+      ];
+      willowSpots.forEach((tree) => {
+        for (let y = tree.baseY; y <= tree.baseY + tree.trunkH; y++) {
+          const leanX = Math.sin((y - tree.baseY) * 0.2) * 1.1;
+          const rootSpread = (y <= tree.baseY + 2) ? 2 : 1;
+          for (let dx = -rootSpread; dx <= rootSpread; dx++) {
+            for (let dz = -rootSpread; dz <= rootSpread; dz++) {
+              if (Math.hypot(dx, dz) > rootSpread + 0.3) continue;
+              pushVoxel(solidWorldVoxels, tree.cx + dx + leanX, y + 0.5, tree.cz + dz, '#5c3d28', 0.03);
+            }
+          }
+        }
+        const topY = tree.baseY + tree.trunkH;
+        for (let vx = -7; vx <= 7; vx++) {
+          for (let vz = -7; vz <= 7; vz++) {
+            const dist = Math.hypot(vx, vz);
+            if (dist <= 7.2) {
+              const domeY = topY + Math.round(Math.cos((dist / 7.5) * (Math.PI * 0.5)) * 4);
+              pushVoxel(solidWorldVoxels, tree.cx + vx, domeY, tree.cz + vz, '#65a30d', 0.04);
+              pushVoxel(solidWorldVoxels, tree.cx + vx, domeY - 1, tree.cz + vz, '#4d7c0f', 0.04);
+              if (dist >= 4.2 && ((Math.abs(vx * 3 + vz * 7)) % 3 === 0)) {
+                const vineLen = 5 + ((Math.abs(vx * 11 + vz * 5)) % 7);
+                for (let vy = 1; vy <= vineLen; vy++) {
+                  pushVoxel(solidWorldVoxels, tree.cx + vx, domeY - 1 - vy, tree.cz + vz, vy % 2 === 0 ? '#84cc16' : '#65a30d', 0.04, 0.75, 1, 0.75);
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // Cattail Reeds anchored all the way into the riverbed (-5..h)
+      const reedClusters = [
+        [-18, -14], [-18, -12], [-17, -15], [-18, 12], [-18, 14], [-13, 22], [-13, 24],
+        [28, -15], [28, -13], [28, 4], [28, 6], [-10, -23], [-8, -23]
+      ];
+      reedClusters.forEach(([rx, rz]) => {
+        const h = 6 + ((Math.abs(rx + rz)) % 4);
+        for (let y = -4; y <= h; y++) {
+          const isCattailHead = (y === h - 1 || y === h - 2);
+          const col = isCattailHead ? '#582f0e' : '#4d7c0f';
+          const thickness = isCattailHead ? 0.65 : 0.35;
+          pushVoxel(solidWorldVoxels, rx + 0.5, y + 0.5, rz + 0.5, col, 0.02, thickness, 1, thickness);
+        }
+      });
+    }
+
+    buildMountainRiverScene();
+
+    const worldGroup = new THREE.Group();
+    scene.add(worldGroup);
+
+    const solidWorldMesh = buildVoxelInstancedMesh(solidWorldVoxels, RV, terrainMaterial, true, true);
+    const glossyWorldMesh = buildVoxelInstancedMesh(glossyWorldVoxels, RV, glossyMaterial, true, true);
+    const lanternBulbMesh = buildVoxelInstancedMesh(lanternBulbVoxels, RV, lanternEmissiveMaterial, false, false);
+    const icePatchMesh = buildVoxelInstancedMesh(icePatchVoxels, RV, translucentIceMaterial, false, true);
+    const subsurfaceWaterMesh = buildVoxelInstancedMesh(subsurfaceWaterVoxels, RV, subsurfaceWaterMaterial, false, true);
+
+    if (solidWorldMesh) worldGroup.add(solidWorldMesh);
+    if (glossyWorldMesh) worldGroup.add(glossyWorldMesh);
+    if (lanternBulbMesh) worldGroup.add(lanternBulbMesh);
+    if (icePatchMesh) worldGroup.add(icePatchMesh);
+    if (subsurfaceWaterMesh) worldGroup.add(subsurfaceWaterMesh);
+
+    // ============================================================================
+    // 5. SEMI-TRANSPARENT ANIMATED WATER, WATERFALL, LILY PADS + FROGS & ROWBOAT
+    // ============================================================================
+    const waterSurfaceData = [];
+    for (let gx = -18; gx <= 35; gx++) {
+      for (let gz = -35; gz <= 35; gz++) {
+        if (getBankGridHeight(gx, gz) <= -4) {
+          if (gx % 2 === 0 && gz % 2 === 0) {
+            waterSurfaceData.push({
+              x: gx + 1.0,
+              baseY: -0.25,
+              z: gz + 1.0,
+              sx: 2.02, sy: 0.75, sz: 2.02,
+              isWaterfall: false,
+              phase: gx * 0.25 + gz * 0.25,
+              color: _varyColor('#38bdf8', gx, 0, gz, 0.025)
+            });
+          }
+        }
+      }
+    }
+
+    // Waterfall cascading stream blocks (gx 19..24, dropping from gy 22 down to 0)
+    for (let gx = 19; gx <= 24; gx++) {
+      for (let gy = 0; gy <= 22; gy++) {
+        const dropZ = -28 + (22 - gy) * 0.32;
+        const isFoam = (gy <= 2 || gy >= 20 || (gx + gy) % 3 === 0);
+        waterSurfaceData.push({
+          x: gx + 0.5,
+          baseY: gy + 0.5,
+          z: dropZ,
+          sx: 1.05, sy: 1.15, sz: 1.05,
+          isWaterfall: true,
+          phase: gy * 0.5 + gx * 0.7,
+          color: new THREE.Color(isFoam ? '#e0f2fe' : '#38bdf8')
+        });
+      }
+    }
+
+    const waterMesh = buildVoxelInstancedMesh(
+      waterSurfaceData.map(w => ({ x: w.x, y: w.baseY, z: w.z, sx: w.sx, sy: w.sy, sz: w.sz, color: w.color })),
+      RV,
+      waterMaterial,
+      false,
+      true
+    );
+    worldGroup.add(waterMesh);
+    waterMesh.userData.isWater = true;
+
+    const waterHitPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(20, 20),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    waterHitPlane.rotation.x = -Math.PI / 2;
+    waterHitPlane.position.set(1.5, WATER_SURFACE_Y, 0.5);
+    waterHitPlane.userData.isWater = true;
+    scene.add(waterHitPlane);
+
+    // 5B. Lily Pads with a Voxel Frog on Every Single Lily Pad!
+    const lilyPads = [];
+    const lilyPadCoords = [
+      { x: -1.8, z: -2.2, yaw: 0.4 },
+      { x: 1.4,  z: -1.6, yaw: 1.8 },
+      { x: -0.8, z: 5.8,  yaw: -0.7 },
+      { x: 5.8,  z: -1.8, yaw: 2.4 },
+      { x: 6.4,  z: 5.4,  yaw: -1.2 }
+    ];
+
+    lilyPadCoords.forEach((lp, idx) => {
+      const group = new THREE.Group();
+      group.position.set(lp.x, WATER_SURFACE_Y + 0.03, lp.z);
+      group.rotation.y = lp.yaw;
+
+      const padVoxels = [];
+      const frogVoxels = [];
+      const U = 0.11;
+
+      for (let x = -4; x <= 4; x++) {
+        for (let z = -4; z <= 4; z++) {
+          const r = Math.hypot(x, z);
+          if (r <= 4.2 && !(x > 0 && Math.abs(z) <= 1 && x >= 2)) {
+            padVoxels.push({
+              x, y: 0, z,
+              color: _varyColor(r > 3.2 ? '#4d7c0f' : '#65a30d', x, idx, z, 0.03),
+              sx: 1, sy: 0.55, sz: 1
+            });
+          }
+        }
+      }
+      if (idx % 2 === 0) {
+        padVoxels.push({ x: -2, y: 0.5, z: -2, color: new THREE.Color('#f472b6'), sx: 1.3, sy: 0.8, sz: 1.3 });
+        padVoxels.push({ x: -2, y: 1.0, z: -2, color: new THREE.Color('#fef08a'), sx: 0.6, sy: 0.6, sz: 0.6 });
+      }
+
+      for (let fx = -1; fx <= 1; fx++) {
+        for (let fz = -1; fz <= 1; fz++) {
+          frogVoxels.push({ x: fx * 0.8, y: 0.7, z: fz * 0.9, color: _varyColor('#4ade80', fx, 1, fz, 0.02) });
+        }
+      }
+      frogVoxels.push({ x: 0, y: 0.65, z: 1.2, color: new THREE.Color('#fef9c3'), sx: 1.2, sy: 0.9, sz: 0.6 });
+      for (const side of [-1, 1]) {
+        frogVoxels.push({ x: side * 0.85, y: 1.55, z: 0.7, color: new THREE.Color('#22c55e'), sx: 0.75, sy: 0.75, sz: 0.75 });
+        frogVoxels.push({ x: side * 0.85, y: 1.65, z: 1.05, color: new THREE.Color('#0f172a'), sx: 0.45, sy: 0.45, sz: 0.45 });
+      }
+
+      const padMesh = buildVoxelInstancedMesh(padVoxels, U, terrainMaterial, true, true);
+      const frogGroup = new THREE.Group();
+      const frogMesh = buildVoxelInstancedMesh(frogVoxels, U, plushMaterial, true, true);
+      if (padMesh) group.add(padMesh);
+      if (frogMesh) frogGroup.add(frogMesh);
+      group.add(frogGroup);
+      scene.add(group);
+
+      lilyPads.push({
+        group,
+        frogGroup,
+        baseX: lp.x,
+        baseZ: lp.z,
+        phase: idx * 1.3,
+        hopTimer: 0
+      });
+    });
+
+    // 5C. Gently Bobbing Wooden Rowboat (at X = 2.2, Z = 6.2)
+    const rowboatGroup = new THREE.Group();
+    rowboatGroup.position.set(2.2, WATER_SURFACE_Y + 0.08, 6.2);
+    rowboatGroup.rotation.y = -0.35;
+    scene.add(rowboatGroup);
+
+    (function buildVoxelRowboat() {
+      const boatVoxels = [];
+      const BU = 0.16;
+      for (let x = -5; x <= 5; x++) {
+        const halfW = Math.max(1, Math.round((1 - Math.pow(x / 6, 2)) * 3.2));
+        for (let z = -halfW; z <= halfW; z++) {
+          boatVoxels.push({ x, y: -1, z, color: _varyColor('#4a2f1b', x, -1, z, 0.02) }); // Submerged hull keel
+          boatVoxels.push({ x, y: 0, z, color: _varyColor('#6e472b', x, 0, z, 0.03) });
+          if (Math.abs(z) === halfW || Math.abs(x) === 5) {
+            boatVoxels.push({ x, y: 1, z, color: _varyColor('#8d5b3a', x, 1, z, 0.03) });
+            boatVoxels.push({ x, y: 2, z, color: _varyColor('#a9714b', x, 2, z, 0.03) });
+          } else if (x === -2 || x === 2) {
+            boatVoxels.push({ x, y: 1, z, color: _varyColor('#9c6644', x, 1, z, 0.02) });
+          }
+        }
+      }
+      for (const side of [-1, 1]) {
+        for (let o = -3; o <= 4; o++) {
+          boatVoxels.push({ x: o * 0.6, y: 2.3, z: side * (3.2 + o * 0.35), color: new THREE.Color('#d4a373'), sx: 0.8, sy: 0.4, sz: 0.8 });
+        }
+      }
+      const boatMesh = buildVoxelInstancedMesh(boatVoxels, BU, terrainMaterial, true, true);
+      if (boatMesh) rowboatGroup.add(boatMesh);
+      addCollider(1.1, -0.2, 5.2, 3.3, 0.48, 7.2, 'wooden_rowboat');
+    })();
+
+    // ============================================================================
+    // 6. UNDERWATER VOXEL FISH SCHOOLS, RARE GOLDEN CARP & GIANT CATFISH SHADOW
+    // ============================================================================
+    const FISH_SPECIES = [
+      { id: 'brook_trout', name: 'Misty Brook Trout', emoji: '🐟', color: '#38bdf8', finColor: '#bae6fd', rarity: 'Common', time: 'Any', minScale: 0.9 },
+      { id: 'sakura_dace', name: 'Sakura Cherry Dace', emoji: '🌸', color: '#f472b6', finColor: '#fbcfe8', rarity: 'Common', time: 'Any', minScale: 0.85 },
+      { id: 'kappa_perch', name: 'Cucumber Perch', emoji: '🥒', color: '#4ade80', finColor: '#bef264', rarity: 'Common', time: 'Any', minScale: 0.95 },
+      { id: 'calico_koi', name: 'Gensokyo Calico Koi', emoji: '🎏', color: '#fb923c', finColor: '#ffffff', rarity: 'Uncommon', time: 'Any', minScale: 1.1 },
+      { id: 'lunar_jelly', name: 'Moonlit Jellytetra', emoji: '🪼', color: '#c084fc', finColor: '#e9d5ff', rarity: 'Rare (Night)', time: 'Night/Dusk', minScale: 1.0, glows: true },
+      { id: 'golden_carp', name: 'Rare Golden Dragon Carp', emoji: '✨', color: '#facc15', finColor: '#fef08a', rarity: 'Legendary (Dusk)', time: 'Dusk/Night', minScale: 1.35, glows: true },
+      { id: 'giant_catfish', name: 'Giant Namazu Catfish', emoji: '🐋', color: '#334155', finColor: '#64748b', rarity: 'Mythic Boss', time: 'Any', minScale: 1.8 },
+      { id: 'old_boot', name: 'Sunken Leather Boot', emoji: '🥾', color: '#78350f', finColor: '#451a03', rarity: 'Treasure?', time: 'Any', minScale: 1.0 }
+    ];
+
+    const swimmingFish = [];
+    const fishGroup = new THREE.Group();
+    scene.add(fishGroup);
+
+    function createVoxelFishMesh(species, customScale = 1.0) {
+      const fVoxels = [];
+      const U = 0.065 * (species.minScale || 1.0) * customScale;
+      const mat = species.glows ? glowingFishMaterial : glossyMaterial;
+
+      for (let z = -2; z <= 2; z++) {
+        const h = (z === -2 || z === 2) ? 1 : 2;
+        for (let y = -h * 0.5; y <= h * 0.5; y++) {
+          fVoxels.push({ x: 0, y, z, color: _varyColor(species.color, 0, y, z, 0.03) });
+        }
+      }
+      fVoxels.push({ x: 0.65, y: 0.2, z: 1.8, color: new THREE.Color('#0f172a'), sx: 0.4, sy: 0.4, sz: 0.4 });
+      fVoxels.push({ x: -0.65, y: 0.2, z: 1.8, color: new THREE.Color('#0f172a'), sx: 0.4, sy: 0.4, sz: 0.4 });
+      fVoxels.push({ x: 0, y: 1.2, z: 0, color: new THREE.Color(species.finColor), sx: 0.4, sy: 0.8, sz: 1.2 });
+      fVoxels.push({ x: 0, y: 0.6, z: -3.0, color: new THREE.Color(species.finColor), sx: 0.35, sy: 1.1, sz: 0.9 });
+      fVoxels.push({ x: 0, y: -0.6, z: -3.0, color: new THREE.Color(species.finColor), sx: 0.35, sy: 1.1, sz: 0.9 });
+
+      return buildVoxelInstancedMesh(fVoxels, U, mat, false, false);
+    }
+
+    for (let i = 0; i < 18; i++) {
+      const spIdx = (i === 0) ? 5 : (i % 5);
+      const sp = FISH_SPECIES[spIdx];
+      const mesh = createVoxelFishMesh(sp, 0.9 + (i % 3) * 0.15);
+      fishGroup.add(mesh);
+
+      swimmingFish.push({
+        species: sp,
+        mesh,
+        cx: 1.5 + ((i % 4) - 1.5) * 2.2,
+        cz: 0.5 + (Math.floor(i / 4) - 1.5) * 2.0,
+        radius: 1.2 + (i % 4) * 0.65,
+        depth: -0.35 - (i % 3) * 0.22,
+        angle: (i / 18) * Math.PI * 2,
+        speed: 0.55 + (i % 5) * 0.15,
+        wigglePhase: i * 1.1
+      });
+    }
+
+    const giantCatfishMesh = createVoxelFishMesh(FISH_SPECIES[6], 2.1);
+    fishGroup.add(giantCatfishMesh);
+
+    function updateSwimmingFish(time, dt) {
+      for (let i = 0; i < swimmingFish.length; i++) {
+        const f = swimmingFish[i];
+        f.angle += f.speed * dt * 0.65;
+        let tx = f.cx + Math.cos(f.angle) * f.radius;
+        let tz = f.cz + Math.sin(f.angle * 1.3) * f.radius;
+
+        if (fishingState.phase === 'waiting' || fishingState.phase === 'bite') {
+          const distToBobber = Math.hypot(tx - fishingState.bobberPos.x, tz - fishingState.bobberPos.z);
+          if (distToBobber < 3.2) {
+            tx = THREE.MathUtils.lerp(tx, fishingState.bobberPos.x + Math.cos(time * 3 + i) * 0.45, 0.45);
+            tz = THREE.MathUtils.lerp(tz, fishingState.bobberPos.z + Math.sin(time * 3 + i) * 0.45, 0.45);
+          }
+        }
+
+        const dx = tx - f.mesh.position.x;
+        const dz = tz - f.mesh.position.z;
+        f.mesh.position.set(tx, f.depth + Math.sin(time * 2 + f.wigglePhase) * 0.05, tz);
+        if (Math.hypot(dx, dz) > 0.001) {
+          const targetYaw = Math.atan2(dx, dz);
+          f.mesh.rotation.y = targetYaw + Math.sin(time * 9.0 + f.wigglePhase) * 0.16;
+        }
+      }
+
+      const catX = 2.0 + Math.sin(time * 0.38) * 4.2;
+      const catZ = 0.8 + Math.sin(time * 0.76) * 3.6;
+      const catDx = Math.cos(time * 0.38) * 4.2 * 0.38;
+      const catDz = Math.cos(time * 0.76) * 3.6 * 0.76;
+      giantCatfishMesh.position.set(catX, POND_FLOOR_Y + 0.32, catZ);
+      giantCatfishMesh.rotation.y = Math.atan2(catDx, catDz) + Math.sin(time * 4.5) * 0.1;
+    }
+
+    // ============================================================================
+    // 7. DRAGONFLIES (DAY), FIREFLIES (NIGHT), RIPPLES & POP PARTICLES
+    // ============================================================================
+    const CRITTERS_COUNT = 28;
+    const critterData = [];
+    const critterGeom = new THREE.BoxGeometry(0.11, 0.06, 0.16);
+    const critterMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+    const critterMesh = new THREE.InstancedMesh(critterGeom, critterMat, CRITTERS_COUNT);
+    for (let i = 0; i < CRITTERS_COUNT; i++) {
+      critterData.push({
+        cx: -6 + Math.random() * 14,
+        cy: 0.6 + Math.random() * 3.5,
+        cz: -6 + Math.random() * 14,
+        phase: Math.random() * Math.PI * 2,
+        speed: 1.2 + Math.random() * 1.5,
+        radius: 0.8 + Math.random() * 2.2
+      });
+    }
+    scene.add(critterMesh);
+
+    function updateCritters(time, nightFactor) {
+      for (let i = 0; i < CRITTERS_COUNT; i++) {
+        const c = critterData[i];
+        const t = time * c.speed + c.phase;
+        const x = c.cx + Math.cos(t) * c.radius;
+        const y = c.cy + Math.sin(t * 1.7) * 0.35;
+        const z = c.cz + Math.sin(t * 0.9) * c.radius;
+        tempPos.set(x, y, z);
+        tempEuler.set(0, -t, Math.sin(time * 18 + i) * 0.25);
+        tempQuat.setFromEuler(tempEuler);
+
+        const pulse = nightFactor > 0.4
+          ? (0.5 + 0.6 * Math.max(0, Math.sin(time * 3.5 + c.phase)))
+          : 1.0;
+        tempScale.set(pulse, pulse, pulse);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        critterMesh.setMatrixAt(i, tempMatrix);
+
+        if (nightFactor > 0.45) {
+          _tempCol.set(i % 3 === 0 ? '#fde047' : '#a3e635');
+        } else {
+          _tempCol.set(i % 2 === 0 ? '#38bdf8' : '#fb7185');
+        }
+        critterMesh.setColorAt(i, _tempCol);
+      }
+      critterMesh.instanceMatrix.needsUpdate = true;
+      if (critterMesh.instanceColor) critterMesh.instanceColor.needsUpdate = true;
+    }
+
+    const RIPPLE_MAX = 24;
+    const ripples = [];
+    const rippleGeom = new THREE.RingGeometry(0.18, 0.26, 16);
+    rippleGeom.rotateX(-Math.PI / 2);
+    const rippleMat = new THREE.MeshBasicMaterial({
+      color: 0xe0f2fe,
+      transparent: true,
+      opacity: 0.7,
+      side: THREE.DoubleSide
+    });
+    const rippleInstanced = new THREE.InstancedMesh(rippleGeom, rippleMat, RIPPLE_MAX);
+    for (let i = 0; i < RIPPLE_MAX; i++) {
+      ripples.push({ active: false, pos: new THREE.Vector3(), life: 0, maxLife: 1.0, maxScale: 3.0 });
+      tempMatrix.makeScale(0, 0, 0);
+      rippleInstanced.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(rippleInstanced);
+
+    function spawnWaterRipple(wx, wz, maxScale = 3.2) {
+      for (let i = 0; i < RIPPLE_MAX; i++) {
+        const r = ripples[i];
+        if (!r.active) {
+          r.active = true;
+          r.life = 0;
+          r.maxLife = 0.85;
+          r.maxScale = maxScale;
+          r.pos.set(wx, WATER_SURFACE_Y + 0.04, wz);
+          break;
+        }
+      }
+      lilyPads.forEach(lp => {
+        if (Math.hypot(lp.baseX - wx, lp.baseZ - wz) < 3.5) {
+          lp.hopTimer = 0.42;
+        }
+      });
+    }
+
+    function updateWaterRipples(dt) {
+      let dirty = false;
+      for (let i = 0; i < RIPPLE_MAX; i++) {
+        const r = ripples[i];
+        if (!r.active) continue;
+        dirty = true;
+        r.life += dt;
+        if (r.life >= r.maxLife) {
+          r.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          rippleInstanced.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        const prog = r.life / r.maxLife;
+        const s = 0.3 + prog * r.maxScale;
+        tempQuat.identity();
+        tempScale.set(s, 1, s * (1 - prog * 0.1));
+        tempMatrix.compose(r.pos, tempQuat, tempScale);
+        rippleInstanced.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) rippleInstanced.instanceMatrix.needsUpdate = true;
+    }
+
+    const POP_MAX = 64;
+    const popParticles = [];
+    const popGeom = new THREE.BoxGeometry(0.11, 0.11, 0.11);
+    const popMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const popMesh = new THREE.InstancedMesh(popGeom, popMat, POP_MAX);
+    for (let i = 0; i < POP_MAX; i++) {
+      popParticles.push({ active: false, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, maxLife: 1, color: new THREE.Color('#ff85a1') });
+      tempMatrix.makeScale(0, 0, 0);
+      popMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(popMesh);
+
+    function spawnBurstParticles(origin, palette, count = 12, upwardBoost = 2.6) {
+      let spawned = 0;
+      for (let i = 0; i < POP_MAX && spawned < count; i++) {
+        const p = popParticles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.45 + Math.random() * 0.25;
+          p.pos.copy(origin).add(new THREE.Vector3(0, 0.5, 0));
+          const angle = (spawned / count) * Math.PI * 2 + Math.random() * 0.3;
+          const speed = 1.8 + Math.random() * 2.2;
+          p.vel.set(Math.cos(angle) * speed, upwardBoost + Math.random() * 2.2, Math.sin(angle) * speed);
+          p.color.set(palette[spawned % palette.length]);
+          popMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (popMesh.instanceColor) popMesh.instanceColor.needsUpdate = true;
+    }
+
+    function updatePopParticles(dt) {
+      let dirty = false;
+      for (let i = 0; i < POP_MAX; i++) {
+        const p = popParticles[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          popMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= 8.5 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const s = 1.0 - (p.life / p.maxLife);
+        tempEuler.set(p.life * 8, p.life * 6, 0);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        popMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) popMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 8. TOUHOU FUMO VOXEL PLUSHIE BUILDER & SOFT-BODY + WATER BUOYANCY PHYSICS
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const fumos = [];
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.emoji = config.emoji || '🎀';
+        this.accentColor = config.accentColor || '#ef4444';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.082 * this.scaleFactor;
+        this.radius = 0.85 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+        this.isSleeping = Boolean(config.isSleeping);
+        this.followsRowboat = Boolean(config.followsRowboat);
+
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isFloatingInPond = false;
+        this.isDragged = false;
+
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        this.buildCharacterVoxels(config);
+        this.syncTransform(0);
+        scene.add(this.root);
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingSolidVoxels = [];
+        const wingGlowVoxels = [];
+
+        const skinBase = '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false, sx = 1, sy = 1, sz = 1) => {
+          const seamDarken = (isSeam && ((Math.abs(x + y + z) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z, sx, sy, sz,
+            color: _varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // 1. STUBBY SITTING TORSO
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain;
+
+              if (y === 1 && z >= 1) col = '#ffffff';
+              if (cfg.hasWhiteApron && z >= 1 && Math.abs(x) <= 2 && y <= 5) {
+                col = '#fcfcfc';
+              }
+              if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                col = '#ffffff';
+                if (Math.abs(x) <= 1 && y === 5) col = cfg.tieColor || '#ef4444';
+              }
+              if (this.id === 'yuyuko' && z >= 2 && x === 0 && y >= 2 && y <= 5) {
+                col = '#fbcfe8';
+              }
+
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        // 2. SHORT DANGLING ARMS
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || '#ffffff';
+                if (y === -3) col = skinBase;
+                else if (this.id === 'reimu' && y === -1) col = '#e63946';
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        // 3. SHORT SITTING / DANGLING LEGS WITH SHOES
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = '#ffffff';
+                if (z === 0) col = skinBase;
+                if (z >= 3) col = cfg.shoeColor || '#2b2d42';
+                if (z === 4 && y === 1 && x === 0) col = '#ffffff';
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        // 4. OVERSIZED ROUND FUMO HEAD & ICONIC 'ᗜˬᗜ' FACE
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (this.isSleeping) {
+                    col = (y === 5) ? '#1f141e' : skinBase;
+                  } else if (y === 6) {
+                    col = '#1f141e';
+                  } else if (y === 5 && Math.abs(x) === 2) {
+                    col = '#ffffff';
+                  } else {
+                    if (this.id === 'kogasa') {
+                      col = (x < 0) ? '#e11d48' : '#0284c7';
+                    } else {
+                      col = cfg.eyeColor;
+                    }
+                  }
+                } else if (Math.abs(x) === 4 && y === 3) {
+                  col = blushCol;
+                } else if (y === 2 && Math.abs(x) <= 1) {
+                  col = (x === 0) ? '#e07a7a' : smileCol;
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        // 5. CHARACTER-SPECIFIC HATS, ACCESSORIES, PROPS & UNEXPECTED SPOTS
+        if (this.id === 'nitori') {
+          for (const side of [-1, 1]) {
+            addPlushVoxel(headVoxels, side * 6.5, 4, 1.5, '#facc15', false, 1.2, 1.2, 1.2);
+            for (let py = 0; py <= 3; py++) {
+              addPlushVoxel(headVoxels, side * 7.2, py, 1.5, cfg.hairColor);
+            }
+          }
+          for (let hx = -6; hx <= 6; hx++) {
+            for (let hz = -6; hz <= 7; hz++) {
+              const r = Math.hypot(hx, hz - 0.5);
+              if (r <= 6.5) {
+                const isVisor = (hz >= 5);
+                addPlushVoxel(headVoxels, hx, isVisor ? 10.2 : 11.2, hz, isVisor ? '#15803d' : '#22c55e');
+                if (!isVisor && r <= 5.2) addPlushVoxel(headVoxels, hx, 12.1, hz, '#4ade80');
+              }
+            }
+          }
+          for (let bx = -3; bx <= 3; bx++) {
+            for (let by = -2; by <= 3; by++) {
+              for (let bz = -3; bz <= 0; bz++) {
+                const packCol = (by === 2) ? '#eab308' : ((Math.abs(bx) === 3) ? '#15803d' : '#16a34a');
+                wingSolidVoxels.push({ x: bx, y: by, z: bz, color: _varyColor(packCol, bx, by, bz, 0.03) });
+              }
+            }
+          }
+          wingSolidVoxels.push({ x: 2.5, y: 4.2, z: -1.5, color: new THREE.Color('#94a3b8'), sx: 0.7, sy: 1.8, sz: 0.7 });
+          wingSolidVoxels.push({ x: -2.2, y: 4.0, z: -1.5, color: new THREE.Color('#15803d'), sx: 0.8, sy: 1.6, sz: 0.8 });
+        }
+
+        if (this.id === 'reimu') {
+          for (const side of [-1, 1]) {
+            for (let y = -1; y <= 5; y++) {
+              const tubeCol = (y === 5) ? '#e63946' : ((y >= 1 && y <= 4) ? '#ffffff' : cfg.hairColor);
+              addPlushVoxel(headVoxels, side * 6.8, y, 2.2, tubeCol);
+              addPlushVoxel(headVoxels, side * 6.8, y, 3.0, tubeCol);
+            }
+          }
+          for (let bx = -7; bx <= 7; bx++) {
+            const wingHeight = Math.min(4, Math.floor(Math.abs(bx) * 0.7) + 1);
+            for (let by = -wingHeight; by <= wingHeight; by++) {
+              addPlushVoxel(headVoxels, bx, 12.2 + by * 0.75, -1.5 - Math.abs(bx) * 0.15, '#d90429');
+            }
+          }
+        }
+
+        if (this.id === 'marisa') {
+          for (let y = -1; y <= 5; y++) {
+            addPlushVoxel(headVoxels, -6.6, y, 2.8, y === 0 ? '#ffffff' : cfg.hairColor);
+          }
+          for (let hx = -10; hx <= 10; hx++) {
+            for (let hz = -10; hz <= 10; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 10.2 && r >= 4.2) {
+                const brimY = 10.2 - hz * 0.22 + Math.sin(Math.atan2(hz, hx) * 4) * 0.4;
+                addPlushVoxel(headVoxels, hx, brimY, hz - 1.2, '#22222b');
+              }
+            }
+          }
+          for (let ch = 0; ch <= 9; ch++) {
+            const coneR = Math.max(0.8, 5.2 - ch * 0.52);
+            for (let hx = -6; hx <= 6; hx++) {
+              for (let hz = -6; hz <= 6; hz++) {
+                const r = Math.hypot(hx, hz);
+                if (r <= coneR && r >= coneR - 1.3) {
+                  const isRibbon = (ch === 1 || ch === 2);
+                  addPlushVoxel(headVoxels, hx, 10.8 + ch * 0.9 - hz * 0.18, hz - 1.5 - ch * 0.28, isRibbon ? '#f8f9fa' : '#22222b');
+                }
+              }
+            }
+          }
+          for (let bx = -3; bx <= 3; bx++) {
+            addPlushVoxel(headVoxels, bx, 11.8, 3.8, '#ffffff');
+            if (Math.abs(bx) >= 1) addPlushVoxel(headVoxels, bx, 12.6, 3.8, '#ffffff');
+          }
+          for (let hx = -1; hx <= 1; hx++) {
+            for (let hy = -1; hy <= 1; hy++) {
+              const isCore = (hx === 0 && hy === 0);
+              addPlushVoxel(rightArmVoxels, 0.8 + hx * 0.7, -3.2 + hy * 0.7, 2.2, isCore ? '#38bdf8' : '#eab308');
+            }
+          }
+        }
+
+        if (this.id === 'cirno') {
+          for (let bx = -6; bx <= 6; bx++) {
+            const h = Math.min(3, Math.floor(Math.abs(bx) * 0.65) + 1);
+            for (let by = -h; by <= h; by++) {
+              addPlushVoxel(headVoxels, bx, 10.5 + by * 0.75, -4.8, '#1d4ed8');
+            }
+          }
+          const wingAngles = [0.45, 0.05, -0.35];
+          for (const side of [-1, 1]) {
+            for (let w = 0; w < 3; w++) {
+              const ang = wingAngles[w];
+              for (let r = 1; r <= 7; r++) {
+                const wx = side * (1.2 + Math.cos(ang) * r * 1.05);
+                const wy = 1.0 + Math.sin(ang) * r * 1.05;
+                const wz = -0.5 - r * 0.15;
+                wingGlowVoxels.push({
+                  x: wx, y: wy, z: wz,
+                  color: _varyColor(r > 5 ? '#e0f2fe' : '#38bdf8', wx, wy, wz, 0.02),
+                  sx: 1.1, sy: 0.85, sz: 0.6
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'kogasa') {
+          for (let uy = -3; uy <= 11; uy++) {
+            addPlushVoxel(leftArmVoxels, -1.8, uy, 2.2, '#a16207', false, 0.55, 1, 0.55);
+          }
+          for (let ux = -4; ux <= 4; ux++) {
+            for (let uz = -4; uz <= 4; uz++) {
+              const r = Math.hypot(ux, uz);
+              if (r <= 4.4) {
+                const canopyY = 11.5 - r * 0.35;
+                let uCol = '#9333ea';
+                if (uz >= 2 && Math.abs(ux) <= 1 && r <= 3.2) uCol = (ux === 0 && uz === 3) ? '#0f172a' : '#ffffff';
+                addPlushVoxel(leftArmVoxels, -1.8 + ux * 0.8, canopyY, 2.2 + uz * 0.8, uCol);
+              }
+            }
+          }
+          addPlushVoxel(leftArmVoxels, -1.8, 9.2, 5.2, '#f43f5e', false, 1.1, 1.6, 0.7);
+        }
+
+        if (this.id === 'yuyuko') {
+          for (let hx = -6; hx <= 6; hx++) {
+            for (let hz = -6; hz <= 5; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.4 && r >= 4.2) {
+                addPlushVoxel(headVoxels, hx, 11.2, hz, '#bae6fd');
+                if (r <= 5.4) addPlushVoxel(headVoxels, hx, 12.1, hz, '#e0f2fe');
+              }
+            }
+          }
+          for (let tx = -2; tx <= 2; tx++) {
+            addPlushVoxel(headVoxels, tx, 11.5 + (2 - Math.abs(tx)) * 0.5, 5.2, '#ffffff');
+            if (tx === 0) addPlushVoxel(headVoxels, 0, 12.0, 5.5, '#38bdf8');
+          }
+        }
+
+        if (this.id === 'chen_fish') {
+          for (const side of [-1, 1]) {
+            addPlushVoxel(headVoxels, side * 4.8, 11.2, 1.0, '#3f2e21');
+            addPlushVoxel(headVoxels, side * 4.8, 12.2, 1.0, '#3f2e21');
+          }
+          for (let hx = -5; hx <= 5; hx++) {
+            for (let hz = -5; hz <= 4; hz++) {
+              if (Math.hypot(hx, hz) <= 5.4) {
+                addPlushVoxel(headVoxels, hx, 11.0, hz, '#15803d');
+              }
+            }
+          }
+          for (let fx = -4; fx <= 4; fx++) {
+            const fy = 13.0 + Math.abs(fx) * 0.12;
+            const fCol = (fx >= 2) ? '#64748b' : (Math.abs(fx) <= 1 ? '#fb8500' : '#f97316');
+            addPlushVoxel(headVoxels, fx, fy, 0.5, fCol, false, 1.0, 1.25, 1.4);
+          }
+          addPlushVoxel(headVoxels, -5.0, 13.8, 0.5, '#fb8500', false, 0.8, 1.6, 0.7);
+          addPlushVoxel(headVoxels, -5.0, 12.4, 0.5, '#fb8500', false, 0.8, 1.6, 0.7);
+        }
+
+        if (this.id === 'komachi_boat') {
+          for (const side of [-1, 1]) {
+            addPlushVoxel(headVoxels, side * 6.2, 8.5, 1.5, '#eab308', false, 1.2, 1.2, 1.2);
+          }
+          wingGlowVoxels.push({ x: 3.5, y: 10.5, z: 3.5, color: new THREE.Color('#e0f2fe'), sx: 0.9, sy: 0.9, sz: 0.4 });
+          wingGlowVoxels.push({ x: 5.0, y: 12.2, z: 3.5, color: new THREE.Color('#bae6fd'), sx: 1.2, sy: 1.2, sz: 0.4 });
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allFumoRaycastMeshes.push(m);
+          }
+          return m;
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        registerPart(wingSolidVoxels, this.wingsPivot);
+        if (wingGlowVoxels.length > 0) {
+          registerPart(wingGlowVoxels, this.wingsPivot, translucentIceMaterial);
+        }
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.52, this.squash - 0.42 * strength);
+        this.squashVel = -3.5 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 11 * strength;
+        this.limbPitch = -0.65 * strength;
+        this.limbPitchVel = -6.0 * strength;
+        spawnBurstParticles(this.pos, [this.accentColor, '#ff85a1', '#fde047', '#ffffff'], 12, 2.5);
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      resetToHome() {
+        this.pos.copy(this.homePos);
+        this.vel.set(0, 0, 0);
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.isFloatingInPond = false;
+        this.isDragged = false;
+        this.squeeze(0.75);
+      }
+
+      updatePhysics(dt, time) {
+        const squashStiff = 210.0;
+        const squashDamp = 11.5;
+        const squashForce = (1.0 - this.squash) * squashStiff - this.squashVel * squashDamp;
+        this.squashVel += squashForce * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash + this.squashVel * dt, 0.45, 1.55);
+
+        const headStiff = 140.0;
+        const headDamp = 7.5;
+        const idleHeadBob = Math.sin(time * 2.2 + this.homePos.x) * (this.isSleeping ? 0.06 : 0.025);
+        this.headPitchVel += ((idleHeadBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        const targetLimbPitch = (this.isDragged || (!this.isGrounded && !this.isFloatingInPond)) ? 0.58 : 0.0;
+        const limbStiff = 120.0;
+        const limbDamp = 8.0;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * limbStiff - this.limbPitchVel * limbDamp) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * limbStiff - this.limbRollVel * limbDamp) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.8, 0.9);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+
+        if (!this.isDragged) {
+          if (this.followsRowboat && this.pos.distanceTo(this.homePos) < 0.7 && this.vel.lengthSq() < 0.2) {
+            this.pos.x = rowboatGroup.position.x;
+            this.pos.z = rowboatGroup.position.z;
+            this.pos.y = rowboatGroup.position.y + 0.16;
+            this.roll = rowboatGroup.rotation.z;
+            this.pitch = rowboatGroup.rotation.x;
+            this.isGrounded = true;
+            this.syncTransform(time);
+            return;
+          }
+
+          this.vel.y -= 24.0 * dt;
+          this.vel.multiplyScalar(Math.pow(0.985, dt * 60));
+
+          const prevY = this.pos.y;
+          this.pos.addScaledVector(this.vel, dt);
+
+          this.yaw += this.angVel.y * dt;
+          this.pitch += this.angVel.x * dt;
+          this.roll += this.angVel.z * dt;
+          this.angVel.multiplyScalar(Math.pow(0.92, dt * 60));
+
+          this.isGrounded = false;
+          this.isFloatingInPond = false;
+
+          const r = this.radius * 0.72;
+          const centerY = this.pos.y + r;
+
+          for (let i = 0; i < furnitureColliders.length; i++) {
+            const box = furnitureColliders[i];
+            const cx = THREE.MathUtils.clamp(this.pos.x, box.min.x, box.max.x);
+            const cy = THREE.MathUtils.clamp(centerY, box.min.y, box.max.y);
+            const cz = THREE.MathUtils.clamp(this.pos.z, box.min.z, box.max.z);
+
+            const dx = this.pos.x - cx;
+            const dy = centerY - cy;
+            const dz = this.pos.z - cz;
+            const distSq = dx * dx + dy * dy + dz * dz;
+
+            if (distSq < r * r) {
+              const dist = Math.sqrt(distSq);
+              if (centerY >= box.max.y - 0.28 && this.vel.y <= 0.6) {
+                const impact = -this.vel.y;
+                this.pos.y = box.max.y;
+                if (impact > 2.2) {
+                  this.vel.y = impact * 0.36;
+                  this.squashVel -= Math.min(8.5, impact * 0.85);
+                  this.headPitchVel += (Math.random() - 0.5) * impact * 1.8;
+                  soundFX.playBounce(impact * 0.08);
+                } else {
+                  this.vel.y = 0;
+                  this.isGrounded = true;
+                }
+                this.vel.x *= 0.80;
+                this.vel.z *= 0.80;
+              } else if (dist > 0.0001) {
+                const nx = dx / dist;
+                const ny = dy / dist;
+                const nz = dz / dist;
+                const pen = r - dist;
+                this.pos.x += nx * pen;
+                this.pos.y += ny * pen;
+                this.pos.z += nz * pen;
+
+                const vn = this.vel.x * nx + this.vel.y * ny + this.vel.z * nz;
+                if (vn < 0) {
+                  const imp = -vn;
+                  this.vel.x -= 1.38 * vn * nx;
+                  this.vel.y -= 1.38 * vn * ny;
+                  this.vel.z -= 1.38 * vn * nz;
+                  if (imp > 2.0) {
+                    this.squashVel -= Math.min(6.0, imp * 0.55);
+                    soundFX.playBounce(imp * 0.06);
+                  }
+                }
+              }
+            }
+          }
+
+          if (!this.isGrounded && isPointInPond(this.pos.x, this.pos.z)) {
+            const floatTargetY = WATER_SURFACE_Y - 0.14 + Math.sin(time * 2.8 + this.homePos.x) * 0.06;
+            if (prevY > WATER_SURFACE_Y + 0.05 && this.pos.y <= WATER_SURFACE_Y + 0.05 && this.vel.y < -1.5) {
+              const splashPower = Math.min(2.0, -this.vel.y * 0.15);
+              spawnWaterRipple(this.pos.x, this.pos.z, 2.8 + splashPower);
+              spawnBurstParticles(
+                new THREE.Vector3(this.pos.x, WATER_SURFACE_Y, this.pos.z),
+                ['#e0f2fe', '#7dd3fc', '#38bdf8', '#ffffff'],
+                14,
+                2.2 + splashPower
+              );
+              soundFX.playWaterSplash(splashPower);
+              this.squashVel -= Math.min(7.5, -this.vel.y * 0.6);
+            }
+
+            if (this.pos.y < floatTargetY + 0.25) {
+              this.isFloatingInPond = true;
+              const depth = floatTargetY - this.pos.y;
+              this.vel.y += (depth * 42.0 + 24.0) * dt;
+              this.vel.y *= Math.pow(0.86, dt * 60);
+              this.vel.x *= Math.pow(0.91, dt * 60);
+              this.vel.z *= Math.pow(0.91, dt * 60);
+
+              if (Math.random() < dt * 1.4) {
+                spawnWaterRipple(this.pos.x, this.pos.z, 1.4);
+              }
+            }
+          }
+
+          if (this.pos.y < POND_FLOOR_Y) {
+            this.pos.y = POND_FLOOR_Y;
+            this.vel.y = 0;
+            this.isGrounded = true;
+          }
+
+          const minBound = -8.9;
+          const maxBound = 8.9;
+          if (this.pos.x < minBound) { this.pos.x = minBound; this.vel.x = Math.abs(this.vel.x) * 0.48; }
+          if (this.pos.x > maxBound) { this.pos.x = maxBound; this.vel.x = -Math.abs(this.vel.x) * 0.48; }
+          if (this.pos.z < minBound) { this.pos.z = minBound; this.vel.z = Math.abs(this.vel.z) * 0.48; }
+          if (this.pos.z > maxBound) { this.pos.z = maxBound; this.vel.z = -Math.abs(this.vel.z) * 0.48; }
+
+          if (this.isGrounded || this.isFloatingInPond) {
+            const floatTilt = this.isFloatingInPond ? Math.sin(time * 2.4 + this.homePos.z) * 0.12 : 0;
+            this.pitch = THREE.MathUtils.lerp(this.pitch, floatTilt, Math.min(1, dt * 8.5));
+            this.roll = THREE.MathUtils.lerp(this.roll, -floatTilt * 0.8, Math.min(1, dt * 8.5));
+            this.angVel.multiplyScalar(0.75);
+          }
+        }
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+
+        this.leftArmPivot.rotation.set(this.limbPitch, 0, 0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.rightArmPivot.rotation.set(this.limbPitch, 0, -0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+
+        const wingFlutter = Math.sin(time * 3.8 + this.homePos.x) * 0.06 + (1.0 - this.squash) * 0.35;
+        this.wingsPivot.rotation.x = wingFlutter;
+      }
+    }
+
+    // ============================================================================
+    // 9. SPAWN THE 8 TOUHOU FUMO PLUSHIES ACROSS THE FISHING DIORAMA
+    // ============================================================================
+    const fumoConfigs = [
+      {
+        id: 'nitori',
+        name: 'Nitori Kawashiro (Kappa Bait Shop)',
+        emoji: '🥒',
+        accentColor: '#22c55e',
+        hairColor: '#38bdf8',
+        eyeColor: '#0284c7',
+        outfitMain: '#0ea5e9',
+        sleeveColor: '#bae6fd',
+        tieColor: '#eab308',
+        shoeColor: '#15803d',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(-5.8, 2.35, -2.2),
+        homeYaw: 1.55,
+        pitchAudio: 1.08
+      },
+      {
+        id: 'reimu',
+        name: 'Reimu Hakurei (Bamboo Rod Angler)',
+        emoji: '🎣',
+        accentColor: '#ef4444',
+        hairColor: '#2b1e23',
+        eyeColor: '#991b1b',
+        outfitMain: '#dc2626',
+        sleeveColor: '#ffffff',
+        tieColor: '#facc15',
+        shoeColor: '#451a03',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(-1.15, 1.25, 2.95),
+        homeYaw: 1.48,
+        pitchAudio: 1.0
+      },
+      {
+        id: 'marisa',
+        name: 'Marisa Kirisame (Hakkero "Angler")',
+        emoji: '⚡',
+        accentColor: '#facc15',
+        hairColor: '#fde047',
+        eyeColor: '#ca8a04',
+        outfitMain: '#1f2937',
+        sleeveColor: '#ffffff',
+        tieColor: '#ffffff',
+        shoeColor: '#111827',
+        hasWhiteApron: true,
+        homePos: new THREE.Vector3(7.6, 1.0, -1.2),
+        homeYaw: -1.65,
+        pitchAudio: 0.96
+      },
+      {
+        id: 'cirno',
+        name: 'Cirno (Ice Patch Fisher)',
+        emoji: '❄️',
+        accentColor: '#38bdf8',
+        hairColor: '#7dd3fc',
+        eyeColor: '#0284c7',
+        outfitMain: '#2563eb',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#1e3a8a',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(4.0, 0.22, 2.0),
+        homeYaw: -0.65,
+        pitchAudio: 1.18
+      },
+      {
+        id: 'kogasa',
+        name: 'Kogasa Tatara (Umbrella Angler)',
+        emoji: '☂️',
+        accentColor: '#a855f7',
+        hairColor: '#2dd4bf',
+        eyeColor: '#e11d48',
+        outfitMain: '#6d28d9',
+        sleeveColor: '#ffffff',
+        tieColor: '#f43f5e',
+        shoeColor: '#4c1d95',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(-3.3, 1.25, 1.95),
+        homeYaw: 2.35,
+        pitchAudio: 1.12
+      },
+      {
+        id: 'yuyuko',
+        name: 'Yuyuko Saigyouji (Catch Basket Guardian)',
+        emoji: '🌸',
+        accentColor: '#f472b6',
+        hairColor: '#f9a8d4',
+        eyeColor: '#db2777',
+        outfitMain: '#38bdf8',
+        sleeveColor: '#bae6fd',
+        tieColor: '#f472b6',
+        shoeColor: '#831843',
+        hasWhiteApron: false,
+        homePos: new THREE.Vector3(-3.2, 1.25, 3.85),
+        homeYaw: 0.55,
+        pitchAudio: 0.92
+      },
+      {
+        id: 'chen_fish',
+        name: 'Chen (Fish Balanced on Head!)',
+        emoji: '🐱',
+        accentColor: '#fb8500',
+        hairColor: '#582f0e',
+        eyeColor: '#9a3412',
+        outfitMain: '#e63946',
+        sleeveColor: '#ffffff',
+        tieColor: '#fde047',
+        shoeColor: '#2b2d42',
+        hasWhiteApron: false,
+        scale: 0.88,
+        homePos: new THREE.Vector3(0.35, 2.25, -4.75),
+        homeYaw: 0.15,
+        pitchAudio: 1.28
+      },
+      {
+        id: 'komachi_boat',
+        name: 'Komachi Onozuka (Asleep in Rowboat)',
+        emoji: '💤',
+        accentColor: '#fb7185',
+        hairColor: '#e11d48',
+        eyeColor: '#be123c',
+        outfitMain: '#1e293b',
+        sleeveColor: '#f8fafc',
+        tieColor: '#fbbf24',
+        shoeColor: '#334155',
+        hasWhiteApron: false,
+        isSleeping: true,
+        followsRowboat: true,
+        homePos: new THREE.Vector3(2.2, 0.24, 6.2),
+        homeYaw: -0.35,
+        pitchAudio: 0.88
+      }
+    ];
+
+    fumoConfigs.forEach(cfg => {
+      fumos.push(new VoxelFumo(cfg));
+    });
+
+    function resolveFumoToFumoCollisions() {
+      for (let i = 0; i < fumos.length; i++) {
+        for (let j = i + 1; j < fumos.length; j++) {
+          const a = fumos[i];
+          const b = fumos[j];
+          const minDist = (a.radius + b.radius) * 0.78;
+          const dx = b.pos.x - a.pos.x;
+          const dy = (b.pos.y + b.radius * 0.6) - (a.pos.y + a.radius * 0.6);
+          const dz = b.pos.z - a.pos.z;
+          const distSq = dx * dx + dy * dy + dz * dz;
+
+          if (distSq < minDist * minDist && distSq > 0.0001) {
+            const dist = Math.sqrt(distSq);
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const nz = dz / dist;
+            const overlap = (minDist - dist) * 0.5;
+
+            if (!a.isDragged) {
+              a.pos.x -= nx * overlap;
+              a.pos.y += -ny * overlap;
+              a.pos.z -= nz * overlap;
+            }
+            if (!b.isDragged) {
+              b.pos.x += nx * overlap;
+              b.pos.y += ny * overlap;
+              b.pos.z += nz * overlap;
+            }
+
+            const rvx = b.vel.x - a.vel.x;
+            const rvy = b.vel.y - a.vel.y;
+            const rvz = b.vel.z - a.vel.z;
+            const vn = rvx * nx + rvy * ny + rvz * nz;
+            if (vn < 0) {
+              const imp = -vn * 0.68;
+              if (!a.isDragged) {
+                a.vel.x -= imp * nx;
+                a.vel.y -= imp * ny;
+                a.vel.z -= imp * nz;
+                a.squashVel -= Math.min(5.0, imp * 0.6);
+              }
+              if (!b.isDragged) {
+                b.vel.x += imp * nx;
+                b.vel.y += imp * ny;
+                b.vel.z += imp * nz;
+                b.squashVel -= Math.min(5.0, imp * 0.6);
+              }
+              if (imp > 1.5) soundFX.playBounce(imp * 0.07);
+            }
+          }
+        }
+      }
+    }
+
+    // ============================================================================
+    // 10. INTERACTIVE FISHING SYSTEM: BOBBER, BITE, TENSION MINI-GAME & FISH BOOK
+    // ============================================================================
+    const BAIT_TYPES = [
+      { id: 'cucumber', name: 'Kappa Cucumber', icon: '🥒', desc: 'Balanced river bait' },
+      { id: 'charm',    name: 'Hakurei Charm',  icon: '⛩️', desc: 'Boosts Dusk/Night Rare Carp' },
+      { id: 'shroom',   name: 'Spark Shroom',   icon: '🍄', desc: 'Lures Giant Namazu Catfish' },
+      { id: 'magnet',   name: 'Kappa Magnet',   icon: '🧲', desc: 'Finds Sunken Boots & Koi' }
+    ];
+    let currentBaitIndex = 0;
+
+    const caughtCounts = {};
+    FISH_SPECIES.forEach(s => { caughtCounts[s.id] = 0; });
+    let totalFishCaught = 0;
+
+    const ROD_TIP_POS = new THREE.Vector3(1.65, 2.95, 3.12);
+    const bobberGroup = new THREE.Group();
+    bobberGroup.visible = false;
+    scene.add(bobberGroup);
+
+    (function buildVoxelBobber() {
+      const bVox = [
+        { x: 0, y: 0, z: 0, color: new THREE.Color('#ffffff'), sx: 1.4, sy: 0.9, sz: 1.4 },
+        { x: 0, y: 0.9, z: 0, color: new THREE.Color('#ef4444'), sx: 1.4, sy: 0.9, sz: 1.4 },
+        { x: 0, y: 1.9, z: 0, color: new THREE.Color('#fde047'), sx: 0.45, sy: 1.3, sz: 0.45 }
+      ];
+      const m = buildVoxelInstancedMesh(bVox, 0.11, glossyMaterial, true, false);
+      if (m) bobberGroup.add(m);
+    })();
+
+    const linePoints = [];
+    for (let i = 0; i <= 16; i++) linePoints.push(new THREE.Vector3());
+    const fishingLineGeom = new THREE.BufferGeometry().setFromPoints(linePoints);
+    const fishingLineMat = new THREE.LineBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.85 });
+    const fishingLine = new THREE.Line(fishingLineGeom, fishingLineMat);
+    fishingLine.visible = false;
+    scene.add(fishingLine);
+
+    let flyingCatch = null;
+    const BASKET_TARGET_POS = new THREE.Vector3(-3.25, 1.95, 5.25);
+
+    const fishingState = {
+      phase: 'idle',
+      castStart: new THREE.Vector3(),
+      bobberPos: new THREE.Vector3(),
+      timer: 0,
+      nextNibbleTime: 1.2,
+      biteTimeRemaining: 0,
+      hookedSpecies: null,
+      tension: 0.48,
+      tensionVel: 0,
+      sweetCenter: 0.5,
+      sweetPhase: 0,
+      reelProgress: 0.3,
+      isHoldingReel: false,
+      clickSoundCooldown: 0
+    };
+
+    const fishingOverlayEl = document.getElementById('fishing-overlay');
+    const biteAlertEl = document.getElementById('bite-alert');
+    const tensionGameEl = document.getElementById('tension-game');
+    const tensionSweetspotEl = document.getElementById('tension-sweetspot');
+    const tensionMarkerEl = document.getElementById('tension-marker');
+    const reelProgressBarEl = document.getElementById('reel-progress-bar');
+    const reelProgressPctEl = document.getElementById('reel-progress-pct');
+    const reelFishLabelEl = document.getElementById('reel-fish-label');
+    const catchToastEl = document.getElementById('catch-toast');
+    const catchToastIconEl = document.getElementById('catch-toast-icon');
+    const catchToastTextEl = document.getElementById('catch-toast-text');
+
+    let toastTimeout = null;
+    function showToast(icon, text) {
+      catchToastIconEl.textContent = icon;
+      catchToastTextEl.textContent = text;
+      catchToastEl.classList.remove('hidden');
+      catchToastEl.classList.add('flex');
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        catchToastEl.classList.add('hidden');
+        catchToastEl.classList.remove('flex');
+      }, 3200);
+    }
+
+    function selectHookedFish() {
+      const bait = BAIT_TYPES[currentBaitIndex].id;
+      const isDuskOrNight = dayNightProgress >= 0.15;
+
+      if (bait === 'magnet' && Math.random() < 0.48) return FISH_SPECIES[7];
+      if (bait === 'shroom' && Math.random() < 0.42) return FISH_SPECIES[6];
+      if (isDuskOrNight) {
+        const rareChance = (bait === 'charm') ? 0.55 : 0.30;
+        if (Math.random() < rareChance) {
+          return Math.random() < 0.55 ? FISH_SPECIES[5] : FISH_SPECIES[4];
+        }
+      }
+      const pool = [FISH_SPECIES[0], FISH_SPECIES[1], FISH_SPECIES[2], FISH_SPECIES[3]];
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    function castFishingLine(targetPoint) {
+      fishingState.phase = 'casting';
+      fishingState.castStart.copy(ROD_TIP_POS);
+      fishingState.bobberPos.set(
+        THREE.MathUtils.clamp(targetPoint.x, -4.0, 8.2),
+        WATER_SURFACE_Y,
+        THREE.MathUtils.clamp(targetPoint.z, -5.0, 8.0)
+      );
+      fishingState.timer = 0;
+      bobberGroup.visible = true;
+      fishingLine.visible = true;
+      fishingOverlayEl.classList.add('hidden');
+      soundFX.playPickup();
+      updateUIBadge(fumos[1], 'Casting Line...');
+    }
+
+    function startReelingMiniGame() {
+      fishingState.phase = 'reeling';
+      fishingState.hookedSpecies = selectHookedFish();
+      fishingState.tension = 0.50;
+      fishingState.tensionVel = 0;
+      fishingState.sweetCenter = 0.50;
+      fishingState.sweetPhase = Math.random() * Math.PI * 2;
+      fishingState.reelProgress = 0.32;
+      fishingState.isHoldingReel = false;
+
+      biteAlertEl.classList.add('hidden');
+      tensionGameEl.classList.remove('hidden');
+      fishingOverlayEl.classList.remove('hidden');
+      reelFishLabelEl.textContent = `${fishingState.hookedSpecies.emoji} Reeling ${fishingState.hookedSpecies.name.split(' ')[0]}!`;
+
+      spawnWaterRipple(fishingState.bobberPos.x, fishingState.bobberPos.z, 3.0);
+      soundFX.playWaterSplash(0.8);
+      updateUIBadge(fumos[1], 'Reeling In! Hold Click!');
+    }
+
+    function completeFishCatch() {
+      const sp = fishingState.hookedSpecies;
+      fishingState.phase = 'idle';
+      bobberGroup.visible = false;
+      fishingLine.visible = false;
+      fishingOverlayEl.classList.add('hidden');
+      tensionGameEl.classList.add('hidden');
+
+      caughtCounts[sp.id] = (caughtCounts[sp.id] || 0) + 1;
+      totalFishCaught++;
+      updateFishBookUI();
+
+      const caughtMesh = createVoxelFishMesh(sp, 1.35);
+      scene.add(caughtMesh);
+      flyingCatch = {
+        mesh: caughtMesh,
+        startPos: fishingState.bobberPos.clone(),
+        endPos: BASKET_TARGET_POS.clone(),
+        t: 0,
+        species: sp
+      };
+
+      fumos[1].squeeze(0.85);
+      setTimeout(() => fumos[5].squeeze(1.1), 350);
+
+      soundFX.playCatchJingle(Boolean(sp.glows || sp.id === 'giant_catfish'));
+      showToast(sp.emoji, `Caught ${sp.name}! (${sp.rarity})`);
+      updateUIBadge(fumos[5], `Caught ${sp.name}!`);
+    }
+
+    function updateFishingSystem(dt, time) {
+      if (flyingCatch) {
+        flyingCatch.t += dt * 1.45;
+        if (flyingCatch.t >= 1.0) {
+          scene.remove(flyingCatch.mesh);
+          spawnBurstParticles(BASKET_TARGET_POS, ['#fde047', '#f472b6', '#38bdf8', '#ffffff'], 14, 2.8);
+          flyingCatch = null;
+        } else {
+          const p = flyingCatch.t;
+          flyingCatch.mesh.position.lerpVectors(flyingCatch.startPos, flyingCatch.endPos, p);
+          flyingCatch.mesh.position.y += Math.sin(p * Math.PI) * 3.8;
+          flyingCatch.mesh.rotation.y = p * Math.PI * 6;
+          flyingCatch.mesh.rotation.z = Math.sin(p * Math.PI * 4) * 0.5;
+        }
+      }
+
+      if (fishingState.phase === 'idle') return;
+
+      fishingState.timer += dt;
+      let currBobberPos = new THREE.Vector3();
+
+      if (fishingState.phase === 'casting') {
+        const p = Math.min(1.0, fishingState.timer / 0.42);
+        currBobberPos.lerpVectors(fishingState.castStart, fishingState.bobberPos, p);
+        currBobberPos.y += Math.sin(p * Math.PI) * 2.4;
+        bobberGroup.position.copy(currBobberPos);
+
+        if (p >= 1.0) {
+          fishingState.phase = 'waiting';
+          fishingState.timer = 0;
+          fishingState.nextNibbleTime = 1.0 + Math.random() * 1.2;
+          spawnWaterRipple(fishingState.bobberPos.x, fishingState.bobberPos.z, 2.4);
+          soundFX.playBobberPlop();
+          updateUIBadge(fumos[1], 'Waiting for Bite...');
+        }
+      } else if (fishingState.phase === 'waiting') {
+        const nibbleDip = (fishingState.timer > fishingState.nextNibbleTime - 0.18 && fishingState.timer < fishingState.nextNibbleTime)
+          ? -0.14
+          : 0;
+        currBobberPos.copy(fishingState.bobberPos);
+        currBobberPos.y = WATER_SURFACE_Y + Math.sin(time * 3.5) * 0.04 + nibbleDip;
+        bobberGroup.position.copy(currBobberPos);
+
+        if (fishingState.timer >= fishingState.nextNibbleTime) {
+          if (Math.random() < 0.45 && fishingState.timer < 3.2) {
+            soundFX.playNibble();
+            spawnWaterRipple(currBobberPos.x, currBobberPos.z, 1.3);
+            fishingState.nextNibbleTime = fishingState.timer + 1.1 + Math.random() * 1.0;
+          } else {
+            fishingState.phase = 'bite';
+            fishingState.biteTimeRemaining = 2.1;
+            soundFX.playBiteAlert();
+            spawnWaterRipple(currBobberPos.x, currBobberPos.z, 2.8);
+            biteAlertEl.classList.remove('hidden');
+            tensionGameEl.classList.add('hidden');
+            fishingOverlayEl.classList.remove('hidden');
+            updateUIBadge(fumos[1], '❗ BITE! Click Water Now!');
+          }
+        }
+      } else if (fishingState.phase === 'bite') {
+        fishingState.biteTimeRemaining -= dt;
+        currBobberPos.copy(fishingState.bobberPos);
+        currBobberPos.y = WATER_SURFACE_Y - 0.22 + Math.sin(time * 24) * 0.08;
+        bobberGroup.position.copy(currBobberPos);
+
+        if (fishingState.biteTimeRemaining <= 0) {
+          fishingState.phase = 'idle';
+          bobberGroup.visible = false;
+          fishingLine.visible = false;
+          fishingOverlayEl.classList.add('hidden');
+          showToast('💨', 'The fish nibbled the bait and swam away!');
+          updateUIBadge(fumos[1], 'Fish Escaped');
+          return;
+        }
+      } else if (fishingState.phase === 'reeling') {
+        fishingState.sweetPhase += dt * 2.1;
+        fishingState.sweetCenter = 0.5 + Math.sin(fishingState.sweetPhase) * 0.26;
+
+        const pullAccel = fishingState.isHoldingReel ? 1.35 : -1.05;
+        const fishJitter = Math.sin(time * 11.0) * 0.35;
+        fishingState.tensionVel += (pullAccel + fishJitter) * dt;
+        fishingState.tensionVel *= Math.pow(0.82, dt * 60);
+        fishingState.tension = THREE.MathUtils.clamp(fishingState.tension + fishingState.tensionVel * dt, 0.04, 0.96);
+
+        const inSweetSpot = Math.abs(fishingState.tension - fishingState.sweetCenter) <= 0.19;
+        if (inSweetSpot) {
+          fishingState.reelProgress += dt * 0.48;
+          fishingState.clickSoundCooldown -= dt;
+          if (fishingState.clickSoundCooldown <= 0) {
+            soundFX.playReelClick(0.9 + fishingState.reelProgress * 0.4);
+            fishingState.clickSoundCooldown = 0.11;
+          }
+        } else {
+          fishingState.reelProgress = Math.max(0.05, fishingState.reelProgress - dt * 0.18);
+        }
+
+        tensionSweetspotEl.style.left = `${(fishingState.sweetCenter - 0.16) * 100}%`;
+        tensionMarkerEl.style.left = `calc(${fishingState.tension * 100}% - 5px)`;
+        const pct = Math.min(100, Math.round(fishingState.reelProgress * 100));
+        reelProgressBarEl.style.width = `${pct}%`;
+        reelProgressPctEl.textContent = `${pct}%`;
+
+        currBobberPos.lerpVectors(fishingState.bobberPos, new THREE.Vector3(0.2, WATER_SURFACE_Y, 2.8), fishingState.reelProgress * 0.65);
+        currBobberPos.x += Math.sin(time * 18) * 0.12;
+        currBobberPos.y = WATER_SURFACE_Y + Math.sin(time * 14) * 0.06;
+        bobberGroup.position.copy(currBobberPos);
+
+        if (Math.random() < dt * 5) {
+          spawnWaterRipple(currBobberPos.x, currBobberPos.z, 1.6);
+        }
+
+        if (fishingState.reelProgress >= 1.0) {
+          completeFishCatch();
+          return;
+        }
+      }
+
+      if (!fishingOverlayEl.classList.contains('hidden')) {
+        const screenVec = currBobberPos.clone().add(new THREE.Vector3(0, 0.45, 0));
+        screenVec.project(camera);
+        const sx = (screenVec.x * 0.5 + 0.5) * window.innerWidth;
+        const sy = (-(screenVec.y * 0.5) + 0.5) * window.innerHeight;
+        fishingOverlayEl.style.left = `${THREE.MathUtils.clamp(sx, 120, window.innerWidth - 120)}px`;
+        fishingOverlayEl.style.top = `${THREE.MathUtils.clamp(sy, 90, window.innerHeight - 90)}px`;
+      }
+
+      const posAttr = fishingLine.geometry.attributes.position;
+      const sag = (fishingState.phase === 'reeling' || fishingState.phase === 'bite') ? 0.05 : 0.45;
+      for (let i = 0; i <= 16; i++) {
+        const u = i / 16;
+        const lx = THREE.MathUtils.lerp(ROD_TIP_POS.x, currBobberPos.x, u);
+        const ly = THREE.MathUtils.lerp(ROD_TIP_POS.y, currBobberPos.y + 0.15, u) - Math.sin(u * Math.PI) * sag;
+        const lz = THREE.MathUtils.lerp(ROD_TIP_POS.z, currBobberPos.z, u);
+        posAttr.setXYZ(i, lx, ly, lz);
+      }
+      posAttr.needsUpdate = true;
+    }
+
+    const fishCounterTextEl = document.getElementById('fish-counter-text');
+    const fishBookModalEl = document.getElementById('fish-book-modal');
+    const fishBookGridEl = document.getElementById('fish-book-grid');
+    const totalCatchesStatEl = document.getElementById('total-catches-stat');
+
+    function updateFishBookUI() {
+      const uniqueCaught = FISH_SPECIES.filter(s => caughtCounts[s.id] > 0).length;
+      fishCounterTextEl.textContent = `${uniqueCaught} / ${FISH_SPECIES.length} Caught`;
+      totalCatchesStatEl.textContent = `Total Basket Catches: ${totalFishCaught}`;
+
+      fishBookGridEl.innerHTML = '';
+      FISH_SPECIES.forEach(sp => {
+        const count = caughtCounts[sp.id] || 0;
+        const card = document.createElement('div');
+        card.className = `rounded-2xl p-2.5 border text-xs flex items-center gap-2.5 ${
+          count > 0 ? 'bg-emerald-500/15 border-emerald-400/40' : 'bg-black/10 border-current/10 opacity-60'
+        }`;
+        card.innerHTML = `
+          <div class="text-xl leading-none">${count > 0 ? sp.emoji : '❔'}</div>
+          <div class="min-w-0 flex-1 leading-tight">
+            <div class="font-display font-bold truncate">${count > 0 ? sp.name : '???'}</div>
+            <div class="text-[10px] opacity-75">${sp.rarity} • ×${count}</div>
+          </div>
+        `;
+        fishBookGridEl.appendChild(card);
+      });
+    }
+    updateFishBookUI();
+
+    function switchBait() {
+      currentBaitIndex = (currentBaitIndex + 1) % BAIT_TYPES.length;
+      const b = BAIT_TYPES[currentBaitIndex];
+      document.getElementById('bait-icon').textContent = b.icon;
+      document.getElementById('bait-name').textContent = b.name;
+      soundFX.playPickup();
+      showToast(b.icon, `Switched Bait: ${b.name} (${b.desc})`);
+    }
+
+    // ============================================================================
+    // 11. POINTER INTERACTION: FUMO DRAG/THROW, SQUEEZE & WATER FISHING CAST
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let hoveredFumo = null;
+    let selectedFumo = null;
+    let isDraggingFumo = false;
+    let pointerDownScreen = new THREE.Vector2();
+    let pointerDownOnWater = null;
+    let dragHistory = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+    const badgeDotEl = document.getElementById('fumo-badge-dot');
+    const badgeNameEl = document.getElementById('fumo-badge-name');
+    const badgeStatusEl = document.getElementById('fumo-badge-status');
+
+    function updateUIBadge(fumo, statusText) {
+      if (!fumo) {
+        badgeDotEl.style.backgroundColor = '#06b6d4';
+        badgeNameEl.textContent = 'Click Pond to Cast';
+        badgeStatusEl.textContent = 'Ready';
+        return;
+      }
+      badgeDotEl.style.backgroundColor = fumo.accentColor;
+      badgeNameEl.textContent = fumo.name.split(' (')[0];
+      badgeStatusEl.textContent = statusText;
+    }
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function pickFumoUnderPointer() {
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (hits.length > 0 && hits[0].object.userData.fumo) {
+        return { fumo: hits[0].object.userData.fumo, point: hits[0].point };
+      }
+      return null;
+    }
+
+    function pickWaterUnderPointer() {
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects([waterHitPlane, waterMesh], false);
+      if (hits.length > 0 && isPointInPond(hits[0].point.x, hits[0].point.z)) {
+        return hits[0].point;
+      }
+      return null;
+    }
+
+    const onPointerDown = (e) => {
+      if (e.button !== 0) return;
+      recordInteraction();
+
+      if (fishingState.phase === 'reeling') {
+        fishingState.isHoldingReel = true;
+        return;
+      }
+
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+      pointerDownOnWater = null;
+
+      const hitFumo = pickFumoUnderPointer();
+      if (hitFumo) {
+        selectedFumo = hitFumo.fumo;
+        isDraggingFumo = false;
+        controls.enabled = false;
+
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), selectedFumo.pos);
+
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          dragOffset.subVectors(selectedFumo.pos, dragHitPoint);
+        } else {
+          dragOffset.set(0, 0, 0);
+        }
+
+        dragHistory = [{ pos: selectedFumo.pos.clone(), time: performance.now() }];
+        updateUIBadge(selectedFumo, 'Selected');
+        return;
+      }
+
+      const waterPt = pickWaterUnderPointer();
+      if (waterPt) {
+        pointerDownOnWater = waterPt.clone();
+      }
+    };
+
+    const onPointerMove = (e) => {
+      updatePointerNDC(e);
+
+      if (selectedFumo) {
+        recordInteraction();
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          selectedFumo.isDragged = true;
+          selectedFumo.isGrounded = false;
+          selectedFumo.isFloatingInPond = false;
+          selectedFumo.squashVel += 3.2;
+          soundFX.playPickup();
+          updateUIBadge(selectedFumo, 'Dragging — Toss into Pond!');
+        }
+
+        if (isDraggingFumo) {
+          raycaster.setFromCamera(pointerNDC, camera);
+          if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+            const targetPos = dragHitPoint.clone().add(dragOffset);
+            targetPos.x = THREE.MathUtils.clamp(targetPos.x, -8.8, 8.8);
+            targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.2, 11.5);
+            targetPos.z = THREE.MathUtils.clamp(targetPos.z, -8.8, 8.8);
+
+            const prevPos = selectedFumo.pos.clone();
+            selectedFumo.pos.lerp(targetPos, 0.55);
+
+            const deltaMove = selectedFumo.pos.clone().sub(prevPos);
+            selectedFumo.headRollVel -= deltaMove.x * 16.0;
+            selectedFumo.headPitchVel += deltaMove.z * 16.0 - deltaMove.y * 10.0;
+            selectedFumo.limbRollVel -= deltaMove.x * 22.0;
+            selectedFumo.roll = THREE.MathUtils.lerp(selectedFumo.roll, THREE.MathUtils.clamp(-deltaMove.x * 1.4, -0.45, 0.45), 0.3);
+            selectedFumo.pitch = THREE.MathUtils.lerp(selectedFumo.pitch, THREE.MathUtils.clamp(deltaMove.z * 1.4, -0.45, 0.45), 0.3);
+
+            const now = performance.now();
+            dragHistory.push({ pos: selectedFumo.pos.clone(), time: now });
+            while (dragHistory.length > 6) dragHistory.shift();
+          }
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      const hitFumo = pickFumoUnderPointer();
+      if (hitFumo) {
+        hoveredFumo = hitFumo.fumo;
+        renderer.domElement.style.cursor = 'grab';
+        tooltipEmojiEl.textContent = hoveredFumo.emoji;
+        tooltipTextEl.textContent = hoveredFumo.name;
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else {
+        hoveredFumo = null;
+        const waterPt = pickWaterUnderPointer();
+        if (waterPt) {
+          renderer.domElement.style.cursor = 'pointer';
+          tooltipEmojiEl.textContent = '🎣';
+          tooltipTextEl.textContent = fishingState.phase === 'bite' ? 'CLICK TO HOOK FISH!' : 'Click Water to Cast Line';
+          tooltipEl.style.opacity = '1';
+          tooltipEl.style.left = `${e.clientX + 14}px`;
+          tooltipEl.style.top = `${e.clientY - 18}px`;
+        } else {
+          renderer.domElement.style.cursor = 'default';
+          tooltipEl.style.opacity = '0';
+        }
+      }
+    };
+
+    const onPointerUp = (e) => {
+      fishingState.isHoldingReel = false;
+
+      if (selectedFumo) {
+        controls.enabled = true;
+        recordInteraction();
+
+        if (!isDraggingFumo) {
+          selectedFumo.squeeze(1.0);
+          updateUIBadge(selectedFumo, 'Squeezed! ᗜˬᗜ');
+        } else {
+          selectedFumo.isDragged = false;
+          const now = performance.now();
+          while (dragHistory.length > 1 && now - dragHistory[0].time > 140) {
+            dragHistory.shift();
+          }
+          if (dragHistory.length >= 2) {
+            const first = dragHistory[0];
+            const last = dragHistory[dragHistory.length - 1];
+            const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+            const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+            if (throwVel.length() > 22) throwVel.setLength(22);
+            selectedFumo.vel.copy(throwVel);
+
+            const speed = throwVel.length();
+            selectedFumo.angVel.set(
+              throwVel.z * 0.65 + (Math.random() - 0.5) * speed * 0.4,
+              (Math.random() - 0.5) * speed * 0.5,
+              -throwVel.x * 0.65 + (Math.random() - 0.5) * speed * 0.4
+            );
+          } else {
+            selectedFumo.vel.set(0, 0, 0);
+          }
+          updateUIBadge(selectedFumo, 'Tossed!');
+        }
+
+        selectedFumo = null;
+        isDraggingFumo = false;
+        renderer.domElement.style.cursor = hoveredFumo ? 'grab' : 'default';
+        return;
+      }
+
+      if (pointerDownOnWater) {
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+        if (moveDist < 7) {
+          if (fishingState.phase === 'bite') {
+            startReelingMiniGame();
+          } else if (fishingState.phase === 'idle' || fishingState.phase === 'waiting') {
+            castFishingLine(pointerDownOnWater);
+          }
+        }
+        pointerDownOnWater = null;
+      }
+    };
+
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+
+    // ============================================================================
+    // 12. DAY / NIGHT SMOOTH INTERPOLATION (~2 SECONDS) & HUB MODE COMPLIANCE
+    // ============================================================================
+    let isNightMode = false;
+    let dayNightProgress = 0.0;
+    let dayNightTarget = 0.0;
+
+    const daySkyColor = new THREE.Color('#a8d8ff');
+    const duskSkyColor = new THREE.Color('#f99f76');
+    const nightSkyColor = new THREE.Color('#091024');
+
+    const daySunLightCol = new THREE.Color('#ffefd2');
+    const duskSunLightCol = new THREE.Color('#ff9254');
+    const nightMoonLightCol = new THREE.Color('#6b93e6');
+
+    const dayHemiSky = new THREE.Color('#fff6e5');
+    const nightHemiSky = new THREE.Color('#1e294a');
+    const dayHemiGround = new THREE.Color('#5c7a62');
+    const nightHemiGround = new THREE.Color('#0c1324');
+
+    function postModeToParent() {
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: isNightMode ? 'night' : 'day' }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function onSetMode(mode) {
+      const targetNight = (mode === 'night');
+      if (targetNight === isNightMode) return;
+      isNightMode = targetNight;
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      document.body.classList.toggle('night-ui', isNightMode);
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
+      } catch (e) {}
+      postModeToParent();
+    }
+
+    function onToggleMode() {
+      onSetMode(isNightMode ? 'day' : 'night');
+      soundFX.playPickup();
+    }
+
+    function updateDayNightTransition(dt) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.52;
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      if (t < 0.5) {
+        scene.background.lerpColors(daySkyColor, duskSkyColor, t * 2);
+        sunDirLight.color.lerpColors(daySunLightCol, duskSunLightCol, t * 2);
+      } else {
+        scene.background.lerpColors(duskSkyColor, nightSkyColor, (t - 0.5) * 2);
+        sunDirLight.color.lerpColors(duskSunLightCol, nightMoonLightCol, (t - 0.5) * 2);
+      }
+      scene.fog.color.copy(scene.background);
+
+      sunDirLight.intensity = THREE.MathUtils.lerp(0.96, 0.34, t);
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.52, 0.24, t);
+
+      stoneLanternLight.intensity = THREE.MathUtils.lerp(0.05, 1.55, t);
+      hutLanternLight.intensity = THREE.MathUtils.lerp(0.05, 1.45, t);
+      pondGlowLight.intensity = THREE.MathUtils.lerp(0.08, 1.15, t);
+
+      lanternEmissiveMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.30, 2.35, t);
+      glowingFishMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.25, 1.85, t);
+      translucentIceMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.16, 0.78, t);
+      waterMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.10, 0.40, t);
+      subsurfaceWaterMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.08, 0.32, t);
+
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.10, 0.68, t);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.88, 0.60, t);
+      }
+    }
+
+    // ============================================================================
+    // 13. UI BUTTONS & KEYBOARD LISTENERS (No 1-9 Keys, N for Mode, F for Bait, M for Mute)
+    // ============================================================================
+    const btnSound = document.getElementById('btn-sound');
+    const iconSoundOn = document.getElementById('icon-sound-on');
+    const iconSoundOff = document.getElementById('icon-sound-off');
+
+    function syncSoundButtonUI() {
+      iconSoundOn.classList.toggle('hidden', !soundFX.enabled);
+      iconSoundOff.classList.toggle('hidden', soundFX.enabled);
+    }
+    syncSoundButtonUI();
+
+    function toggleMute() {
+      soundFX.enabled = !soundFX.enabled;
+      syncSoundButtonUI();
+      soundFX.syncMuteState();
+      try {
+        localStorage.setItem(STORAGE_MUTE_KEY, soundFX.enabled ? 'false' : 'true');
+      } catch (e) {}
+      if (soundFX.enabled) {
+        soundFX.ensureAmbient();
+        soundFX.playPickup();
+      }
+    }
+
+    btnSound.addEventListener('click', toggleMute);
+    document.getElementById('btn-bait').addEventListener('click', switchBait);
+
+    document.getElementById('btn-fish-book').addEventListener('click', () => {
+      fishBookModalEl.classList.toggle('hidden');
+      fishBookModalEl.classList.toggle('flex');
+      soundFX.playPickup();
+    });
+
+    document.getElementById('btn-close-book').addEventListener('click', () => {
+      fishBookModalEl.classList.add('hidden');
+      fishBookModalEl.classList.remove('flex');
+    });
+
+    document.getElementById('btn-squeeze-all').addEventListener('click', () => {
+      fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 50));
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 45));
+      updateUIBadge(null, 'Reset');
+    });
+
+    const onKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      const key = e.key.toLowerCase();
+      if (key === 'n') {
+        e.preventDefault();
+        onToggleMode();
+      } else if (key === 'f') {
+        e.preventDefault();
+        switchBait();
+      } else if (key === 'm') {
+        e.preventDefault();
+        toggleMute();
+      } else if (key === 'b') {
+        e.preventDefault();
+        document.getElementById('btn-fish-book').click();
+      } else if (key === 'r') {
+        e.preventDefault();
+        fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 45));
+      } else if (key === ' ') {
+        e.preventDefault();
+        if (fishingState.phase === 'bite') {
+          startReelingMiniGame();
+        } else if (fishingState.phase === 'reeling') {
+          fishingState.isHoldingReel = true;
+        } else {
+          fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 50));
+        }
+      }
+    };
+
+    const onKeyUp = (e) => {
+      if (e.key === ' ') {
+        fishingState.isHoldingReel = false;
+      }
+    };
+
+    const onResize = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('resize', onResize);
+
+    // ============================================================================
+    // 14. MAIN ANIMATION LOOP & FumoSceneLifecycle REGISTRATION
+    // ============================================================================
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    function updateWaterAndBoats(time, dt) {
+      if (waterMesh) {
+        for (let i = 0; i < waterSurfaceData.length; i++) {
+          const w = waterSurfaceData[i];
+          if (w.isWaterfall) {
+            const dropOffset = ((time * 5.5 + w.phase) % 1.0) * 0.45;
+            tempPos.set(w.x * RV, (w.baseY - dropOffset) * RV, (w.z + dropOffset * 0.35) * RV);
+            tempQuat.identity();
+            const foamPulse = 0.88 + Math.sin(time * 12 + w.phase) * 0.18;
+            tempScale.set(w.sx * foamPulse, w.sy, w.sz * foamPulse);
+          } else {
+            const waveY = Math.sin(time * 2.2 + w.phase) * 0.08;
+            tempPos.set(w.x * RV, (w.baseY + waveY) * RV, w.z * RV);
+            tempQuat.identity();
+            tempScale.set(w.sx, w.sy, w.sz);
+          }
+          tempMatrix.compose(tempPos, tempQuat, tempScale);
+          waterMesh.setMatrixAt(i, tempMatrix);
+        }
+        waterMesh.instanceMatrix.needsUpdate = true;
+      }
+
+      for (let i = 0; i < lilyPads.length; i++) {
+        const lp = lilyPads[i];
+        lp.group.position.y = WATER_SURFACE_Y + 0.03 + Math.sin(time * 2.0 + lp.phase) * 0.025;
+        lp.group.rotation.z = Math.sin(time * 1.5 + lp.phase) * 0.03;
+        if (lp.hopTimer > 0) {
+          lp.hopTimer = Math.max(0, lp.hopTimer - dt);
+          const hopNorm = lp.hopTimer / 0.42;
+          lp.frogGroup.position.y = Math.sin(hopNorm * Math.PI) * 0.48;
+        } else {
+          lp.frogGroup.position.y = 0;
+        }
+      }
+
+      rowboatGroup.position.y = WATER_SURFACE_Y + 0.08 + Math.sin(time * 1.8) * 0.04;
+      rowboatGroup.rotation.z = Math.sin(time * 1.4) * 0.045;
+      rowboatGroup.rotation.x = Math.cos(time * 1.1) * 0.03;
+    }
+
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.033, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      if (!selectedFumo && fishingState.phase === 'idle' && (now - lastUserInteractionTime > 4800)) {
+        controls.autoRotate = true;
+      }
+
+      controls.update();
+      updateDayNightTransition(dt);
+      updateWaterAndBoats(elapsed, dt);
+      updateSwimmingFish(elapsed, dt);
+      updateCritters(elapsed, dayNightProgress);
+      updateWaterRipples(dt);
+      updatePopParticles(dt);
+      updateFishingSystem(dt, elapsed);
+
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].updatePhysics(dt, elapsed);
+      }
+      resolveFumoToFumoCollisions();
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function onPause() {
+      if (isPaused) return;
+      isPaused = true;
+      soundFX.isPausedState = true;
+      soundFX.syncMuteState();
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+
+    function onResume() {
+      if (!isPaused) return;
+      isPaused = false;
+      soundFX.isPausedState = false;
+      soundFX.syncMuteState();
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    function onDispose() {
+      isPaused = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('resize', onResize);
+      soundFX.dispose();
+    }
+
+    let lifecycle = null;
+    if (typeof FumoSceneLifecycle !== 'undefined') {
+      lifecycle = new FumoSceneLifecycle({
+        renderer,
+        scene,
+        composer,
+        audio: soundFX,
+        onToggleMode,
+        onSetMode,
+        onPause,
+        onResume,
+        onDispose
+      });
+    }
+
+    (function initScene() {
+      let initialMode = 'day';
+      try {
+        const savedMode = localStorage.getItem(STORAGE_MODE_KEY);
+        if (savedMode === 'night') initialMode = 'night';
+      } catch (e) {}
+
+      if (initialMode === 'night') {
+        isNightMode = true;
+        dayNightProgress = 1.0;
+        dayNightTarget = 1.0;
+        document.body.classList.add('night-ui');
+      }
+      updateDayNightTransition(0);
+      postModeToParent();
+
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.78;
+          f.squashVel = 2.0;
+          f.headPitchVel = 4.0;
+        }, 120 + idx * 65);
+      });
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    })();
+  </script>
+</body>
+</html>

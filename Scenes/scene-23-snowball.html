@@ -1,0 +1,2767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Touhou Fumo Voxel Snowball Fight — Interactive 3D Diorama</title>
+  <link rel="stylesheet" href="../Shared/fumo-scene.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js r128 + OrbitControls + Post-Processing FIRST -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+  <!-- Shared Fumo Core SECOND -->
+  <script src="../Shared/fumo-core.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #cfe8ff;
+      color: #1e293b;
+    }
+    body.night-ui {
+      background-color: #090d1e;
+      color: #f1f5f9;
+    }
+    .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.72);
+      box-shadow: 0 10px 28px -6px rgba(15, 23, 42, 0.16), 0 2px 6px rgba(15, 23, 42, 0.08);
+      transition: background 0.45s ease, color 0.45s ease, border-color 0.45s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    body.night-ui .glass-panel {
+      background: rgba(15, 23, 42, 0.82);
+      border-color: rgba(125, 211, 252, 0.26);
+      color: #f1f5f9;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.16);
+    }
+    .ui-btn {
+      cursor: pointer;
+      border: none;
+      outline: none;
+      font-family: inherit;
+      color: inherit;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      border-radius: 6px;
+      background: rgba(15, 23, 42, 0.09);
+      border-bottom: 2px solid rgba(15, 23, 42, 0.2);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.14);
+      border-bottom-color: rgba(255, 255, 255, 0.28);
+    }
+    /* Bottom-Right HUD Container (No UI in top-left!) */
+    #hud-bottom-right {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      z-index: 25;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+      max-width: min(440px, 94vw);
+    }
+    .score-card {
+      border-radius: 18px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+    }
+    .team-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .team-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 0.88rem;
+    }
+    .score-num {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 1.35rem;
+      font-weight: 700;
+      min-width: 28px;
+      text-align: center;
+    }
+    .charge-bar-bg {
+      width: 100%;
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.28);
+      overflow: hidden;
+    }
+    .charge-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #38bdf8, #818cf8, #f43f5e);
+      transition: width 0.06s linear;
+    }
+    #fumo-tooltip {
+      position: fixed;
+      z-index: 30;
+      pointer-events: none;
+      opacity: 0;
+      padding: 6px 12px;
+      border-radius: 12px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 0.16s ease;
+    }
+    #victory-banner {
+      position: fixed;
+      bottom: 240px;
+      right: 16px;
+      z-index: 28;
+      border-radius: 18px;
+      padding: 12px 18px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      font-family: 'Fredoka', sans-serif;
+    }
+    #blizzard-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 15;
+      opacity: 0;
+      background: radial-gradient(circle at center, rgba(224, 242, 254, 0.25) 0%, rgba(186, 230, 253, 0.72) 100%);
+      transition: opacity 0.6s ease;
+    }
+    body.night-ui #blizzard-overlay {
+      background: radial-gradient(circle at center, rgba(30, 58, 138, 0.28) 0%, rgba(15, 23, 42, 0.78) 100%);
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="blizzard-overlay"></div>
+
+  <!-- Floating Cursor Tooltip -->
+  <div id="fumo-tooltip" class="glass-panel">
+    <span id="tooltip-emoji">❄️</span>
+    <span id="tooltip-text">Cirno Fumo</span>
+  </div>
+
+  <!-- Referee Victory Banner -->
+  <div id="victory-banner" class="glass-panel">
+    <span style="font-size:1.6rem;">📣</span>
+    <div>
+      <div id="victory-title" style="font-size:1.05rem; font-weight:700;">Team Ice Wins!</div>
+      <div style="font-size:0.78rem; opacity:0.8;">Referee Keine blew the whistle! Starting next round...</div>
+    </div>
+  </div>
+
+  <!-- All HUD Elements in Bottom-Right (Top-Left kept completely clear for Hub) -->
+  <div id="hud-bottom-right">
+    <!-- Scoreboard & Ammo Panel -->
+    <div class="glass-panel score-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.74rem; font-weight:700; opacity:0.8;">
+        <span>🏆 FIRST TO 10 HITS WINS</span>
+        <span id="referee-status">📣 Ref Keine: Watching</span>
+      </div>
+
+      <div class="team-row">
+        <div class="team-badge" style="color:#0284c7;">
+          <span>❄️ Team Ice</span>
+          <span style="font-size:0.7rem; opacity:0.75;">(Cirno • Letty • Dai • Rumia)</span>
+        </div>
+        <span id="score-ice" class="score-num" style="color:#0284c7;">0</span>
+      </div>
+
+      <div class="team-row">
+        <div class="team-badge" style="color:#e11d48;">
+          <span>🦇 Team Scarlet</span>
+          <span style="font-size:0.7rem; opacity:0.75;">(Remi • Flan • Sakuya • Meiling)</span>
+        </div>
+        <span id="score-scarlet" class="score-num" style="color:#e11d48;">0</span>
+      </div>
+
+      <div style="height:1px; background:rgba(148,163,184,0.25); margin:2px 0;"></div>
+
+      <!-- Ammo & Roll Size -->
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; font-weight:700;">
+        <span>⛄ Snowball Ammo: <strong id="ammo-count" class="font-display" style="font-size:1rem;">8</strong> / 12</span>
+        <span>Size: <strong id="ball-size-label" style="color:#0284c7;">1.0x</strong></span>
+      </div>
+
+      <!-- Throw Charge / Roll Bar -->
+      <div class="charge-bar-bg">
+        <div id="charge-bar" class="charge-bar-fill"></div>
+      </div>
+
+      <!-- Action Buttons Row -->
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap; margin-top:2px;">
+        <button id="btn-blizzard" class="glass-panel ui-btn" style="padding:6px 10px; border-radius:12px; font-size:0.75rem; font-weight:700; display:flex; align-items:center; gap:5px;" title="Summon Snowstorm (X)">
+          <span>🌨️</span><span>Blizzard <kbd>X</kbd></span>
+        </button>
+
+        <button id="btn-repair" class="glass-panel ui-btn" style="padding:6px 10px; border-radius:12px; font-size:0.75rem; font-weight:700; display:flex; align-items:center; gap:5px;" title="Pack All Forts & Reset Fumos">
+          <span>🏰</span><span>Pack Forts</span>
+        </button>
+
+        <button id="btn-squeeze-all" class="glass-panel ui-btn" style="padding:6px 10px; border-radius:12px; font-size:0.75rem; font-weight:700; display:flex; align-items:center; gap:5px;" title="Squeeze All Fumos (Space)">
+          <span>✨</span><span>Squeeze</span>
+        </button>
+
+        <button id="btn-mute" class="glass-panel ui-btn" style="padding:6px 10px; border-radius:12px; font-size:0.75rem; font-weight:700; display:flex; align-items:center; gap:5px;" title="Toggle Audio & Jingly Loop (M)">
+          <span id="mute-icon">🔊</span><span><kbd>M</kbd></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Compact Controls Hint Bar -->
+    <div class="glass-panel" style="border-radius:14px; padding:7px 12px; font-size:0.72rem; font-weight:600; display:flex; flex-wrap:wrap; gap:8px 12px; justify-content:flex-end;">
+      <span>🎯 <b>Hold Ground:</b> Aim & Throw</span>
+      <span>✋ <b>Drag Fumo:</b> Throw Into Drift</span>
+      <span>⛄ <b>Click Pile:</b> +Ammo</span>
+      <span>🧱 <b>Click Fort:</b> Pack</span>
+      <span><kbd>Hold R</kbd> Giant Ball</span>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 0. TOP-LEVEL STATE VARIABLES (Prevents ReferenceError before initialization)
+    // ============================================================================
+    const STORAGE_MUTE_KEY = 'fumo_snowball_muted';
+    const STORAGE_MODE_KEY = 'fumo_snowball_mode';
+
+    let isNightMode = false;
+    let dayNightProgress = 0.0; // 0.0 = Day, 1.0 = Night
+    let dayNightTarget = 0.0;
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    // ============================================================================
+    // 1. PROCEDURAL WEB AUDIO SYNTHESIZER (PlushSoundEngine + Snowball Extensions)
+    // ============================================================================
+    if (typeof window.PlushSoundEngine === 'undefined') {
+      window.PlushSoundEngine = class PlushSoundEngine {
+        constructor() {
+          this.ctx = null;
+          this.enabled = true;
+        }
+
+        init() {
+          if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) {
+              this.ctx = new AudioCtx();
+            }
+          }
+          if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume();
+          }
+        }
+
+        playSqueeze(pitchMultiplier = 1.0) {
+          if (!this.enabled) return;
+          try {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+
+            const osc1 = this.ctx.createOscillator();
+            const gain1 = this.ctx.createGain();
+            osc1.type = 'sine';
+            const baseFreq = (520 + Math.random() * 80) * pitchMultiplier;
+            osc1.frequency.setValueAtTime(baseFreq, now);
+            osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.085);
+            osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.16);
+
+            gain1.gain.setValueAtTime(0.001, now);
+            gain1.gain.linearRampToValueAtTime(0.11, now + 0.025);
+            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+
+            osc1.connect(gain1);
+            gain1.connect(this.ctx.destination);
+            osc1.start(now);
+            osc1.stop(now + 0.18);
+
+            const osc2 = this.ctx.createOscillator();
+            const gain2 = this.ctx.createGain();
+            osc2.type = 'triangle';
+            osc2.frequency.setValueAtTime(baseFreq * 1.1, now + 0.11);
+            osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.65, now + 0.21);
+
+            gain2.gain.setValueAtTime(0.001, now + 0.11);
+            gain2.gain.linearRampToValueAtTime(0.08, now + 0.13);
+            gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+            osc2.connect(gain2);
+            gain2.connect(this.ctx.destination);
+            osc2.start(now + 0.11);
+            osc2.stop(now + 0.25);
+          } catch (e) {}
+        }
+
+        playBounce(intensity = 0.5) {
+          if (!this.enabled || intensity < 0.08) return;
+          try {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const vol = Math.min(0.14, intensity * 0.12);
+
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            const startFreq = 115 + Math.min(80, intensity * 35);
+            osc.frequency.setValueAtTime(startFreq, now);
+            osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+
+            gain.gain.setValueAtTime(vol, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.1);
+          } catch (e) {}
+        }
+
+        playPickup() {
+          if (!this.enabled) return;
+          try {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(280, now);
+            osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
+            gain.gain.setValueAtTime(0.001, now);
+            gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.1);
+          } catch (e) {}
+        }
+      };
+    }
+
+    const soundFX = new window.PlushSoundEngine();
+
+    try {
+      const savedMute = localStorage.getItem(STORAGE_MUTE_KEY);
+      if (savedMute === 'true') soundFX.enabled = false;
+    } catch (e) {}
+
+    soundFX.bgmTimer = null;
+    soundFX.bgmStep = 0;
+
+    soundFX.playSnowCrunch = function (pitch = 1.0) {
+      if (!this.enabled) return;
+      try {
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const bufferSize = Math.floor(this.ctx.sampleRate * 0.09);
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.45));
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(950 * pitch, now);
+        filter.Q.setValueAtTime(2.2, now);
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.14, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.085);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start(now);
+      } catch (e) {}
+    };
+
+    soundFX.playWhoosh = function (sizeFactor = 1.0) {
+      if (!this.enabled) return;
+      try {
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        const base = 360 / Math.sqrt(sizeFactor);
+        osc.frequency.setValueAtTime(base, now);
+        osc.frequency.exponentialRampToValueAtTime(base * 0.42, now + 0.16);
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.09, now + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.18);
+      } catch (e) {}
+    };
+
+    soundFX.playPoof = function (intensity = 1.0) {
+      if (!this.enabled) return;
+      try {
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(160, now);
+        osc.frequency.exponentialRampToValueAtTime(48, now + 0.12);
+        gain.gain.setValueAtTime(Math.min(0.18, 0.11 * intensity), now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.14);
+
+        this.playSnowCrunch(0.85);
+      } catch (e) {}
+    };
+
+    soundFX.playWhistle = function () {
+      if (!this.enabled) return;
+      try {
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const lfo = this.ctx.createOscillator();
+        const lfoGain = this.ctx.createGain();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(2650, now);
+        osc.frequency.setValueAtTime(2820, now + 0.18);
+
+        lfo.type = 'sine';
+        lfo.frequency.setValueAtTime(38, now);
+        lfoGain.gain.setValueAtTime(140, now);
+        lfo.connect(lfoGain);
+        lfoGain.connect(osc.frequency);
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.13, now + 0.03);
+        gain.gain.setValueAtTime(0.12, now + 0.42);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.56);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        lfo.start(now);
+        osc.start(now);
+        lfo.stop(now + 0.58);
+        osc.stop(now + 0.58);
+      } catch (e) {}
+    };
+
+    soundFX.playJingleTick = function () {
+      if (!this.enabled) return;
+      try {
+        this.init();
+        if (!this.ctx || this.ctx.state !== 'running') return;
+        const melody = [
+          523.25, 659.25, 783.99, 1046.50,
+          880.00, 783.99, 659.25, 587.33,
+          523.25, 659.25, 783.99, 880.00,
+          783.99, 659.25, 587.33, 523.25
+        ];
+        const freq = melody[this.bgmStep % melody.length];
+        this.bgmStep++;
+
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now);
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.022, now + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.21);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.22);
+
+        if (this.bgmStep % 2 === 0) {
+          const bell = this.ctx.createOscillator();
+          const bGain = this.ctx.createGain();
+          bell.type = 'sine';
+          bell.frequency.setValueAtTime(freq * 2, now);
+          bGain.gain.setValueAtTime(0.008, now);
+          bGain.gain.exponentialRampToValueAtTime(0.0005, now + 0.09);
+          bell.connect(bGain);
+          bGain.connect(this.ctx.destination);
+          bell.start(now);
+          bell.stop(now + 0.1);
+        }
+      } catch (e) {}
+    };
+
+    soundFX.startJingleLoop = function () {
+      if (this.bgmTimer) return;
+      this.bgmTimer = setInterval(() => {
+        if (!isPaused && this.enabled) {
+          this.playJingleTick();
+        }
+      }, 240);
+    };
+
+    soundFX.stopJingleLoop = function () {
+      if (this.bgmTimer) {
+        clearInterval(this.bgmTimer);
+        this.bgmTimer = null;
+      }
+    };
+
+    // ============================================================================
+    // 2. COLOR & VOXEL HELPER UTILITIES (Matching scene-01-room.html)
+    // ============================================================================
+    const tempColor = new THREE.Color();
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    const tempEuler = new THREE.Euler();
+
+    function voxelHash(x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    }
+
+    function varyColor(hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
+      tempColor.set(hexOrString);
+      const h = voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      tempColor.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return tempColor.clone();
+    }
+
+    function createSoftVoxelGeometry(size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    }
+
+    if (typeof window.getOptimalPixelRatio !== 'function') {
+      window.getOptimalPixelRatio = function () {
+        return Math.min(window.devicePixelRatio || 1, 2);
+      };
+    }
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        tempQuat.identity();
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    // ============================================================================
+    // 3. SCENE, CAMERA, RENDERER, POST-PROCESSING & ORBIT CONTROLS
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#cfe8ff');
+    scene.fog = new THREE.FogExp2('#cfe8ff', 0.012);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.5, 160);
+    camera.position.set(22.5, 14.5, 22.0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(getOptimalPixelRatio());
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.18,
+        0.55,
+        0.84
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (err) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 2.2, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.47;
+    controls.minPolarAngle = Math.PI * 0.08;
+    controls.minDistance = 10;
+    controls.maxDistance = 48;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.4;
+
+    let lastUserInteractionTime = performance.now();
+    function recordInteraction() {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+      soundFX.startJingleLoop();
+    }
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 4. CAPPED DYNAMIC LIGHTS & SHARED MATERIALS
+    // ============================================================================
+    const hemiLight = new THREE.HemisphereLight(0xf0f9ff, 0x94a3b8, 0.78);
+    hemiLight.position.set(0, 25, 0);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xfffbeb, 1.25);
+    dirLight.position.set(18, 24, 14);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.near = 2;
+    dirLight.shadow.camera.far = 65;
+    const dCam = 20;
+    dirLight.shadow.camera.left = -dCam;
+    dirLight.shadow.camera.right = dCam;
+    dirLight.shadow.camera.top = dCam;
+    dirLight.shadow.camera.bottom = -dCam;
+    dirLight.shadow.bias = -0.0005;
+    scene.add(dirLight);
+
+    const iceFortLight = new THREE.PointLight(0x38bdf8, 0.1, 14, 1.6);
+    iceFortLight.position.set(-8.5, 2.6, 0);
+    scene.add(iceFortLight);
+
+    const scarletFortLight = new THREE.PointLight(0xfb7185, 0.1, 14, 1.6);
+    scarletFortLight.position.set(8.5, 2.6, 0);
+    scene.add(scarletFortLight);
+
+    const cocoaWarmLight = new THREE.PointLight(0xffb703, 0.1, 15, 1.6);
+    cocoaWarmLight.position.set(5.5, 3.2, -9.2);
+    scene.add(cocoaWarmLight);
+
+    const plushMaterial = new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0.02 });
+    const snowMaterial = new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0.03 });
+    const woodPropMaterial = new THREE.MeshStandardMaterial({ roughness: 0.78, metalness: 0.06 });
+    const iceMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xe0f2fe,
+      transparent: true,
+      opacity: 0.82,
+      roughness: 0.14,
+      metalness: 0.05,
+      transmission: 0.35,
+      emissive: new THREE.Color(0x38bdf8),
+      emissiveIntensity: 0.22
+    });
+    const crystalWingMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.2,
+      metalness: 0.1,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 0.35
+    });
+    const lanternGlowMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfff3b0,
+      emissive: new THREE.Color(0xff9e00),
+      emissiveIntensity: 0.4,
+      roughness: 0.2
+    });
+    const iglooWindowMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfef08a,
+      emissive: new THREE.Color(0xfbbf24),
+      emissiveIntensity: 0.3,
+      roughness: 0.25
+    });
+
+    // ============================================================================
+    // 5. SNOWFIELD DIORAMA, PONDS, TREES, IGLOO, SNOWMAN, COCOA STAND & SLEDS
+    // ============================================================================
+    const WV = 0.35;
+    const snowFieldVoxels = [];
+    const woodPropVoxels = [];
+    const icePropVoxels = [];
+    const lanternVoxels = [];
+    const iglooWindowVoxels = [];
+
+    const propColliders = [];
+    function addCollider(minX, minY, minZ, maxX, maxY, maxZ, name) {
+      propColliders.push({
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        name
+      });
+    }
+
+    function pushWV(list, x, y, z, hex, variance = 0.025, sx = 1, sy = 1, sz = 1) {
+      list.push({
+        x, y, z,
+        color: varyColor(hex, x, y, z, variance),
+        sx, sy, sz
+      });
+    }
+
+    function buildWinterLandscape() {
+      // 1. Base Snowy Field (-38..38 in X, -32..32 in Z) with Frozen Pond at (0..14, 10..24)
+      for (let x = -38; x <= 38; x++) {
+        for (let z = -32; z <= 32; z++) {
+          const pondDist = Math.hypot((x - 6) * 0.85, (z - 16) * 1.1);
+          const isPond = pondDist < 8.2;
+
+          if (isPond) {
+            const iceCol = (pondDist < 5.0 && (x + z) % 5 === 0) ? '#bae6fd' : '#7dd3fc';
+            pushWV(icePropVoxels, x, -0.4, z, iceCol, 0.02, 1, 0.9, 1);
+          } else {
+            const edgeDist = Math.max(Math.abs(x) - 28, Math.abs(z) - 22, 0);
+            const hillH = Math.min(3, Math.floor(edgeDist * 0.32));
+            for (let y = 0; y <= hillH; y++) {
+              const sCol = (y === hillH) ? '#f8fafc' : '#e2e8f0';
+              pushWV(snowFieldVoxels, x, y - 0.5, z, sCol, 0.02);
+            }
+          }
+        }
+      }
+
+      // 2. Deep Snowdrift Mound at (-6, 0, 5.2) -> voxel (-17, y, 15) where Letty is buried to the neck!
+      for (let dx = -4; dx <= 4; dx++) {
+        for (let dz = -4; dz <= 4; dz++) {
+          const r = Math.hypot(dx, dz);
+          if (r <= 4.2) {
+            const h = Math.max(1, Math.round((4.3 - r) * 0.95));
+            for (let y = 0; y < h; y++) {
+              pushWV(snowFieldVoxels, -17 + dx, y + 0.5, 15 + dz, '#f1f5f9', 0.025);
+            }
+          }
+        }
+      }
+
+      // 3. Translucent Ice Shield Walls near center
+      for (const side of [-1, 1]) {
+        const baseX = side * 12;
+        const baseZ = side * 7;
+        for (let ix = -2; ix <= 2; ix++) {
+          for (let iy = 0; iy <= 4; iy++) {
+            if (iy === 4 && Math.abs(ix) === 2) continue;
+            pushWV(icePropVoxels, baseX + ix, iy + 0.5, baseZ, '#93c5fd', 0.02);
+          }
+        }
+        addCollider((baseX - 2.5) * WV, 0, (baseZ - 0.8) * WV, (baseX + 2.5) * WV, 5 * WV, (baseZ + 0.8) * WV, 'ice_wall');
+      }
+
+      // 4. Igloo with Team Ice Flag & Glowing Windows at Back-Left (voxel -24, 0, -20)
+      const igX = -24, igZ = -20;
+      for (let dx = -7; dx <= 7; dx++) {
+        for (let dz = -7; dz <= 7; dz++) {
+          for (let dy = 0; dy <= 7; dy++) {
+            const r = Math.sqrt(dx * dx + dy * dy * 1.15 + dz * dz);
+            if (r <= 7.2 && r >= 5.5) {
+              if (dz >= 4 && Math.abs(dx) <= 2 && dy <= 3) continue;
+              if (dy >= 2 && dy <= 3 && Math.abs(dx) >= 5 && Math.abs(dz) <= 1) {
+                pushWV(iglooWindowVoxels, igX + dx, dy + 0.5, igZ + dz, '#fef08a', 0.01);
+              } else {
+                const seam = (dy % 2 === 0 && (dx + dz) % 3 === 0);
+                pushWV(snowFieldVoxels, igX + dx, dy + 0.5, igZ + dz, seam ? '#cbd5e1' : '#f8fafc', 0.02);
+              }
+            }
+          }
+        }
+      }
+      for (let tz = 5; tz <= 8; tz++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          for (let dy = 0; dy <= 3; dy++) {
+            if (Math.abs(dx) === 2 || dy === 3) {
+              pushWV(snowFieldVoxels, igX + dx, dy + 0.5, igZ + tz, '#f1f5f9', 0.02);
+            }
+          }
+        }
+      }
+      for (let fy = 7; fy <= 13; fy++) {
+        pushWV(woodPropVoxels, igX, fy + 0.5, igZ, '#78350f', 0.01, 0.45, 1, 0.45);
+      }
+      for (let fx = 1; fx <= 4; fx++) {
+        for (let fy = 11; fy <= 13; fy++) {
+          pushWV(woodPropVoxels, igX + fx, fy + 0.5, igZ, fx === 2 && fy === 12 ? '#ffffff' : '#0284c7', 0.02, 1, 1, 0.35);
+        }
+      }
+      addCollider((igX - 7) * WV, 0, (igZ - 7) * WV, (igX + 7) * WV, 7.5 * WV, (igZ + 8) * WV, 'igloo');
+
+      // 5. Hot Cocoa Stand at Sidelines (voxel 16, 0, -23)
+      const cx = 16, cz = -23;
+      for (let dx = -5; dx <= 5; dx++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          for (let dy = 0; dy <= 3; dy++) {
+            const cCol = dy === 3 ? '#d97706' : '#78350f';
+            pushWV(woodPropVoxels, cx + dx, dy + 0.5, cz + dz, cCol, 0.025);
+          }
+        }
+      }
+      for (let dy = 4; dy <= 9; dy++) {
+        pushWV(woodPropVoxels, cx - 4, dy + 0.5, cz - 1, '#5c2d16', 0.02, 0.6, 1, 0.6);
+        pushWV(woodPropVoxels, cx + 4, dy + 0.5, cz - 1, '#5c2d16', 0.02, 0.6, 1, 0.6);
+      }
+      for (let dx = -6; dx <= 6; dx++) {
+        for (let dz = -3; dz <= 3; dz++) {
+          const stripe = (Math.floor((dx + 6) / 2) % 2 === 0) ? '#e11d48' : '#f8fafc';
+          pushWV(woodPropVoxels, cx + dx, 10.5 - dz * 0.25, cz + dz, stripe, 0.02);
+        }
+      }
+      pushWV(woodPropVoxels, cx - 2, 4.3, cz + 1, '#dc2626', 0.01, 0.7, 0.8, 0.7);
+      pushWV(woodPropVoxels, cx + 1, 4.3, cz + 1, '#2563eb', 0.01, 0.7, 0.8, 0.7);
+      pushWV(lanternVoxels, cx, 8.8, cz + 2, '#fde047', 0.01, 1.1, 1.3, 1.1);
+      addCollider((cx - 5.5) * WV, 0, (cz - 2.5) * WV, (cx + 5.5) * WV, 4.2 * WV, (cz + 2.5) * WV, 'cocoa_stand');
+
+      // 6. Referee Keine's High Chair at Sideline Center (voxel 0, 0, -21)
+      const rx = 0, rz = -21;
+      for (let dy = 0; dy <= 7; dy++) {
+        for (const lx of [-2, 2]) {
+          for (const lz of [-2, 2]) {
+            pushWV(woodPropVoxels, rx + lx, dy + 0.5, rz + lz, '#991b1b', 0.02, 0.65, 1, 0.65);
+          }
+        }
+        if (dy % 2 === 1 && dy <= 6) {
+          for (let lx = -1; lx <= 1; lx++) {
+            pushWV(woodPropVoxels, rx + lx, dy + 0.5, rz + 2, '#f8fafc', 0.02, 1, 0.45, 0.45);
+          }
+        }
+      }
+      for (let lx = -2; lx <= 2; lx++) {
+        for (let lz = -2; lz <= 2; lz++) {
+          pushWV(woodPropVoxels, rx + lx, 8.0, rz + lz, '#ef4444', 0.02);
+        }
+        for (let by = 9; by <= 11; by++) {
+          pushWV(woodPropVoxels, rx + lx, by, rz - 2, '#ef4444', 0.02);
+        }
+      }
+      addCollider((rx - 2.5) * WV, 0, (rz - 2.5) * WV, (rx + 2.5) * WV, 3.0, (rz + 2.5) * WV, 'ref_chair');
+
+      // 7. Cute Voxel Snowman at (voxel -10, 0, -18)
+      const smX = -10, smZ = -18;
+      const buildSphere = (cy, rad, col) => {
+        for (let dx = -4; dx <= 4; dx++) {
+          for (let dy = -4; dy <= 4; dy++) {
+            for (let dz = -4; dz <= 4; dz++) {
+              if (Math.hypot(dx, dy, dz) <= rad) {
+                pushWV(snowFieldVoxels, smX + dx, cy + dy, smZ + dz, col, 0.02);
+              }
+            }
+          }
+        }
+      };
+      buildSphere(2.2, 2.8, '#ffffff');
+      buildSphere(6.0, 2.1, '#ffffff');
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          if (Math.hypot(dx, dz) >= 1.5 && Math.hypot(dx, dz) <= 2.4) {
+            pushWV(woodPropVoxels, smX + dx, 4.3, smZ + dz, '#e11d48', 0.02);
+          }
+        }
+      }
+      pushWV(woodPropVoxels, smX, 6.2, smZ + 2.4, '#f97316', 0.01, 0.5, 0.5, 1.4);
+      pushWV(woodPropVoxels, smX - 0.8, 6.7, smZ + 2.0, '#1e293b', 0.01, 0.45, 0.45, 0.45);
+      pushWV(woodPropVoxels, smX + 0.8, 6.7, smZ + 2.0, '#1e293b', 0.01, 0.45, 0.45, 0.45);
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          pushWV(woodPropVoxels, smX + dx, 8.2, smZ + dz, '#3b82f6', 0.02);
+          pushWV(woodPropVoxels, smX + dx, 9.0, smZ + dz, '#3b82f6', 0.02);
+        }
+      }
+      addCollider((smX - 3) * WV, 0, (smZ - 3) * WV, (smX + 3) * WV, 3.4, (smZ + 3) * WV, 'snowman');
+
+      // 8. Wooden Sleds parked near forts
+      const sledSpots = [[-26, 16], [25, -14]];
+      sledSpots.forEach(([sx, sz]) => {
+        for (let lx = -3; lx <= 3; lx++) {
+          pushWV(woodPropVoxels, sx + lx, 0.3, sz - 1.2, '#94a3b8', 0.01, 1, 0.4, 0.3);
+          pushWV(woodPropVoxels, sx + lx, 0.3, sz + 1.2, '#94a3b8', 0.01, 1, 0.4, 0.3);
+          for (let lz = -1; lz <= 1; lz++) {
+            pushWV(woodPropVoxels, sx + lx, 0.8, sz + lz, (lx % 2 === 0) ? '#b45309' : '#d97706', 0.02, 1, 0.4, 0.9);
+          }
+        }
+      });
+
+      // 9. Snow-Capped Pine Trees around the perimeter
+      const treeCoords = [
+        [-33, -26], [-15, -28], [6, -28], [29, -26],
+        [-34, -8], [34, -6], [-32, 22], [-18, 26], [24, 24], [33, 16]
+      ];
+      treeCoords.forEach(([tx, tz], idx) => {
+        const height = 10 + (idx % 3) * 2;
+        for (let y = 0; y <= 3; y++) {
+          pushWV(woodPropVoxels, tx, y + 0.5, tz, '#5c3a21', 0.02);
+        }
+        for (let y = 3; y <= height; y++) {
+          const tierR = Math.max(0.8, ((height + 1 - y) * 0.52) + ((y % 2 === 0) ? 0.6 : 0));
+          for (let dx = -4; dx <= 4; dx++) {
+            for (let dz = -4; dz <= 4; dz++) {
+              const d = Math.hypot(dx, dz);
+              if (d <= tierR) {
+                const isSnowCap = (y === height || (d >= tierR - 0.75 && (y % 2 === 0)));
+                pushWV(
+                  isSnowCap ? snowFieldVoxels : woodPropVoxels,
+                  tx + dx,
+                  y + 0.5,
+                  tz + dz,
+                  isSnowCap ? '#f8fafc' : '#15803d',
+                  0.03
+                );
+              }
+            }
+          }
+        }
+      });
+    }
+
+    buildWinterLandscape();
+
+    const envGroup = new THREE.Group();
+    scene.add(envGroup);
+    envGroup.add(buildVoxelInstancedMesh(snowFieldVoxels, WV, snowMaterial, true, true));
+    envGroup.add(buildVoxelInstancedMesh(woodPropVoxels, WV, woodPropMaterial, true, true));
+    envGroup.add(buildVoxelInstancedMesh(icePropVoxels, WV, iceMaterial, false, true));
+    envGroup.add(buildVoxelInstancedMesh(lanternVoxels, WV, lanternGlowMaterial, false, false));
+    envGroup.add(buildVoxelInstancedMesh(iglooWindowVoxels, WV, iglooWindowMaterial, false, false));
+
+    const groundRaycastPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(60, 60),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    groundRaycastPlane.rotation.x = -Math.PI / 2;
+    groundRaycastPlane.name = 'ground';
+    scene.add(groundRaycastPlane);
+
+    // ============================================================================
+    // 6. DESTRUCTIBLE & PACKABLE SNOW FORTS + CLICKABLE AMMO PILES
+    // ============================================================================
+    const fortBlocks = [];
+    const FORT_UNIT = 0.42;
+    const fortLanternVoxels = [];
+
+    function generateSnowFortData() {
+      const addBrick = (team, wx, wy, wz, colorHex) => {
+        fortBlocks.push({
+          index: fortBlocks.length,
+          team,
+          pos: new THREE.Vector3(wx, wy, wz),
+          baseColor: varyColor(colorHex, wx * 3, wy * 3, wz * 3, 0.03),
+          maxHp: 2,
+          hp: 2,
+          scale: 1.0
+        });
+      };
+
+      for (const team of ['ice', 'scarlet']) {
+        const sign = team === 'ice' ? -1 : 1;
+        const centerX = sign * 7.4;
+        const mainTint = team === 'ice' ? '#e0f2fe' : '#ffe4e6';
+        const trimTint = team === 'ice' ? '#7dd3fc' : '#fda4af';
+
+        for (let bz = -8; bz <= 8; bz++) {
+          const wz = bz * FORT_UNIT;
+          const wx = centerX + (Math.abs(bz) > 5 ? sign * (Math.abs(bz) - 5) * FORT_UNIT * 0.8 : 0);
+          const maxH = (Math.abs(bz) % 2 === 0) ? 5 : 4;
+          for (let by = 0; by < maxH; by++) {
+            const wy = (by + 0.5) * FORT_UNIT;
+            addBrick(team, wx, wy, wz, by === maxH - 1 ? trimTint : mainTint);
+          }
+        }
+
+        for (const sideZ of [-1, 1]) {
+          const tx = centerX + sign * 2.2 * FORT_UNIT;
+          const tz = sideZ * 8.5 * FORT_UNIT;
+          for (let by = 0; by < 6; by++) {
+            addBrick(team, tx, (by + 0.5) * FORT_UNIT, tz, by === 5 ? trimTint : mainTint);
+          }
+          fortLanternVoxels.push({
+            x: tx / WV,
+            y: (6.6 * FORT_UNIT) / WV,
+            z: tz / WV,
+            color: new THREE.Color(team === 'ice' ? '#7dd3fc' : '#fda4af'),
+            sx: 1.1, sy: 1.3, sz: 1.1
+          });
+        }
+      }
+    }
+
+    generateSnowFortData();
+    envGroup.add(buildVoxelInstancedMesh(fortLanternVoxels, WV, lanternGlowMaterial, false, false));
+
+    const fortGeom = createSoftVoxelGeometry(FORT_UNIT);
+    const fortInstancedMesh = new THREE.InstancedMesh(fortGeom, snowMaterial, fortBlocks.length);
+    fortInstancedMesh.castShadow = true;
+    fortInstancedMesh.receiveShadow = true;
+    fortInstancedMesh.name = 'fort_mesh';
+    scene.add(fortInstancedMesh);
+
+    function syncFortInstancedMesh() {
+      for (let i = 0; i < fortBlocks.length; i++) {
+        const b = fortBlocks[i];
+        const s = b.hp <= 0 ? 0.0001 : (b.hp === 1 ? 0.76 * b.scale : b.scale);
+        tempPos.copy(b.pos);
+        tempQuat.identity();
+        tempScale.set(s, s, s);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        fortInstancedMesh.setMatrixAt(i, tempMatrix);
+        fortInstancedMesh.setColorAt(i, b.baseColor);
+      }
+      fortInstancedMesh.instanceMatrix.needsUpdate = true;
+      if (fortInstancedMesh.instanceColor) fortInstancedMesh.instanceColor.needsUpdate = true;
+    }
+    syncFortInstancedMesh();
+
+    function packAllForts() {
+      let packedAny = false;
+      for (let i = 0; i < fortBlocks.length; i++) {
+        if (fortBlocks[i].hp < fortBlocks[i].maxHp) {
+          fortBlocks[i].hp = fortBlocks[i].maxHp;
+          fortBlocks[i].scale = 1.22;
+          packedAny = true;
+        }
+      }
+      if (packedAny) {
+        soundFX.playSnowCrunch(1.2);
+        syncFortInstancedMesh();
+      }
+    }
+
+    const ammoPileMeshes = [];
+    const pilePositions = [
+      new THREE.Vector3(-9.5, 0, -2.5),
+      new THREE.Vector3(-9.5, 0, 2.5),
+      new THREE.Vector3(9.5, 0, -2.5),
+      new THREE.Vector3(9.5, 0, 2.5),
+      new THREE.Vector3(-2.5, 0, -5.8),
+      new THREE.Vector3(2.5, 0, -5.8)
+    ];
+
+    pilePositions.forEach((pPos) => {
+      const pileGroup = new THREE.Group();
+      pileGroup.position.copy(pPos);
+      const balls = [
+        [0, 0.22, 0], [-0.28, 0.18, 0.15], [0.28, 0.18, 0.15],
+        [0, 0.18, -0.25], [-0.15, 0.42, -0.05], [0.15, 0.42, 0.05], [0, 0.62, 0]
+      ];
+      balls.forEach(([bx, by, bz]) => {
+        const m = new THREE.Mesh(createSoftVoxelGeometry(0.28), snowMaterial);
+        m.position.set(bx, by, bz);
+        m.castShadow = true;
+        m.receiveShadow = true;
+        m.userData.isAmmoPile = true;
+        m.userData.pileGroup = pileGroup;
+        pileGroup.add(m);
+        ammoPileMeshes.push(m);
+      });
+      scene.add(pileGroup);
+    });
+
+    // ============================================================================
+    // 7. POOLED PARTICLES: DRIFTING SNOWFLAKES, SNOW PUFFS & AURORA RIBBONS
+    // ============================================================================
+    const SNOWFLAKE_COUNT = 260;
+    const snowflakeData = [];
+    const snowflakeGeom = new THREE.BoxGeometry(0.09, 0.09, 0.09);
+    const snowflakeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
+    const snowflakeMesh = new THREE.InstancedMesh(snowflakeGeom, snowflakeMat, SNOWFLAKE_COUNT);
+    for (let i = 0; i < SNOWFLAKE_COUNT; i++) {
+      snowflakeData.push({
+        x: (Math.random() - 0.5) * 32,
+        y: Math.random() * 16,
+        z: (Math.random() - 0.5) * 26,
+        vy: 1.2 + Math.random() * 1.4,
+        phase: Math.random() * Math.PI * 2,
+        scale: 0.6 + Math.random() * 0.9
+      });
+    }
+    scene.add(snowflakeMesh);
+
+    let blizzardActive = false;
+    let blizzardTimer = 0;
+
+    function triggerBlizzard() {
+      blizzardActive = !blizzardActive;
+      blizzardTimer = blizzardActive ? 9.0 : 0;
+      document.getElementById('blizzard-overlay').style.opacity = blizzardActive ? '1' : '0';
+      soundFX.playWhoosh(0.5);
+    }
+
+    function updateSnowflakes(time, dt) {
+      const windX = blizzardActive ? 11.5 : 0.8;
+      const fallMult = blizzardActive ? 3.2 : 1.0;
+
+      for (let i = 0; i < SNOWFLAKE_COUNT; i++) {
+        const s = snowflakeData[i];
+        s.x += (windX + Math.sin(time * 1.5 + s.phase) * 0.6) * dt;
+        s.y -= s.vy * fallMult * dt;
+        s.z += Math.cos(time * 1.2 + s.phase) * 0.5 * dt;
+
+        if (s.y < 0) s.y = 15.5;
+        if (s.x > 16) s.x = -16;
+        if (s.x < -16) s.x = 16;
+        if (s.z > 13) s.z = -13;
+        if (s.z < -13) s.z = 13;
+
+        tempPos.set(s.x, s.y, s.z);
+        tempEuler.set(time * 2 + s.phase, time * 1.5, 0);
+        tempQuat.setFromEuler(tempEuler);
+        const sc = s.scale * (blizzardActive ? 1.45 : 1.0);
+        tempScale.set(sc, sc, sc);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        snowflakeMesh.setMatrixAt(i, tempMatrix);
+      }
+      snowflakeMesh.instanceMatrix.needsUpdate = true;
+
+      if (blizzardActive) {
+        blizzardTimer -= dt;
+        if (blizzardTimer <= 0) {
+          blizzardActive = false;
+          document.getElementById('blizzard-overlay').style.opacity = '0';
+        }
+      }
+    }
+
+    const PARTICLE_MAX = 110;
+    const burstParticles = [];
+    const burstGeom = new THREE.BoxGeometry(0.14, 0.14, 0.14);
+    const burstMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const burstMesh = new THREE.InstancedMesh(burstGeom, burstMat, PARTICLE_MAX);
+    for (let i = 0; i < PARTICLE_MAX; i++) {
+      burstParticles.push({
+        active: false,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        life: 0,
+        maxLife: 1,
+        color: new THREE.Color('#ffffff')
+      });
+      tempMatrix.makeScale(0, 0, 0);
+      burstMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(burstMesh);
+
+    function spawnBurstParticles(origin, paletteHexes, count = 14, speedMult = 1.0) {
+      let spawned = 0;
+      for (let i = 0; i < PARTICLE_MAX && spawned < count; i++) {
+        const p = burstParticles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.45 + Math.random() * 0.35;
+          p.pos.copy(origin);
+          const ang = Math.random() * Math.PI * 2;
+          const spd = (1.8 + Math.random() * 3.2) * speedMult;
+          p.vel.set(Math.cos(ang) * spd, (2.2 + Math.random() * 3.2) * speedMult, Math.sin(ang) * spd);
+          p.color.set(paletteHexes[spawned % paletteHexes.length]);
+          burstMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (burstMesh.instanceColor) burstMesh.instanceColor.needsUpdate = true;
+    }
+
+    function updateBurstParticles(dt) {
+      let dirty = false;
+      for (let i = 0; i < PARTICLE_MAX; i++) {
+        const p = burstParticles[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          burstMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= 9.8 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const s = 1.0 - (p.life / p.maxLife);
+        tempEuler.set(p.life * 8, p.life * 6, 0);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        burstMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) burstMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    const auroraData = [];
+    for (let band = 0; band < 2; band++) {
+      for (let ix = -26; ix <= 26; ix++) {
+        for (let iy = 0; iy < 3; iy++) {
+          auroraData.push({
+            band,
+            ix,
+            iy,
+            baseX: ix * 0.65,
+            baseY: 14.5 + band * 2.2 + iy * 0.55,
+            baseZ: -16.5 - band * 3.0
+          });
+        }
+      }
+    }
+    const auroraMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const auroraMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.62, 0.52, 0.25), auroraMat, auroraData.length);
+    scene.add(auroraMesh);
+
+    function updateAurora(time) {
+      if (auroraMat.opacity <= 0.01) return;
+      for (let i = 0; i < auroraData.length; i++) {
+        const a = auroraData[i];
+        const waveZ = Math.sin(time * 0.9 + a.ix * 0.22 + a.band * 1.5) * 1.8;
+        const waveY = Math.cos(time * 0.7 + a.ix * 0.15) * 0.45;
+        tempPos.set(a.baseX, a.baseY + waveY, a.baseZ + waveZ);
+        tempQuat.identity();
+        tempScale.set(1, 1 + 0.35 * Math.sin(time * 1.8 + a.ix * 0.3), 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        auroraMesh.setMatrixAt(i, tempMatrix);
+
+        const hue = (0.42 + a.band * 0.32 + Math.sin(time * 0.3 + a.ix * 0.08) * 0.08) % 1.0;
+        tempColor.setHSL(hue, 0.85, 0.6);
+        auroraMesh.setColorAt(i, tempColor);
+      }
+      auroraMesh.instanceMatrix.needsUpdate = true;
+      if (auroraMesh.instanceColor) auroraMesh.instanceColor.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 8. TOUHOU FUMO VOXEL PLUSHIE BUILDER (ALL 9 CAST MEMBERS + UNEXPECTED SPOTS)
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const fumos = [];
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.team = config.team;
+        this.role = config.role || '';
+        this.emoji = config.emoji || '❄️';
+        this.accentColor = config.accentColor || '#38bdf8';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.082 * this.scaleFactor;
+        this.radius = 0.85 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+        this.specialBehaviour = config.specialBehaviour || null;
+
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isDragged = false;
+
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        this.throwCooldown = 1.2 + Math.random() * 2.5;
+
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        this.buildCharacterVoxels(config);
+        this.syncTransform(0);
+        scene.add(this.root);
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingSolidVoxels = [];
+        const wingGlowVoxels = [];
+
+        const skinBase = '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false) => {
+          const seamDarken = (isSeam && ((Math.abs(Math.round(x + y + z)) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z,
+            color: varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // 1. STUBBY SITTING TORSO
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain;
+
+              if (y === 1 && z >= 1) col = '#ffffff';
+              if (cfg.hasWhiteApron && z >= 1 && Math.abs(x) <= 2 && y <= 5) {
+                col = '#fcfcfc';
+              }
+              if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                col = '#ffffff';
+                if (Math.abs(x) <= 1 && y === 5) col = cfg.tieColor || '#ef4444';
+              }
+              if (this.id === 'remilia' && z >= 2 && x === 0 && y >= 2 && y <= 6) {
+                col = '#d90429';
+              }
+              if (this.id === 'flandre' && z >= 2 && Math.abs(x) === 1 && y === 4) {
+                col = '#fde047';
+              }
+
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        if (this.id === 'daiyousei') {
+          for (let tx = -6; tx <= 6; tx++) {
+            for (let tz = -5; tz <= 6; tz++) {
+              const isRim = (Math.abs(tx) === 6 || tz === -5 || tz === 6);
+              addPlushVoxel(bodyVoxels, tx, isRim ? 0.35 : -0.2, tz, isRim ? '#dc2626' : '#ef4444');
+            }
+          }
+        }
+        if (this.id === 'rumia') {
+          for (let sx = -5; sx <= 5; sx++) {
+            for (let sy = 0; sy <= 8; sy++) {
+              for (let sz = -5; sz <= 4; sz++) {
+                const r = Math.hypot(sx, sy - 4, sz);
+                if (r >= 4.4 && r <= 5.3 && !(sz >= 3 && sy >= 4)) {
+                  addPlushVoxel(bodyVoxels, sx, sy, sz, (sx + sy + sz) % 2 === 0 ? '#1e1b4b' : '#312e81');
+                }
+              }
+            }
+          }
+        }
+
+        // 2. SHORT DANGLING ARMS
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || '#ffffff';
+                if (y === -3) col = skinBase;
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        // 3. SHORT SITTING / DANGLING LEGS WITH SHOES
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = '#ffffff';
+                if (z === 0) col = skinBase;
+                if (z >= 3) col = cfg.shoeColor || '#2b2d42';
+                if (z === 4 && y === 1 && x === 0) col = '#ffffff';
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        // 4. OVERSIZED ROUND FUMO HEAD, FACE, HAIR & CHARACTER ACCESSORIES
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (y === 6) col = '#1f141e';
+                  else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                  else col = cfg.eyeColor;
+                } else if (Math.abs(x) === 4 && y === 3) {
+                  col = blushCol;
+                } else if (y === 2 && Math.abs(x) <= 1) {
+                  col = (x === 0) ? '#e07a7a' : smileCol;
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        if (this.id === 'cirno') {
+          for (let bx = -6; bx <= 6; bx++) {
+            const h = Math.min(3, Math.floor(Math.abs(bx) * 0.65) + 1);
+            for (let by = -h; by <= h; by++) {
+              addPlushVoxel(headVoxels, bx, 10.5 + by * 0.75, -4.8, '#1d4ed8');
+            }
+          }
+          const wingAngles = [0.45, 0.05, -0.35];
+          for (const side of [-1, 1]) {
+            for (let w = 0; w < 3; w++) {
+              const ang = wingAngles[w];
+              for (let r = 1; r <= 7; r++) {
+                const wx = side * (1.2 + Math.cos(ang) * r * 1.05);
+                const wy = 1.0 + Math.sin(ang) * r * 1.05;
+                const wz = -0.5 - r * 0.15;
+                wingGlowVoxels.push({
+                  x: wx, y: wy, z: wz,
+                  color: varyColor(r > 5 ? '#e0f2fe' : '#38bdf8', wx, wy, wz, 0.02),
+                  sx: 1.1, sy: 0.85, sz: 0.6
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'letty') {
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -6; hz <= 6; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.8 && r >= 4.4) {
+                addPlushVoxel(headVoxels, hx, 11.2, hz, '#ffffff');
+                if (r <= 5.8) addPlushVoxel(headVoxels, hx, 12.2, hz, '#f1f5f9');
+              }
+            }
+          }
+          addPlushVoxel(headVoxels, 0, 11.4, 5.8, '#facc15');
+        }
+
+        if (this.id === 'daiyousei') {
+          for (let by = 7; by <= 11; by++) {
+            addPlushVoxel(headVoxels, 6.2, by, 1.0, '#facc15');
+            addPlushVoxel(headVoxels, 6.8, by, 0.2, '#fde047');
+          }
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 5; wx++) {
+              for (let wy = 0; wy <= 3; wy++) {
+                wingGlowVoxels.push({
+                  x: side * wx, y: wy, z: -0.5,
+                  color: varyColor('#bbf7d0', wx, wy, 0, 0.02),
+                  sx: 0.9, sy: 0.9, sz: 0.5
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'rumia') {
+          for (let rx = 2; rx <= 6; rx++) {
+            addPlushVoxel(headVoxels, rx, 10.8, 3.2, '#e11d48');
+            addPlushVoxel(headVoxels, rx, 11.5, 2.8, '#dc2626');
+          }
+        }
+
+        if (this.id === 'remilia') {
+          for (let hx = -8; hx <= 8; hx++) {
+            for (let hz = -7; hz <= 6; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 7.4 && r >= 4.5) {
+                addPlushVoxel(headVoxels, hx, 11.0, hz, '#ffc2d1');
+                if (r <= 6.4) addPlushVoxel(headVoxels, hx, 12.0, hz, '#d90429');
+                if (r <= 5.5) addPlushVoxel(headVoxels, hx, 13.0, hz, '#ffe5ec');
+              }
+            }
+          }
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 6; wx++) {
+              const topY = 2.0 + Math.sin((wx / 6) * Math.PI) * 2.5;
+              for (let wy = -1; wy <= topY; wy++) {
+                wingSolidVoxels.push({
+                  x: side * wx, y: wy, z: -0.6 - wx * 0.15,
+                  color: varyColor('#2b193d', wx, wy, 0, 0.03)
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'flandre') {
+          for (let py = 2; py <= 7; py++) {
+            addPlushVoxel(headVoxels, -7.2 - (7 - py) * 0.3, py, 0.5, py === 6 ? '#e63946' : cfg.hairColor);
+          }
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -7; hz <= 5; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.8 && r >= 4.8) {
+                addPlushVoxel(headVoxels, hx, 11.2, hz, '#ffe5ec');
+                addPlushVoxel(headVoxels, hx, 12.1, hz * 0.85, '#e63946');
+                addPlushVoxel(headVoxels, hx * 0.8, 12.9, hz * 0.75, '#ffe5ec');
+              }
+            }
+          }
+          const crystalColors = ['#38bdf8', '#3b82f6', '#a855f7', '#ec4899', '#f97316', '#fde047', '#4ade80', '#ef4444'];
+          for (const side of [-1, 1]) {
+            for (let rx = 1; rx <= 9; rx++) {
+              const branchY = 2.5 + (rx <= 4 ? rx * 0.45 : (4 * 0.45 - (rx - 4) * 0.35));
+              wingSolidVoxels.push({
+                x: side * rx, y: branchY, z: -0.5,
+                color: new THREE.Color('#1e1b24'),
+                sx: 0.9, sy: 0.65, sz: 0.65
+              });
+              if (rx % 2 === 0 && rx <= 8) {
+                const cIdx = (side === -1 ? (rx / 2 - 1) : (3 + rx / 2));
+                const cHex = crystalColors[cIdx % 8];
+                for (let cy = -2; cy <= 0; cy++) {
+                  const width = (cy === -1) ? 1.35 : 0.75;
+                  wingGlowVoxels.push({
+                    x: side * (rx + 0.3),
+                    y: branchY - 1.1 + cy * 0.95,
+                    z: -0.5,
+                    color: new THREE.Color(cHex),
+                    sx: width, sy: 0.95, sz: 0.75
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        if (this.id === 'sakuya') {
+          for (const side of [-1, 1]) {
+            for (let y = -2; y <= 5; y++) {
+              const col = (y <= -1) ? '#22c55e' : cfg.hairColor;
+              addPlushVoxel(headVoxels, side * 6.5, y, 3.2, col);
+            }
+          }
+          for (let hx = -6; hx <= 6; hx++) {
+            addPlushVoxel(headVoxels, hx, 11.8, 1.8 - Math.abs(hx) * 0.15, Math.abs(hx) === 6 ? '#22c55e' : '#ffffff');
+            addPlushVoxel(headVoxels, hx, 12.5, 1.5 - Math.abs(hx) * 0.15, '#ffffff');
+          }
+        }
+
+        if (this.id === 'meiling') {
+          for (let hx = -6; hx <= 6; hx++) {
+            for (let hz = -6; hz <= 5; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.4 && r >= 4.0) {
+                addPlushVoxel(headVoxels, hx, 11.3, hz, '#15803d');
+                if (r <= 5.4) addPlushVoxel(headVoxels, hx, 12.2, hz, '#16a34a');
+              }
+            }
+          }
+          addPlushVoxel(headVoxels, 0, 11.6, 5.2, '#facc15');
+          for (const side of [-1, 1]) {
+            for (let y = -2; y <= 4; y++) {
+              addPlushVoxel(headVoxels, side * 6.6, y, 2.4, cfg.hairColor);
+            }
+          }
+        }
+
+        if (this.id === 'keine') {
+          for (let hx = -5; hx <= 5; hx++) {
+            for (let hz = -5; hz <= 5; hz++) {
+              if (Math.abs(hx) <= 4 && Math.abs(hz) <= 4) {
+                addPlushVoxel(headVoxels, hx, 11.4, hz, '#1e3a8a');
+                if (Math.abs(hx) <= 3 && Math.abs(hz) <= 3) {
+                  addPlushVoxel(headVoxels, hx, 12.5, hz, '#1d4ed8');
+                  addPlushVoxel(headVoxels, hx, 13.4, hz, '#facc15');
+                }
+              }
+            }
+          }
+          addPlushVoxel(headVoxels, 0, 1.2, 6.2, '#e2e8f0');
+          addPlushVoxel(headVoxels, 0, 1.2, 6.9, '#94a3b8');
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allFumoRaycastMeshes.push(m);
+          }
+          return m;
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        registerPart(wingSolidVoxels, this.wingsPivot);
+        if (wingGlowVoxels.length > 0) {
+          const wMat = (this.id === 'cirno' || this.id === 'daiyousei') ? iceMaterial : crystalWingMaterial;
+          registerPart(wingGlowVoxels, this.wingsPivot, wMat);
+        }
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.5, this.squash - 0.42 * strength);
+        this.squashVel = -3.6 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 12 * strength;
+        this.limbPitch = -0.65 * strength;
+        this.limbPitchVel = -6.0 * strength;
+        spawnBurstParticles(this.pos.clone().add(new THREE.Vector3(0, 0.9, 0)), [this.accentColor, '#ffffff', '#fde047'], 12, 1.0);
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      resetToHome() {
+        this.pos.copy(this.homePos);
+        this.vel.set(0, 0, 0);
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.squeeze(0.8);
+      }
+
+      updatePhysics(dt, time) {
+        const squashStiff = 210.0;
+        const squashDamp = 11.5;
+        this.squashVel += ((1.0 - this.squash) * squashStiff - this.squashVel * squashDamp) * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash + this.squashVel * dt, 0.45, 1.55);
+
+        const headStiff = 140.0;
+        const headDamp = 7.5;
+        const idleBob = Math.sin(time * 2.4 + this.homePos.x) * 0.03;
+        this.headPitchVel += ((idleBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        const targetLimbPitch = (this.isDragged || !this.isGrounded) ? 0.58 : 0.0;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * 120.0 - this.limbPitchVel * 8.0) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * 120.0 - this.limbRollVel * 8.0) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.8, 0.9);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+
+        if (!this.isDragged) {
+          if (this.specialBehaviour === 'tray_slider' && this.pos.distanceTo(this.homePos) < 4.5 && this.vel.lengthSq() < 1.0) {
+            this.pos.x = this.homePos.x + Math.sin(time * 1.65) * 2.2;
+            this.pos.z = this.homePos.z + Math.sin(time * 3.3) * 1.15;
+            this.pos.y = 0.05;
+            this.yaw = Math.atan2(Math.cos(time * 1.65) * 2.2, Math.cos(time * 3.3) * 2.3);
+            this.isGrounded = true;
+          } else if (this.specialBehaviour === 'shield' && this.pos.distanceTo(this.homePos) < 2.5 && this.vel.lengthSq() < 1.0) {
+            this.pos.z = this.homePos.z + Math.sin(time * 2.1) * 2.4;
+            this.pos.y = 0;
+            this.isGrounded = true;
+          } else {
+            this.vel.y -= 24.0 * dt;
+            this.vel.multiplyScalar(Math.pow(0.985, dt * 60));
+            this.pos.addScaledVector(this.vel, dt);
+
+            this.yaw += this.angVel.y * dt;
+            this.pitch += this.angVel.x * dt;
+            this.roll += this.angVel.z * dt;
+            this.angVel.multiplyScalar(Math.pow(0.92, dt * 60));
+
+            this.isGrounded = false;
+
+            const distToDrift = Math.hypot(this.pos.x - (-5.95), this.pos.z - 5.25);
+            const floorY = (distToDrift < 1.35) ? -0.42 : 0.0;
+
+            if (this.pos.y < floorY) {
+              const impact = -this.vel.y;
+              this.pos.y = floorY;
+              if (impact > 2.0) {
+                this.vel.y = impact * 0.36;
+                this.squashVel -= Math.min(8.5, impact * 0.9);
+                spawnBurstParticles(this.pos, ['#ffffff', '#e0f2fe'], 8, 0.8);
+                soundFX.playBounce(impact * 0.08);
+              } else {
+                this.vel.y = 0;
+                this.isGrounded = true;
+              }
+              this.vel.x *= 0.8;
+              this.vel.z *= 0.8;
+            }
+
+            this.pos.x = THREE.MathUtils.clamp(this.pos.x, -12.5, 12.5);
+            this.pos.z = THREE.MathUtils.clamp(this.pos.z, -10.5, 10.5);
+
+            const r = this.radius * 0.72;
+            const centerY = this.pos.y + r;
+            for (let i = 0; i < propColliders.length; i++) {
+              const box = propColliders[i];
+              const cx = THREE.MathUtils.clamp(this.pos.x, box.min.x, box.max.x);
+              const cy = THREE.MathUtils.clamp(centerY, box.min.y, box.max.y);
+              const cz = THREE.MathUtils.clamp(this.pos.z, box.min.z, box.max.z);
+              const dx = this.pos.x - cx;
+              const dy = centerY - cy;
+              const dz = this.pos.z - cz;
+              const distSq = dx * dx + dy * dy + dz * dz;
+              if (distSq < r * r) {
+                if (centerY >= box.max.y - 0.3 && this.vel.y <= 0.5) {
+                  this.pos.y = box.max.y;
+                  this.vel.y = 0;
+                  this.isGrounded = true;
+                }
+              }
+            }
+
+            if (this.isGrounded) {
+              this.pitch = THREE.MathUtils.lerp(this.pitch, 0, Math.min(1, dt * 9.5));
+              this.roll = THREE.MathUtils.lerp(this.roll, 0, Math.min(1, dt * 9.5));
+              this.angVel.multiplyScalar(0.75);
+            }
+          }
+        }
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+
+        const armT = this.id === 'rumia' ? 1.15 : 0.18;
+        this.leftArmPivot.rotation.set(this.limbPitch, 0, armT + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.rightArmPivot.rotation.set(this.limbPitch, 0, -armT - Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+
+        const wingFlutter = Math.sin(time * 4.2 + this.homePos.x) * 0.07 + (1.0 - this.squash) * 0.35;
+        this.wingsPivot.rotation.x = wingFlutter;
+      }
+    }
+
+    const castConfigs = [
+      {
+        id: 'cirno',
+        name: 'Cirno (Team Ice Leader)',
+        team: 'ice',
+        emoji: '❄️',
+        accentColor: '#38bdf8',
+        hairColor: '#7dd3fc',
+        eyeColor: '#0284c7',
+        outfitMain: '#2563eb',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#1e3a8a',
+        homePos: new THREE.Vector3(-8.4, 0, -0.4),
+        homeYaw: Math.PI / 2,
+        pitchAudio: 1.15
+      },
+      {
+        id: 'letty',
+        name: 'Letty Whiterock (Buried in Drift!)',
+        team: 'ice',
+        emoji: '⛄',
+        accentColor: '#bae6fd',
+        hairColor: '#e2e8f0',
+        eyeColor: '#4f46e5',
+        outfitMain: '#312e81',
+        sleeveColor: '#ffffff',
+        tieColor: '#facc15',
+        shoeColor: '#1e1b4b',
+        hasWhiteApron: true,
+        homePos: new THREE.Vector3(-5.95, -0.42, 5.25),
+        homeYaw: Math.PI * 0.65,
+        specialBehaviour: 'buried',
+        pitchAudio: 0.92
+      },
+      {
+        id: 'daiyousei',
+        name: 'Daiyousei (Sliding on Tray!)',
+        team: 'ice',
+        emoji: '🛷',
+        accentColor: '#4ade80',
+        hairColor: '#4ade80',
+        eyeColor: '#0284c7',
+        outfitMain: '#1d4ed8',
+        sleeveColor: '#ffffff',
+        tieColor: '#facc15',
+        shoeColor: '#1e3a8a',
+        hasWhiteApron: true,
+        homePos: new THREE.Vector3(2.1, 0.05, 5.6),
+        homeYaw: 0.5,
+        specialBehaviour: 'tray_slider',
+        pitchAudio: 1.24
+      },
+      {
+        id: 'rumia',
+        name: 'Rumia (Dark Snowball Fumo)',
+        team: 'ice',
+        emoji: '🌑',
+        accentColor: '#6366f1',
+        hairColor: '#fde047',
+        eyeColor: '#dc2626',
+        outfitMain: '#111827',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#0f172a',
+        homePos: new THREE.Vector3(-8.6, 0, -2.6),
+        homeYaw: Math.PI * 0.45,
+        specialBehaviour: 'dark_snowball',
+        pitchAudio: 1.08
+      },
+      {
+        id: 'remilia',
+        name: 'Remilia Scarlet (Team Scarlet Leader)',
+        team: 'scarlet',
+        emoji: '🦇',
+        accentColor: '#fb7185',
+        hairColor: '#a5b4fc',
+        eyeColor: '#e11d48',
+        outfitMain: '#ffe4e6',
+        sleeveColor: '#ffe4e6',
+        tieColor: '#be123c',
+        shoeColor: '#4c0519',
+        homePos: new THREE.Vector3(8.5, 0, -0.6),
+        homeYaw: -Math.PI / 2,
+        pitchAudio: 1.08
+      },
+      {
+        id: 'flandre',
+        name: 'Flandre Scarlet (Crystal Demolition)',
+        team: 'scarlet',
+        emoji: '🌈',
+        accentColor: '#f43f5e',
+        hairColor: '#fef08a',
+        eyeColor: '#dc2626',
+        outfitMain: '#e11d48',
+        sleeveColor: '#ffffff',
+        tieColor: '#fde047',
+        shoeColor: '#881337',
+        homePos: new THREE.Vector3(8.6, 0, 2.2),
+        homeYaw: -Math.PI / 2,
+        pitchAudio: 1.22
+      },
+      {
+        id: 'sakuya',
+        name: 'Sakuya Izayoi (Precision Sniper)',
+        team: 'scarlet',
+        emoji: '⏱️',
+        accentColor: '#60a5fa',
+        hairColor: '#e2e8f0',
+        eyeColor: '#1d4ed8',
+        outfitMain: '#1e3a8a',
+        sleeveColor: '#ffffff',
+        tieColor: '#22c55e',
+        shoeColor: '#172554',
+        hasWhiteApron: true,
+        homePos: new THREE.Vector3(8.2, 0, -2.6),
+        homeYaw: -Math.PI / 2,
+        pitchAudio: 0.95
+      },
+      {
+        id: 'meiling',
+        name: 'Hong Meiling (Human Shield)',
+        team: 'scarlet',
+        emoji: '🛡️',
+        accentColor: '#16a34a',
+        hairColor: '#dc2626',
+        eyeColor: '#0284c7',
+        outfitMain: '#15803d',
+        sleeveColor: '#ffffff',
+        tieColor: '#facc15',
+        shoeColor: '#14532d',
+        homePos: new THREE.Vector3(5.6, 0, 0.0),
+        homeYaw: -Math.PI / 2,
+        specialBehaviour: 'shield',
+        pitchAudio: 0.9
+      },
+      {
+        id: 'keine',
+        name: 'Referee Keine Kamishirasawa',
+        team: 'referee',
+        emoji: '📣',
+        accentColor: '#facc15',
+        hairColor: '#bfdbfe',
+        eyeColor: '#b91c1c',
+        outfitMain: '#1e40af',
+        sleeveColor: '#ffffff',
+        tieColor: '#dc2626',
+        shoeColor: '#1e1b4b',
+        homePos: new THREE.Vector3(0, 3.0, -7.35),
+        homeYaw: 0.0,
+        pitchAudio: 1.0
+      }
+    ];
+
+    castConfigs.forEach(cfg => fumos.push(new VoxelFumo(cfg)));
+
+    // ============================================================================
+    // 9. SNOWBALL PROJECTILES, ARC PREVIEW, AUTONOMOUS AI & SCOREBOARD
+    // ============================================================================
+    let scoreIce = 0;
+    let scoreScarlet = 0;
+    const WIN_SCORE = 10;
+    let ammoCount = 8;
+    const MAX_AMMO = 12;
+    let rollBallSize = 1.0;
+    let isHoldingR = false;
+
+    const scoreIceEl = document.getElementById('score-ice');
+    const scoreScarletEl = document.getElementById('score-scarlet');
+    const ammoCountEl = document.getElementById('ammo-count');
+    const ballSizeLabelEl = document.getElementById('ball-size-label');
+    const chargeBarEl = document.getElementById('charge-bar');
+    const refStatusEl = document.getElementById('referee-status');
+    const victoryBannerEl = document.getElementById('victory-banner');
+    const victoryTitleEl = document.getElementById('victory-title');
+
+    function updateHUD() {
+      scoreIceEl.textContent = scoreIce;
+      scoreScarletEl.textContent = scoreScarlet;
+      ammoCountEl.textContent = ammoCount;
+      ballSizeLabelEl.textContent = `${rollBallSize.toFixed(1)}x`;
+    }
+
+    function awardPoint(scoringTeam, hitFumo) {
+      if (scoringTeam === 'ice') scoreIce++;
+      else if (scoringTeam === 'scarlet') scoreScarlet++;
+      updateHUD();
+
+      const keine = fumos.find(f => f.id === 'keine');
+      if (keine) {
+        keine.headPitchVel = 9.0;
+        keine.limbPitchVel = -8.0;
+      }
+      refStatusEl.textContent = `📣 Hit on ${hitFumo.name.split(' ')[0]}!`;
+
+      if (scoreIce >= WIN_SCORE || scoreScarlet >= WIN_SCORE) {
+        const winnerName = scoreIce >= WIN_SCORE ? '❄️ Team Ice Wins!' : '🦇 Team Scarlet Wins!';
+        soundFX.playWhistle();
+        if (keine) keine.squeeze(1.3);
+        victoryTitleEl.textContent = winnerName;
+        victoryBannerEl.style.display = 'flex';
+        refStatusEl.textContent = '📣 Whistle! Match Point!';
+
+        setTimeout(() => {
+          scoreIce = 0;
+          scoreScarlet = 0;
+          packAllForts();
+          updateHUD();
+          victoryBannerEl.style.display = 'none';
+          refStatusEl.textContent = '📣 New Round Started!';
+        }, 4200);
+      }
+    }
+
+    const MAX_SNOWBALLS = 28;
+    const snowballs = [];
+    const sbGroup = new THREE.Group();
+    scene.add(sbGroup);
+
+    for (let i = 0; i < MAX_SNOWBALLS; i++) {
+      const mesh = new THREE.Mesh(createSoftVoxelGeometry(0.32), snowMaterial);
+      mesh.castShadow = true;
+      mesh.visible = false;
+      sbGroup.add(mesh);
+      snowballs.push({
+        active: false,
+        mesh,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        size: 1.0,
+        team: 'player',
+        isDark: false
+      });
+    }
+
+    function launchSnowball(startPos, targetPos, size = 1.0, team = 'player', flightTime = 0.68, isDark = false) {
+      const sb = snowballs.find(s => !s.active);
+      if (!sb) return;
+      sb.active = true;
+      sb.size = size;
+      sb.team = team;
+      sb.isDark = isDark;
+      sb.pos.copy(startPos);
+
+      const g = 22.0;
+      sb.vel.set(
+        (targetPos.x - startPos.x) / flightTime,
+        (targetPos.y - startPos.y + 0.5 * g * flightTime * flightTime) / flightTime,
+        (targetPos.z - startPos.z) / flightTime
+      );
+
+      sb.mesh.scale.setScalar(size);
+      sb.mesh.visible = true;
+      sb.mesh.position.copy(sb.pos);
+    }
+
+    const ARC_DOTS = 18;
+    const arcDotsGroup = new THREE.Group();
+    arcDotsGroup.visible = false;
+    scene.add(arcDotsGroup);
+    const arcDotMeshes = [];
+    const arcDotMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.85 });
+    for (let i = 0; i < ARC_DOTS; i++) {
+      const dm = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18), arcDotMat);
+      arcDotsGroup.add(dm);
+      arcDotMeshes.push(dm);
+    }
+
+    function updateArcPreview(startPos, targetPos, chargeRatio) {
+      const flightTime = THREE.MathUtils.lerp(0.82, 0.48, chargeRatio);
+      const g = 22.0;
+      const vx = (targetPos.x - startPos.x) / flightTime;
+      const vy = (targetPos.y - startPos.y + 0.5 * g * flightTime * flightTime) / flightTime;
+      const vz = (targetPos.z - startPos.z) / flightTime;
+
+      for (let i = 0; i < ARC_DOTS; i++) {
+        const t = (i / (ARC_DOTS - 1)) * flightTime;
+        arcDotMeshes[i].position.set(
+          startPos.x + vx * t,
+          startPos.y + vy * t - 0.5 * g * t * t,
+          startPos.z + vz * t
+        );
+        const s = (1.0 - (i / ARC_DOTS) * 0.45) * Math.sqrt(rollBallSize);
+        arcDotMeshes[i].scale.setScalar(s);
+      }
+    }
+
+    function updateSnowballsAndAI(dt) {
+      const g = 22.0;
+      let fortDirty = false;
+
+      for (let i = 0; i < fumos.length; i++) {
+        const f = fumos[i];
+        if (f.team !== 'ice' && f.team !== 'scarlet') continue;
+        if (f.isDragged) continue;
+
+        f.throwCooldown -= dt;
+        if (f.throwCooldown <= 0) {
+          f.throwCooldown = (f.id === 'sakuya') ? (1.35 + Math.random() * 0.9) : (2.4 + Math.random() * 2.2);
+
+          const enemies = fumos.filter(e => e.team === (f.team === 'ice' ? 'scarlet' : 'ice'));
+          if (enemies.length > 0) {
+            const targetFumo = enemies[Math.floor(Math.random() * enemies.length)];
+            const spread = (f.id === 'sakuya') ? 0.15 : 1.15;
+            const aimPos = targetFumo.pos.clone().add(new THREE.Vector3(
+              (Math.random() - 0.5) * spread,
+              0.55,
+              (Math.random() - 0.5) * spread
+            ));
+            const startPos = f.pos.clone().add(new THREE.Vector3(0, 0.85, 0));
+            const bSize = (f.id === 'flandre') ? 1.45 : 1.0;
+
+            f.limbPitchVel = -9.0;
+            f.squashVel = -1.8;
+            launchSnowball(startPos, aimPos, bSize, f.team, f.id === 'sakuya' ? 0.48 : 0.72, f.id === 'rumia');
+          }
+        }
+      }
+
+      for (let i = 0; i < snowballs.length; i++) {
+        const sb = snowballs[i];
+        if (!sb.active) continue;
+
+        sb.vel.y -= g * dt;
+        sb.pos.addScaledVector(sb.vel, dt);
+        sb.mesh.position.copy(sb.pos);
+        sb.mesh.rotation.x += 8 * dt;
+        sb.mesh.rotation.z += 6 * dt;
+
+        const hitRadius = 0.28 * sb.size;
+        let exploded = false;
+
+        for (let j = 0; j < fumos.length; j++) {
+          const f = fumos[j];
+          if (f.team === sb.team) continue;
+          const fCenter = f.pos.clone().add(new THREE.Vector3(0, f.radius * 0.65, 0));
+          if (sb.pos.distanceTo(fCenter) < (f.radius * 0.75 + hitRadius)) {
+            f.squeeze(0.85 * Math.min(1.6, sb.size));
+            if (sb.size > 1.3 && f.team !== 'referee') {
+              f.vel.addScaledVector(sb.vel.clone().setY(2.5).normalize(), sb.size * 3.2);
+            }
+            if (f.team === 'ice') awardPoint('scarlet', f);
+            else if (f.team === 'scarlet') awardPoint('ice', f);
+            else if (f.team === 'referee') {
+              soundFX.playWhistle();
+              refStatusEl.textContent = '📣 Hey! Don\'t hit the Ref!';
+            }
+            exploded = true;
+            break;
+          }
+        }
+
+        if (!exploded) {
+          for (let b = 0; b < fortBlocks.length; b++) {
+            const brick = fortBlocks[b];
+            if (brick.hp <= 0) continue;
+            if (sb.pos.distanceTo(brick.pos) < (0.34 + hitRadius * 0.85)) {
+              const dmg = sb.size >= 1.45 ? 2 : 1;
+              brick.hp = Math.max(0, brick.hp - dmg);
+              brick.scale = 0.75;
+              fortDirty = true;
+
+              if (sb.size >= 1.65) {
+                for (let nb = 0; nb < fortBlocks.length; nb++) {
+                  if (fortBlocks[nb].hp > 0 && fortBlocks[nb].pos.distanceTo(brick.pos) < 0.95) {
+                    fortBlocks[nb].hp = Math.max(0, fortBlocks[nb].hp - 1);
+                  }
+                }
+              }
+              exploded = true;
+              break;
+            }
+          }
+        }
+
+        if (!exploded && sb.pos.y <= 0.05) {
+          sb.pos.y = 0.05;
+          exploded = true;
+        }
+
+        if (exploded) {
+          sb.active = false;
+          sb.mesh.visible = false;
+          spawnBurstParticles(
+            sb.pos,
+            sb.isDark ? ['#312e81', '#6366f1', '#ffffff'] : ['#ffffff', '#e0f2fe', '#7dd3fc'],
+            Math.round(10 * sb.size),
+            Math.min(1.6, sb.size)
+          );
+          if (sb.team === 'player') {
+            soundFX.playPoof(sb.size);
+          }
+        }
+      }
+
+      for (let i = 0; i < fortBlocks.length; i++) {
+        const b = fortBlocks[i];
+        if (Math.abs(b.scale - 1.0) > 0.01) {
+          b.scale = THREE.MathUtils.lerp(b.scale, 1.0, dt * 10);
+          fortDirty = true;
+        }
+      }
+      if (fortDirty) syncFortInstancedMesh();
+    }
+
+    // ============================================================================
+    // 10. POINTER & KEYBOARD INTERACTION (DRAG FUMO, AIM SNOWBALL, PACK FORT, ROLL)
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let selectedFumo = null;
+    let isDraggingFumo = false;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    let isAimingSnowball = false;
+    let aimStartTime = 0;
+    const aimTargetPos = new THREE.Vector3();
+    const playerThrowOrigin = new THREE.Vector3(0, 1.8, 8.8);
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function computePlayerThrowOrigin() {
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      playerThrowOrigin.copy(camera.position).addScaledVector(dir, 4.5);
+      playerThrowOrigin.y = Math.max(1.2, playerThrowOrigin.y - 1.2);
+    }
+
+    function onPointerDown(e) {
+      if (e.button !== 0) return;
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+      raycaster.setFromCamera(pointerNDC, camera);
+
+      const fumoHits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (fumoHits.length > 0 && fumoHits[0].object.userData.fumo) {
+        selectedFumo = fumoHits[0].object.userData.fumo;
+        isDraggingFumo = false;
+        controls.enabled = false;
+
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), selectedFumo.pos);
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          dragOffset.subVectors(selectedFumo.pos, dragHitPoint);
+        } else {
+          dragOffset.set(0, 0, 0);
+        }
+        dragHistory = [{ pos: selectedFumo.pos.clone(), time: performance.now() }];
+        return;
+      }
+
+      const pileHits = raycaster.intersectObjects(ammoPileMeshes, false);
+      if (pileHits.length > 0) {
+        ammoCount = Math.min(MAX_AMMO, ammoCount + 4);
+        rollBallSize = Math.min(3.0, rollBallSize + 0.25);
+        updateHUD();
+        soundFX.playSnowCrunch(1.15);
+        const pg = pileHits[0].object.userData.pileGroup;
+        if (pg) {
+          pg.scale.set(1.25, 0.75, 1.25);
+          setTimeout(() => pg.scale.set(1, 1, 1), 160);
+          spawnBurstParticles(pg.position, ['#ffffff', '#bae6fd'], 10, 0.9);
+        }
+        return;
+      }
+
+      const fortHits = raycaster.intersectObject(fortInstancedMesh, false);
+      if (fortHits.length > 0 && fortHits[0].instanceId !== undefined) {
+        const hitBrick = fortBlocks[fortHits[0].instanceId];
+        if (hitBrick) {
+          for (let i = 0; i < fortBlocks.length; i++) {
+            if (fortBlocks[i].pos.distanceTo(hitBrick.pos) < 1.35) {
+              fortBlocks[i].hp = fortBlocks[i].maxHp;
+              fortBlocks[i].scale = 1.25;
+            }
+          }
+          syncFortInstancedMesh();
+          soundFX.playSnowCrunch(1.25);
+          spawnBurstParticles(hitBrick.pos, ['#ffffff', '#7dd3fc'], 10, 0.85);
+          return;
+        }
+      }
+
+      const groundHits = raycaster.intersectObject(groundRaycastPlane, false);
+      if (groundHits.length > 0) {
+        if (ammoCount <= 0) {
+          ammoCount = 4;
+        }
+        isAimingSnowball = true;
+        aimStartTime = performance.now();
+        aimTargetPos.copy(groundHits[0].point);
+        computePlayerThrowOrigin();
+        arcDotsGroup.visible = true;
+        updateArcPreview(playerThrowOrigin, aimTargetPos, 0.2);
+      }
+    }
+
+    function onPointerMove(e) {
+      updatePointerNDC(e);
+      raycaster.setFromCamera(pointerNDC, camera);
+
+      if (selectedFumo) {
+        recordInteraction();
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          selectedFumo.isDragged = true;
+          selectedFumo.isGrounded = false;
+          selectedFumo.squashVel += 3.2;
+          soundFX.playPickup();
+        }
+        if (isDraggingFumo && raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          const targetPos = dragHitPoint.clone().add(dragOffset);
+          targetPos.x = THREE.MathUtils.clamp(targetPos.x, -12.0, 12.0);
+          targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.2, 11.0);
+          targetPos.z = THREE.MathUtils.clamp(targetPos.z, -10.0, 10.0);
+
+          const prevPos = selectedFumo.pos.clone();
+          selectedFumo.pos.lerp(targetPos, 0.55);
+          const delta = selectedFumo.pos.clone().sub(prevPos);
+          selectedFumo.headRollVel -= delta.x * 15.0;
+          selectedFumo.headPitchVel += delta.z * 15.0;
+          selectedFumo.limbRollVel -= delta.x * 20.0;
+
+          dragHistory.push({ pos: selectedFumo.pos.clone(), time: performance.now() });
+          while (dragHistory.length > 6) dragHistory.shift();
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      if (isAimingSnowball) {
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+        if (moveDist > 8) {
+          controls.enabled = false;
+        }
+        const groundHits = raycaster.intersectObject(groundRaycastPlane, false);
+        if (groundHits.length > 0) {
+          aimTargetPos.copy(groundHits[0].point);
+          aimTargetPos.x = THREE.MathUtils.clamp(aimTargetPos.x, -13, 13);
+          aimTargetPos.z = THREE.MathUtils.clamp(aimTargetPos.z, -11, 11);
+        }
+        return;
+      }
+
+      const fumoHits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (fumoHits.length > 0 && fumoHits[0].object.userData.fumo) {
+        const f = fumoHits[0].object.userData.fumo;
+        renderer.domElement.style.cursor = 'grab';
+        tooltipEmojiEl.textContent = f.emoji;
+        tooltipTextEl.textContent = f.name;
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else {
+        renderer.domElement.style.cursor = 'crosshair';
+        tooltipEl.style.opacity = '0';
+      }
+    }
+
+    function onPointerUp() {
+      controls.enabled = true;
+
+      if (selectedFumo) {
+        if (!isDraggingFumo) {
+          selectedFumo.squeeze(1.0);
+        } else {
+          selectedFumo.isDragged = false;
+          const now = performance.now();
+          while (dragHistory.length > 1 && now - dragHistory[0].time > 140) dragHistory.shift();
+          if (dragHistory.length >= 2) {
+            const first = dragHistory[0];
+            const last = dragHistory[dragHistory.length - 1];
+            const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+            const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+            if (throwVel.length() > 22) throwVel.setLength(22);
+            selectedFumo.vel.copy(throwVel);
+          }
+        }
+        selectedFumo = null;
+        isDraggingFumo = false;
+      }
+
+      if (isAimingSnowball) {
+        isAimingSnowball = false;
+        arcDotsGroup.visible = false;
+        chargeBarEl.style.width = '0%';
+
+        const holdDuration = (performance.now() - aimStartTime) / 1000;
+        const chargeRatio = THREE.MathUtils.clamp(holdDuration / 0.9, 0.15, 1.0);
+        const flightTime = THREE.MathUtils.lerp(0.82, 0.48, chargeRatio);
+
+        computePlayerThrowOrigin();
+        launchSnowball(playerThrowOrigin, aimTargetPos, rollBallSize, 'player', flightTime, false);
+        soundFX.playWhoosh(rollBallSize);
+
+        ammoCount = Math.max(0, ammoCount - 1);
+        rollBallSize = 1.0;
+        updateHUD();
+      }
+    }
+
+    // ============================================================================
+    // 11. DAY / NIGHT SMOOTH TRANSITION (~2 SECONDS) & HUB MESSAGE POSTING
+    // ============================================================================
+    const daySkyCol = new THREE.Color('#cfe8ff');
+    const nightSkyCol = new THREE.Color('#090d1e');
+    const daySunCol = new THREE.Color('#fffbeb');
+    const nightMoonCol = new THREE.Color('#7aa2f7');
+    const dayHemiSky = new THREE.Color('#f0f9ff');
+    const nightHemiSky = new THREE.Color('#1e293b');
+    const dayHemiGround = new THREE.Color('#94a3b8');
+    const nightHemiGround = new THREE.Color('#0f172a');
+
+    function postModeToHub() {
+      const modeStr = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: modeStr }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(modeOrBool, { immediate = false, playSound = false } = {}) {
+      const targetNight = (modeOrBool === 'night' || modeOrBool === true);
+      if (targetNight === isNightMode && !immediate) return;
+      isNightMode = targetNight;
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) dayNightProgress = dayNightTarget;
+
+      document.body.classList.toggle('night-ui', isNightMode);
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
+      } catch (e) {}
+
+      if (playSound) soundFX.playPickup();
+      postModeToHub();
+    }
+
+    function toggleDayNightMode() {
+      setDayNightMode(isNightMode ? 'day' : 'night', { immediate: false, playSound: true });
+    }
+
+    function updateDayNightTransition(dt) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.5;
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      scene.background.lerpColors(daySkyCol, nightSkyCol, t);
+      scene.fog.color.copy(scene.background);
+
+      dirLight.color.lerpColors(daySunCol, nightMoonCol, t);
+      dirLight.intensity = THREE.MathUtils.lerp(1.25, 0.38, t);
+
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.78, 0.28, t);
+
+      iceFortLight.intensity = THREE.MathUtils.lerp(0.08, 1.45, t);
+      scarletFortLight.intensity = THREE.MathUtils.lerp(0.08, 1.45, t);
+      cocoaWarmLight.intensity = THREE.MathUtils.lerp(0.08, 1.55, t);
+
+      lanternGlowMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.3, 2.3, t);
+      iglooWindowMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.25, 2.0, t);
+      iceMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.18, 0.72, t);
+      crystalWingMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.3, 1.25, t);
+
+      auroraMat.opacity = THREE.MathUtils.lerp(0.0, 0.58, t);
+
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.16, 0.68, t);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.85, 0.6, t);
+      }
+    }
+
+    // ============================================================================
+    // 12. UI BUTTONS, KEYBOARD SHORTCUTS & LIFECYCLE MANAGEMENT
+    // ============================================================================
+    const muteIconEl = document.getElementById('mute-icon');
+    function syncMuteUI() {
+      muteIconEl.textContent = soundFX.enabled ? '🔊' : '🔇';
+    }
+    syncMuteUI();
+
+    function toggleMute() {
+      soundFX.enabled = !soundFX.enabled;
+      syncMuteUI();
+      try {
+        localStorage.setItem(STORAGE_MUTE_KEY, String(!soundFX.enabled));
+      } catch (e) {}
+      if (soundFX.enabled) {
+        soundFX.playPickup();
+        soundFX.startJingleLoop();
+      }
+    }
+
+    const onClickBlizzard = () => { recordInteraction(); triggerBlizzard(); };
+    const onClickRepair = () => {
+      recordInteraction();
+      packAllForts();
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 35));
+    };
+    const onClickSqueezeAll = () => {
+      recordInteraction();
+      fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 45));
+    };
+    const onClickMute = () => { recordInteraction(); toggleMute(); };
+
+    document.getElementById('btn-blizzard').addEventListener('click', onClickBlizzard);
+    document.getElementById('btn-repair').addEventListener('click', onClickRepair);
+    document.getElementById('btn-squeeze-all').addEventListener('click', onClickSqueezeAll);
+    document.getElementById('btn-mute').addEventListener('click', onClickMute);
+
+    function onKeyDown(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      const key = e.key.toLowerCase();
+      if (key === 'n') {
+        e.preventDefault();
+        toggleDayNightMode();
+      } else if (key === 'm') {
+        e.preventDefault();
+        toggleMute();
+      } else if (key === 'x') {
+        e.preventDefault();
+        triggerBlizzard();
+      } else if (key === 'r') {
+        isHoldingR = true;
+      } else if (key === ' ') {
+        e.preventDefault();
+        onClickSqueezeAll();
+      }
+    }
+
+    function onKeyUp(e) {
+      if (e.key.toLowerCase() === 'r') {
+        isHoldingR = false;
+      }
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('resize', onWindowResize);
+
+    // ============================================================================
+    // 13. MAIN ANIMATION LOOP & FUMO SCENE LIFECYCLE
+    // ============================================================================
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.033, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      if (!selectedFumo && !isAimingSnowball && (now - lastUserInteractionTime > 5000)) {
+        controls.autoRotate = true;
+      }
+
+      if (isHoldingR) {
+        rollBallSize = Math.min(3.0, rollBallSize + dt * 1.15);
+        chargeBarEl.style.width = `${((rollBallSize - 1.0) / 2.0) * 100}%`;
+        if (Math.floor(elapsed * 8) !== Math.floor((elapsed - dt) * 8)) {
+          soundFX.playSnowCrunch(0.7 + rollBallSize * 0.2);
+        }
+        updateHUD();
+      } else if (isAimingSnowball) {
+        const holdSec = (now - aimStartTime) / 1000;
+        const chargeRatio = THREE.MathUtils.clamp(holdSec / 0.9, 0.15, 1.0);
+        chargeBarEl.style.width = `${chargeRatio * 100}%`;
+        computePlayerThrowOrigin();
+        updateArcPreview(playerThrowOrigin, aimTargetPos, chargeRatio);
+      }
+
+      controls.update();
+      updateDayNightTransition(dt);
+      updateSnowflakes(elapsed, dt);
+      updateBurstParticles(dt);
+      updateAurora(elapsed);
+      updateSnowballsAndAI(dt);
+
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].updatePhysics(dt, elapsed);
+      }
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function pauseRenderLoop() {
+      if (isPaused) return;
+      isPaused = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+
+    function resumeRenderLoop() {
+      if (!isPaused) return;
+      isPaused = false;
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    function disposeScene() {
+      pauseRenderLoop();
+      soundFX.stopJingleLoop();
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('resize', onWindowResize);
+    }
+
+    if (typeof FumoSceneLifecycle !== 'undefined') {
+      const _sceneLifecycle = new FumoSceneLifecycle({
+        renderer,
+        scene,
+        composer,
+        audio: soundFX,
+        onToggleMode: toggleDayNightMode,
+        onSetMode: (mode) => setDayNightMode(mode === 'night' ? 'night' : 'day', { immediate: false }),
+        onPause: pauseRenderLoop,
+        onResume: resumeRenderLoop,
+        onDispose: disposeScene
+      });
+    }
+
+    window.onload = function () {
+      let savedMode = 'day';
+      try {
+        const m = localStorage.getItem(STORAGE_MODE_KEY);
+        if (m === 'night') savedMode = 'night';
+      } catch (e) {}
+
+      setDayNightMode(savedMode, { immediate: true, playSound: false });
+      updateDayNightTransition(0);
+      postModeToHub();
+
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.76;
+          f.squashVel = 2.2;
+          f.headPitchVel = 4.2;
+        }, 100 + idx * 65);
+      });
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>

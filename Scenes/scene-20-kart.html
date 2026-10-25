@@ -1,0 +1,3542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Gensokyo Fumo Kart GP — Voxel Arcade Diorama</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js r128 + OrbitControls + Post-Processing (UnrealBloomPass) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #121324;
+    }
+    .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      box-shadow: 0 10px 28px -6px rgba(20, 15, 45, 0.22), 0 2px 6px rgba(20, 15, 45, 0.1);
+      color: #1e293b;
+      transition: background 0.5s ease, color 0.5s ease, border-color 0.5s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    body.night-ui .glass-panel {
+      background: rgba(20, 22, 44, 0.82);
+      border-color: rgba(145, 135, 235, 0.3);
+      color: #f3f0ff;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.6), 0 0 18px rgba(120, 110, 255, 0.18);
+    }
+    .ui-btn {
+      cursor: pointer;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+    #fumo-tooltip {
+      pointer-events: none;
+      transition: opacity 0.16s ease, transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.72rem;
+      line-height: 1.25;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.09);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.2);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.15);
+      border-bottom-color: rgba(255, 255, 255, 0.3);
+    }
+    @keyframes pulsePop {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+    }
+    .item-ready {
+      animation: pulsePop 1.1s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- Top-Right Banner: Race Event Status & Podium Banner (Top-Left kept strictly empty for Hub) -->
+  <div class="fixed top-4 right-4 z-20 flex flex-col items-end gap-2 pointer-events-none">
+    <div id="race-banner" class="glass-panel rounded-2xl px-4 py-2 text-xs sm:text-sm font-semibold flex items-center gap-2.5 pointer-events-auto">
+      <span id="banner-icon" class="text-lg leading-none">🏁</span>
+      <span id="banner-text" class="font-display tracking-wide">Gensokyo Fumo GP — Drive with Arrow Keys!</span>
+    </div>
+
+    <div id="podium-panel" class="glass-panel rounded-2xl px-5 py-3.5 hidden flex-col items-center gap-2 pointer-events-auto text-center">
+      <div class="text-xs uppercase tracking-widest opacity-75 font-bold">🏆 Race Complete! Final Podium 🏆</div>
+      <div id="podium-results" class="font-display text-sm sm:text-base font-bold flex items-center gap-3"></div>
+      <button id="btn-play-again" class="ui-btn mt-1 px-4 py-1.5 rounded-xl bg-rose-500 text-white font-display text-xs sm:text-sm shadow-md">
+        Race Again (R)
+      </button>
+    </div>
+  </div>
+
+  <!-- Floating Tooltip for Hovered Fumo / Kart -->
+  <div id="fumo-tooltip" class="fixed z-30 opacity-0 px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold flex items-center gap-2 shadow-lg">
+    <span id="tooltip-emoji">🏎️</span>
+    <span id="tooltip-text">Reimu Kart</span>
+  </div>
+
+  <!-- Bottom-Right HUD: Position, Lap, Timer, Item Box, Camera & Mute Controls -->
+  <div class="fixed bottom-4 right-4 z-20 flex flex-col items-end gap-2.5 max-w-[96vw]">
+    <!-- Main Race Telemetry Card -->
+    <div class="glass-panel rounded-2xl p-3 sm:px-4 sm:py-3 flex items-center gap-3 sm:gap-4">
+      <!-- Position Indicator -->
+      <div class="flex flex-col items-center justify-center min-w-[54px] px-2 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30">
+        <span class="text-[10px] uppercase font-bold tracking-wider opacity-75">POS</span>
+        <div class="font-display font-bold text-xl sm:text-2xl leading-none text-amber-500" id="hud-pos">1<span class="text-xs align-top">st</span></div>
+      </div>
+
+      <!-- Lap & Timer -->
+      <div class="flex flex-col gap-0.5">
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] uppercase font-bold opacity-70">LAP</span>
+          <span id="hud-lap" class="font-display font-bold text-sm sm:text-base">1 / 3</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] uppercase font-bold opacity-70">TIME</span>
+          <span id="hud-timer" class="font-mono font-bold text-xs sm:text-sm tabular-nums">00:00.00</span>
+        </div>
+      </div>
+
+      <!-- Held Item Slot -->
+      <button id="btn-use-item" title="Use Item (E)" class="ui-btn relative w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-indigo-500/15 border-2 border-indigo-400/40 flex flex-col items-center justify-center">
+        <span id="hud-item-icon" class="text-xl sm:text-2xl leading-none">🎲</span>
+        <span id="hud-item-label" class="text-[9px] font-bold uppercase tracking-tighter opacity-75 mt-0.5">Empty</span>
+        <kbd class="absolute -top-1.5 -right-1.5 text-[10px] px-1 py-0">E</kbd>
+      </button>
+    </div>
+
+    <!-- Utility Bar: Controls Hint, Camera Mode, Restart, Mute -->
+    <div class="flex flex-wrap items-center justify-end gap-2">
+      <div class="glass-panel rounded-xl px-3 py-1.5 text-[11px] font-semibold hidden md:flex items-center gap-2.5 opacity-90">
+        <span><kbd>↑↓←→</kbd> Drive</span>
+        <span><kbd>Space</kbd> Drift/Boost</span>
+        <span><kbd>E</kbd> Item</span>
+        <span><kbd>T</kbd> Auto-Drive</span>
+        <span><kbd>N</kbd> Day/Night</span>
+        <span>🖱️ Squeeze/Throw Fumo</span>
+      </div>
+
+      <!-- Auto-Drive Toggle Button (T) -->
+      <button id="btn-autodrive" title="Toggle Auto-Drive (T)" class="glass-panel ui-btn rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1.5">
+        <span id="autodrive-icon">🤖</span>
+        <span id="autodrive-label">Auto-Drive: ON</span>
+        <kbd class="hidden sm:inline-block">T</kbd>
+      </button>
+
+      <!-- Day / Night Toggle Button (N) -->
+      <button id="btn-mode" title="Toggle Day / Night Mode (N)" class="glass-panel ui-btn rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1.5">
+        <span id="mode-icon">🌙</span>
+        <span id="mode-label">Night</span>
+        <kbd class="hidden sm:inline-block">N</kbd>
+      </button>
+
+      <!-- Camera View Toggle (Orbit Diorama vs Kart Chase) -->
+      <button id="btn-cam" title="Switch Camera View (C)" class="glass-panel ui-btn rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1.5">
+        <span id="cam-icon">🎥</span>
+        <span id="cam-label">Orbit Cam</span>
+        <kbd class="hidden sm:inline-block">C</kbd>
+      </button>
+
+      <!-- Restart Race Button -->
+      <button id="btn-restart" title="Restart Race (R)" class="glass-panel ui-btn rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+        </svg>
+        <span class="hidden sm:inline">Restart</span>
+        <kbd class="hidden sm:inline-block">R</kbd>
+      </button>
+
+      <!-- Mute Toggle Button (Bottom-Right) -->
+      <button id="btn-mute" title="Toggle Audio (M)" class="glass-panel ui-btn rounded-xl p-2 flex items-center justify-center">
+        <svg id="icon-sound-on" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+        </svg>
+        <svg id="icon-sound-off" class="w-4 h-4 hidden opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <line x1="23" y1="9" x2="17" y2="15"></line>
+          <line x1="17" y1="9" x2="23" y2="15"></line>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 1. WEB AUDIO SYNTHESIZER (Engine, Drift, Items, Squeeze, & Chiptune BGM)
+    // ============================================================================
+    const STORAGE_MUTE_KEY = 'gensokyo_fumo_kart_mute';
+    const STORAGE_MODE_KEY = 'gensokyo_fumo_kart_mode';
+
+    class KartAudioEngine {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+        this.isPaused = false;
+        this.unlocked = false;
+
+        // Continuous engine & drift nodes
+        this.engineOsc = null;
+        this.engineGain = null;
+        this.driftOsc = null;
+        this.driftGain = null;
+
+        // Chiptune sequencer state
+        this.bgmNoteIndex = 0;
+        this.bgmAccumulator = 0;
+        this.finalLapMultiplier = 1.0;
+
+        try {
+          const savedMute = localStorage.getItem(STORAGE_MUTE_KEY);
+          if (savedMute === 'true') this.muted = true;
+        } catch (e) {}
+      }
+
+      unlock() {
+        if (this.unlocked && this.ctx) {
+          if (!this.isPaused && this.ctx.state === 'suspended') {
+            try { this.ctx.resume(); } catch (e) {}
+          }
+          return;
+        }
+        try {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtx) return;
+          this.ctx = new AudioCtx();
+          if (this.ctx.state === 'suspended') {
+            this.ctx.resume();
+          }
+
+          // Continuous Kart Engine Oscillator
+          this.engineOsc = this.ctx.createOscillator();
+          this.engineGain = this.ctx.createGain();
+          this.engineOsc.type = 'sawtooth';
+          this.engineOsc.frequency.value = 65;
+          this.engineGain.gain.value = 0.0001;
+
+          // Lowpass filter to warm up the engine buzz
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.value = 340;
+
+          this.engineOsc.connect(filter);
+          filter.connect(this.engineGain);
+          this.engineGain.connect(this.ctx.destination);
+          this.engineOsc.start();
+
+          // Continuous Drift Screech Oscillator
+          this.driftOsc = this.ctx.createOscillator();
+          this.driftGain = this.ctx.createGain();
+          this.driftOsc.type = 'triangle';
+          this.driftOsc.frequency.value = 380;
+          this.driftGain.gain.value = 0.0001;
+          this.driftOsc.connect(this.driftGain);
+          this.driftGain.connect(this.ctx.destination);
+          this.driftOsc.start();
+
+          this.unlocked = true;
+        } catch (e) {}
+      }
+
+      setMuted(mute) {
+        this.muted = Boolean(mute);
+        try {
+          localStorage.setItem(STORAGE_MUTE_KEY, this.muted ? 'true' : 'false');
+        } catch (e) {}
+        if (this.muted && this.engineGain && this.ctx) {
+          try {
+            this.engineGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.03);
+            this.driftGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.03);
+          } catch (e) {}
+        }
+      }
+
+      suspend() {
+        this.isPaused = true;
+        if (this.ctx && this.ctx.state === 'running') {
+          try { this.ctx.suspend(); } catch (e) {}
+        }
+      }
+
+      resume() {
+        this.isPaused = false;
+        if (this.ctx && this.ctx.state === 'suspended') {
+          try { this.ctx.resume(); } catch (e) {}
+        }
+      }
+
+      updateContinuous(dt, speedRatio, isDrifting, driftLevel) {
+        if (!this.unlocked || !this.ctx || this.isPaused) return;
+        try {
+          const now = this.ctx.currentTime;
+          if (this.muted) {
+            this.engineGain.gain.setTargetAtTime(0.0001, now, 0.04);
+            this.driftGain.gain.setTargetAtTime(0.0001, now, 0.04);
+            return;
+          }
+
+          // 1. Engine pitch tied to player kart speed
+          const targetFreq = 58 + Math.abs(speedRatio) * 145 + (driftLevel * 18);
+          const targetVol = 0.018 + Math.min(0.025, Math.abs(speedRatio) * 0.022);
+          this.engineOsc.frequency.setTargetAtTime(targetFreq, now, 0.05);
+          this.engineGain.gain.setTargetAtTime(targetVol, now, 0.05);
+
+          // 2. Drift screech
+          if (isDrifting && Math.abs(speedRatio) > 0.25) {
+            const screechPitch = 320 + driftLevel * 110 + Math.sin(now * 28) * 25;
+            this.driftOsc.frequency.setTargetAtTime(screechPitch, now, 0.03);
+            this.driftGain.gain.setTargetAtTime(0.026, now, 0.03);
+          } else {
+            this.driftGain.gain.setTargetAtTime(0.0001, now, 0.04);
+          }
+
+          // 3. Upbeat Touhou-style Chiptune Loop (speeds up in Final Lap!)
+          const stepDuration = 0.145 / this.finalLapMultiplier;
+          this.bgmAccumulator += dt;
+          if (this.bgmAccumulator >= stepDuration) {
+            this.bgmAccumulator -= stepDuration;
+            this.playChiptuneStep();
+          }
+        } catch (e) {}
+      }
+
+      playChiptuneStep() {
+        if (this.muted || !this.ctx) return;
+        try {
+          // Energetic Gensokyo pentatonic/melodic arcade sequence (MIDI notes)
+          const melody = [
+            69, 72, 76, 81, 79, 76, 72, 74,
+            76, 79, 81, 84, 83, 79, 76, 72,
+            65, 69, 72, 77, 76, 72, 69, 71,
+            72, 76, 79, 83, 81, 76, 74, 71
+          ];
+          const bass = [
+            45, 45, 57, 45, 48, 48, 60, 48,
+            41, 41, 53, 41, 43, 43, 55, 43
+          ];
+
+          const idx = this.bgmNoteIndex % melody.length;
+          const bIdx = this.bgmNoteIndex % bass.length;
+          this.bgmNoteIndex++;
+
+          const now = this.ctx.currentTime;
+          const mNote = melody[idx];
+          const mFreq = 440 * Math.pow(2, (mNote - 69) / 12);
+
+          // Lead square wave
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(mFreq, now);
+          gain.gain.setValueAtTime(0.014, now);
+          gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.11);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.12);
+
+          // Bass triangle wave on even steps
+          if (idx % 2 === 0) {
+            const bNote = bass[bIdx];
+            const bFreq = 440 * Math.pow(2, (bNote - 69) / 12);
+            const bOsc = this.ctx.createOscillator();
+            const bGain = this.ctx.createGain();
+            bOsc.type = 'triangle';
+            bOsc.frequency.setValueAtTime(bFreq, now);
+            bGain.gain.setValueAtTime(0.022, now);
+            bGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+            bOsc.connect(bGain);
+            bGain.connect(this.ctx.destination);
+            bOsc.start(now);
+            bOsc.stop(now + 0.19);
+          }
+        } catch (e) {}
+      }
+
+      // Cute double-chirp plushie squeeze sound
+      playSqueeze(pitchMultiplier = 1.0) {
+        if (this.muted) return;
+        try {
+          this.unlock();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+
+          const osc1 = this.ctx.createOscillator();
+          const gain1 = this.ctx.createGain();
+          osc1.type = 'sine';
+          const baseFreq = (540 + Math.random() * 70) * pitchMultiplier;
+          osc1.frequency.setValueAtTime(baseFreq, now);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.08);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.15);
+
+          gain1.gain.setValueAtTime(0.001, now);
+          gain1.gain.linearRampToValueAtTime(0.095, now + 0.02);
+          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+
+          osc1.connect(gain1);
+          gain1.connect(this.ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.17);
+
+          const osc2 = this.ctx.createOscillator();
+          const gain2 = this.ctx.createGain();
+          osc2.type = 'triangle';
+          osc2.frequency.setValueAtTime(baseFreq * 1.1, now + 0.1);
+          osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.65, now + 0.2);
+
+          gain2.gain.setValueAtTime(0.001, now + 0.1);
+          gain2.gain.linearRampToValueAtTime(0.075, now + 0.12);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+          osc2.connect(gain2);
+          gain2.connect(this.ctx.destination);
+          osc2.start(now + 0.1);
+          osc2.stop(now + 0.23);
+        } catch (e) {}
+      }
+
+      // Soft bump / wall squish thud
+      playBump(intensity = 0.6) {
+        if (this.muted || intensity < 0.08) return;
+        try {
+          this.unlock();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const vol = Math.min(0.12, intensity * 0.1);
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(125 + Math.min(70, intensity * 30), now);
+          osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+
+      // Item Box Pickup Arpeggio
+      playItemPickup() {
+        if (this.muted) return;
+        try {
+          this.unlock();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const notes = [523.25, 659.25, 783.99, 1046.5];
+          notes.forEach((freq, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + i * 0.055);
+            gain.gain.setValueAtTime(0.07, now + i * 0.055);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.055 + 0.12);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now + i * 0.055);
+            osc.stop(now + i * 0.055 + 0.13);
+          });
+        } catch (e) {}
+      }
+
+      // Turbo Boost Whoosh
+      playBoost() {
+        if (this.muted) return;
+        try {
+          this.unlock();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(180, now);
+          osc.frequency.exponentialRampToValueAtTime(680, now + 0.18);
+          osc.frequency.exponentialRampToValueAtTime(260, now + 0.38);
+
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.085, now + 0.04);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.39);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.4);
+        } catch (e) {}
+      }
+    }
+
+    const soundFX = new KartAudioEngine();
+
+    // ============================================================================
+    // 2. COLOR & VOXEL HELPER UTILITIES
+    // ============================================================================
+    const tempColor = new THREE.Color();
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    const tempEuler = new THREE.Euler();
+
+    function voxelHash(x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    }
+
+    function varyColor(hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
+      tempColor.set(hexOrString);
+      const h = voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      tempColor.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return tempColor.clone();
+    }
+
+    function createSoftVoxelGeometry(size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    }
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        if (v.rotY !== undefined) {
+          tempEuler.set(v.rotX || 0, v.rotY || 0, v.rotZ || 0);
+          tempQuat.setFromEuler(tempEuler);
+        } else {
+          tempQuat.identity();
+        }
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    // ============================================================================
+    // 3. SCENE, CAMERA, RENDERER & POST-PROCESSING SETUP
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#bde0fe');
+    scene.fog = new THREE.FogExp2('#bde0fe', 0.0065);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.5, 180);
+    camera.position.set(0, 25, 36);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.18,
+        0.55,
+        0.82
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (err) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.8, 1.0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.47;
+    controls.minPolarAngle = Math.PI * 0.08;
+    controls.minDistance = 10;
+    controls.maxDistance = 64;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.38;
+
+    let cameraMode = 'orbit'; // 'orbit' | 'chase'
+    let lastUserInteractionTime = performance.now();
+    const recordInteraction = () => {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+    };
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 4. LIGHTING & MATERIALS (Capped Dynamic Lights for Performance)
+    // ============================================================================
+    const hemiLight = new THREE.HemisphereLight(0xfff9eb, 0x8d99ae, 0.72);
+    hemiLight.position.set(0, 35, 0);
+    scene.add(hemiLight);
+
+    // Primary Sun / Moon Directional Light
+    const sunDirLight = new THREE.DirectionalLight(0xfff2d6, 1.28);
+    sunDirLight.position.set(-24, 32, 22);
+    sunDirLight.castShadow = true;
+    sunDirLight.shadow.mapSize.width = 2048;
+    sunDirLight.shadow.mapSize.height = 2048;
+    sunDirLight.shadow.camera.near = 4;
+    sunDirLight.shadow.camera.far = 90;
+    const sCam = 30;
+    sunDirLight.shadow.camera.left = -sCam;
+    sunDirLight.shadow.camera.right = sCam;
+    sunDirLight.shadow.camera.top = sCam;
+    sunDirLight.shadow.camera.bottom = -sCam;
+    sunDirLight.shadow.bias = -0.0006;
+    scene.add(sunDirLight);
+
+    // Cave Lava Glow PointLight
+    const lavaLight = new THREE.PointLight(0xff5400, 0.4, 22, 1.6);
+    lavaLight.position.set(-2, 2.8, -17);
+    scene.add(lavaLight);
+
+    // Shrine Arch & Lantern Warm PointLight
+    const shrineLight = new THREE.PointLight(0xffaa44, 0.2, 22, 1.5);
+    shrineLight.position.set(2, 4.5, 15.5);
+    scene.add(shrineLight);
+
+    // Snowy / Mansion Neon Accent PointLight
+    const neonTrackLight = new THREE.PointLight(0x38bdf8, 0.2, 22, 1.5);
+    neonTrackLight.position.set(-19, 3.5, -2);
+    scene.add(neonTrackLight);
+
+    // Shared Materials
+    const plushMaterial = new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0.02 });
+    const solidMaterial = new THREE.MeshStandardMaterial({ roughness: 0.8, metalness: 0.06 });
+    const glossyMaterial = new THREE.MeshStandardMaterial({ roughness: 0.28, metalness: 0.18 });
+    const translucentIceMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.84,
+      roughness: 0.15,
+      metalness: 0.05,
+      transmission: 0.35,
+      emissive: new THREE.Color(0x38bdf8),
+      emissiveIntensity: 0.3
+    });
+    const crystalWingMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.2,
+      metalness: 0.1,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 0.35
+    });
+    const neonEmissiveMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0xffaa33),
+      emissiveIntensity: 0.45,
+      roughness: 0.2
+    });
+    const boostPadMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0x00f5d4),
+      emissiveIntensity: 0.65,
+      roughness: 0.2
+    });
+    const lavaEmissiveMaterial = new THREE.MeshStandardMaterial({
+      color: 0xff6d00,
+      emissive: new THREE.Color(0xff4800),
+      emissiveIntensity: 0.85,
+      roughness: 0.25
+    });
+
+    // ============================================================================
+    // 5. GENSOKYO TRACK SPLINE & 5-BIOME VOXEL DIORAMA BUILDER
+    // ============================================================================
+    // Closed counter-clockwise circuit passing through 5 distinct Gensokyo biomes:
+    // 1. Hakurei Shrine & Grandstand Straight (South, +Z)
+    // 2. Bamboo Forest of the Lost (East, +X)
+    // 3. Lava-Lit Subterranean Cave (North, -Z)
+    // 4. Snowy Misty Lake & Ramp (Northwest/West, -X)
+    // 5. Scarlet Devil Mansion Garden (Southwest, -X/+Z)
+    const trackControlPoints = [
+      new THREE.Vector3(-4.0, 0.6, 15.0),  // 0: Start/Finish Straight West
+      new THREE.Vector3(5.0,  0.6, 15.0),  // 1: Start/Finish Straight East
+      new THREE.Vector3(14.5, 0.6, 13.5),  // 2: Turn 1 into Bamboo Forest
+      new THREE.Vector3(20.5, 1.3, 6.5),   // 3: Bamboo Forest Climb
+      new THREE.Vector3(21.0, 1.8, -2.5),  // 4: Bamboo Bridge Ramp Crest
+      new THREE.Vector3(16.5, 0.9, -11.5), // 5: Entering Lava Cave
+      new THREE.Vector3(7.0,  0.5, -16.5), // 6: Lava Cave East
+      new THREE.Vector3(-3.5, 0.4, -17.0), // 7: Lava Cave Deep Center
+      new THREE.Vector3(-13.5,0.9, -14.0), // 8: Exiting Cave into Snow Biome
+      new THREE.Vector3(-20.5,1.6, -6.5),  // 9: Snowy Mountain Curve
+      new THREE.Vector3(-21.0,1.2, 2.5),   // 10: Scarlet Mansion Garden Entry
+      new THREE.Vector3(-14.5,0.6, 11.5)   // 11: Mansion Chicane to Main Straight
+    ];
+
+    const trackCurve = new THREE.CatmullRomCurve3(trackControlPoints, true, 'centripetal', 0.5);
+    const TRACK_SAMPLES = 360;
+    const TRACK_HALF_WIDTH = 2.65;
+    const trackSamples = [];
+
+    for (let i = 0; i < TRACK_SAMPLES; i++) {
+      const t = i / TRACK_SAMPLES;
+      const pt = trackCurve.getPointAt(t);
+      const tan = trackCurve.getTangentAt(t).normalize();
+      const up = new THREE.Vector3(0, 1, 0);
+      const right = new THREE.Vector3().crossVectors(tan, up).normalize();
+      trackSamples.push({ t, pt, tan, right });
+    }
+
+    function getTrackSampleAt(t) {
+      const normT = ((t % 1) + 1) % 1;
+      const idx = Math.floor(normT * TRACK_SAMPLES) % TRACK_SAMPLES;
+      return trackSamples[idx];
+    }
+
+    function findClosestTrackSample(pos) {
+      let bestIdx = 0;
+      let bestDistSq = Infinity;
+      for (let i = 0; i < TRACK_SAMPLES; i++) {
+        const p = trackSamples[i].pt;
+        const dx = pos.x - p.x;
+        const dz = pos.z - p.z;
+        const dSq = dx * dx + dz * dz;
+        if (dSq < bestDistSq) {
+          bestDistSq = dSq;
+          bestIdx = i;
+        }
+      }
+      return trackSamples[bestIdx];
+    }
+
+    // Special Track Zones: Boost Pads & Ramps
+    const boostPadZones = [0.16, 0.48, 0.74, 0.92];
+    const rampZones = [0.31, 0.68];
+
+    // Voxel Lists for World & Biomes
+    const worldUnit = 0.35;
+    const solidWorldVoxels = [];
+    const glossyWorldVoxels = [];
+    const neonWorldVoxels = [];
+    const boostWorldVoxels = [];
+    const lavaWorldVoxels = [];
+    const iceWorldVoxels = [];
+
+    function addWorldVoxel(list, wx, wy, wz, hex, variance = 0.03, sx = 1, sy = 1, sz = 1, rotY = 0) {
+      list.push({
+        x: wx / worldUnit,
+        y: wy / worldUnit,
+        z: wz / worldUnit,
+        color: varyColor(hex, wx * 3, wy * 3, wz * 3, variance),
+        sx, sy, sz, rotY
+      });
+    }
+
+    function buildGensokyoCircuitAndBiomes() {
+      // 1. Base Island Diorama Plinth
+      for (let gx = -76; gx <= 76; gx += 2) {
+        for (let gz = -64; gz <= 64; gz += 2) {
+          const wx = gx * worldUnit;
+          const wz = gz * worldUnit;
+          const dist = Math.hypot(wx * 0.82, wz * 0.95);
+          if (dist > 25.5) continue;
+
+          // Determine biome ground color by angle / quadrant
+          let groundHex = '#52b788'; // Lush Gensokyo grass
+          if (wz < -7 && Math.abs(wx) < 15) {
+            groundHex = '#2b262d'; // Volcanic basalt floor (Lava cave)
+          } else if (wx < -8 && wz < 4) {
+            groundHex = '#e2eafc'; // Snowy Misty Lake
+          } else if (wx < -6 && wz >= 4) {
+            groundHex = '#386641'; // Scarlet Mansion manicured lawn
+          } else if (wx > 9) {
+            groundHex = '#2d6a4f'; // Deep Bamboo forest moss
+          }
+
+          addWorldVoxel(solidWorldVoxels, wx, -0.25, wz, groundHex, 0.035, 2.02, 1.2, 2.02);
+          if (dist > 23.6) {
+            addWorldVoxel(solidWorldVoxels, wx, -0.8, wz, '#5c3d28', 0.03, 2.02, 2.0, 2.02);
+          }
+        }
+      }
+
+      // 2. Track Road Surface, Curbs, Checkered Start Line, Ramps & Boost Pads
+      const roadSteps = 320;
+      for (let i = 0; i < roadSteps; i++) {
+        const t = i / roadSteps;
+        const sample = getTrackSampleAt(t);
+        const angle = Math.atan2(sample.tan.x, sample.tan.z);
+
+        const isStartLine = Math.abs(t - 0.02) < 0.008;
+        const isBoost = boostPadZones.some(bz => Math.abs(t - bz) < 0.014);
+        const isRamp = rampZones.some(rz => Math.abs(t - rz) < 0.015);
+
+        // Road surface tiles across width
+        for (let w = -7; w <= 7; w++) {
+          const offset = w * 0.36;
+          const px = sample.pt.x + sample.right.x * offset;
+          const pz = sample.pt.z + sample.right.z * offset;
+          let py = sample.pt.y - 0.15;
+
+          if (isRamp) {
+            py += 0.22;
+          }
+
+          if (Math.abs(w) === 7) {
+            // Track Curb Blocks (Alternating Red/White or Neon Cyan/Gold in Cave/Snow)
+            const curbStripe = (Math.floor(i / 2) % 2 === 0);
+            let curbHex = curbStripe ? '#ef4444' : '#f8fafc';
+            if (t > 0.42 && t < 0.60) curbHex = curbStripe ? '#ff6d00' : '#3a2e39';
+            else if (t >= 0.60 && t < 0.80) curbHex = curbStripe ? '#38bdf8' : '#f8fafc';
+
+            const targetList = (curbStripe && (t > 0.42 && t < 0.80)) ? neonWorldVoxels : solidWorldVoxels;
+            addWorldVoxel(targetList, px, py + 0.18, pz, curbHex, 0.02, 1.15, 0.9, 1.35, angle);
+          } else {
+            let roadHex = '#3b3e4a';
+            if (t >= 0.22 && t <= 0.38) roadHex = '#7f5539'; // Wooden bamboo boardwalk
+            else if (t >= 0.60 && t <= 0.78) roadHex = '#90e0ef'; // Packed glacier road
+            else if (t >= 0.80 && t <= 0.95) roadHex = '#593d3b'; // Mansion cobblestone
+
+            if (isStartLine) {
+              const check = ((w + i) % 2 === 0);
+              roadHex = check ? '#ffffff' : '#111827';
+              addWorldVoxel(glossyWorldVoxels, px, py + 0.04, pz, roadHex, 0.01, 1.1, 0.7, 1.3, angle);
+            } else if (isBoost && Math.abs(w) <= 4 && ((i + Math.abs(w)) % 2 === 0)) {
+              addWorldVoxel(boostWorldVoxels, px, py + 0.06, pz, '#00f5d4', 0.01, 1.05, 0.75, 1.25, angle);
+            } else if (isRamp && Math.abs(w) <= 5) {
+              addWorldVoxel(glossyWorldVoxels, px, py + 0.05, pz, '#f59e0b', 0.02, 1.1, 0.85, 1.3, angle);
+            } else if (i % 2 === 0) {
+              addWorldVoxel(solidWorldVoxels, px, py, pz, roadHex, 0.025, 1.15, 0.65, 2.2, angle);
+            }
+          }
+        }
+
+        // Support pillars under elevated bridge sections
+        if (sample.pt.y > 0.85 && i % 8 === 0) {
+          for (const side of [-1, 1]) {
+            const sx = sample.pt.x + sample.right.x * side * 2.2;
+            const sz = sample.pt.z + sample.right.z * side * 2.2;
+            for (let y = 0; y < sample.pt.y; y += 0.35) {
+              addWorldVoxel(solidWorldVoxels, sx, y, sz, '#6c462c', 0.02, 1.1, 1.1, 1.1);
+            }
+          }
+        }
+      }
+
+      // 3. BIOME 1: HAKUREI SHRINE, START/FINISH ARCH, GRANDSTAND, TOWER & HAY BALES
+      // Start/Finish Arch at t = 0.02 (around X = -0.5, Z = 15.0)
+      const startSample = getTrackSampleAt(0.02);
+      const archAngle = Math.atan2(startSample.tan.x, startSample.tan.z);
+      for (const side of [-1, 1]) {
+        const px = startSample.pt.x + startSample.right.x * side * 3.1;
+        const pz = startSample.pt.z + startSample.right.z * side * 3.1;
+        for (let y = 0.4; y <= 4.8; y += 0.35) {
+          addWorldVoxel(solidWorldVoxels, px, y, pz, y < 1.2 ? '#f8fafc' : '#dc2626', 0.02, 1.3, 1.05, 1.3);
+        }
+      }
+      // Arch top crossbeams & checkered banner + glowing race lights
+      for (let s = -3.6; s <= 3.6; s += 0.35) {
+        const bx = startSample.pt.x + startSample.right.x * s;
+        const bz = startSample.pt.z + startSample.right.z * s;
+        addWorldVoxel(solidWorldVoxels, bx, 4.9, bz, '#dc2626', 0.02, 1.2, 1.1, 1.4, archAngle);
+        addWorldVoxel(solidWorldVoxels, bx, 5.3, bz, '#1e293b', 0.02, 1.3, 0.9, 1.6, archAngle);
+        if (Math.abs(s) <= 2.6) {
+          const check = (Math.floor((s + 4) * 3) % 2 === 0);
+          addWorldVoxel(glossyWorldVoxels, bx, 4.3, bz, check ? '#ffffff' : '#1e293b', 0.01, 1.05, 1.1, 0.6, archAngle);
+        }
+        if (Math.abs(s) < 1.5 && Math.abs(s * 2 - Math.round(s * 2)) < 0.2) {
+          addWorldVoxel(neonWorldVoxels, bx, 3.85, bz, '#fbbf24', 0.01, 0.8, 0.8, 0.8);
+        }
+      }
+
+      // Traditional Red Torii Gate slightly further down the straight (t = 0.09)
+      const toriiSample = getTrackSampleAt(0.09);
+      const toriiAngle = Math.atan2(toriiSample.tan.x, toriiSample.tan.z);
+      for (const side of [-1, 1]) {
+        const tx = toriiSample.pt.x + toriiSample.right.x * side * 3.2;
+        const tz = toriiSample.pt.z + toriiSample.right.z * side * 3.2;
+        for (let y = 0.4; y <= 4.6; y += 0.35) {
+          addWorldVoxel(solidWorldVoxels, tx, y, tz, y < 1.0 ? '#2b2d42' : '#e63946', 0.02, 1.25, 1.05, 1.25);
+        }
+      }
+      for (let s = -4.0; s <= 4.0; s += 0.35) {
+        const bx = toriiSample.pt.x + toriiSample.right.x * s;
+        const bz = toriiSample.pt.z + toriiSample.right.z * s;
+        const curveUp = Math.pow(s / 4.0, 2) * 0.35;
+        addWorldVoxel(solidWorldVoxels, bx, 4.7 + curveUp, bz, '#1f2937', 0.02, 1.2, 0.7, 1.3, toriiAngle);
+        addWorldVoxel(solidWorldVoxels, bx, 4.4 + curveUp, bz, '#e63946', 0.02, 1.15, 0.8, 1.15, toriiAngle);
+        if (Math.abs(s) <= 3.3) {
+          addWorldVoxel(solidWorldVoxels, bx, 3.7, bz, '#e63946', 0.02, 1.05, 0.7, 1.0, toriiAngle);
+        }
+      }
+
+      // Grandstand on the inside of the main straight (X in [-3.5, 4.5], Z in [9.2, 11.6])
+      for (let x = -3.5; x <= 4.5; x += 0.35) {
+        for (let tier = 0; tier < 3; tier++) {
+          const z = 11.2 - tier * 0.75;
+          const y = 0.5 + tier * 0.55;
+          addWorldVoxel(solidWorldVoxels, x, y, z, tier % 2 === 0 ? '#9c6644' : '#7f5539', 0.02, 1.05, 1.4, 1.8);
+        }
+        // Grandstand awning roof
+        addWorldVoxel(solidWorldVoxels, x, 3.3, 10.2, Math.floor(x * 2) % 2 === 0 ? '#e63946' : '#f8fafc', 0.02, 1.05, 0.5, 4.2);
+      }
+      for (const gx of [-3.4, 4.4]) {
+        for (let y = 0.5; y <= 3.2; y += 0.35) {
+          addWorldVoxel(solidWorldVoxels, gx, y, 9.8, '#5c3d28', 0.02, 0.9, 1.05, 0.9);
+        }
+      }
+
+      // Race Control Tower (X = -5.5, Z = 11.0, top at Y = 4.35 for the Checkered-Flag Fumo!)
+      for (let y = 0.4; y <= 4.0; y += 0.35) {
+        for (let dx = -0.9; dx <= 0.9; dx += 0.45) {
+          for (let dz = -0.9; dz <= 0.9; dz += 0.45) {
+            if (Math.abs(dx) < 0.8 && Math.abs(dz) < 0.8 && y < 3.6) continue;
+            const col = (y > 2.8 && y < 3.6) ? '#38bdf8' : '#e2e8f0';
+            addWorldVoxel(solidWorldVoxels, -5.5 + dx, y, 11.0 + dz, col, 0.02, 1.25, 1.05, 1.25);
+          }
+        }
+      }
+      // Tower roof platform at Y = 4.35
+      for (let dx = -1.1; dx <= 1.1; dx += 0.35) {
+        for (let dz = -1.1; dz <= 1.1; dz += 0.35) {
+          addWorldVoxel(solidWorldVoxels, -5.5 + dx, 4.2, 11.0 + dz, '#334155', 0.02, 1.05, 0.6, 1.05);
+        }
+      }
+
+      // Golden Hay Bales near Turn 1 (X = 11.5, Z = 10.2, top at Y = 1.25 for the Napping Fumo!)
+      for (let dx = -0.9; dx <= 0.9; dx += 0.35) {
+        for (let dz = -0.7; dz <= 0.7; dz += 0.35) {
+          addWorldVoxel(solidWorldVoxels, 11.5 + dx, 0.55, 10.2 + dz, '#eab308', 0.04, 1.05, 1.4, 1.05);
+          addWorldVoxel(solidWorldVoxels, 11.5 + dx, 1.05, 10.2 + dz, '#facc15', 0.04, 1.05, 1.2, 1.05);
+        }
+      }
+
+      // Winner's Podium (1st, 2nd, 3rd blocks at X in [-1.5, 1.5], Z = 6.2)
+      const podiumSpecs = [
+        { x: 0.0,  z: 6.2, h: 1.55, col: '#fbbf24' }, // 1st Gold
+        { x: -1.6, z: 6.2, h: 1.15, col: '#cbd5e1' }, // 2nd Silver
+        { x: 1.6,  z: 6.2, h: 0.90, col: '#d97706' }  // 3rd Bronze
+      ];
+      podiumSpecs.forEach(p => {
+        for (let dx = -0.6; dx <= 0.6; dx += 0.35) {
+          for (let dz = -0.6; dz <= 0.6; dz += 0.35) {
+            addWorldVoxel(glossyWorldVoxels, p.x + dx, p.h * 0.5, p.z + dz, p.col, 0.02, 1.05, p.h / worldUnit, 1.05);
+          }
+        }
+      });
+
+      // Blooming Sakura Trees around Shrine
+      const sakuraSpots = [[7.5, 18.8], [-8.5, 18.5], [0.5, 3.2]];
+      sakuraSpots.forEach(([sx, sz]) => {
+        for (let y = 0.4; y <= 2.8; y += 0.35) {
+          addWorldVoxel(solidWorldVoxels, sx, y, sz, '#5c3d28', 0.03, 1.2, 1.1, 1.2);
+        }
+        for (let lx = -1.8; lx <= 1.8; lx += 0.45) {
+          for (let ly = 2.4; ly <= 4.4; ly += 0.45) {
+            for (let lz = -1.8; lz <= 1.8; lz += 0.45) {
+              if (Math.hypot(lx, ly - 3.3, lz) <= 1.95) {
+                addWorldVoxel(solidWorldVoxels, sx + lx, ly, sz + lz, (lx + lz > 0) ? '#ffb3c6' : '#ff8fab', 0.04, 1.3, 1.3, 1.3);
+              }
+            }
+          }
+        }
+      });
+
+      // 4. BIOME 2: BAMBOO FOREST OF THE LOST (East Sector)
+      const bambooCoords = [
+        [15.5, 8.5], [17.0, 5.0], [16.2, 1.0], [16.5, -3.5], [14.8, -6.5],
+        [23.8, 9.0], [24.5, 4.5], [24.8, 0.5], [24.2, -4.0], [22.5, -8.5],
+        [13.5, 4.0], [14.0, -1.0], [23.0, 12.0]
+      ];
+      bambooCoords.forEach(([bx, bz], idx) => {
+        const stalkH = 4.5 + (idx % 3) * 1.1;
+        for (let y = 0.4; y <= stalkH; y += 0.38) {
+          const isNode = Math.abs((y * 2.5) % 1) < 0.25;
+          addWorldVoxel(solidWorldVoxels, bx, y, bz, isNode ? '#a3e635' : '#4d7c0f', 0.025, 0.95, 1.05, 0.95);
+        }
+        // Bamboo leaves at top
+        addWorldVoxel(solidWorldVoxels, bx + 0.4, stalkH, bz, '#65a30d', 0.03, 1.8, 0.5, 0.8);
+        addWorldVoxel(solidWorldVoxels, bx - 0.4, stalkH - 0.4, bz + 0.3, '#84cc16', 0.03, 1.6, 0.5, 0.8);
+        // Glowing bamboo shoot lantern at base
+        if (idx % 2 === 0) {
+          addWorldVoxel(neonWorldVoxels, bx - 0.45, 0.6, bz + 0.45, '#bef264', 0.01, 0.75, 1.2, 0.75);
+        }
+      });
+
+      // 5. BIOME 3: LAVA-LIT SUBTERRANEAN CAVE (North Sector, Z < -11)
+      // Volcanic rock arches & glowing magma pools
+      for (let x = -11.0; x <= 11.0; x += 0.6) {
+        for (let z = -21.5; z <= -12.0; z += 0.6) {
+          const dTrack = Math.abs(z - (-16.6));
+          // Glowing lava pools flanking the cave road
+          if (dTrack > 3.1 && dTrack < 5.2) {
+            addWorldVoxel(lavaWorldVoxels, x, 0.12, z, (Math.floor(x + z) % 2 === 0) ? '#ff5400' : '#ff9e00', 0.03, 1.75, 0.6, 1.75);
+          }
+          // Cave rock walls & stalactite arches
+          if (dTrack >= 4.8 && dTrack <= 6.2 && Math.abs(x) < 9.5) {
+            const wallH = 3.6 + Math.sin(x * 0.7) * 1.2;
+            for (let y = 0.4; y <= wallH; y += 0.55) {
+              addWorldVoxel(solidWorldVoxels, x, y, z, '#2b262d', 0.04, 1.75, 1.6, 1.75);
+            }
+          }
+        }
+      }
+      // Overhead Cave Archway across the track at X = -2.0 and X = 4.0
+      for (const archX of [-3.5, 3.5]) {
+        for (let z = -20.5; z <= -12.8; z += 0.5) {
+          const distFromCenter = Math.abs(z - (-16.6));
+          const archY = 4.8 - Math.pow(distFromCenter / 4.2, 2) * 2.8;
+          if (archY > 1.2) {
+            addWorldVoxel(solidWorldVoxels, archX, archY, z, '#3a2e39', 0.04, 2.2, 1.6, 1.5);
+            if (distFromCenter < 2.2) {
+              addWorldVoxel(neonWorldVoxels, archX, archY - 0.55, z, '#ff6d00', 0.02, 0.7, 1.1, 0.7);
+            }
+          }
+        }
+      }
+
+      // 6. BIOME 4: SNOWY MISTY LAKE & GLACIER PINES (Northwest Sector)
+      const snowPines = [
+        [-15.5, -9.5], [-16.0, -3.5], [-24.2, -10.5], [-24.8, -4.5], [-24.5, 0.5], [-15.8, -15.5]
+      ];
+      snowPines.forEach(([px, pz], idx) => {
+        for (let y = 0.4; y <= 1.8; y += 0.35) {
+          addWorldVoxel(solidWorldVoxels, px, y, pz, '#5c3d28', 0.02, 1.0, 1.1, 1.0);
+        }
+        for (let tier = 0; tier < 3; tier++) {
+          const rad = 1.6 - tier * 0.42;
+          const ty = 1.8 + tier * 0.95;
+          addWorldVoxel(solidWorldVoxels, px, ty, pz, '#1b4332', 0.03, rad * 2.4, 1.4, rad * 2.4);
+          addWorldVoxel(solidWorldVoxels, px, ty + 0.32, pz, '#f8fafc', 0.02, rad * 2.1, 0.65, rad * 2.1);
+        }
+        // Giant glowing ice crystals near snow pines
+        if (idx % 2 === 0) {
+          addWorldVoxel(iceWorldVoxels, px + 1.2, 1.1, pz + 0.6, '#38bdf8', 0.02, 1.1, 3.2, 1.1, 0.4);
+          addWorldVoxel(iceWorldVoxels, px + 0.8, 0.8, pz + 1.1, '#7dd3fc', 0.02, 0.9, 2.2, 0.9, -0.3);
+        }
+      });
+
+      // 7. BIOME 5: SCARLET DEVIL MANSION GARDEN (Southwest Sector)
+      const gardenPillars = [
+        [-18.5, 7.5], [-15.0, 14.5], [-11.5, 7.5], [-22.5, 4.5]
+      ];
+      gardenPillars.forEach(([gx, gz]) => {
+        for (let y = 0.4; y <= 3.2; y += 0.35) {
+          addWorldVoxel(solidWorldVoxels, gx, y, gz, y === 3.2 ? '#e2e8f0' : '#991b1b', 0.025, 1.35, 1.05, 1.35);
+        }
+        // Scarlet lantern on top of pillar
+        addWorldVoxel(neonWorldVoxels, gx, 3.65, gz, '#fb7185', 0.01, 1.0, 1.2, 1.0);
+      });
+      // Manicured Rose Hedges
+      const hedgeRows = [[-16.8, 5.8], [-13.2, 9.2], [-19.5, 9.8]];
+      hedgeRows.forEach(([hx, hz]) => {
+        for (let s = -1.2; s <= 1.2; s += 0.4) {
+          addWorldVoxel(solidWorldVoxels, hx + s, 0.75, hz, '#14532d', 0.03, 1.2, 2.2, 1.2);
+          if (Math.abs(s) < 0.9) {
+            addWorldVoxel(solidWorldVoxels, hx + s, 1.25, hz + 0.25, '#e11d48', 0.02, 0.55, 0.55, 0.55);
+          }
+        }
+      });
+
+      // 8. Tire Barriers & Banners at Key Corners
+      const barrierT = [0.19, 0.21, 0.39, 0.41, 0.59, 0.61, 0.79, 0.81, 0.95];
+      barrierT.forEach((bt, idx) => {
+        const s = getTrackSampleAt(bt);
+        const side = (idx % 2 === 0) ? 1 : -1;
+        const bx = s.pt.x + s.right.x * side * 3.15;
+        const bz = s.pt.z + s.right.z * side * 3.15;
+        const col = (idx % 2 === 0) ? '#ef4444' : '#f8fafc';
+        addWorldVoxel(solidWorldVoxels, bx, s.pt.y + 0.25, bz, '#1f2937', 0.02, 1.3, 0.9, 1.3);
+        addWorldVoxel(solidWorldVoxels, bx, s.pt.y + 0.6, bz, col, 0.02, 1.25, 0.9, 1.25);
+      });
+    }
+
+    buildGensokyoCircuitAndBiomes();
+
+    const worldGroup = new THREE.Group();
+    scene.add(worldGroup);
+
+    const solidWorldMesh = buildVoxelInstancedMesh(solidWorldVoxels, worldUnit, solidMaterial, true, true);
+    const glossyWorldMesh = buildVoxelInstancedMesh(glossyWorldVoxels, worldUnit, glossyMaterial, true, true);
+    const neonWorldMesh = buildVoxelInstancedMesh(neonWorldVoxels, worldUnit, neonEmissiveMaterial, false, false);
+    const boostWorldMesh = buildVoxelInstancedMesh(boostWorldVoxels, worldUnit, boostPadMaterial, false, true);
+    const lavaWorldMesh = buildVoxelInstancedMesh(lavaWorldVoxels, worldUnit, lavaEmissiveMaterial, false, false);
+    const iceWorldMesh = buildVoxelInstancedMesh(iceWorldVoxels, worldUnit, translucentIceMaterial, true, true);
+
+    if (solidWorldMesh) worldGroup.add(solidWorldMesh);
+    if (glossyWorldMesh) worldGroup.add(glossyWorldMesh);
+    if (neonWorldMesh) worldGroup.add(neonWorldMesh);
+    if (boostWorldMesh) worldGroup.add(boostWorldMesh);
+    if (lavaWorldMesh) worldGroup.add(lavaWorldMesh);
+    if (iceWorldMesh) worldGroup.add(iceWorldMesh);
+
+    // Starry Night Sky Dome for Night Mode
+    const STAR_COUNT = 240;
+    const starGeom = new THREE.BoxGeometry(0.18, 0.18, 0.18);
+    const starMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.0, depthWrite: false });
+    const starMesh = new THREE.InstancedMesh(starGeom, starMat, STAR_COUNT);
+    const starPos = new THREE.Vector3();
+    const starQuat = new THREE.Quaternion();
+    const starScale = new THREE.Vector3();
+    const starMatrix = new THREE.Matrix4();
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI * 0.42 + 0.08;
+      const rad = 65 + Math.random() * 20;
+      starPos.set(
+        Math.cos(theta) * Math.cos(phi) * rad,
+        Math.sin(phi) * rad + 6,
+        Math.sin(theta) * Math.cos(phi) * rad
+      );
+      starQuat.identity();
+      const s = 0.7 + Math.random() * 1.3;
+      starScale.set(s, s, s);
+      starMatrix.compose(starPos, starQuat, starScale);
+      starMesh.setMatrixAt(i, starMatrix);
+      const starCols = ['#ffffff', '#fef08a', '#bae6fd', '#fbcfe8'];
+      starMesh.setColorAt(i, new THREE.Color(starCols[i % starCols.length]));
+    }
+    starMesh.instanceMatrix.needsUpdate = true;
+    starMesh.instanceColor.needsUpdate = true;
+    starMesh.visible = false;
+    scene.add(starMesh);
+
+    // ============================================================================
+    // 6. SPINNING RAINBOW ITEM BOXES ON THE TRACK
+    // ============================================================================
+    const itemBoxTSpots = [0.12, 0.12, 0.28, 0.28, 0.45, 0.45, 0.64, 0.64, 0.85, 0.85];
+    const itemBoxes = [];
+    const itemBoxGeom = new THREE.BoxGeometry(0.68, 0.68, 0.68);
+    const itemBoxMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0xfbbf24),
+      emissiveIntensity: 0.55,
+      roughness: 0.15,
+      metalness: 0.2,
+      transparent: true,
+      opacity: 0.88
+    });
+    const itemBoxInstanced = new THREE.InstancedMesh(itemBoxGeom, itemBoxMat, itemBoxTSpots.length);
+    scene.add(itemBoxInstanced);
+
+    const rainbowColors = ['#ff4d6d', '#fbbf24', '#38bdf8', '#4ade80', '#c084fc'];
+    itemBoxTSpots.forEach((t, idx) => {
+      const s = getTrackSampleAt(t);
+      const laneOffset = (idx % 2 === 0) ? -1.05 : 1.05;
+      const pos = s.pt.clone().addScaledVector(s.right, laneOffset);
+      pos.y += 0.62;
+      itemBoxes.push({
+        pos,
+        cooldown: 0,
+        phase: idx * 0.8
+      });
+      itemBoxInstanced.setColorAt(idx, new THREE.Color(rainbowColors[idx % rainbowColors.length]));
+    });
+    if (itemBoxInstanced.instanceColor) itemBoxInstanced.instanceColor.needsUpdate = true;
+
+    function updateItemBoxes(elapsed, dt) {
+      for (let i = 0; i < itemBoxes.length; i++) {
+        const box = itemBoxes[i];
+        if (box.cooldown > 0) {
+          box.cooldown = Math.max(0, box.cooldown - dt);
+          tempMatrix.makeScale(0, 0, 0);
+          itemBoxInstanced.setMatrixAt(i, tempMatrix);
+        } else {
+          tempPos.set(box.pos.x, box.pos.y + Math.sin(elapsed * 3.2 + box.phase) * 0.14, box.pos.z);
+          tempEuler.set(elapsed * 1.8 + box.phase, elapsed * 2.4 + box.phase, elapsed * 1.1);
+          tempQuat.setFromEuler(tempEuler);
+          tempScale.set(1, 1, 1);
+          tempMatrix.compose(tempPos, tempQuat, tempScale);
+          itemBoxInstanced.setMatrixAt(i, tempMatrix);
+        }
+      }
+      itemBoxInstanced.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 7. POOLED PARTICLE SYSTEM (Drift Sparks, Squeeze Pop, Confetti, Explosions)
+    // ============================================================================
+    const MAX_PARTICLES = 240;
+    const particles = [];
+    const particleGeom = new THREE.BoxGeometry(0.14, 0.14, 0.14);
+    const particleMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const particleMesh = new THREE.InstancedMesh(particleGeom, particleMat, MAX_PARTICLES);
+    for (let i = 0; i < MAX_PARTICLES; i++) {
+      particles.push({
+        active: false,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        life: 0,
+        maxLife: 1,
+        gravity: 9.0,
+        scale: 1,
+        color: new THREE.Color('#ffffff')
+      });
+      tempMatrix.makeScale(0, 0, 0);
+      particleMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(particleMesh);
+
+    function emitParticle(origin, vel, colorHex, maxLife = 0.45, scale = 1.0, gravity = 9.0) {
+      for (let i = 0; i < MAX_PARTICLES; i++) {
+        const p = particles[i];
+        if (!p.active) {
+          p.active = true;
+          p.pos.copy(origin);
+          p.vel.copy(vel);
+          p.life = 0;
+          p.maxLife = maxLife;
+          p.scale = scale;
+          p.gravity = gravity;
+          p.color.set(colorHex);
+          particleMesh.setColorAt(i, p.color);
+          if (particleMesh.instanceColor) particleMesh.instanceColor.needsUpdate = true;
+          return;
+        }
+      }
+    }
+
+    function spawnSqueezeSparkles(origin, accentHex) {
+      const palette = [accentHex, '#ff85a1', '#fde047', '#ffffff'];
+      for (let i = 0; i < 12; i++) {
+        const angle = (i / 12) * Math.PI * 2 + Math.random() * 0.3;
+        const speed = 2.4 + Math.random() * 2.2;
+        emitParticle(
+          origin.clone().add(new THREE.Vector3(0, 0.85, 0)),
+          new THREE.Vector3(Math.cos(angle) * speed, 2.8 + Math.random() * 2.2, Math.sin(angle) * speed),
+          palette[i % palette.length],
+          0.5,
+          1.1,
+          8.5
+        );
+      }
+    }
+
+    function updateParticles(dt) {
+      let dirty = false;
+      for (let i = 0; i < MAX_PARTICLES; i++) {
+        const p = particles[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          particleMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= p.gravity * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        if (p.pos.y < 0.1) {
+          p.pos.y = 0.1;
+          p.vel.y = Math.abs(p.vel.y) * 0.4;
+        }
+        const s = p.scale * (1.0 - (p.life / p.maxLife));
+        tempEuler.set(p.life * 9, p.life * 7, 0);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        particleMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) particleMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 8. VOXEL FUMO BUILDER (Authentic 'ᗜˬᗜ' Plushies + Kart Builder)
+    // ============================================================================
+    const allInteractiveMeshes = [];
+    const allFumos = [];
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.emoji = config.emoji || '🎀';
+        this.accentColor = config.accentColor || '#ef4444';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.064 * this.scaleFactor; // Scaled to fit karts & diorama
+        this.pitchAudio = config.pitchAudio || 1.0;
+        this.role = config.role || 'spectator'; // 'driver' | 'spectator' | 'flag' | 'napping' | 'drone'
+        this.kart = null;
+
+        this.homePos = (config.homePos || new THREE.Vector3()).clone();
+        this.homeYaw = config.homeYaw || 0;
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = config.initialPitch || 0;
+        this.roll = config.initialRoll || 0;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isDragged = false;
+
+        // Soft-body spring states
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        this.buildCharacterVoxels(config);
+        allFumos.push(this);
+
+        if (this.role !== 'driver') {
+          scene.add(this.root);
+          this.syncTransform(0);
+        }
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingSolidVoxels = [];
+        const wingGlowVoxels = [];
+
+        const skinBase = '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false) => {
+          const seamDarken = (isSeam && ((Math.abs(x + y + z) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z,
+            color: varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // 1. STUBBY SITTING TORSO
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain;
+
+              if (y === 1 && z >= 1) col = '#ffffff';
+              if (cfg.hasWhiteApron && z >= 1 && Math.abs(x) <= 2 && y <= 5) {
+                col = '#fcfcfc';
+              }
+              if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                col = '#ffffff';
+                if (Math.abs(x) <= 1 && y === 5) col = cfg.tieColor || '#ef4444';
+              }
+              if (this.id === 'remilia' && z >= 2 && x === 0 && y >= 2 && y <= 6) {
+                col = '#d90429';
+              }
+              if (this.id === 'flandre' && z >= 2 && Math.abs(x) === 1 && y === 4) {
+                col = '#fde047';
+              }
+              if (this.id === 'nitori' && z >= 2 && Math.abs(x) <= 1 && y >= 2 && y <= 4) {
+                col = '#38bdf8'; // Kappa front pocket detail
+              }
+
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        // 2. SHORT DANGLING ARMS (+ Optional Checkered Flag in Right Hand!)
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || '#ffffff';
+                if (y === -3) col = skinBase;
+                else if (this.id === 'reimu' && y === -1) col = '#e63946';
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        if (this.role === 'flag') {
+          // Voxel Checkered Flag held up by the Tower Fumo!
+          for (let fy = -2; fy <= 9; fy++) {
+            addPlushVoxel(rightArmVoxels, 0.8, fy, 1.5, '#cbd5e1');
+          }
+          for (let fx = 1; fx <= 6; fx++) {
+            for (let fy = 4; fy <= 9; fy++) {
+              const check = ((fx + fy) % 2 === 0);
+              addPlushVoxel(rightArmVoxels, 0.8 + fx * 0.9, fy, 1.5, check ? '#ffffff' : '#111827');
+            }
+          }
+        }
+
+        // 3. SHORT SITTING / DANGLING LEGS WITH SHOES
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = '#ffffff';
+                if (z === 0) col = skinBase;
+                if (z >= 3) col = cfg.shoeColor || '#2b2d42';
+                if (z === 4 && y === 1 && x === 0) col = '#ffffff';
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        // 4. OVERSIZED ROUND FUMO HEAD, ICONIC 'ᗜˬᗜ' FACE, HAIR & HATS
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (y === 6) col = '#1f141e';
+                  else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                  else col = cfg.eyeColor;
+                } else if (Math.abs(x) === 4 && y === 3) {
+                  col = blushCol;
+                } else if (y === 2 && Math.abs(x) <= 1) {
+                  col = (x === 0) ? '#e07a7a' : smileCol;
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        // Character-Specific Accessories:
+        if (this.id === 'reimu') {
+          for (const side of [-1, 1]) {
+            for (let y = -1; y <= 5; y++) {
+              const tubeCol = (y === 5) ? '#e63946' : ((y >= 1 && y <= 4) ? '#ffffff' : cfg.hairColor);
+              addPlushVoxel(headVoxels, side * 6.8, y, 2.2, tubeCol);
+              addPlushVoxel(headVoxels, side * 6.8, y, 3.0, tubeCol);
+            }
+          }
+          for (let bx = -7; bx <= 7; bx++) {
+            const wingHeight = Math.min(4, Math.floor(Math.abs(bx) * 0.7) + 1);
+            for (let by = -wingHeight; by <= wingHeight; by++) {
+              addPlushVoxel(headVoxels, bx, 12.2 + by * 0.75, -1.5 - Math.abs(bx) * 0.15, '#d90429');
+            }
+          }
+        }
+
+        if (this.id === 'cirno') {
+          for (let bx = -6; bx <= 6; bx++) {
+            const h = Math.min(3, Math.floor(Math.abs(bx) * 0.65) + 1);
+            for (let by = -h; by <= h; by++) {
+              addPlushVoxel(headVoxels, bx, 10.5 + by * 0.75, -4.8, '#1d4ed8');
+            }
+          }
+          const wingAngles = [0.45, 0.05, -0.35];
+          for (const side of [-1, 1]) {
+            for (let w = 0; w < 3; w++) {
+              const ang = wingAngles[w];
+              for (let r = 1; r <= 7; r++) {
+                const wx = side * (1.2 + Math.cos(ang) * r * 1.05);
+                const wy = 1.0 + Math.sin(ang) * r * 1.05;
+                const wz = -0.5 - r * 0.15;
+                wingGlowVoxels.push({
+                  x: wx, y: wy, z: wz,
+                  color: varyColor(r > 5 ? '#e0f2fe' : '#38bdf8', wx, wy, wz, 0.02),
+                  sx: 1.1, sy: 0.85, sz: 0.6
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'marisa') {
+          for (let y = -1; y <= 5; y++) {
+            addPlushVoxel(headVoxels, -6.6, y, 2.8, y === 0 ? '#ffffff' : cfg.hairColor);
+          }
+          for (let hx = -10; hx <= 10; hx++) {
+            for (let hz = -10; hz <= 10; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 10.2 && r >= 4.2) {
+                const brimY = 10.2 - hz * 0.22 + Math.sin(Math.atan2(hz, hx) * 4) * 0.4;
+                addPlushVoxel(headVoxels, hx, brimY, hz - 1.2, '#22222b');
+              }
+            }
+          }
+          for (let ch = 0; ch <= 8; ch++) {
+            const coneR = Math.max(0.8, 5.2 - ch * 0.55);
+            for (let hx = -6; hx <= 6; hx++) {
+              for (let hz = -6; hz <= 6; hz++) {
+                const r = Math.hypot(hx, hz);
+                if (r <= coneR && r >= coneR - 1.3) {
+                  const isRibbon = (ch === 1 || ch === 2);
+                  addPlushVoxel(headVoxels, hx, 10.8 + ch * 0.9 - hz * 0.18, hz - 1.5 - ch * 0.28, isRibbon ? '#f8f9fa' : '#22222b');
+                }
+              }
+            }
+          }
+          for (let bx = -3; bx <= 3; bx++) {
+            addPlushVoxel(headVoxels, bx, 11.8, 3.8, '#ffffff');
+          }
+        }
+
+        if (this.id === 'flandre') {
+          for (let py = 2; py <= 7; py++) {
+            addPlushVoxel(headVoxels, -7.2 - (7 - py) * 0.3, py, 0.5, py === 6 ? '#e63946' : cfg.hairColor);
+          }
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -7; hz <= 5; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.8 && r >= 4.8) {
+                addPlushVoxel(headVoxels, hx, 11.2, hz, '#ffe5ec');
+                addPlushVoxel(headVoxels, hx, 12.1, hz * 0.85, '#e63946');
+                addPlushVoxel(headVoxels, hx * 0.8, 12.9, hz * 0.75, '#ffe5ec');
+              }
+            }
+          }
+          const crystalColors = ['#38bdf8', '#3b82f6', '#a855f7', '#ec4899', '#f97316', '#fde047', '#4ade80', '#ef4444'];
+          for (const side of [-1, 1]) {
+            for (let rx = 1; rx <= 9; rx++) {
+              const branchY = 2.5 + (rx <= 4 ? rx * 0.45 : (4 * 0.45 - (rx - 4) * 0.35));
+              wingSolidVoxels.push({
+                x: side * rx, y: branchY, z: -0.5,
+                color: new THREE.Color('#1e1b24'),
+                sx: 0.9, sy: 0.65, sz: 0.65
+              });
+              if (rx % 2 === 0 && rx <= 8) {
+                const cIdx = (side === -1 ? (rx / 2 - 1) : (3 + rx / 2));
+                const cHex = crystalColors[cIdx % 8];
+                for (let cy = -2; cy <= 0; cy++) {
+                  const width = (cy === -1) ? 1.35 : 0.75;
+                  wingGlowVoxels.push({
+                    x: side * (rx + 0.3),
+                    y: branchY - 1.1 + cy * 0.95,
+                    z: -0.5,
+                    color: new THREE.Color(cHex),
+                    sx: width, sy: 0.95, sz: 0.75
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        if (this.id === 'sakuya') {
+          for (const side of [-1, 1]) {
+            for (let y = -2; y <= 5; y++) {
+              const col = (y <= -1) ? '#22c55e' : cfg.hairColor;
+              addPlushVoxel(headVoxels, side * 6.5, y, 3.2, col);
+            }
+          }
+          for (let hx = -6; hx <= 6; hx++) {
+            addPlushVoxel(headVoxels, hx, 11.8, 1.8 - Math.abs(hx) * 0.15, Math.abs(hx) === 6 ? '#22c55e' : '#ffffff');
+            addPlushVoxel(headVoxels, hx, 12.5, 1.5 - Math.abs(hx) * 0.15, '#ffffff');
+          }
+        }
+
+        if (this.id === 'youmu') {
+          // Black half-phantom ribbon on right side of silver bob
+          for (let bx = -5; bx <= -2; bx++) {
+            for (let by = 9; by <= 12; by++) {
+              addPlushVoxel(headVoxels, bx, by, 2.2, '#1e293b');
+            }
+          }
+          // Floating white Myon phantom puff beside her!
+          for (let mx = -1; mx <= 1; mx++) {
+            for (let my = -1; my <= 1; my++) {
+              for (let mz = -1; mz <= 1; mz++) {
+                if (Math.hypot(mx, my, mz) <= 1.5) {
+                  wingGlowVoxels.push({
+                    x: 6.2 + mx * 0.9, y: 4.5 + my * 0.9, z: 1.5 + mz * 0.9,
+                    color: new THREE.Color('#f8fafc')
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        if (this.id === 'nitori') {
+          // Twin side ponytails with yellow ties
+          for (const side of [-1, 1]) {
+            for (let py = 1; py <= 5; py++) {
+              addPlushVoxel(headVoxels, side * 6.8, py, 1.0, py === 4 ? '#facc15' : cfg.hairColor);
+            }
+          }
+          // Green Kappa Cap with yellow bill & dome button
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -6; hz <= 7; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.8 && r >= 4.2) {
+                addPlushVoxel(headVoxels, hx, 10.8, hz, hz >= 5 ? '#facc15' : '#22c55e');
+                if (r <= 5.6) addPlushVoxel(headVoxels, hx, 11.8, hz, '#16a34a');
+              }
+            }
+          }
+          addPlushVoxel(headVoxels, 0, 12.7, 0, '#facc15');
+
+          // Huge Kappa-Tech Backpack with twin brass gears & cyan energy core!
+          for (let bx = -4; bx <= 4; bx++) {
+            for (let by = -2; by <= 5; by++) {
+              for (let bz = -4; bz <= 0; bz++) {
+                let bCol = '#475569';
+                if (Math.abs(bx) === 4 || by === 5) bCol = '#64748b';
+                if (bz === -4 && Math.abs(bx) <= 1 && by >= 0 && by <= 3) {
+                  wingGlowVoxels.push({
+                    x: bx, y: by, z: bz - 0.3,
+                    color: new THREE.Color('#22d3ee')
+                  });
+                  continue;
+                }
+                wingSolidVoxels.push({
+                  x: bx, y: by, z: bz,
+                  color: varyColor(bCol, bx, by, bz, 0.03)
+                });
+              }
+            }
+          }
+          // Twin side turbines on the huge backpack
+          for (const side of [-1, 1]) {
+            for (let ty = -1; ty <= 4; ty++) {
+              wingSolidVoxels.push({
+                x: side * 5.2, y: ty, z: -2.0,
+                color: new THREE.Color(ty === 4 ? '#f59e0b' : '#334155'),
+                sx: 1.4, sy: 1.0, sz: 1.4
+              });
+            }
+          }
+        }
+
+        if (this.id === 'remilia') {
+          for (let hx = -8; hx <= 8; hx++) {
+            for (let hz = -7; hz <= 6; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 7.4 && r >= 4.5) {
+                addPlushVoxel(headVoxels, hx, 11.0, hz, '#ffc2d1');
+                if (r <= 6.4) addPlushVoxel(headVoxels, hx, 12.0, hz, '#d90429');
+              }
+            }
+          }
+        }
+
+        if (this.id === 'suwako') {
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -6; hz <= 6; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 6.8 && r >= 4.2) {
+                addPlushVoxel(headVoxels, hx, 10.8, hz, '#a3b18a');
+              }
+            }
+          }
+          for (const side of [-1, 1]) {
+            addPlushVoxel(headVoxels, side * 3.5, 12.4, 3.2, '#ffffff');
+            addPlushVoxel(headVoxels, side * 3.5, 12.4, 3.8, '#1e293b');
+          }
+        }
+
+        if (this.role === 'drone') {
+          // Quad-rotor voxel camera drone frame carrying the Fumo!
+          for (let arm = -10; arm <= 10; arm++) {
+            wingSolidVoxels.push({ x: arm, y: -3.5, z: arm, color: new THREE.Color('#1e293b') });
+            wingSolidVoxels.push({ x: arm, y: -3.5, z: -arm, color: new THREE.Color('#1e293b') });
+          }
+          for (const sx of [-10, 10]) {
+            for (const sz of [-10, 10]) {
+              wingGlowVoxels.push({ x: sx, y: -2.8, z: sz, color: new THREE.Color('#38bdf8'), sx: 3.5, sy: 0.4, sz: 3.5 });
+            }
+          }
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allInteractiveMeshes.push(m);
+          }
+          return m;
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        registerPart(wingSolidVoxels, this.wingsPivot);
+        if (wingGlowVoxels.length > 0) {
+          const wMat = (this.id === 'cirno') ? translucentIceMaterial : crystalWingMaterial;
+          registerPart(wingGlowVoxels, this.wingsPivot, wMat);
+        }
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.5, this.squash - 0.44 * strength);
+        this.squashVel = -3.8 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 15 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 12 * strength;
+        this.limbPitch = -0.65 * strength;
+        this.limbPitchVel = -6.0 * strength;
+        const worldPos = new THREE.Vector3();
+        this.root.getWorldPosition(worldPos);
+        spawnSqueezeSparkles(worldPos, this.accentColor);
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      updateSpringsAndPhysics(dt, elapsed) {
+        // 1. Volume-Preserving Squash & Stretch Spring
+        const squashStiff = 210.0;
+        const squashDamp = 11.0;
+        this.squashVel += ((1.0 - this.squash) * squashStiff - this.squashVel * squashDamp) * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash + this.squashVel * dt, 0.45, 1.55);
+
+        // 2. Oversized Head Wobble Spring
+        const headStiff = 145.0;
+        const headDamp = 7.2;
+        const idleBob = Math.sin(elapsed * 2.5 + this.homePos.x) * 0.03;
+        this.headPitchVel += ((idleBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        // 3. Dangling Limb Springs
+        const targetLimb = (this.isDragged || !this.isGrounded) ? 0.58 : 0.0;
+        this.limbPitchVel += ((targetLimb - this.limbPitch) * 120.0 - this.limbPitchVel * 8.0) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * 120.0 - this.limbRollVel * 8.0) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.8, 0.9);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+
+        // If this fumo is a standalone spectator / tower / napping / drone fumo:
+        if (this.role !== 'driver') {
+          if (this.role === 'drone' && !this.isDragged) {
+            // Orbit smoothly overhead filming the race!
+            const droneAngle = elapsed * 0.45;
+            this.pos.set(Math.cos(droneAngle) * 9.5, 6.2 + Math.sin(elapsed * 2.2) * 0.35, Math.sin(droneAngle) * 7.5);
+            this.yaw = -droneAngle + Math.PI;
+          } else if (!this.isDragged) {
+            // Cheering bounce for grandstand spectators
+            if (this.role === 'spectator' && this.isGrounded && Math.sin(elapsed * 4.5 + this.homePos.x * 3) > 0.92) {
+              this.vel.y = 3.2;
+              this.isGrounded = false;
+              this.squashVel -= 2.2;
+            }
+            if (this.role === 'flag' && this.isGrounded) {
+              this.rightArmPivot.rotation.z = -0.7 + Math.sin(elapsed * 6.5) * 0.45;
+            }
+
+            this.vel.y -= 22.0 * dt;
+            this.vel.multiplyScalar(Math.pow(0.98, dt * 60));
+            this.pos.addScaledVector(this.vel, dt);
+
+            this.yaw += this.angVel.y * dt;
+            this.pitch += this.angVel.x * dt;
+            this.roll += this.angVel.z * dt;
+            this.angVel.multiplyScalar(Math.pow(0.92, dt * 60));
+
+            // Floor / Home perch landing
+            const nearHomeXZ = Math.hypot(this.pos.x - this.homePos.x, this.pos.z - this.homePos.z) < 1.6;
+            const supportY = nearHomeXZ ? this.homePos.y : 0.35;
+
+            if (this.pos.y <= supportY) {
+              const impact = -this.vel.y;
+              this.pos.y = supportY;
+              if (impact > 1.8) {
+                this.vel.y = impact * 0.42;
+                this.squashVel -= Math.min(8.0, impact * 0.85);
+                soundFX.playBump(impact * 0.08);
+              } else {
+                this.vel.y = 0;
+                this.isGrounded = true;
+              }
+              this.vel.x *= 0.8;
+              this.vel.z *= 0.8;
+            }
+
+            if (this.isGrounded) {
+              const targetPitch = (this.role === 'napping') ? -1.25 : 0;
+              this.pitch = THREE.MathUtils.lerp(this.pitch, targetPitch, Math.min(1, dt * 8));
+              this.roll = THREE.MathUtils.lerp(this.roll, 0, Math.min(1, dt * 8));
+            }
+          }
+          this.syncTransform(elapsed);
+        } else {
+          // Driver inside a kart: sync local squash, head wobble & steering arms
+          const sy = this.squash;
+          const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+          this.squashGroup.scale.set(sxz, sy, sxz);
+          this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+          this.leftArmPivot.rotation.set(-0.45 + this.limbPitch, 0, 0.15 + this.limbRoll);
+          this.rightArmPivot.rotation.set(-0.45 + this.limbPitch, 0, -0.15 + this.limbRoll);
+          this.leftLegPivot.rotation.set(this.limbPitch * 0.6, 0.08, 0);
+          this.rightLegPivot.rotation.set(this.limbPitch * 0.6, -0.08, 0);
+          this.wingsPivot.rotation.x = Math.sin(elapsed * 4.2 + this.homePos.x) * 0.07 + (1.0 - this.squash) * 0.35;
+        }
+      }
+
+      syncTransform(elapsed) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+
+        if (this.role !== 'flag') {
+          this.leftArmPivot.rotation.set(this.limbPitch, 0, 0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+          this.rightArmPivot.rotation.set(this.limbPitch, 0, -0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        }
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+        this.wingsPivot.rotation.x = Math.sin(elapsed * 3.8 + this.homePos.x) * 0.06 + (1.0 - this.squash) * 0.35;
+      }
+    }
+
+    // ============================================================================
+    // 9. VOXEL KART BUILDER & ARCADE RACING CLASS
+    // ============================================================================
+    const karts = [];
+
+    class VoxelKart {
+      constructor(driverConfig, index, isPlayer = false) {
+        this.index = index;
+        this.isPlayer = isPlayer;
+        this.id = driverConfig.id;
+        this.name = driverConfig.name;
+        this.emoji = driverConfig.emoji;
+        this.accentColor = driverConfig.accentColor;
+
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        // Instantiate the Fumo Driver and seat them in the kart!
+        driverConfig.role = 'driver';
+        this.driver = new VoxelFumo(driverConfig);
+        this.driver.kart = this;
+        this.driver.root.position.set(0, 0.32, -0.08);
+        this.squashGroup.add(this.driver.root);
+
+        this.buildKartVoxels(driverConfig);
+
+        // Frozen Ice Block Cube (visible when hit by an Ice Bullet!)
+        const iceCubeGeom = new THREE.BoxGeometry(1.55, 1.75, 1.85);
+        this.iceCubeMesh = new THREE.Mesh(iceCubeGeom, translucentIceMaterial);
+        this.iceCubeMesh.position.set(0, 0.85, 0);
+        this.iceCubeMesh.visible = false;
+        this.squashGroup.add(this.iceCubeMesh);
+
+        // Rotating Hakurei Shield Barrier (visible when Shield item is active!)
+        this.shieldGroup = new THREE.Group();
+        this.shieldGroup.visible = false;
+        for (let s = 0; s < 4; s++) {
+          const orb = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.28, 0.28), boostPadMaterial);
+          const ang = (s / 4) * Math.PI * 2;
+          orb.position.set(Math.cos(ang) * 1.15, 0.65, Math.sin(ang) * 1.15);
+          this.shieldGroup.add(orb);
+        }
+        this.squashGroup.add(this.shieldGroup);
+
+        scene.add(this.root);
+        this.resetForRace();
+      }
+
+      buildKartVoxels(cfg) {
+        const KV = 0.085;
+        const chassisVoxels = [];
+        const lightVoxels = [];
+
+        if (cfg.kartStyle === 'broom') {
+          // MARISA'S BROOM-SHAPED KART: Long wooden broom shaft nose, golden star bristles at rear, compact black/gold side pods & wheels!
+          for (let z = -8; z <= 10; z++) {
+            const r = (z < -4) ? 2.6 : 1.3;
+            for (let x = -Math.ceil(r); x <= Math.ceil(r); x++) {
+              for (let y = 1; y <= 3; y++) {
+                if (Math.hypot(x, y - 2) <= r) {
+                  let col = '#7f5539'; // Wooden broom handle
+                  if (z <= -4) col = (z === -4) ? '#dc2626' : '#facc15'; // Golden straw bristles & red tie!
+                  chassisVoxels.push({ x, y, z, color: varyColor(col, x, y, z, 0.03) });
+                }
+              }
+            }
+          }
+          // Witch-gold side fenders & seat saddle
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              chassisVoxels.push({ x, y: 2, z, color: varyColor('#1e293b', x, 2, z, 0.02) });
+              if (Math.abs(x) === 4) {
+                chassisVoxels.push({ x, y: 3, z, color: new THREE.Color('#facc15') });
+              }
+            }
+          }
+        } else {
+          // STANDARD / KAPPA-TECH / CRYSTAL VOXEL KART CHASSIS
+          for (let x = -5; x <= 5; x++) {
+            for (let z = -6; z <= 7; z++) {
+              for (let y = 1; y <= 4; y++) {
+                // Cockpit cutout for the Fumo driver
+                if (Math.abs(x) <= 3 && z >= -3 && z <= 2 && y >= 3) continue;
+                // Tapered front nose cone
+                if (z >= 5 && Math.abs(x) >= 4) continue;
+                if (y === 4 && z < 3 && z > -4) continue;
+
+                let col = cfg.kartBodyColor;
+                if (y === 1) col = '#1e293b';
+                else if (Math.abs(x) === 5 || (y === 3 && Math.abs(x) <= 1 && z >= 3)) {
+                  col = cfg.kartTrimColor; // Racing stripe & side skirts
+                }
+                chassisVoxels.push({ x, y, z, color: varyColor(col, x, y, z, 0.025) });
+              }
+            }
+          }
+
+          // Steering Wheel Column
+          chassisVoxels.push({ x: 0, y: 4.5, z: 2.8, color: new THREE.Color('#334155'), sx: 0.7, sy: 2.2, sz: 0.7 });
+          chassisVoxels.push({ x: 0, y: 5.4, z: 2.2, color: new THREE.Color('#0f172a'), sx: 2.2, sy: 2.2, sz: 0.5 });
+
+          // Twin Rear Exhaust Pipes
+          for (const side of [-1, 1]) {
+            chassisVoxels.push({ x: side * 2.5, y: 3.5, z: -6.8, color: new THREE.Color('#94a3b8'), sx: 1.3, sy: 1.3, sz: 2.0 });
+          }
+
+          // Extra Kappa-Tech Front Dozer/Gears on Nitori's Kart
+          if (this.id === 'nitori') {
+            for (let x = -4; x <= 4; x += 2) {
+              chassisVoxels.push({ x, y: 2, z: 8, color: new THREE.Color('#f59e0b'), sx: 1.3, sy: 1.5, sz: 1.2 });
+            }
+          }
+        }
+
+        // 4 chunky Voxel Racing Tires
+        const wheelPositions = [
+          [-5.6, 2.0, 4.5], [5.6, 2.0, 4.5],
+          [-5.8, 2.2, -4.2], [5.8, 2.2, -4.2]
+        ];
+        wheelPositions.forEach(([wx, wy, wz]) => {
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dz = -1; dz <= 1; dz++) {
+              const isHub = (dy === 0 && dz === 0);
+              chassisVoxels.push({
+                x: wx, y: wy + dy * 0.9, z: wz + dz * 0.9,
+                color: new THREE.Color(isHub ? cfg.kartTrimColor : '#111827'),
+                sx: 1.6, sy: 1.0, sz: 1.0
+              });
+            }
+          }
+        });
+
+        // Glowing Headlights & Taillights
+        for (const side of [-1, 1]) {
+          lightVoxels.push({ x: side * 2.5, y: 3.2, z: 7.4, color: new THREE.Color('#fef08a'), sx: 1.2, sy: 0.9, sz: 0.6 });
+          lightVoxels.push({ x: side * 3.5, y: 3.0, z: -6.4, color: new THREE.Color('#ef4444'), sx: 1.2, sy: 0.8, sz: 0.6 });
+        }
+
+        const cMesh = buildVoxelInstancedMesh(chassisVoxels, KV, glossyMaterial, true, true);
+        const lMesh = buildVoxelInstancedMesh(lightVoxels, KV, neonEmissiveMaterial, false, false);
+        if (cMesh) {
+          cMesh.userData.fumo = this.driver;
+          this.squashGroup.add(cMesh);
+          allInteractiveMeshes.push(cMesh);
+        }
+        if (lMesh) {
+          lMesh.userData.fumo = this.driver;
+          this.squashGroup.add(lMesh);
+        }
+      }
+
+      resetForRace() {
+        // Staggered starting grid just behind the Start/Finish Arch (t around 0.96 .. 0.01)
+        const startT = (1.01 - this.index * 0.011) % 1.0;
+        const lane = ((this.index % 2 === 0) ? -0.95 : 0.95) * (this.index === 0 ? 0 : 1);
+        const sample = getTrackSampleAt(startT);
+
+        this.trackT = startT;
+        this.totalProgress = -this.index * 0.011;
+        this.lap = 1;
+        this.finished = false;
+        this.finishRank = 0;
+
+        this.pos = sample.pt.clone().addScaledVector(sample.right, lane);
+        this.vel = new THREE.Vector3();
+        this.heading = Math.atan2(sample.tan.x, sample.tan.z);
+        this.speed = 0;
+        this.verticalVel = 0;
+        this.heightOffset = 0;
+
+        this.isDrifting = false;
+        this.driftDir = 0;
+        this.driftCharge = 0;
+        this.boostTimer = 0;
+        this.freezeTimer = 0;
+        this.shieldTimer = 0;
+        this.spinAngle = 0;
+
+        this.heldItem = null; // 'mushroom' | 'ice' | 'bomb' | 'shield'
+        this.aiTargetLane = (Math.random() - 0.5) * 3.0;
+        this.aiLaneTimer = 1.5 + Math.random() * 2.5;
+        this.baseAiSpeed = 12.6 + (this.index % 3) * 0.35;
+
+        this.driver.isDragged = false;
+        this.driver.squash = 1.0;
+        this.driver.squashVel = 0;
+        this.syncKartTransform(0);
+      }
+
+      syncKartTransform(elapsed) {
+        this.root.position.copy(this.pos);
+        this.root.position.y += this.heightOffset;
+
+        const driftYawOffset = this.isDrifting ? this.driftDir * 0.32 : 0;
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(
+          this.driver.pitch,
+          this.heading + driftYawOffset + this.spinAngle,
+          this.driver.roll
+        );
+
+        const sy = this.driver.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.4, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        this.iceCubeMesh.visible = this.freezeTimer > 0;
+        this.shieldGroup.visible = this.shieldTimer > 0;
+        if (this.shieldTimer > 0) {
+          this.shieldGroup.rotation.y = elapsed * 5.5;
+        }
+      }
+    }
+
+    // ============================================================================
+    // 10. SPAWN THE 7 KART RACERS + SPECTATORS & UNEXPECTED FUMOS
+    // ============================================================================
+    const driverRoster = [
+      {
+        id: 'reimu',
+        name: 'Reimu Hakurei',
+        emoji: '⛩️',
+        accentColor: '#ef4444',
+        hairColor: '#2b1e23',
+        eyeColor: '#991b1b',
+        outfitMain: '#dc2626',
+        sleeveColor: '#ffffff',
+        tieColor: '#facc15',
+        shoeColor: '#451a03',
+        kartBodyColor: '#dc2626',
+        kartTrimColor: '#ffffff',
+        pitchAudio: 1.0
+      },
+      {
+        id: 'marisa',
+        name: 'Marisa Kirisame (Broom Kart)',
+        emoji: '🧹',
+        accentColor: '#facc15',
+        hairColor: '#fde047',
+        eyeColor: '#ca8a04',
+        outfitMain: '#1f2937',
+        sleeveColor: '#ffffff',
+        tieColor: '#ffffff',
+        shoeColor: '#111827',
+        hasWhiteApron: true,
+        kartStyle: 'broom',
+        kartBodyColor: '#1f2937',
+        kartTrimColor: '#facc15',
+        pitchAudio: 0.96
+      },
+      {
+        id: 'cirno',
+        name: 'Cirno (Ice Cruiser)',
+        emoji: '❄️',
+        accentColor: '#38bdf8',
+        hairColor: '#7dd3fc',
+        eyeColor: '#0284c7',
+        outfitMain: '#2563eb',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#1e3a8a',
+        kartBodyColor: '#38bdf8',
+        kartTrimColor: '#e0f2fe',
+        pitchAudio: 1.16
+      },
+      {
+        id: 'sakuya',
+        name: 'Sakuya Izayoi (Silver Roadster)',
+        emoji: '⏱️',
+        accentColor: '#94a3b8',
+        hairColor: '#e2e8f0',
+        eyeColor: '#1d4ed8',
+        outfitMain: '#1e3a8a',
+        sleeveColor: '#ffffff',
+        tieColor: '#22c55e',
+        shoeColor: '#172554',
+        hasWhiteApron: true,
+        kartBodyColor: '#cbd5e1',
+        kartTrimColor: '#1e3a8a',
+        pitchAudio: 0.92
+      },
+      {
+        id: 'flandre',
+        name: 'Flandre Scarlet (Crimson Wing Kart)',
+        emoji: '🌈',
+        accentColor: '#f43f5e',
+        hairColor: '#fef08a',
+        eyeColor: '#dc2626',
+        outfitMain: '#e11d48',
+        sleeveColor: '#ffffff',
+        tieColor: '#fde047',
+        shoeColor: '#881337',
+        kartBodyColor: '#be123c',
+        kartTrimColor: '#fde047',
+        pitchAudio: 1.22
+      },
+      {
+        id: 'youmu',
+        name: 'Youmu Konpaku (Jade Katana Kart)',
+        emoji: '⚔️',
+        accentColor: '#10b981',
+        hairColor: '#e2e8f0',
+        eyeColor: '#0f766e',
+        outfitMain: '#059669',
+        sleeveColor: '#ffffff',
+        tieColor: '#064e3b',
+        shoeColor: '#064e3b',
+        kartBodyColor: '#10b981',
+        kartTrimColor: '#f8fafc',
+        pitchAudio: 1.06
+      },
+      {
+        id: 'nitori',
+        name: 'Nitori Kawashiro (Kappa-Tech Kart)',
+        emoji: '🥒',
+        accentColor: '#06b6d4',
+        hairColor: '#3b82f6',
+        eyeColor: '#0284c7',
+        outfitMain: '#0891b2',
+        sleeveColor: '#bae6fd',
+        tieColor: '#facc15',
+        shoeColor: '#166534',
+        kartBodyColor: '#06b6d4',
+        kartTrimColor: '#22c55e',
+        pitchAudio: 1.12
+      }
+    ];
+
+    driverRoster.forEach((cfg, idx) => {
+      karts.push(new VoxelKart(cfg, idx, idx === 0));
+    });
+    const playerKart = karts[0];
+
+    // Spawn Spectator Fumos & Unexpected Spot Fumos!
+    // 1. Cheering Fumos in the Grandstand
+    new VoxelFumo({
+      id: 'remilia',
+      name: 'Remilia Scarlet (Cheering Fan)',
+      emoji: '🦇',
+      accentColor: '#fb7185',
+      hairColor: '#a5b4fc',
+      eyeColor: '#e11d48',
+      outfitMain: '#ffe4e6',
+      sleeveColor: '#ffe4e6',
+      tieColor: '#be123c',
+      shoeColor: '#4c0519',
+      role: 'spectator',
+      homePos: new THREE.Vector3(-2.0, 1.35, 10.4),
+      homeYaw: 0.0,
+      pitchAudio: 1.08
+    });
+    new VoxelFumo({
+      id: 'suwako',
+      name: 'Suwako Moriya (Cheering Fan)',
+      emoji: '🐸',
+      accentColor: '#4ade80',
+      hairColor: '#fde68a',
+      eyeColor: '#4f46e5',
+      outfitMain: '#6366f1',
+      sleeveColor: '#ffffff',
+      tieColor: '#a3e635',
+      shoeColor: '#312e81',
+      role: 'spectator',
+      homePos: new THREE.Vector3(0.5, 1.85, 9.7),
+      homeYaw: 0.0,
+      pitchAudio: 1.3
+    });
+    new VoxelFumo({
+      id: 'sanae',
+      name: 'Sanae Kochiya (Cheering Fan)',
+      emoji: '🍏',
+      accentColor: '#22c55e',
+      hairColor: '#4ade80',
+      eyeColor: '#15803d',
+      outfitMain: '#3b82f6',
+      sleeveColor: '#ffffff',
+      tieColor: '#22c55e',
+      shoeColor: '#1e3a8a',
+      role: 'spectator',
+      homePos: new THREE.Vector3(3.0, 1.35, 10.4),
+      homeYaw: -0.1,
+      pitchAudio: 1.04
+    });
+
+    // 2. UNEXPECTED SPOT #1: Fumo with a Checkered Flag atop the Race Control Tower!
+    new VoxelFumo({
+      id: 'aya',
+      name: 'Aya Shameimaru (Tower Flag Marshal)',
+      emoji: '🏁',
+      accentColor: '#f59e0b',
+      hairColor: '#1e293b',
+      eyeColor: '#dc2626',
+      outfitMain: '#1f2937',
+      sleeveColor: '#ffffff',
+      tieColor: '#ef4444',
+      shoeColor: '#111827',
+      role: 'flag',
+      homePos: new THREE.Vector3(-5.5, 4.45, 11.0),
+      homeYaw: 0.35,
+      pitchAudio: 1.18
+    });
+
+    // 3. UNEXPECTED SPOT #2: Fumo Napping Peacefully on a Golden Hay Bale!
+    new VoxelFumo({
+      id: 'remilia',
+      name: 'Yuyuko Saigyouji (Napping on Hay Bale)',
+      emoji: '💤',
+      accentColor: '#f472b6',
+      hairColor: '#fbcfe8',
+      eyeColor: '#db2777',
+      outfitMain: '#60a5fa',
+      sleeveColor: '#e0f2fe',
+      tieColor: '#ec4899',
+      shoeColor: '#1e3a8a',
+      role: 'napping',
+      homePos: new THREE.Vector3(11.5, 1.45, 10.2),
+      homeYaw: -0.6,
+      initialPitch: -1.25,
+      pitchAudio: 0.88
+    });
+
+    // 4. UNEXPECTED SPOT #3: Camera Drone Fumo hovering over the circuit!
+    new VoxelFumo({
+      id: 'nitori',
+      name: 'Hatate Himekaidou (Sky Camera Drone Fumo)',
+      emoji: '🚁',
+      accentColor: '#a855f7',
+      hairColor: '#581c87',
+      eyeColor: '#9333ea',
+      outfitMain: '#7e22ce',
+      sleeveColor: '#ffffff',
+      tieColor: '#facc15',
+      shoeColor: '#3b0764',
+      role: 'drone',
+      scale: 0.85,
+      homePos: new THREE.Vector3(0, 6.2, 0),
+      homeYaw: 0,
+      pitchAudio: 1.35
+    });
+
+    // ============================================================================
+    // 11. PROJECTILES (Ice Bullets & Star Bombs)
+    // ============================================================================
+    const activeProjectiles = [];
+    const projectileGroup = new THREE.Group();
+    scene.add(projectileGroup);
+
+    function spawnProjectile(ownerKart, type) {
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.45, 0.45, 0.45),
+        type === 'ice' ? translucentIceMaterial : boostPadMaterial
+      );
+      const forward = new THREE.Vector3(Math.sin(ownerKart.heading), 0, Math.cos(ownerKart.heading));
+      const startPos = ownerKart.pos.clone().addScaledVector(forward, 1.35);
+      startPos.y += 0.55;
+      mesh.position.copy(startPos);
+      projectileGroup.add(mesh);
+
+      activeProjectiles.push({
+        type,
+        owner: ownerKart,
+        mesh,
+        pos: startPos,
+        vel: forward.multiplyScalar(25.0).add(new THREE.Vector3(0, type === 'bomb' ? 6.5 : 0, 0)),
+        life: 0,
+        maxLife: 2.6
+      });
+    }
+
+    function updateProjectiles(dt) {
+      for (let i = activeProjectiles.length - 1; i >= 0; i--) {
+        const p = activeProjectiles[i];
+        p.life += dt;
+        if (p.type === 'bomb') {
+          p.vel.y -= 14.0 * dt;
+        }
+        p.pos.addScaledVector(p.vel, dt);
+
+        // Keep ice bullet following track height
+        const sample = findClosestTrackSample(p.pos);
+        if (p.type === 'ice') {
+          p.pos.y = sample.pt.y + 0.45;
+        } else if (p.pos.y <= sample.pt.y + 0.25) {
+          // Star bomb detonates on impact!
+          detonateStarBomb(p.pos, p.owner);
+          projectileGroup.remove(p.mesh);
+          activeProjectiles.splice(i, 1);
+          continue;
+        }
+
+        p.mesh.position.copy(p.pos);
+        p.mesh.rotation.x += 8 * dt;
+        p.mesh.rotation.y += 10 * dt;
+
+        // Trail particles
+        emitParticle(
+          p.pos,
+          new THREE.Vector3((Math.random() - 0.5) * 1.5, 0.8, (Math.random() - 0.5) * 1.5),
+          p.type === 'ice' ? '#38bdf8' : '#fde047',
+          0.25,
+          0.8,
+          2.0
+        );
+
+        // Check collision with rival karts
+        let hitKart = null;
+        for (let k = 0; k < karts.length; k++) {
+          const target = karts[k];
+          if (target === p.owner) continue;
+          if (target.pos.distanceTo(p.pos) < 1.35) {
+            hitKart = target;
+            break;
+          }
+        }
+
+        if (hitKart) {
+          if (p.type === 'ice') {
+            if (hitKart.shieldTimer <= 0) {
+              hitKart.freezeTimer = 2.2;
+              hitKart.speed *= 0.25;
+              hitKart.driver.squeeze(1.1);
+            }
+            spawnSqueezeSparkles(hitKart.pos, '#38bdf8');
+          } else {
+            detonateStarBomb(p.pos, p.owner);
+          }
+          projectileGroup.remove(p.mesh);
+          activeProjectiles.splice(i, 1);
+          continue;
+        }
+
+        if (p.life >= p.maxLife) {
+          projectileGroup.remove(p.mesh);
+          activeProjectiles.splice(i, 1);
+        }
+      }
+    }
+
+    function detonateStarBomb(origin, owner) {
+      soundFX.playBump(1.2);
+      const starPalette = ['#ff4d6d', '#fde047', '#38bdf8', '#c084fc', '#4ade80'];
+      for (let i = 0; i < 24; i++) {
+        const ang = (i / 24) * Math.PI * 2;
+        const spd = 4.0 + Math.random() * 5.0;
+        emitParticle(
+          origin,
+          new THREE.Vector3(Math.cos(ang) * spd, 4.0 + Math.random() * 4.5, Math.sin(ang) * spd),
+          starPalette[i % starPalette.length],
+          0.65,
+          1.35,
+          9.5
+        );
+      }
+      karts.forEach(k => {
+        if (k === owner) return;
+        const d = k.pos.distanceTo(origin);
+        if (d < 3.6 && k.shieldTimer <= 0) {
+          k.verticalVel = 7.5;
+          k.speed *= 0.3;
+          k.driver.squash = 0.55;
+          k.driver.squashVel = -4.5;
+          k.spinAngle = Math.PI * 2;
+        }
+      });
+    }
+
+    // ============================================================================
+    // 12. GAMEPLAY & ARCADE KART PHYSICS ENGINE
+    // ============================================================================
+    const keys = { up: false, down: false, left: false, right: false, space: false };
+    let autoDriveEnabled = true;
+    let raceElapsed = 0;
+    let raceFinished = false;
+    let finishOrder = [];
+
+    const ITEM_POOL = [
+      { id: 'mushroom', icon: '🍄', label: 'Turbo Shroom' },
+      { id: 'ice',      icon: '❄️', label: 'Ice Bullet' },
+      { id: 'bomb',     icon: '💣', label: 'Star Bomb' },
+      { id: 'shield',   icon: '🛡️', label: 'Hakurei Orb' }
+    ];
+
+    const hudPosEl = document.getElementById('hud-pos');
+    const hudLapEl = document.getElementById('hud-lap');
+    const hudTimerEl = document.getElementById('hud-timer');
+    const hudItemIconEl = document.getElementById('hud-item-icon');
+    const hudItemLabelEl = document.getElementById('hud-item-label');
+    const btnUseItem = document.getElementById('btn-use-item');
+    const bannerIconEl = document.getElementById('banner-icon');
+    const bannerTextEl = document.getElementById('banner-text');
+    const podiumPanelEl = document.getElementById('podium-panel');
+    const podiumResultsEl = document.getElementById('podium-results');
+
+    function setBanner(icon, text) {
+      bannerIconEl.textContent = icon;
+      bannerTextEl.textContent = text;
+    }
+
+    function updatePlayerItemHUD() {
+      if (!playerKart.heldItem) {
+        hudItemIconEl.textContent = '🎲';
+        hudItemLabelEl.textContent = 'Empty';
+        btnUseItem.classList.remove('item-ready');
+      } else {
+        hudItemIconEl.textContent = playerKart.heldItem.icon;
+        hudItemLabelEl.textContent = playerKart.heldItem.label;
+        btnUseItem.classList.add('item-ready');
+      }
+    }
+
+    function activateKartItem(kart) {
+      if (!kart.heldItem || kart.finished) return;
+      const item = kart.heldItem;
+      kart.heldItem = null;
+      if (kart.isPlayer) updatePlayerItemHUD();
+
+      if (item.id === 'mushroom') {
+        kart.boostTimer = 1.65;
+        kart.speed = Math.max(kart.speed, 19.5);
+        kart.driver.squash = 0.68;
+        kart.driver.squashVel = 3.5;
+        if (kart.isPlayer) {
+          soundFX.playBoost();
+          setBanner('🍄', `${kart.name} used a Turbo Mushroom!`);
+        }
+      } else if (item.id === 'ice') {
+        spawnProjectile(kart, 'ice');
+        if (kart.isPlayer) {
+          soundFX.playSqueeze(1.3);
+          setBanner('❄️', 'Fired a Cirno Ice Bullet!');
+        }
+      } else if (item.id === 'bomb') {
+        spawnProjectile(kart, 'bomb');
+        if (kart.isPlayer) {
+          soundFX.playBoost();
+          setBanner('💣', 'Lobbed a Star Bomb ahead!');
+        }
+      } else if (item.id === 'shield') {
+        kart.shieldTimer = 5.0;
+        if (kart.isPlayer) {
+          soundFX.playItemPickup();
+          setBanner('🛡️', 'Hakurei Shield Barrier Activated!');
+        }
+      }
+    }
+
+    function formatRaceTime(sec) {
+      const mins = Math.floor(sec / 60);
+      const rem = sec % 60;
+      const secs = Math.floor(rem);
+      const ms = Math.floor((rem - secs) * 100);
+      return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(ms).padStart(2, '0')}`;
+    }
+
+    function restartRace() {
+      raceElapsed = 0;
+      raceFinished = false;
+      finishOrder = [];
+      soundFX.finalLapMultiplier = 1.0;
+      podiumPanelEl.classList.add('hidden');
+      podiumPanelEl.classList.remove('flex');
+      setBanner('🏁', 'Gensokyo Fumo GP — Drive with Arrow Keys & Space to Drift!');
+
+      karts.forEach(k => k.resetForRace());
+      allFumos.forEach(f => {
+        if (f.role !== 'driver') {
+          f.pos.copy(f.homePos);
+          f.vel.set(0, 0, 0);
+          f.yaw = f.homeYaw;
+          f.squeeze(0.75);
+        } else {
+          f.squeeze(0.8);
+        }
+      });
+      updatePlayerItemHUD();
+    }
+
+    function triggerPodiumCeremony() {
+      raceFinished = true;
+      soundFX.finalLapMultiplier = 1.0;
+
+      // Sort karts by finish rank or totalProgress
+      const sorted = [...karts].sort((a, b) => {
+        if (a.finishRank && b.finishRank) return a.finishRank - b.finishRank;
+        if (a.finishRank) return -1;
+        if (b.finishRank) return 1;
+        return b.totalProgress - a.totalProgress;
+      });
+
+      // Place top 3 onto the Winner's Podium blocks!
+      const podiumSpots = [
+        new THREE.Vector3(0.0,  1.58, 6.2), // 1st
+        new THREE.Vector3(-1.6, 1.18, 6.2), // 2nd
+        new THREE.Vector3(1.6,  0.93, 6.2)  // 3rd
+      ];
+      for (let i = 0; i < 3; i++) {
+        const winner = sorted[i];
+        winner.pos.copy(podiumSpots[i]);
+        winner.heightOffset = 0;
+        winner.heading = 0; // Face camera / main straight
+        winner.speed = 0;
+        winner.isDrifting = false;
+        winner.driver.squeeze(1.2);
+      }
+
+      podiumResultsEl.innerHTML = `
+        <span>🥇 1st: ${sorted[0].emoji} ${sorted[0].name.split(' ')[0]}</span>
+        <span>🥈 2nd: ${sorted[1].emoji} ${sorted[1].name.split(' ')[0]}</span>
+        <span>🥉 3rd: ${sorted[2].emoji} ${sorted[2].name.split(' ')[0]}</span>
+      `;
+      podiumPanelEl.classList.remove('hidden');
+      podiumPanelEl.classList.add('flex');
+      setBanner('🏆', `Race Complete! ${sorted[0].name} Wins the Gensokyo Cup!`);
+      soundFX.playItemPickup();
+    }
+
+    function updateKartRacePhysics(dt, elapsed) {
+      if (!raceFinished) {
+        raceElapsed += dt;
+      }
+
+      // Celebratory confetti shower when race is finished!
+      if (raceFinished && Math.random() < 0.45) {
+        const confettiColors = ['#ff4d6d', '#fbbf24', '#38bdf8', '#4ade80', '#c084fc'];
+        emitParticle(
+          new THREE.Vector3((Math.random() - 0.5) * 5.5, 4.8, 6.2 + (Math.random() - 0.5) * 2.5),
+          new THREE.Vector3((Math.random() - 0.5) * 2.0, -0.5, (Math.random() - 0.5) * 2.0),
+          confettiColors[Math.floor(Math.random() * confettiColors.length)],
+          1.4,
+          1.2,
+          2.5
+        );
+      }
+
+      karts.forEach(k => {
+        // Update driver soft-body springs
+        k.driver.updateSpringsAndPhysics(dt, elapsed);
+
+        // If the player is currently dragging this kart with the mouse, let it dangle in the air!
+        if (k.driver.isDragged) {
+          k.pos.copy(k.driver.pos);
+          k.heightOffset = 0;
+          k.syncKartTransform(elapsed);
+          return;
+        }
+
+        // If on podium after race finish, do happy celebratory bounces!
+        if (raceFinished) {
+          if (Math.sin(elapsed * 5.0 + k.index) > 0.94 && k.heightOffset <= 0.01) {
+            k.verticalVel = 4.2;
+            k.driver.squashVel -= 3.0;
+          }
+          k.verticalVel -= 18.0 * dt;
+          k.heightOffset = Math.max(0, k.heightOffset + k.verticalVel * dt);
+          k.syncKartTransform(elapsed);
+          return;
+        }
+
+        // Timers
+        if (k.boostTimer > 0) k.boostTimer = Math.max(0, k.boostTimer - dt);
+        if (k.freezeTimer > 0) k.freezeTimer = Math.max(0, k.freezeTimer - dt);
+        if (k.shieldTimer > 0) k.shieldTimer = Math.max(0, k.shieldTimer - dt);
+        if (k.spinAngle > 0) {
+          k.spinAngle = Math.max(0, k.spinAngle - dt * 11.0);
+        }
+
+        const closest = findClosestTrackSample(k.pos);
+
+        // 1. STEERING, ACCELERATION & DRIFT LOGIC
+        let steerInput = 0;
+        let throttle = 0;
+
+        if (k.isPlayer) {
+          const hasManualSteer = keys.left || keys.right;
+          const hasManualThrottle = keys.up || keys.down;
+
+          if (hasManualSteer) {
+            if (keys.left) steerInput += 1;
+            if (keys.right) steerInput -= 1;
+          }
+
+          if (hasManualThrottle) {
+            if (keys.up) throttle = 1.0;
+            else if (keys.down) throttle = -0.6;
+          } else if (hasManualSteer) {
+            // Turning with Arrow keys / WASD maintains forward speed
+            throttle = 1.0;
+          } else if (autoDriveEnabled) {
+            // Auto-Drive: Reimu Hakurei runs autonomously around the track when idle!
+            throttle = 1.0;
+          }
+
+          // If player is not manually steering and Auto-Drive is active, guide Reimu along track
+          if (!hasManualSteer && autoDriveEnabled) {
+            k.aiLaneTimer -= dt;
+            if (k.aiLaneTimer <= 0) {
+              k.aiTargetLane = (Math.random() - 0.5) * 2.2;
+              k.aiLaneTimer = 1.5 + Math.random() * 2.5;
+            }
+
+            const lookAheadT = (closest.t + 0.038) % 1.0;
+            const targetSample = getTrackSampleAt(lookAheadT);
+            const aimPt = targetSample.pt.clone().addScaledVector(targetSample.right, k.aiTargetLane);
+            const desiredHeading = Math.atan2(aimPt.x - k.pos.x, aimPt.z - k.pos.z);
+
+            let angleDiff = desiredHeading - k.heading;
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+            steerInput = THREE.MathUtils.clamp(angleDiff * 2.6, -1, 1);
+
+            // Reimu occasionally uses held item if player hasn't triggered it
+            if (k.heldItem && Math.random() < dt * 0.35) {
+              activateKartItem(k);
+            }
+          }
+
+          // Spacebar Drift & Turbo Charge!
+          if (keys.space && k.speed > 5.5 && k.heightOffset <= 0.15) {
+            if (!k.isDrifting && steerInput !== 0) {
+              k.isDrifting = true;
+              k.driftDir = steerInput;
+              k.verticalVel = 2.6; // Cute arcade hop when starting a drift!
+              k.driver.squash = 0.78;
+            }
+            if (k.isDrifting) {
+              k.driftCharge += dt * (steerInput === k.driftDir ? 1.35 : 0.75);
+              // Spawn color-changing drift sparks from rear wheels!
+              const sparkColor = k.driftCharge > 1.7 ? '#f472b6' : (k.driftCharge > 0.8 ? '#fb923c' : '#38bdf8');
+              if (Math.random() < 0.75) {
+                const backVec = new THREE.Vector3(-Math.sin(k.heading), 0.15, -Math.cos(k.heading));
+                emitParticle(
+                  k.pos.clone().addScaledVector(backVec, 0.65),
+                  backVec.multiplyScalar(3.5).add(new THREE.Vector3((Math.random() - 0.5) * 2, 1.8, (Math.random() - 0.5) * 2)),
+                  sparkColor,
+                  0.32,
+                  1.05,
+                  7.0
+                );
+              }
+            }
+          } else if (k.isDrifting) {
+            // Released SPACE -> Trigger Drift Boost if charged!
+            if (k.driftCharge >= 0.75) {
+              const boostPower = k.driftCharge > 1.7 ? 1.45 : 0.9;
+              k.boostTimer = Math.max(k.boostTimer, boostPower);
+              k.speed = Math.max(k.speed, 18.8);
+              k.driver.squash = 0.68;
+              k.driver.squashVel = 3.5;
+              soundFX.playBoost();
+            }
+            k.isDrifting = false;
+            k.driftCharge = 0;
+          }
+        } else {
+          // AI KART STEERING WITH RUBBER-BANDING
+          k.aiLaneTimer -= dt;
+          if (k.aiLaneTimer <= 0) {
+            k.aiTargetLane = (Math.random() - 0.5) * 2.8;
+            k.aiLaneTimer = 1.5 + Math.random() * 2.5;
+          }
+
+          const lookAheadT = (closest.t + 0.038) % 1.0;
+          const targetSample = getTrackSampleAt(lookAheadT);
+          const aimPt = targetSample.pt.clone().addScaledVector(targetSample.right, k.aiTargetLane);
+          const desiredHeading = Math.atan2(aimPt.x - k.pos.x, aimPt.z - k.pos.z);
+
+          let angleDiff = desiredHeading - k.heading;
+          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+          steerInput = THREE.MathUtils.clamp(angleDiff * 2.6, -1, 1);
+          throttle = 1.0;
+
+          // AI Item Usage
+          if (k.heldItem && Math.random() < dt * 0.85) {
+            activateKartItem(k);
+          }
+        }
+
+        // Calculate Target Top Speed (with AI rubber-banding relative to player!)
+        let maxSpeed = 13.8;
+        if (!k.isPlayer) {
+          const progressGap = playerKart.totalProgress - k.totalProgress;
+          const rubberBand = THREE.MathUtils.clamp(progressGap * 8.5, -2.2, 3.2);
+          maxSpeed = k.baseAiSpeed + rubberBand;
+        }
+        if (k.boostTimer > 0) maxSpeed = 19.6;
+        if (k.freezeTimer > 0) maxSpeed = 3.2;
+
+        // Acceleration & Damping
+        if (throttle > 0) {
+          k.speed = THREE.MathUtils.lerp(k.speed, maxSpeed * throttle, dt * (k.boostTimer > 0 ? 5.5 : 3.2));
+        } else if (throttle < 0) {
+          k.speed = THREE.MathUtils.lerp(k.speed, maxSpeed * throttle, dt * 3.5);
+        } else {
+          k.speed *= Math.pow(0.25, dt);
+        }
+
+        // Apply Turning & Head Sway
+        const turnRate = (k.isDrifting ? 2.55 : 2.15) * (Math.abs(k.speed) > 0.4 ? 1 : 0);
+        const effectiveSteer = k.isDrifting ? (steerInput * 0.65 + k.driftDir * 0.55) : steerInput;
+        k.heading += effectiveSteer * turnRate * dt;
+
+        // Fumo driver head sways and bobbles with steering & acceleration!
+        k.driver.headRollVel += (-effectiveSteer * 5.5 - k.driver.headRoll) * dt * 12;
+        k.driver.headPitchVel += ((k.boostTimer > 0 ? -0.32 : 0) - k.driver.headPitch) * dt * 12;
+        k.driver.roll = THREE.MathUtils.lerp(k.driver.roll, -effectiveSteer * 0.16, dt * 8);
+
+        // Move Kart Forward
+        k.pos.x += Math.sin(k.heading) * k.speed * dt;
+        k.pos.z += Math.cos(k.heading) * k.speed * dt;
+
+        // Boost Flame Trail Particles
+        if (k.boostTimer > 0 && Math.random() < 0.8) {
+          const back = new THREE.Vector3(-Math.sin(k.heading), 0.2, -Math.cos(k.heading));
+          emitParticle(
+            k.pos.clone().addScaledVector(back, 0.7),
+            back.multiplyScalar(4.0),
+            Math.random() > 0.5 ? '#00f5d4' : '#fde047',
+            0.25,
+            1.2,
+            1.0
+          );
+        }
+
+        // 2. TRACK BOUNDARY, CURB WALL BOUNCE, RAMPS & BOOST PADS
+        const newSample = findClosestTrackSample(k.pos);
+
+        // Track Progress & Lap Counting
+        let deltaT = newSample.t - k.trackT;
+        if (deltaT < -0.5) deltaT += 1.0;
+        if (deltaT > 0.5) deltaT -= 1.0;
+        k.totalProgress += deltaT;
+        k.trackT = newSample.t;
+
+        const computedLap = Math.max(1, Math.floor(k.totalProgress + 1.02));
+        if (computedLap > k.lap && k.lap < 3) {
+          k.lap = computedLap;
+          if (k.isPlayer) {
+            soundFX.playItemPickup();
+            if (k.lap === 3) {
+              soundFX.finalLapMultiplier = 1.28; // Speed up chiptune in Final Lap!
+              setBanner('🔥', 'FINAL LAP! The Chiptune Tempo Speeds Up!');
+            } else {
+              setBanner('🏁', `Lap ${k.lap} / 3!`);
+            }
+          }
+        } else if (computedLap > 3 && !k.finished) {
+          k.finished = true;
+          finishOrder.push(k);
+          k.finishRank = finishOrder.length;
+          if (k.isPlayer || finishOrder.length >= 3) {
+            triggerPodiumCeremony();
+          }
+        }
+
+        // Lateral Offset from Track Centerline -> Wall / Curb Soft-Body Bounce!
+        const toKart = new THREE.Vector3().subVectors(k.pos, newSample.pt);
+        const lateralDist = toKart.dot(newSample.right);
+        const maxTrackRadius = TRACK_HALF_WIDTH - 0.32;
+
+        if (Math.abs(lateralDist) > maxTrackRadius) {
+          const sign = Math.sign(lateralDist);
+          const overshoot = Math.abs(lateralDist) - maxTrackRadius;
+          k.pos.addScaledVector(newSample.right, -sign * overshoot);
+
+          // Bounce inward and squish kart & driver against the curb/wall!
+          k.speed *= 0.82;
+          const trackHeading = Math.atan2(newSample.tan.x, newSample.tan.z);
+          k.heading = THREE.MathUtils.lerp(k.heading, trackHeading, 0.35);
+          if (overshoot > 0.06) {
+            k.driver.squash = Math.max(0.58, k.driver.squash - 0.25);
+            k.driver.squashVel = -3.2;
+            k.driver.headRollVel += sign * 9.5;
+            if (k.isPlayer) soundFX.playBump(0.75);
+          }
+        }
+
+        // Check Boost Pads
+        if (boostPadZones.some(bz => Math.abs(k.trackT - bz) < 0.013) && k.boostTimer < 0.4) {
+          k.boostTimer = 1.15;
+          k.speed = Math.max(k.speed, 19.2);
+          k.driver.squash = 0.72;
+          if (k.isPlayer) soundFX.playBoost();
+        }
+
+        // Check Jump Ramps
+        if (rampZones.some(rz => Math.abs(k.trackT - rz) < 0.011) && k.heightOffset <= 0.05 && k.speed > 8.0) {
+          k.verticalVel = 6.2;
+          k.driver.squash = 1.22;
+          if (k.isPlayer) soundFX.playSqueeze(1.1);
+        }
+
+        // Vertical Jump Arc & Landing Squish
+        if (k.heightOffset > 0 || k.verticalVel !== 0) {
+          k.verticalVel -= 20.0 * dt;
+          k.heightOffset += k.verticalVel * dt;
+          if (k.heightOffset <= 0) {
+            const impact = -k.verticalVel;
+            k.heightOffset = 0;
+            k.verticalVel = 0;
+            if (impact > 2.2) {
+              k.driver.squash = 0.62;
+              k.driver.squashVel = -3.8;
+              k.driver.headPitchVel += 8.0;
+              if (k.isPlayer) soundFX.playBump(impact * 0.1);
+            }
+          }
+        }
+
+        k.pos.y = newSample.pt.y;
+
+        // 3. ITEM BOX PICKUP CHECK
+        for (let b = 0; b < itemBoxes.length; b++) {
+          const box = itemBoxes[b];
+          if (box.cooldown <= 0 && k.pos.distanceTo(box.pos) < 1.15) {
+            box.cooldown = 4.5;
+            spawnSqueezeSparkles(box.pos, '#fbbf24');
+            if (!k.heldItem) {
+              k.heldItem = ITEM_POOL[Math.floor(Math.random() * ITEM_POOL.length)];
+              if (k.isPlayer) {
+                soundFX.playItemPickup();
+                updatePlayerItemHUD();
+                setBanner(k.heldItem.icon, `Got ${k.heldItem.label}! Press [E] to use!`);
+              }
+            }
+          }
+        }
+
+        k.syncKartTransform(elapsed);
+      });
+
+      // 4. KART-TO-KART BUMP & SQUISH COLLISIONS
+      for (let i = 0; i < karts.length; i++) {
+        for (let j = i + 1; j < karts.length; j++) {
+          const a = karts[i];
+          const b = karts[j];
+          if (a.driver.isDragged || b.driver.isDragged || raceFinished) continue;
+
+          const dx = b.pos.x - a.pos.x;
+          const dz = b.pos.z - a.pos.z;
+          const distSq = dx * dx + dz * dz;
+          const minDist = 1.25;
+          if (distSq < minDist * minDist && distSq > 0.0001) {
+            const dist = Math.sqrt(distSq);
+            const nx = dx / dist;
+            const nz = dz / dist;
+            const overlap = (minDist - dist) * 0.5;
+
+            a.pos.x -= nx * overlap;
+            a.pos.z -= nz * overlap;
+            b.pos.x += nx * overlap;
+            b.pos.z += nz * overlap;
+
+            // Squish & wobble both drivers on bump!
+            a.driver.squash = Math.max(0.65, a.driver.squash - 0.18);
+            b.driver.squash = Math.max(0.65, b.driver.squash - 0.18);
+            a.driver.headRollVel -= nx * 7.5;
+            b.driver.headRollVel += nx * 7.5;
+
+            // Shield knockback
+            if (a.shieldTimer > 0 && b.shieldTimer <= 0) {
+              b.verticalVel = 4.5;
+              b.speed *= 0.5;
+            } else if (b.shieldTimer > 0 && a.shieldTimer <= 0) {
+              a.verticalVel = 4.5;
+              a.speed *= 0.5;
+            }
+
+            if (a.isPlayer || b.isPlayer) {
+              soundFX.playBump(0.65);
+            }
+          }
+        }
+      }
+
+      // 5. UPDATE BOTTOM-RIGHT TELEMETRY HUD
+      const standings = [...karts].sort((a, b) => b.totalProgress - a.totalProgress);
+      const playerRank = standings.indexOf(playerKart) + 1;
+      const suffixes = ['st', 'nd', 'rd', 'th', 'th', 'th', 'th'];
+      hudPosEl.innerHTML = `${playerRank}<span class="text-xs align-top">${suffixes[playerRank - 1]}</span>`;
+      hudLapEl.textContent = `${Math.min(3, playerKart.lap)} / 3`;
+      hudTimerEl.textContent = formatRaceTime(raceElapsed);
+    }
+
+    // ============================================================================
+    // 13. POINTER INTERACTION: CLICK TO SQUEEZE, DRAG TO THROW ANY FUMO / KART
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let hoveredFumo = null;
+    let selectedFumo = null;
+    let isDraggingFumo = false;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function pickFumoUnderPointer() {
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(allInteractiveMeshes, false);
+      if (hits.length > 0 && hits[0].object.userData.fumo) {
+        return hits[0].object.userData.fumo;
+      }
+      return null;
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      soundFX.unlock();
+      window.focus();
+      if (e.button !== 0) return;
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+
+      const fumo = pickFumoUnderPointer();
+      if (fumo) {
+        selectedFumo = fumo;
+        isDraggingFumo = false;
+        controls.enabled = false; // Dragging a fumo must NOT rotate the camera!
+
+        const worldTarget = fumo.kart ? fumo.kart.pos : fumo.pos;
+        fumo.pos.copy(worldTarget);
+
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), worldTarget);
+
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          dragOffset.subVectors(worldTarget, dragHitPoint);
+        } else {
+          dragOffset.set(0, 0, 0);
+        }
+
+        dragHistory = [{ pos: worldTarget.clone(), time: performance.now() }];
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      updatePointerNDC(e);
+
+      if (selectedFumo) {
+        recordInteraction();
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          selectedFumo.isDragged = true;
+          selectedFumo.isGrounded = false;
+          selectedFumo.squashVel += 3.5;
+          soundFX.playSqueeze(selectedFumo.pitchAudio * 0.9);
+        }
+
+        if (isDraggingFumo) {
+          raycaster.setFromCamera(pointerNDC, camera);
+          if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+            const targetPos = dragHitPoint.clone().add(dragOffset);
+            targetPos.x = THREE.MathUtils.clamp(targetPos.x, -23.0, 23.0);
+            targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.6, 12.0);
+            targetPos.z = THREE.MathUtils.clamp(targetPos.z, -20.0, 20.0);
+
+            const prevPos = selectedFumo.pos.clone();
+            selectedFumo.pos.lerp(targetPos, 0.55);
+
+            const deltaMove = selectedFumo.pos.clone().sub(prevPos);
+            selectedFumo.headRollVel -= deltaMove.x * 16.0;
+            selectedFumo.headPitchVel += deltaMove.z * 16.0 - deltaMove.y * 10.0;
+            selectedFumo.limbRollVel -= deltaMove.x * 20.0;
+
+            const now = performance.now();
+            dragHistory.push({ pos: selectedFumo.pos.clone(), time: now });
+            while (dragHistory.length > 6) dragHistory.shift();
+          }
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      const fumo = pickFumoUnderPointer();
+      if (fumo) {
+        hoveredFumo = fumo;
+        renderer.domElement.style.cursor = 'grab';
+        tooltipEmojiEl.textContent = fumo.emoji;
+        tooltipTextEl.textContent = fumo.name;
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else {
+        hoveredFumo = null;
+        renderer.domElement.style.cursor = 'default';
+        tooltipEl.style.opacity = '0';
+      }
+    });
+
+    window.addEventListener('pointerup', () => {
+      if (!selectedFumo) return;
+      controls.enabled = (cameraMode === 'orbit');
+      recordInteraction();
+
+      if (!isDraggingFumo) {
+        // Click without dragging -> SQUEEZE INTERACTION!
+        selectedFumo.squeeze(1.1);
+        setBanner(selectedFumo.emoji, `Squeezed ${selectedFumo.name}! ᗜˬᗜ`);
+      } else {
+        // Released after dragging -> THROW WITH INERTIA & BOUNCE!
+        selectedFumo.isDragged = false;
+        const now = performance.now();
+        while (dragHistory.length > 1 && now - dragHistory[0].time > 140) {
+          dragHistory.shift();
+        }
+        let throwVel = new THREE.Vector3(0, 2, 0);
+        if (dragHistory.length >= 2) {
+          const first = dragHistory[0];
+          const last = dragHistory[dragHistory.length - 1];
+          const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+          throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+          if (throwVel.length() > 22) throwVel.setLength(22);
+        }
+
+        if (selectedFumo.kart) {
+          // Dropped / Thrown Kart lands back onto the track with a big bounce!
+          const k = selectedFumo.kart;
+          const sample = findClosestTrackSample(selectedFumo.pos);
+          k.pos.x = selectedFumo.pos.x;
+          k.pos.z = selectedFumo.pos.z;
+          k.heightOffset = Math.max(0.5, selectedFumo.pos.y - sample.pt.y);
+          k.verticalVel = Math.max(3.5, throwVel.y * 0.5);
+          k.speed = Math.min(18, throwVel.length() * 0.7);
+          k.trackT = sample.t;
+        } else {
+          selectedFumo.vel.copy(throwVel);
+          selectedFumo.angVel.set(
+            throwVel.z * 0.5,
+            (Math.random() - 0.5) * 4.0,
+            -throwVel.x * 0.5
+          );
+        }
+      }
+
+      selectedFumo = null;
+      isDraggingFumo = false;
+      renderer.domElement.style.cursor = hoveredFumo ? 'grab' : 'default';
+    });
+
+    // ============================================================================
+    // 14. DAY / NIGHT SMOOTH INTERPOLATION (~2 SECONDS) & HUB INTEGRATION
+    // ============================================================================
+    let isNightMode = false;
+    let dayNightProgress = 0.0;
+    let dayNightTarget = 0.0;
+
+    const daySkyColor = new THREE.Color('#bde0fe');
+    const nightSkyColor = new THREE.Color('#090a18');
+    const daySunCol = new THREE.Color('#fff2d6');
+    const nightMoonCol = new THREE.Color('#64748b');
+    const dayHemiSky = new THREE.Color('#fff9eb');
+    const nightHemiSky = new THREE.Color('#1e1b4b');
+    const dayHemiGround = new THREE.Color('#8d99ae');
+    const nightHemiGround = new THREE.Color('#090a14');
+
+    const btnMode = document.getElementById('btn-mode');
+    const modeBtnIcon = document.getElementById('mode-icon');
+    const modeBtnLabel = document.getElementById('mode-label');
+
+    function isInIframe() {
+      try {
+        return window.self !== window.top;
+      } catch (e) {
+        return true;
+      }
+    }
+
+    function updateModeButtonUI() {
+      if (!modeBtnIcon || !modeBtnLabel) return;
+      if (isNightMode) {
+        modeBtnIcon.textContent = '☀️';
+        modeBtnLabel.textContent = 'Day';
+        if (btnMode) btnMode.setAttribute('title', 'Switch to Day Mode (N)');
+      } else {
+        modeBtnIcon.textContent = '🌙';
+        modeBtnLabel.textContent = 'Night';
+        if (btnMode) btnMode.setAttribute('title', 'Switch to Night Mode (N)');
+      }
+    }
+
+    if (btnMode) {
+      btnMode.addEventListener('click', () => {
+        soundFX.unlock();
+        toggleDayNight();
+      });
+    }
+
+    function notifyParentMode() {
+      const modeStr = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: modeStr }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(night, { immediate = false, notifyParent = true } = {}) {
+      isNightMode = Boolean(night);
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) {
+        dayNightProgress = dayNightTarget;
+      }
+      document.body.classList.toggle('night-ui', isNightMode);
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
+      } catch (e) {}
+      updateModeButtonUI();
+      if (notifyParent) {
+        notifyParentMode();
+      }
+    }
+
+    function toggleDayNight() {
+      setDayNightMode(!isNightMode, { immediate: false, notifyParent: true });
+    }
+
+    function updateDayNightTransition(dt) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.52; // ~2 seconds transition
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      scene.background.lerpColors(daySkyColor, nightSkyColor, t);
+      scene.fog.color.copy(scene.background);
+
+      sunDirLight.color.lerpColors(daySunCol, nightMoonCol, t);
+      sunDirLight.intensity = THREE.MathUtils.lerp(1.3, 0.32, t);
+
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.72, 0.24, t);
+
+      // Nighttime Neon & Lantern Lights
+      lavaLight.intensity = THREE.MathUtils.lerp(0.45, 1.85, t);
+      shrineLight.intensity = THREE.MathUtils.lerp(0.15, 1.55, t);
+      neonTrackLight.intensity = THREE.MathUtils.lerp(0.15, 1.45, t);
+
+      neonEmissiveMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, 2.2, t);
+      boostPadMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.55, 2.1, t);
+      lavaEmissiveMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.7, 2.4, t);
+      translucentIceMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.22, 0.85, t);
+      crystalWingMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.3, 1.25, t);
+
+      if (typeof starMat !== 'undefined' && typeof starMesh !== 'undefined') {
+        starMat.opacity = THREE.MathUtils.lerp(0.0, 0.95, t);
+        starMesh.visible = (t > 0.01);
+      }
+
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.16, 0.78, t);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.84, 0.58, t);
+      }
+    }
+
+    // ============================================================================
+    // 15. KEYBOARD & HUD BUTTON LISTENERS
+    // ============================================================================
+    const btnMute = document.getElementById('btn-mute');
+    const iconSoundOn = document.getElementById('icon-sound-on');
+    const iconSoundOff = document.getElementById('icon-sound-off');
+
+    function syncMuteUI() {
+      iconSoundOn.classList.toggle('hidden', soundFX.muted);
+      iconSoundOff.classList.toggle('hidden', !soundFX.muted);
+    }
+    syncMuteUI();
+
+    btnMute.addEventListener('click', () => {
+      soundFX.unlock();
+      soundFX.setMuted(!soundFX.muted);
+      syncMuteUI();
+    });
+
+    btnUseItem.addEventListener('click', () => {
+      soundFX.unlock();
+      activateKartItem(playerKart);
+    });
+
+    document.getElementById('btn-restart').addEventListener('click', () => {
+      soundFX.unlock();
+      restartRace();
+    });
+
+    document.getElementById('btn-play-again').addEventListener('click', () => {
+      soundFX.unlock();
+      restartRace();
+    });
+
+    const btnAutoDrive = document.getElementById('btn-autodrive');
+    const autoDriveIcon = document.getElementById('autodrive-icon');
+    const autoDriveLabel = document.getElementById('autodrive-label');
+
+    function updateAutoDriveUI() {
+      if (autoDriveLabel) {
+        autoDriveLabel.textContent = autoDriveEnabled ? 'Auto-Drive: ON' : 'Auto-Drive: OFF';
+      }
+      if (autoDriveIcon) {
+        autoDriveIcon.textContent = autoDriveEnabled ? '🤖' : '🎮';
+      }
+    }
+
+    function toggleAutoDrive() {
+      autoDriveEnabled = !autoDriveEnabled;
+      updateAutoDriveUI();
+      if (autoDriveEnabled) {
+        setBanner('🤖', 'Auto-Drive ON: Reimu drives the course autonomously! Use Arrow Keys to override.');
+      } else {
+        setBanner('🎮', 'Manual Drive ON: Use Arrow Keys or WASD to drive Reimu Hakurei!');
+      }
+    }
+    if (btnAutoDrive) {
+      btnAutoDrive.addEventListener('click', () => {
+        soundFX.unlock();
+        toggleAutoDrive();
+      });
+    }
+
+    const btnCam = document.getElementById('btn-cam');
+    const camLabel = document.getElementById('cam-label');
+    function toggleCameraMode() {
+      cameraMode = (cameraMode === 'orbit') ? 'chase' : 'orbit';
+      controls.enabled = (cameraMode === 'orbit');
+      camLabel.textContent = (cameraMode === 'orbit') ? 'Orbit Cam' : 'Chase Cam';
+      if (cameraMode === 'orbit') {
+        camera.position.set(0, 25, 36);
+        controls.target.set(0, 1.8, 1.0);
+      }
+    }
+    btnCam.addEventListener('click', toggleCameraMode);
+
+    window.addEventListener('keydown', (e) => {
+      soundFX.unlock();
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+      const code = e.code;
+      const key = e.key.toLowerCase();
+
+      if (code === 'ArrowUp' || key === 'w') { keys.up = true; e.preventDefault(); recordInteraction(); }
+      if (code === 'ArrowDown' || key === 's') { keys.down = true; e.preventDefault(); recordInteraction(); }
+      if (code === 'ArrowLeft' || key === 'a') { keys.left = true; e.preventDefault(); recordInteraction(); }
+      if (code === 'ArrowRight' || key === 'd') { keys.right = true; e.preventDefault(); recordInteraction(); }
+      if (code === 'Space') { keys.space = true; e.preventDefault(); recordInteraction(); }
+
+      if (key === 'e') {
+        e.preventDefault();
+        activateKartItem(playerKart);
+      } else if (key === 'r') {
+        e.preventDefault();
+        restartRace();
+      } else if (key === 't') {
+        e.preventDefault();
+        toggleAutoDrive();
+      } else if (key === 'c') {
+        e.preventDefault();
+        toggleCameraMode();
+      } else if (key === 'm') {
+        e.preventDefault();
+        soundFX.setMuted(!soundFX.muted);
+        syncMuteUI();
+      } else if (key === 'n') {
+        e.preventDefault();
+        toggleDayNight();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const code = e.code;
+      const key = e.key.toLowerCase();
+      if (code === 'ArrowUp' || key === 'w') keys.up = false;
+      if (code === 'ArrowDown' || key === 's') keys.down = false;
+      if (code === 'ArrowLeft' || key === 'a') keys.left = false;
+      if (code === 'ArrowRight' || key === 'd') keys.right = false;
+      if (code === 'Space') keys.space = false;
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ============================================================================
+    // 16. MAIN ANIMATION LOOP & HUB MESSAGE HANDLERS
+    // ============================================================================
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.033, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      updateDayNightTransition(dt);
+      updateItemBoxes(elapsed, dt);
+      updateKartRacePhysics(dt, elapsed);
+      updateProjectiles(dt);
+      updateParticles(dt);
+
+      // Update standalone spectator / flag / napping / drone fumos
+      for (let i = 0; i < allFumos.length; i++) {
+        if (allFumos[i].role !== 'driver') {
+          allFumos[i].updateSpringsAndPhysics(dt, elapsed);
+        }
+      }
+
+      // Update Continuous Engine, Drift & Chiptune Audio
+      const speedRatio = playerKart.speed / 15.0;
+      const driftLevel = playerKart.isDrifting ? Math.min(2, Math.floor(playerKart.driftCharge)) : 0;
+      soundFX.updateContinuous(dt, speedRatio, playerKart.isDrifting, driftLevel);
+
+      // Camera Update (Diorama Orbit with Idle Auto-Rotate vs Smooth Kart Chase Cam)
+      if (cameraMode === 'chase' && !raceFinished) {
+        const backVec = new THREE.Vector3(-Math.sin(playerKart.heading), 0, -Math.cos(playerKart.heading));
+        const desiredCamPos = playerKart.pos.clone()
+          .addScaledVector(backVec, 6.2)
+          .add(new THREE.Vector3(0, 3.4, 0));
+        camera.position.lerp(desiredCamPos, Math.min(1, dt * 7.5));
+        const lookAtPt = playerKart.pos.clone().add(new THREE.Vector3(Math.sin(playerKart.heading) * 2.5, 1.0, Math.cos(playerKart.heading) * 2.5));
+        controls.target.lerp(lookAtPt, Math.min(1, dt * 10.0));
+        camera.lookAt(controls.target);
+      } else {
+        if (!selectedFumo && !keys.up && !keys.down && !keys.left && !keys.right && (now - lastUserInteractionTime > 4500)) {
+          controls.autoRotate = true;
+        }
+        controls.update();
+      }
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function pauseScene() {
+      if (isPaused) return;
+      isPaused = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      soundFX.suspend();
+    }
+
+    function resumeScene() {
+      if (!isPaused) return;
+      isPaused = false;
+      prevTime = performance.now();
+      soundFX.resume();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    let hasExplicitModeSet = false;
+
+    window.addEventListener('message', (e) => {
+      const data = e.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'toggleMode') {
+        toggleDayNight();
+      } else if (data.type === 'setMode' && (data.mode === 'day' || data.mode === 'night')) {
+        hasExplicitModeSet = true;
+        setDayNightMode(data.mode === 'night', { immediate: false, notifyParent: false });
+      } else if (data.type === 'pause') {
+        pauseScene();
+      } else if (data.type === 'resume') {
+        resumeScene();
+      }
+    });
+
+    window.onload = function () {
+      if (!hasExplicitModeSet) {
+        let initialNight = false;
+        let hasSaved = false;
+        try {
+          const saved = localStorage.getItem(STORAGE_MODE_KEY);
+          if (saved === 'night') {
+            initialNight = true;
+            hasSaved = true;
+          } else if (saved === 'day') {
+            initialNight = false;
+            hasSaved = true;
+          }
+        } catch (e) {}
+
+        // In an iframe without explicit saved state, avoid forcing parent mode unless saved
+        setDayNightMode(initialNight, {
+          immediate: true,
+          notifyParent: hasSaved || !isInIframe()
+        });
+      }
+      updateDayNightTransition(0);
+
+      // Welcoming plush bounce on load
+      allFumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.76;
+          f.squashVel = 2.2;
+          f.headPitchVel = 4.0;
+        }, 100 + idx * 55);
+      });
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>

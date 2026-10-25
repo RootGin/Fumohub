@@ -717,7 +717,15 @@
       { file: "Scenes/scene-16-halloween.html", name: "Netherworld Halloween", description: "Trick-or-treat at Hakugyokurou", accent: "#ff8c1a" },
       { file: "Scenes/scene-17-yatai.html", name: "Midnight Yatai", description: "Ramen and yakitori in the rain", accent: "#ff7043" },
       { file: "Scenes/scene-18-ryokan.html", name: "Onsen Ryokan", description: "Fumo staff tending a steamy mountain inn", accent: "#4dd0c8" },
-      { file: "Scenes/scene-19-train.html", name: "Gensokyo Night Train", description: "A cozy overnight train across the countryside", accent: "#42a5f5" }
+      { file: "Scenes/scene-19-train.html", name: "Gensokyo Night Train", description: "A cozy overnight train across the countryside", accent: "#42a5f5" },
+      { file: "Scenes/scene-20-kart.html", name: "Fumo Kart Rally", description: "Mario Kart-style race through Gensokyo", accent: "#ffeb3b" },
+      { file: "Scenes/scene-21-fishing.html", name: "Kappa Fishing Pond", description: "Cast a line with the Moriya and kappa crowd", accent: "#26c6da" },
+      { file: "Scenes/scene-22-sunflower.html", name: "Sunflower Field Shenanigans", description: "Nosy flowers, chonky bees, and Yuuka's pride", accent: "#ffc107" },
+      { file: "Scenes/scene-23-snowball.html", name: "Snowball War", description: "Ice vs Scarlet at the snow forts", accent: "#80deea" },
+      { file: "Scenes/scene-24-library.html", name: "Voile Library Maze", description: "A shifting maze of books and magic", accent: "#9575cd" },
+      { file: "Scenes/scene-25-sports-day.html", name: "Fumo Sports Day", description: "Red vs white at the school festival", accent: "#ef5350" },
+      { file: "Scenes/scene-26-camping.html", name: "Campfire Night", description: "Marshmallows and ghost stories", accent: "#ff9800" },
+      { file: "Scenes/scene-27-frontier.html", name: "Plush Frontier", description: "An explorable open-world Gensokyo of fumo", accent: "#66bb6a" }
     ];
 
     // ============================================================================
@@ -971,25 +979,24 @@
       currentSceneNameEl.textContent = scene.name;
       document.title = `${formatNum(index)} · ${scene.name} — Voxel Scene Browser`;
 
-      // Persist in URL hash and localStorage
-      // const targetHash = `#${index + 1}`;
-      // if (window.location.hash !== targetHash) {
-      //   try {
-      //     history.replaceState(null, "", targetHash);
-      //   } catch (err) {
-      //     window.location.hash = targetHash;
-      //   }
-      // }
+      // Persist in URL hash (when hosted on HTTP/S) and localStorage
       const targetHash = `#${index + 1}`;
       if (window.location.protocol !== "file:") {
         try {
-          history.replaceState(null, "", targetHash);
+          if (window.location.hash !== targetHash) {
+            history.replaceState(null, "", targetHash);
+          }
         } catch (err) {
-          window.location.hash = targetHash;
+          try {
+            if (window.location.hash !== targetHash) {
+              window.location.hash = targetHash;
+            }
+          } catch (e) {}
         }
       } else {
-        // On file://, set hash only if you want bookmarks without triggering replaceState errors
-        window.location.hash = targetHash;
+        // On file://, avoid mutating history or window.location.hash
+        // to prevent browser "file: URLs are treated as unique security origins" navigation errors.
+        // Scene state is reliably persisted via localStorage below.
       }
       saveSceneIndex(index);
 

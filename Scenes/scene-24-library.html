@@ -1,0 +1,2714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Voile Magic Library Maze — Touhou Fumo Voxel Diorama</title>
+  <link rel="stylesheet" href="../Shared/fumo-scene.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js r128 + OrbitControls + Post-Processing FIRST -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+  <!-- Shared Fumo Core SECOND -->
+  <script src="../Shared/fumo-core.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #2b1d28;
+      color: #292028;
+    }
+    body.night-ui {
+      background-color: #0b0c1e;
+      color: #ede9fe;
+    }
+    .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .glass-panel {
+      background: rgba(255, 250, 242, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 240, 220, 0.78);
+      box-shadow: 0 10px 28px -6px rgba(30, 15, 25, 0.24), 0 2px 6px rgba(30, 15, 25, 0.12);
+      transition: background 0.45s ease, color 0.45s ease, border-color 0.45s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    body.night-ui .glass-panel {
+      background: rgba(16, 18, 42, 0.85);
+      border-color: rgba(167, 139, 250, 0.32);
+      color: #ede9fe;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.7), 0 0 18px rgba(139, 92, 246, 0.2);
+    }
+    .ui-btn {
+      cursor: pointer;
+      border: none;
+      outline: none;
+      font-family: inherit;
+      color: inherit;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      border-radius: 6px;
+      background: rgba(30, 20, 40, 0.1);
+      border-bottom: 2px solid rgba(30, 20, 40, 0.22);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.15);
+      border-bottom-color: rgba(255, 255, 255, 0.3);
+    }
+    /* Strictly Bottom-Right HUD (Zero UI in top-left!) */
+    #hud-bottom-right {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      z-index: 25;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+      max-width: min(465px, 95vw);
+    }
+    .library-card {
+      border-radius: 18px;
+      padding: 11px 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+    }
+    .stat-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+    .stat-num {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+    #fumo-tooltip {
+      position: fixed;
+      z-index: 30;
+      pointer-events: none;
+      opacity: 0;
+      padding: 6px 12px;
+      border-radius: 12px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 0.16s ease;
+    }
+    #callout-banner {
+      position: fixed;
+      bottom: 225px;
+      right: 16px;
+      z-index: 28;
+      border-radius: 16px;
+      padding: 9px 15px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Fredoka', sans-serif;
+      font-size: 0.88rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- Floating Cursor Tooltip -->
+  <div id="fumo-tooltip" class="glass-panel">
+    <span id="tooltip-emoji">🌙</span>
+    <span id="tooltip-text">Patchouli Knowledge</span>
+  </div>
+
+  <!-- Dynamic Event Callout Banner (Bottom-Right Above HUD) -->
+  <div id="callout-banner" class="glass-panel">
+    <span id="callout-icon" style="font-size:1.35rem;">🌟</span>
+    <span id="callout-text">Marisa escaped with a sack of grimoires!</span>
+  </div>
+
+  <!-- All HUD Elements in Bottom-Right (Top-Left kept completely clear for Hub) -->
+  <div id="hud-bottom-right">
+    <div class="glass-panel library-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.74rem; font-weight:700; opacity:0.82;">
+        <span>📚 VOILE MAGIC LIBRARY MAZE</span>
+        <span id="heist-status" style="color:#d97706;">🌟 Marisa: Sneaking to Exit...</span>
+      </div>
+
+      <div class="stat-row">
+        <span>📖 Books Flipped / Tumbled: <strong id="count-books" class="stat-num" style="color:#7c3aed;">0</strong></span>
+        <span>🎒 Stolen by Marisa: <strong id="count-stolen" class="stat-num" style="color:#d97706;">0</strong></span>
+      </div>
+
+      <div class="stat-row" style="font-size:0.76rem; opacity:0.88;">
+        <span>🏛️ Sliding Maze Gates: <strong id="count-shelves">Click Any Maze Shelf</strong></span>
+        <span>😈 Koakuma Catches: <strong id="count-caught" style="color:#e11d48;">0</strong></span>
+      </div>
+
+      <div style="height:1px; background:rgba(148,163,184,0.28); margin:2px 0;"></div>
+
+      <!-- Interactive Buttons -->
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
+        <button id="btn-magic" class="glass-panel ui-btn" style="padding:6px 10px; border-radius:12px; font-size:0.75rem; font-weight:700; display:flex; align-items:center; gap:5px;" title="Ignite Arcane Circle & Floating Glyphs (L)">
+          <span>✨</span><span>Magic Circle <kbd>L</kbd></span>
+        </button>
+
+        <button id="btn-shuffle" class="glass-panel ui-btn" style="padding:6px 10px; border-radius:12px; font-size:0.75rem; font-weight:700; display:flex; align-items:center; gap:5px;" title="Slide & Rearrange Library Maze">
+          <span>🔀</span><span>Shift Maze</span>
+        </button>
+
+        <button id="btn-squeeze-all" class="glass-panel ui-btn" style="padding:6px 10px; border-radius:12px; font-size:0.75rem; font-weight:700; display:flex; align-items:center; gap:5px;" title="Squeeze All Fumos (Space)">
+          <span>🎀</span><span>Squeeze</span>
+        </button>
+
+        <button id="btn-reset" class="glass-panel ui-btn" style="padding:6px 10px; border-radius:12px; font-size:0.75rem; font-weight:700; display:flex; align-items:center; gap:5px;" title="Reset Fumos & Restack Books (R)">
+          <span>🔄</span><span><kbd>R</kbd></span>
+        </button>
+
+        <button id="btn-mute" class="glass-panel ui-btn" style="padding:6px 10px; border-radius:12px; font-size:0.75rem; font-weight:700; display:flex; align-items:center; gap:5px;" title="Toggle Audio & Piano Loop (M)">
+          <span id="mute-icon">🔊</span><span><kbd>M</kbd></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Compact Controls Hint Bar -->
+    <div class="glass-panel" style="border-radius:14px; padding:7px 12px; font-size:0.72rem; font-weight:600; display:flex; flex-wrap:wrap; gap:8px 12px; justify-content:flex-end;">
+      <span>🏛️ <b>Click Maze Shelf:</b> Slide Path</span>
+      <span>📖 <b>Click Book:</b> Flip / Flutter</span>
+      <span>✋ <b>Drag Fumo:</b> Throw at Books</span>
+      <span><kbd>L</kbd> Magic Surge</span>
+      <span>🔄 <b>Drag BG:</b> Orbit Cam</span>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 0. TOP-LEVEL STATE VARIABLES
+    // ============================================================================
+    const STORAGE_MUTE_KEY = 'fumo_voile_library_muted';
+    const STORAGE_MODE_KEY = 'fumo_voile_library_mode';
+
+    let isNightMode = false;
+    let dayNightProgress = 0.0;
+    let dayNightTarget = 0.0;
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    let booksFlippedCount = 0;
+    let booksStolenCount = 0;
+    let koakumaCatchCount = 0;
+    let magicSurgeTimer = 0.0;
+
+    // ============================================================================
+    // 1. WEB AUDIO SYNTHESIZER (Plush Squeaks, Page Flips, Chimes, Hush & Piano)
+    // ============================================================================
+    if (typeof window.PlushSoundEngine === 'undefined') {
+      window.PlushSoundEngine = class PlushSoundEngine {
+        constructor() {
+          this.ctx = null;
+          this.enabled = true;
+        }
+        init() {
+          if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) this.ctx = new AudioCtx();
+          }
+          if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume().catch(() => {});
+          }
+        }
+        playSqueeze(pitchMultiplier = 1.0) {
+          if (!this.enabled) return;
+          try {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc1 = this.ctx.createOscillator();
+            const gain1 = this.ctx.createGain();
+            osc1.type = 'sine';
+            const baseFreq = (520 + Math.random() * 80) * pitchMultiplier;
+            osc1.frequency.setValueAtTime(baseFreq, now);
+            osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.085);
+            osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.16);
+            gain1.gain.setValueAtTime(0.001, now);
+            gain1.gain.linearRampToValueAtTime(0.11, now + 0.025);
+            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+            osc1.connect(gain1);
+            gain1.connect(this.ctx.destination);
+            osc1.start(now);
+            osc1.stop(now + 0.18);
+
+            const osc2 = this.ctx.createOscillator();
+            const gain2 = this.ctx.createGain();
+            osc2.type = 'triangle';
+            osc2.frequency.setValueAtTime(baseFreq * 1.1, now + 0.11);
+            osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.65, now + 0.21);
+            gain2.gain.setValueAtTime(0.001, now + 0.11);
+            gain2.gain.linearRampToValueAtTime(0.08, now + 0.13);
+            gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+            osc2.connect(gain2);
+            gain2.connect(this.ctx.destination);
+            osc2.start(now + 0.11);
+            osc2.stop(now + 0.25);
+          } catch (e) {}
+        }
+        playBounce(intensity = 0.5) {
+          if (!this.enabled || intensity < 0.08) return;
+          try {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const vol = Math.min(0.14, intensity * 0.12);
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(115 + Math.min(80, intensity * 35), now);
+            osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+            gain.gain.setValueAtTime(vol, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.1);
+          } catch (e) {}
+        }
+        playPickup() {
+          if (!this.enabled) return;
+          try {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(280, now);
+            osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
+            gain.gain.setValueAtTime(0.001, now);
+            gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.1);
+          } catch (e) {}
+        }
+      };
+    }
+
+    const soundFX = new window.PlushSoundEngine();
+
+    try {
+      const savedMute = localStorage.getItem(STORAGE_MUTE_KEY);
+      if (savedMute === 'true') soundFX.enabled = false;
+    } catch (e) {}
+
+    soundFX.pianoTimer = null;
+    soundFX.pianoStep = 0;
+    soundFX.hushGain = null;
+    soundFX.ambientStarted = false;
+
+    soundFX.ensureAmbient = function () {
+      if (!this.enabled || isPaused) return;
+      try {
+        this.init();
+        if (!this.ctx) return;
+
+        if (!this.ambientStarted) {
+          this.ambientStarted = true;
+          // Soft library hush room-tone noise bed
+          const bufLen = this.ctx.sampleRate * 2;
+          const noiseBuf = this.ctx.createBuffer(1, bufLen, this.ctx.sampleRate);
+          const data = noiseBuf.getChannelData(0);
+          let last = 0;
+          for (let i = 0; i < bufLen; i++) {
+            const w = Math.random() * 2 - 1;
+            data[i] = (last + 0.03 * w) / 1.03;
+            last = data[i];
+          }
+          const src = this.ctx.createBufferSource();
+          src.buffer = noiseBuf;
+          src.loop = true;
+
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.value = 320;
+          filter.Q.value = 0.9;
+
+          this.hushGain = this.ctx.createGain();
+          this.hushGain.gain.value = 0.02;
+          src.connect(filter);
+          filter.connect(this.hushGain);
+          this.hushGain.connect(this.ctx.destination);
+          src.start(0);
+        }
+
+        if (!this.pianoTimer) {
+          this.startPianoLoop();
+        }
+      } catch (e) {}
+    };
+
+    // Crisp paper rustle / page flip synthesis
+    soundFX.playPageFlip = function (pitch = 1.0) {
+      if (!this.enabled) return;
+      try {
+        this.ensureAmbient();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const bufSize = Math.floor(this.ctx.sampleRate * 0.085);
+        const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < bufSize; i++) {
+          d[i] = (Math.random() * 2 - 1) * Math.sin((i / bufSize) * Math.PI);
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buf;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1450 * pitch, now);
+        filter.frequency.exponentialRampToValueAtTime(2400 * pitch, now + 0.08);
+        filter.Q.value = 2.4;
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.082);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start(now);
+      } catch (e) {}
+    };
+
+    // Heavy wooden bookshelf slide rumble
+    soundFX.playShelfSlide = function () {
+      if (!this.enabled) return;
+      try {
+        this.ensureAmbient();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(92, now);
+        osc.frequency.linearRampToValueAtTime(118, now + 0.18);
+        osc.frequency.exponentialRampToValueAtTime(64, now + 0.36);
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.11, now + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.4);
+      } catch (e) {}
+    };
+
+    // Sparkling arcane magic chime arpeggio
+    soundFX.playMagicChime = function () {
+      if (!this.enabled) return;
+      try {
+        this.ensureAmbient();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const notes = [587.33, 739.99, 880.00, 1174.66, 1479.98];
+        notes.forEach((freq, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          const t0 = now + idx * 0.055;
+          osc.frequency.setValueAtTime(freq, t0);
+          gain.gain.setValueAtTime(0.001, t0);
+          gain.gain.linearRampToValueAtTime(0.065, t0 + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.48);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t0);
+          osc.stop(t0 + 0.5);
+        });
+      } catch (e) {}
+    };
+
+    // Calm Voile Magic Library waltz-like piano loop (D minor / A minor voicings)
+    soundFX.playPianoNote = function () {
+      if (!this.enabled || isPaused) return;
+      try {
+        this.init();
+        if (!this.ctx || this.ctx.state !== 'running') return;
+        const progression = [
+          293.66, 440.00, 523.25, 659.25, 587.33, 440.00,
+          261.63, 392.00, 493.88, 587.33, 523.25, 392.00,
+          220.00, 329.63, 440.00, 523.25, 493.88, 329.63,
+          246.94, 369.99, 440.00, 587.33, 523.25, 369.99
+        ];
+        const freq = progression[this.pianoStep % progression.length];
+        this.pianoStep++;
+
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const overtone = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'triangle';
+        overtone.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+        overtone.frequency.setValueAtTime(freq * 2, now);
+
+        const oGain = this.ctx.createGain();
+        oGain.gain.setValueAtTime(0.18, now);
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.026, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0007, now + 0.52);
+
+        osc.connect(gain);
+        overtone.connect(oGain);
+        oGain.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        overtone.start(now);
+        osc.stop(now + 0.55);
+        overtone.stop(now + 0.55);
+      } catch (e) {}
+    };
+
+    soundFX.startPianoLoop = function () {
+      if (this.pianoTimer) return;
+      this.pianoTimer = setInterval(() => {
+        if (!isPaused && this.enabled) {
+          this.playPianoNote();
+        }
+      }, 390);
+    };
+
+    soundFX.stopPianoLoop = function () {
+      if (this.pianoTimer) {
+        clearInterval(this.pianoTimer);
+        this.pianoTimer = null;
+      }
+    };
+
+    // ============================================================================
+    // 2. COLOR & VOXEL HELPER UTILITIES
+    // ============================================================================
+    const tempColor = new THREE.Color();
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    const tempEuler = new THREE.Euler();
+
+    function voxelHash(x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    }
+
+    function varyColor(hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
+      tempColor.set(hexOrString);
+      const h = voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      tempColor.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return tempColor.clone();
+    }
+
+    function createSoftVoxelGeometry(size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    }
+
+    if (typeof window.getOptimalPixelRatio !== 'function') {
+      window.getOptimalPixelRatio = function () {
+        return Math.min(window.devicePixelRatio || 1, 2);
+      };
+    }
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        tempQuat.identity();
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    // ============================================================================
+    // 3. SCENE, CAMERA, RENDERER, POST-PROCESSING & ORBIT CONTROLS
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#3b2532');
+    scene.fog = new THREE.FogExp2('#3b2532', 0.014);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.5, 140);
+    camera.position.set(19.5, 16.5, 20.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(getOptimalPixelRatio());
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.06;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.24,
+        0.55,
+        0.78
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (err) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 3.2, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.47;
+    controls.minPolarAngle = Math.PI * 0.06;
+    controls.minDistance = 8;
+    controls.maxDistance = 48;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.38;
+
+    let lastUserInteractionTime = performance.now();
+    function recordInteraction() {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+      soundFX.ensureAmbient();
+    }
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 4. CAPPED DYNAMIC LIGHTS & SHARED MATERIALS
+    // ============================================================================
+    // 1. Hemisphere Light
+    const hemiLight = new THREE.HemisphereLight(0xffeedd, 0x3a2434, 0.68);
+    hemiLight.position.set(0, 26, 0);
+    scene.add(hemiLight);
+
+    // 2. Primary Window / Skylight Directional Light (Shadows)
+    const dirLight = new THREE.DirectionalLight(0xffe6b8, 1.18);
+    dirLight.position.set(-16, 25, 12);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.near = 2;
+    dirLight.shadow.camera.far = 65;
+    const dCam = 18;
+    dirLight.shadow.camera.left = -dCam;
+    dirLight.shadow.camera.right = dCam;
+    dirLight.shadow.camera.top = dCam;
+    dirLight.shadow.camera.bottom = -dCam;
+    dirLight.shadow.bias = -0.0005;
+    scene.add(dirLight);
+
+    // 3. Central Arcane Magic Circle PointLight
+    const circleLight = new THREE.PointLight(0xa855f7, 0.65, 16, 1.6);
+    circleLight.position.set(0, 1.8, 0);
+    scene.add(circleLight);
+
+    // 4. North Reading Chandelier / Candelabra PointLight
+    const candleLightNorth = new THREE.PointLight(0xffaa33, 0.75, 15, 1.6);
+    candleLightNorth.position.set(-4.5, 4.8, -4.5);
+    scene.add(candleLightNorth);
+
+    // 5. South Orrery & Globe Warm PointLight
+    const candleLightSouth = new THREE.PointLight(0xffaa33, 0.75, 15, 1.6);
+    candleLightSouth.position.set(4.5, 4.8, 4.5);
+    scene.add(candleLightSouth);
+
+    // Materials
+    const plushMaterial = new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0.02 });
+    const woodMaterial = new THREE.MeshStandardMaterial({ roughness: 0.76, metalness: 0.06 });
+    const brassMaterial = new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.65 });
+    const ghostMaterial = new THREE.MeshStandardMaterial({
+      color: 0xe0f2fe,
+      transparent: true,
+      opacity: 0.82,
+      roughness: 0.25,
+      emissive: new THREE.Color(0x38bdf8),
+      emissiveIntensity: 0.45
+    });
+    const runeGlowMaterial = new THREE.MeshStandardMaterial({
+      color: 0xf3e8ff,
+      emissive: new THREE.Color(0xa855f7),
+      emissiveIntensity: 0.65,
+      roughness: 0.2
+    });
+    const candleFlameMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfffbeb,
+      emissive: new THREE.Color(0xff9e00),
+      emissiveIntensity: 1.2,
+      roughness: 0.15
+    });
+
+    // ============================================================================
+    // 5. VOILE LIBRARY ARCHITECTURE: FLOOR, CARPET, SPIRAL STAIRS, GLOBE & ORRERY
+    // ============================================================================
+    const WV = 0.35; // 1 World Voxel = 0.35 units
+    const libraryWoodVoxels = [];
+    const libraryBrassVoxels = [];
+    const libraryRuneVoxels = [];
+    const libraryFlameVoxels = [];
+
+    const staticColliders = []; // { min: Vector3, max: Vector3, name }
+    function addStaticCollider(minX, minY, minZ, maxX, maxY, maxZ, name) {
+      staticColliders.push({
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        name
+      });
+    }
+
+    function pushWV(list, x, y, z, hex, variance = 0.025, sx = 1, sy = 1, sz = 1) {
+      list.push({
+        x, y, z,
+        color: varyColor(hex, x, y, z, variance),
+        sx, sy, sz
+      });
+    }
+
+    const orreryPivot = new THREE.Group();
+    const globeSpherePivot = new THREE.Group();
+
+    function buildVoileLibraryEnvironment() {
+      // 1. Parquet Mahogany Floor & Scarlet Devil Crimson Carpet (-34..34 in X and Z)
+      for (let x = -34; x <= 34; x++) {
+        for (let z = -34; z <= 34; z++) {
+          const distCenter = Math.hypot(x, z);
+          const isAisleCarpet = (Math.abs(x) <= 3 || Math.abs(z) <= 3 || distCenter <= 11.5);
+          let col = ((Math.floor((x + 34) / 3) + Math.floor((z + 34) / 3)) % 2 === 0) ? '#4a2c2a' : '#3d2220';
+
+          if (isAisleCarpet) {
+            if (Math.abs(distCenter - 11.0) < 0.8 || Math.abs(x) === 3 || Math.abs(z) === 3) {
+              col = '#d97706'; // Gold carpet trim
+            } else {
+              col = '#7f1d1d'; // Deep Scarlet Devil carpet
+            }
+          }
+          pushWV(libraryWoodVoxels, x, -0.5, z, col, 0.02);
+        }
+      }
+
+      // 2. Central Glowing Magic Circle on the Reading Room Floor
+      for (let x = -10; x <= 10; x++) {
+        for (let z = -10; z <= 10; z++) {
+          const r = Math.hypot(x, z);
+          const angle = Math.atan2(z, x);
+          const isOuterRing = Math.abs(r - 9.2) < 0.55;
+          const isInnerRing = Math.abs(r - 5.2) < 0.55;
+          const isHexagram = (r < 9.0 && Math.abs(Math.cos(angle * 3) * 7.5 - r) < 0.55);
+          if (isOuterRing || isInnerRing || isHexagram) {
+            pushWV(libraryRuneVoxels, x, 0.08, z, (x + z) % 2 === 0 ? '#c084fc' : '#38bdf8', 0.01, 0.9, 0.25, 0.9);
+          }
+        }
+      }
+
+      // 3. Towering Back & Left Library Walls with Arched Stained Windows & Mezzanine Balcony
+      for (let y = 0; y <= 30; y++) {
+        for (let i = -34; i <= 34; i++) {
+          // Back Wall (z = -34)
+          const isWindowZ = (Math.abs(i) >= 8 && Math.abs(i) <= 18 && y >= 10 && y <= 25);
+          if (!isWindowZ) {
+            const wCol = (y === 14 || y === 15 || y === 30) ? '#3b1f1e' : '#573330';
+            pushWV(libraryWoodVoxels, i, y + 0.5, -34, wCol, 0.025);
+          } else if (i % 3 === 0 || y === 17) {
+            pushWV(libraryWoodVoxels, i, y + 0.5, -34, '#291514', 0.01);
+          } else {
+            pushWV(libraryRuneVoxels, i, y + 0.5, -34.2, y > 20 ? '#818cf8' : '#6366f1', 0.02, 1, 1, 0.35);
+          }
+
+          // Left Wall (x = -34)
+          const isWindowX = (Math.abs(i) >= 8 && Math.abs(i) <= 18 && y >= 10 && y <= 25);
+          if (!isWindowX) {
+            const wCol = (y === 14 || y === 15 || y === 30) ? '#3b1f1e' : '#573330';
+            pushWV(libraryWoodVoxels, -34, y + 0.5, i, wCol, 0.025);
+          } else if (i % 3 === 0 || y === 17) {
+            pushWV(libraryWoodVoxels, -34, y + 0.5, i, '#291514', 0.01);
+          } else {
+            pushWV(libraryRuneVoxels, -34.2, y + 0.5, i, y > 20 ? '#818cf8' : '#6366f1', 0.02, 0.35, 1, 1);
+          }
+        }
+      }
+
+      // Upper Mezzanine Walkway & Railing along Back & Left Walls (y = 14)
+      for (let i = -33; i <= 33; i++) {
+        for (let d = -33; d <= -28; d++) {
+          pushWV(libraryWoodVoxels, i, 14.0, d, '#4a2825', 0.02);
+          pushWV(libraryWoodVoxels, d, 14.0, i, '#4a2825', 0.02);
+        }
+        if (i % 2 === 0 && i > -28) {
+          pushWV(libraryWoodVoxels, i, 15.0, -28, '#6e3d34', 0.02, 0.5, 1.8, 0.5);
+          pushWV(libraryWoodVoxels, -28, 15.0, i, '#6e3d34', 0.02, 0.5, 1.8, 0.5);
+        }
+        pushWV(libraryWoodVoxels, i, 16.2, -28, '#854d3e', 0.02, 1, 0.5, 0.6);
+        pushWV(libraryWoodVoxels, -28, 16.2, i, '#854d3e', 0.02, 0.6, 0.5, 1);
+      }
+
+      // 4. Grand Spiral Staircase in Back-Left Corner (voxel -24, y, -24) leading to Mezzanine
+      const stX = -23, stZ = -23;
+      for (let y = 0; y <= 16; y++) {
+        pushWV(libraryBrassVoxels, stX, y + 0.5, stZ, '#d97706', 0.01, 1.1, 1, 1.1);
+        const angle = (y / 14) * Math.PI * 2.2;
+        for (let r = 1; r <= 5; r++) {
+          const sx = Math.round(stX + Math.cos(angle) * r);
+          const sz = Math.round(stZ + Math.sin(angle) * r);
+          pushWV(libraryWoodVoxels, sx, y + 0.2, sz, '#78350f', 0.02, 1.1, 0.5, 1.1);
+          if (r === 5) {
+            pushWV(libraryBrassVoxels, sx, y + 1.2, sz, '#f59e0b', 0.01, 0.4, 1.5, 0.4);
+          }
+        }
+      }
+      addStaticCollider((-28) * WV, 0, (-28) * WV, (-18) * WV, 6.0, (-18) * WV, 'spiral_staircase');
+
+      // 5. Patchouli's Central Reading Desk, Candelabra & Chair (voxel -5, 0, -5)
+      for (let dx = -4; dx <= 4; dx++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          pushWV(libraryWoodVoxels, -5 + dx, 3.2, -5 + dz, '#5c2d24', 0.02);
+          if (Math.abs(dx) === 3 && Math.abs(dz) === 1) {
+            for (let ly = 0; ly <= 2; ly++) {
+              pushWV(libraryWoodVoxels, -5 + dx, ly + 0.5, -5 + dz, '#3d1c16', 0.02);
+            }
+          }
+        }
+      }
+      // Golden Candelabra on Patchouli's Desk
+      pushWV(libraryBrassVoxels, -8, 4.0, -6, '#f59e0b', 0.01, 0.6, 1.4, 0.6);
+      pushWV(libraryWoodVoxels, -8, 5.0, -6, '#fef3c7', 0.01, 0.45, 1.1, 0.45);
+      pushWV(libraryFlameVoxels, -8, 5.9, -6, '#fde047', 0.01, 0.4, 0.7, 0.4);
+      addStaticCollider(-9.5 * WV, 0, -7.5 * WV, -0.5 * WV, 3.6 * WV, -2.5 * WV, 'reading_desk');
+
+      // 6. Antique World Globe on Stand (voxel 7, 0, -6)
+      const gx = 7, gz = -6;
+      pushWV(libraryWoodVoxels, gx, 0.5, gz, '#5c2d24', 0.02, 2.2, 0.6, 2.2);
+      pushWV(libraryBrassVoxels, gx, 1.8, gz, '#d97706', 0.01, 0.6, 2.2, 0.6);
+      globeSpherePivot.position.set(gx * WV, 4.2 * WV, gz * WV);
+      const globeVoxels = [];
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dz = -2; dz <= 2; dz++) {
+            if (Math.hypot(dx, dy, dz) <= 2.3) {
+              const isLand = ((dx * 3 + dy * 5 + dz * 7) % 4 === 0);
+              globeVoxels.push({
+                x: dx, y: dy, z: dz,
+                color: varyColor(isLand ? '#15803d' : '#0284c7', dx, dy, dz, 0.02)
+              });
+            }
+          }
+        }
+      }
+      globeSpherePivot.add(buildVoxelInstancedMesh(globeVoxels, WV * 0.65, woodMaterial, true, true));
+      scene.add(globeSpherePivot);
+      addStaticCollider(5.5 * WV, 0, -7.5 * WV, 8.5 * WV, 2.5, -4.5 * WV, 'globe');
+
+      // 7. Brass Celestial Orrery (Rotating Planetary Rings at voxel 6, 0, 6)
+      const ox = 6, oz = 6;
+      pushWV(libraryWoodVoxels, ox, 0.5, oz, '#4a251d', 0.02, 2.4, 1.0, 2.4);
+      pushWV(libraryBrassVoxels, ox, 2.0, oz, '#f59e0b', 0.01, 0.8, 2.5, 0.8);
+      orreryPivot.position.set(ox * WV, 3.8 * WV, oz * WV);
+      const orreryVoxels = [
+        { x: 0, y: 0, z: 0, color: new THREE.Color('#fde047'), sx: 1.6, sy: 1.6, sz: 1.6 },
+        { x: 3.2, y: 0.2, z: 0, color: new THREE.Color('#38bdf8'), sx: 0.9, sy: 0.9, sz: 0.9 },
+        { x: -4.8, y: -0.2, z: 1.5, color: new THREE.Color('#f43f5e'), sx: 1.1, sy: 1.1, sz: 1.1 },
+        { x: 0, y: 0.4, z: -6.2, color: new THREE.Color('#a855f7'), sx: 1.2, sy: 1.2, sz: 1.2 }
+      ];
+      for (let d = 0; d < 24; d++) {
+        const a = (d / 24) * Math.PI * 2;
+        orreryVoxels.push({
+          x: Math.cos(a) * 4.8, y: 0, z: Math.sin(a) * 4.8,
+          color: new THREE.Color('#d97706'), sx: 0.45, sy: 0.25, sz: 0.45
+        });
+      }
+      orreryPivot.add(buildVoxelInstancedMesh(orreryVoxels, WV * 0.55, brassMaterial, true, false));
+      scene.add(orreryPivot);
+      addStaticCollider(4.5 * WV, 0, 4.5 * WV, 7.5 * WV, 2.4, 7.5 * WV, 'orrery');
+
+      // 8. Marisa's Exit Archway Portal on the Front-Right Perimeter (voxel 28, 0, 0 -> world 9.8, 0, 0)
+      const exX = 29, exZ = 0;
+      for (let y = 0; y <= 11; y++) {
+        pushWV(libraryWoodVoxels, exX, y + 0.5, exZ - 4, '#4a251d', 0.02);
+        pushWV(libraryWoodVoxels, exX, y + 0.5, exZ + 4, '#4a251d', 0.02);
+        if (y >= 9) {
+          for (let z = -4; z <= 4; z++) {
+            pushWV(libraryWoodVoxels, exX, y + 0.5, exZ + z, '#5c2d24', 0.02);
+          }
+        }
+      }
+      // Glowing EXIT Sign Rune on Archway
+      for (let z = -2; z <= 2; z++) {
+        pushWV(libraryRuneVoxels, exX, 10.5, exZ + z, '#34d399', 0.01, 1.2, 0.8, 0.8);
+      }
+
+      // 9. Cozy Bookpile for Sleeping Fumo at (voxel -7, 0, 7 -> world -2.45, 0, 2.45)
+      const bpX = -7, bpZ = 7;
+      const pileCols = ['#991b1b', '#1e3a8a', '#065f46', '#581c87', '#b45309'];
+      for (let y = 0; y < 3; y++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          for (let dz = -2; dz <= 2; dz++) {
+            if (Math.hypot(dx, dz) <= 2.6 - y * 0.35) {
+              pushWV(libraryWoodVoxels, bpX + dx, y * 0.75 + 0.35, bpZ + dz, pileCols[(y + Math.abs(dx)) % pileCols.length], 0.03, 1, 0.7, 1);
+            }
+          }
+        }
+      }
+      addStaticCollider((bpX - 2.5) * WV, 0, (bpZ - 2.5) * WV, (bpX + 2.5) * WV, 0.85, (bpZ + 2.5) * WV, 'bookpile');
+    }
+
+    buildVoileLibraryEnvironment();
+
+    const envGroup = new THREE.Group();
+    scene.add(envGroup);
+    envGroup.add(buildVoxelInstancedMesh(libraryWoodVoxels, WV, woodMaterial, true, true));
+    envGroup.add(buildVoxelInstancedMesh(libraryBrassVoxels, WV, brassMaterial, true, true));
+    envGroup.add(buildVoxelInstancedMesh(libraryRuneVoxels, WV, runeGlowMaterial, false, false));
+    envGroup.add(buildVoxelInstancedMesh(libraryFlameVoxels, WV, candleFlameMaterial, false, false));
+
+    // Volumetric Sunbeams / Moonlight Shafts streaming from the high stained-glass windows
+    const shaftMat = new THREE.MeshBasicMaterial({
+      color: 0xffe8b3,
+      transparent: true,
+      opacity: 0.09,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
+    });
+    const shaftGroup = new THREE.Group();
+    for (let i = 0; i < 4; i++) {
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(15, 2.8), shaftMat);
+      plane.position.set(-5.5 + i * 3.2, 5.5, -5.5 + (i % 2) * 4.5);
+      plane.rotation.z = -0.52;
+      plane.rotation.y = Math.PI * 0.25;
+      shaftGroup.add(plane);
+    }
+    scene.add(shaftGroup);
+
+    // ============================================================================
+    // 6. INTERACTIVE SLIDING BOOKSHELF MAZE (WITH ROLLING LADDERS & RUNES)
+    // ============================================================================
+    const mazeShelves = [];
+    const allShelfRaycastMeshes = [];
+    const allInteractiveBooks = []; // Clickable & tumble-able books on shelves
+
+    class SlidingBookshelf {
+      constructor(cfg) {
+        this.id = cfg.id;
+        this.closedPos = cfg.closedPos.clone();
+        this.openPos = cfg.openPos.clone();
+        this.isOpen = Boolean(cfg.initiallyOpen);
+        this.currPos = (this.isOpen ? this.openPos : this.closedPos).clone();
+        this.rotY = cfg.rotY || 0;
+        this.hasLadder = Boolean(cfg.hasLadder);
+        this.hasReadingGap = Boolean(cfg.hasReadingGap);
+
+        this.group = new THREE.Group();
+        this.group.position.copy(this.currPos);
+        this.group.rotation.y = this.rotY;
+        scene.add(this.group);
+
+        this.bboxMin = new THREE.Vector3();
+        this.bboxMax = new THREE.Vector3();
+
+        this.buildShelfVoxels();
+        this.updateCollider();
+      }
+
+      buildShelfVoxels() {
+        const SU = 0.30;
+        const woodVox = [];
+        const runeVox = [];
+        const bookColors = ['#991b1b', '#1e40af', '#065f46', '#6b21a8', '#b45309', '#be123c', '#0f766e'];
+
+        // Shelf dimensions: width X [-5..5], height Y [0..13], depth Z [-1..1]
+        for (let x = -5; x <= 5; x++) {
+          for (let y = 0; y <= 13; y++) {
+            for (let z = -1; z <= 1; z++) {
+              const isPost = (Math.abs(x) === 5);
+              const isPlank = (y % 3 === 0 || y === 13);
+              const isBackboard = (z === -1);
+
+              if (isPost || isPlank || isBackboard) {
+                const col = (y === 13 && Math.abs(x) <= 3 && z === 1) ? '#4c1d95' : '#4a2822';
+                woodVox.push({
+                  x, y: y + 0.5, z,
+                  color: varyColor(col, x + this.id * 7, y, z, 0.025)
+                });
+              } else if (z >= 0 && (y % 3 === 1 || y % 3 === 2)) {
+                // Leave a cozy reading gap in Shelf #0 for the hidden reading fumo!
+                if (this.hasReadingGap && y >= 4 && y <= 5 && Math.abs(x) <= 2) continue;
+
+                // Populate shelf rows with colorful books
+                if ((x + y) % 4 !== 0) {
+                  const bCol = bookColors[Math.abs(x * 3 + y * 5 + this.id) % bookColors.length];
+                  woodVox.push({
+                    x, y: y + 0.45, z: z * 0.4,
+                    color: varyColor(bCol, x, y, z, 0.03),
+                    sx: 0.86, sy: 0.92, sz: 0.85
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        // Glowing Arcane Rune Strip along the top cornice of each shelf
+        for (let x = -4; x <= 4; x += 2) {
+          runeVox.push({
+            x, y: 13.6, z: 1.15,
+            color: new THREE.Color('#c084fc'),
+            sx: 0.8, sy: 0.6, sz: 0.3
+          });
+        }
+
+        // Rolling Library Ladder attached to front of select shelves
+        if (this.hasLadder) {
+          for (let y = 0; y <= 12; y++) {
+            woodVox.push({ x: 1.5, y: y + 0.5, z: 1.45, color: new THREE.Color('#b45309'), sx: 0.35, sy: 1, sz: 0.35 });
+            woodVox.push({ x: 3.5, y: y + 0.5, z: 1.45, color: new THREE.Color('#b45309'), sx: 0.35, sy: 1, sz: 0.35 });
+            if (y % 2 === 1) {
+              woodVox.push({ x: 2.5, y: y + 0.5, z: 1.45, color: new THREE.Color('#d97706'), sx: 2.1, sy: 0.3, sz: 0.3 });
+            }
+          }
+        }
+
+        const shelfMesh = buildVoxelInstancedMesh(woodVox, SU, woodMaterial, true, true);
+        shelfMesh.userData.shelf = this;
+        this.group.add(shelfMesh);
+        allShelfRaycastMeshes.push(shelfMesh);
+
+        const runeMesh = buildVoxelInstancedMesh(runeVox, SU, runeGlowMaterial, false, false);
+        if (runeMesh) this.group.add(runeMesh);
+
+        // Add 3 physics-enabled interactive books perched on the shelf that can be clicked or knocked off!
+        for (let b = -1; b <= 1; b++) {
+          const bMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(0.28, 0.36, 0.24),
+            new THREE.MeshStandardMaterial({
+              color: bookColors[(this.id + b + 3) % bookColors.length],
+              roughness: 0.7
+            })
+          );
+          bMesh.castShadow = true;
+          const homeLocal = new THREE.Vector3(b * 0.9, 1.45 + (b === 0 ? 0.9 : 0), 0.32);
+          bMesh.position.copy(homeLocal);
+          this.group.add(bMesh);
+
+          const bookObj = {
+            mesh: bMesh,
+            shelf: this,
+            homeLocal: homeLocal.clone(),
+            tumbled: false,
+            worldPos: new THREE.Vector3(),
+            vel: new THREE.Vector3(),
+            rotVel: new THREE.Vector3()
+          };
+          bMesh.userData.interactiveBook = bookObj;
+          allInteractiveBooks.push(bookObj);
+        }
+      }
+
+      toggleSlide() {
+        this.isOpen = !this.isOpen;
+        soundFX.playShelfSlide();
+        spawnBurstParticles(this.currPos.clone().add(new THREE.Vector3(0, 1.5, 0)), ['#c084fc', '#fde047', '#ffffff'], 10, 0.9);
+      }
+
+      knockBooksOff(impactOrigin) {
+        let knocked = 0;
+        allInteractiveBooks.forEach(b => {
+          if (b.shelf === this && !b.tumbled) {
+            b.tumbled = true;
+            b.mesh.getWorldPosition(b.worldPos);
+            scene.add(b.mesh);
+            b.mesh.position.copy(b.worldPos);
+            const pushDir = b.worldPos.clone().sub(impactOrigin).normalize();
+            b.vel.set(pushDir.x * 3.5 + (Math.random() - 0.5) * 2, 3.2 + Math.random() * 2, pushDir.z * 3.5 + (Math.random() - 0.5) * 2);
+            b.rotVel.set(Math.random() * 8, Math.random() * 8, Math.random() * 8);
+            knocked++;
+          }
+        });
+        if (knocked > 0) {
+          booksFlippedCount += knocked;
+          updateHUD();
+          soundFX.playPageFlip(0.9);
+        }
+      }
+
+      update(dt) {
+        const target = this.isOpen ? this.openPos : this.closedPos;
+        if (this.currPos.distanceToSquared(target) > 0.0001) {
+          this.currPos.lerp(target, Math.min(1, dt * 5.5));
+          this.group.position.copy(this.currPos);
+          this.updateCollider();
+        }
+      }
+
+      updateCollider() {
+        const halfX = Math.abs(Math.cos(this.rotY)) > 0.5 ? 1.65 : 0.48;
+        const halfZ = Math.abs(Math.cos(this.rotY)) > 0.5 ? 0.48 : 1.65;
+        this.bboxMin.set(this.currPos.x - halfX, 0, this.currPos.z - halfZ);
+        this.bboxMax.set(this.currPos.x + halfX, 4.2, this.currPos.z + halfZ);
+      }
+    }
+
+    const shelfConfigs = [
+      // Shelf 0: West Maze Gate (Has the cozy reading gap with Mini-Patchouli inside!)
+      { id: 0, closedPos: new THREE.Vector3(-4.2, 0, 0.0), openPos: new THREE.Vector3(-4.2, 0, -3.4), rotY: Math.PI / 2, hasReadingGap: true, hasLadder: true },
+      // Shelf 1: Center-West Maze Gate
+      { id: 1, closedPos: new THREE.Vector3(-1.2, 0, 2.2), openPos: new THREE.Vector3(-1.2, 0, -2.2), rotY: Math.PI / 2, initiallyOpen: true },
+      // Shelf 2: Center-East Maze Gate (Blocks Marisa's direct path when closed!)
+      { id: 2, closedPos: new THREE.Vector3(2.4, 0, 0.0), openPos: new THREE.Vector3(2.4, 0, 3.6), rotY: Math.PI / 2, hasLadder: true },
+      // Shelf 3: East Corridor Gate near Exit
+      { id: 3, closedPos: new THREE.Vector3(6.0, 0, -1.5), openPos: new THREE.Vector3(6.0, 0, 2.6), rotY: Math.PI / 2, initiallyOpen: true },
+      // Shelf 4: North Maze Wing
+      { id: 4, closedPos: new THREE.Vector3(0.0, 0, -6.2), openPos: new THREE.Vector3(3.4, 0, -6.2), rotY: 0, hasLadder: true },
+      // Shelf 5: South Maze Wing
+      { id: 5, closedPos: new THREE.Vector3(-2.5, 0, 6.2), openPos: new THREE.Vector3(1.5, 0, 6.2), rotY: 0 },
+      // Shelf 6: Outer West Library Wall Shelf
+      { id: 6, closedPos: new THREE.Vector3(-7.8, 0, -3.2), openPos: new THREE.Vector3(-7.8, 0, 1.2), rotY: Math.PI / 2, hasLadder: true },
+      // Shelf 7: Outer South-East Library Shelf
+      { id: 7, closedPos: new THREE.Vector3(4.8, 0, 6.2), openPos: new THREE.Vector3(7.6, 0, 6.2), rotY: 0 }
+    ];
+
+    shelfConfigs.forEach(cfg => mazeShelves.push(new SlidingBookshelf(cfg)));
+
+    // ============================================================================
+    // 7. FLUTTERING MAGIC BOOKS & THE GIANT EYED GRIMOIRE
+    // ============================================================================
+    const flutteringBooks = [];
+    const flutterBookMeshes = [];
+
+    function buildFlutteringBooksAndMonsterTome() {
+      const coverColors = ['#7c3aed', '#e11d48', '#0284c7', '#d97706', '#059669', '#db2777'];
+
+      for (let i = 0; i < 10; i++) {
+        const root = new THREE.Group();
+        const leftWing = new THREE.Group();
+        const rightWing = new THREE.Group();
+        root.add(leftWing);
+        root.add(rightWing);
+
+        const col = coverColors[i % coverColors.length];
+        const coverMat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.5 });
+        const pageMat = new THREE.MeshStandardMaterial({ color: 0xfffbeb, roughness: 0.8 });
+
+        const lCover = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.05, 0.42), coverMat);
+        lCover.position.set(-0.16, 0, 0);
+        const lPage = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.05, 0.38), pageMat);
+        lPage.position.set(-0.15, 0.04, 0);
+        leftWing.add(lCover, lPage);
+
+        const rCover = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.05, 0.42), coverMat);
+        rCover.position.set(0.16, 0, 0);
+        const rPage = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.05, 0.38), pageMat);
+        rPage.position.set(0.15, 0.04, 0);
+        rightWing.add(rCover, rPage);
+
+        scene.add(root);
+
+        const fb = {
+          root,
+          leftWing,
+          rightWing,
+          baseRadius: 2.5 + (i % 4) * 1.6,
+          baseY: 3.2 + (i % 3) * 1.3,
+          angle: (i / 10) * Math.PI * 2,
+          speed: 0.55 + (i % 3) * 0.2,
+          boostTimer: 0,
+          spinY: 0
+        };
+        lCover.userData.flutterBook = fb;
+        rCover.userData.flutterBook = fb;
+        flutterBookMeshes.push(lCover, rCover);
+        flutteringBooks.push(fb);
+      }
+    }
+
+    buildFlutteringBooksAndMonsterTome();
+
+    // Giant Tome with Blinking Eyes ("Necronomicon / Grimoire of Voile") at (-5.5, 0.4, -7.8)
+    const giantTomeGroup = new THREE.Group();
+    giantTomeGroup.position.set(-5.2, 0.5, -7.8);
+    giantTomeGroup.rotation.y = 0.35;
+    scene.add(giantTomeGroup);
+
+    const gtVoxels = [];
+    for (let x = -4; x <= 4; x++) {
+      for (let y = 0; y <= 3; y++) {
+        for (let z = -3; z <= 3; z++) {
+          const isCover = (y === 0 || y === 3 || x === -4 || z === -3);
+          const col = isCover ? '#4c1d95' : '#fef3c7';
+          gtVoxels.push({ x, y, z, color: varyColor(col, x, y, z, 0.025) });
+        }
+      }
+    }
+    // Glowing Golden Eyes on the Giant Tome's Top Cover
+    for (const side of [-1, 1]) {
+      gtVoxels.push({ x: side * 1.8, y: 3.6, z: 0.5, color: new THREE.Color('#fde047'), sx: 1.4, sy: 0.8, sz: 1.4 });
+      gtVoxels.push({ x: side * 1.8, y: 3.9, z: 0.8, color: new THREE.Color('#1e1b4b'), sx: 0.6, sy: 0.6, sz: 0.6 });
+    }
+    const giantTomeMesh = buildVoxelInstancedMesh(gtVoxels, 0.22, woodMaterial, true, true);
+    giantTomeMesh.userData.isGiantTome = true;
+    giantTomeGroup.add(giantTomeMesh);
+    flutterBookMeshes.push(giantTomeMesh);
+
+    function updateFlutteringBooks(time, dt) {
+      for (let i = 0; i < flutteringBooks.length; i++) {
+        const fb = flutteringBooks[i];
+        if (fb.boostTimer > 0) {
+          fb.boostTimer -= dt;
+          fb.spinY += dt * 14;
+        } else {
+          fb.spinY = THREE.MathUtils.lerp(fb.spinY, 0, dt * 5);
+        }
+
+        const spdMult = fb.boostTimer > 0 ? 3.2 : 1.0;
+        fb.angle += fb.speed * spdMult * dt;
+
+        const r = fb.baseRadius + Math.sin(time * 0.8 + i) * 0.6;
+        const x = Math.cos(fb.angle) * r;
+        const z = Math.sin(fb.angle) * r;
+        const y = fb.baseY + Math.sin(time * 2.6 + i * 1.3) * 0.45 + (fb.boostTimer > 0 ? Math.sin(fb.boostTimer * 8) * 0.8 : 0);
+
+        fb.root.position.set(x, y, z);
+        fb.root.rotation.set(0.15, -fb.angle + fb.spinY, 0);
+
+        const flapFreq = fb.boostTimer > 0 ? 28 : 11;
+        const flap = Math.sin(time * flapFreq + i) * 0.55;
+        fb.leftWing.rotation.z = flap;
+        fb.rightWing.rotation.z = -flap;
+      }
+
+      // Subtle breathing & chomping hop on the Giant Eyed Tome
+      giantTomeGroup.position.y = 0.5 + Math.abs(Math.sin(time * 2.2)) * 0.14;
+      giantTomeGroup.rotation.z = Math.sin(time * 1.5) * 0.05;
+
+      // Update tumbled shelf books
+      for (let i = 0; i < allInteractiveBooks.length; i++) {
+        const b = allInteractiveBooks[i];
+        if (!b.tumbled) continue;
+        b.vel.y -= 18.0 * dt;
+        b.mesh.position.addScaledVector(b.vel, dt);
+        b.mesh.rotation.x += b.rotVel.x * dt;
+        b.mesh.rotation.y += b.rotVel.y * dt;
+        b.mesh.rotation.z += b.rotVel.z * dt;
+
+        if (b.mesh.position.y < 0.16) {
+          b.mesh.position.y = 0.16;
+          b.vel.y = Math.abs(b.vel.y) * 0.35;
+          b.vel.x *= 0.78;
+          b.vel.z *= 0.78;
+          b.rotVel.multiplyScalar(0.8);
+        }
+      }
+    }
+
+    // ============================================================================
+    // 8. POOLED PARTICLES: DUST MOTES, SPARKS & FLOATING ARCANE GLYPHS (L KEY)
+    // ============================================================================
+    const DUST_COUNT = 120;
+    const dustData = [];
+    const dustMesh = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.07, 0.07, 0.07),
+      new THREE.MeshBasicMaterial({ color: 0xfef3c7, transparent: true, opacity: 0.7 }),
+      DUST_COUNT
+    );
+    for (let i = 0; i < DUST_COUNT; i++) {
+      dustData.push({
+        x: (Math.random() - 0.5) * 20,
+        y: 0.5 + Math.random() * 9.5,
+        z: (Math.random() - 0.5) * 20,
+        vy: 0.12 + Math.random() * 0.2,
+        phase: Math.random() * Math.PI * 2,
+        scale: 0.5 + Math.random() * 0.8
+      });
+    }
+    scene.add(dustMesh);
+
+    // Floating Arcane Glyphs when Magic Circle is Lit (Press L)
+    const GLYPH_COUNT = 28;
+    const glyphData = [];
+    const glyphMat = new THREE.MeshBasicMaterial({
+      color: 0xd8b4fe,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending
+    });
+    const glyphMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.24, 0.24, 0.06), glyphMat, GLYPH_COUNT);
+    for (let i = 0; i < GLYPH_COUNT; i++) {
+      glyphData.push({
+        angle: (i / GLYPH_COUNT) * Math.PI * 2,
+        radius: 1.8 + (i % 3) * 1.15,
+        y: 0.4 + (i % 5) * 0.9,
+        speed: 0.8 + (i % 3) * 0.4
+      });
+    }
+    scene.add(glyphMesh);
+
+    const PARTICLE_MAX = 110;
+    const burstParticles = [];
+    const burstMesh = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.13, 0.13, 0.13),
+      new THREE.MeshBasicMaterial({ color: 0xffffff }),
+      PARTICLE_MAX
+    );
+    for (let i = 0; i < PARTICLE_MAX; i++) {
+      burstParticles.push({
+        active: false,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        life: 0,
+        maxLife: 1,
+        color: new THREE.Color('#ffffff')
+      });
+      tempMatrix.makeScale(0, 0, 0);
+      burstMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(burstMesh);
+
+    function spawnBurstParticles(origin, paletteHexes, count = 14, speedMult = 1.0) {
+      let spawned = 0;
+      for (let i = 0; i < PARTICLE_MAX && spawned < count; i++) {
+        const p = burstParticles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.45 + Math.random() * 0.35;
+          p.pos.copy(origin);
+          const ang = Math.random() * Math.PI * 2;
+          const spd = (1.6 + Math.random() * 3.0) * speedMult;
+          p.vel.set(Math.cos(ang) * spd, (2.0 + Math.random() * 3.0) * speedMult, Math.sin(ang) * spd);
+          p.color.set(paletteHexes[spawned % paletteHexes.length]);
+          burstMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (burstMesh.instanceColor) burstMesh.instanceColor.needsUpdate = true;
+    }
+
+    function triggerMagicCircleSurge() {
+      magicSurgeTimer = 6.0;
+      soundFX.playMagicChime();
+      spawnBurstParticles(new THREE.Vector3(0, 0.6, 0), ['#c084fc', '#38bdf8', '#fde047', '#ffffff'], 28, 1.4);
+      showBanner('✨', 'Arcane Circle Activated! Floating Glyphs & Sparks!');
+    }
+
+    function updateParticlesAndGlyphs(time, dt) {
+      for (let i = 0; i < DUST_COUNT; i++) {
+        const d = dustData[i];
+        d.y += d.vy * dt;
+        d.x += Math.sin(time * 0.6 + d.phase) * 0.1 * dt;
+        d.z += Math.cos(time * 0.5 + d.phase) * 0.1 * dt;
+        if (d.y > 10.0) d.y = 0.4;
+
+        tempPos.set(d.x, d.y, d.z);
+        tempEuler.set(time + d.phase, time * 0.8, 0);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.setScalar(d.scale);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        dustMesh.setMatrixAt(i, tempMatrix);
+      }
+      dustMesh.instanceMatrix.needsUpdate = true;
+
+      // Update Magic Circle Surge & Floating Glyphs
+      if (magicSurgeTimer > 0) {
+        magicSurgeTimer = Math.max(0, magicSurgeTimer - dt);
+      }
+      const targetGlyphOpacity = magicSurgeTimer > 0 ? 0.92 : (isNightMode ? 0.48 : 0.12);
+      glyphMat.opacity = THREE.MathUtils.lerp(glyphMat.opacity, targetGlyphOpacity, dt * 4);
+
+      for (let i = 0; i < GLYPH_COUNT; i++) {
+        const g = glyphData[i];
+        g.angle += g.speed * (magicSurgeTimer > 0 ? 2.4 : 1.0) * dt;
+        g.y += (magicSurgeTimer > 0 ? 1.8 : 0.45) * dt;
+        if (g.y > 5.5) g.y = 0.3;
+
+        tempPos.set(Math.cos(g.angle) * g.radius, g.y, Math.sin(g.angle) * g.radius);
+        tempEuler.set(0, -g.angle + Math.PI / 2, time * 2);
+        tempQuat.setFromEuler(tempEuler);
+        const sc = 0.7 + 0.4 * Math.sin(time * 4 + i);
+        tempScale.set(sc, sc, sc);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        glyphMesh.setMatrixAt(i, tempMatrix);
+        tempColor.set(i % 2 === 0 ? '#c084fc' : '#38bdf8');
+        glyphMesh.setColorAt(i, tempColor);
+      }
+      glyphMesh.instanceMatrix.needsUpdate = true;
+      if (glyphMesh.instanceColor) glyphMesh.instanceColor.needsUpdate = true;
+
+      let dirty = false;
+      for (let i = 0; i < PARTICLE_MAX; i++) {
+        const p = burstParticles[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          burstMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= 9.5 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const s = 1.0 - (p.life / p.maxLife);
+        tempEuler.set(p.life * 8, p.life * 6, 0);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        burstMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) burstMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 9. TOUHOU FUMO VOXEL PLUSHIE BUILDER (CAST + UNEXPECTED SPOTS)
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const fumos = [];
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.emoji = config.emoji || '📚';
+        this.accentColor = config.accentColor || '#a855f7';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.082 * this.scaleFactor;
+        this.radius = 0.85 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+        this.specialRole = config.specialRole || null;
+
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isDragged = false;
+
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        this.buildCharacterVoxels(config);
+        this.syncTransform(0);
+        if (config.attachToShelf !== undefined && mazeShelves[config.attachToShelf]) {
+          mazeShelves[config.attachToShelf].group.add(this.root);
+          this.attachedShelf = mazeShelves[config.attachToShelf];
+        } else {
+          scene.add(this.root);
+        }
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingSolidVoxels = [];
+
+        const skinBase = this.id === 'ghost_fumo' ? '#e0f2fe' : '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false) => {
+          const seamDarken = (isSeam && ((Math.abs(Math.round(x + y + z)) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z,
+            color: varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // 1. STUBBY SITTING TORSO
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain;
+              if (y === 1 && z >= 1) col = '#ffffff';
+              if (cfg.hasWhiteApron && z >= 1 && Math.abs(x) <= 2 && y <= 5) col = '#fcfcfc';
+              if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                col = '#ffffff';
+                if (Math.abs(x) <= 1 && y === 5) col = cfg.tieColor || '#ef4444';
+              }
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        // Character Props on Body:
+        // Patchouli & Shelf-Gap Fumo holding an open grimoire in their lap
+        if (this.id === 'patchouli' || this.id === 'shelf_gap_fumo') {
+          for (let bx = -3; bx <= 3; bx++) {
+            for (let bz = 3; bz <= 5; bz++) {
+              addPlushVoxel(bodyVoxels, bx, 3.2, bz, Math.abs(bx) === 3 ? '#581c87' : '#fef3c7');
+            }
+          }
+        }
+        // Koakuma carrying a tall wobbling stack of 4 colorful books in front!
+        if (this.id === 'koakuma') {
+          const stackCols = ['#991b1b', '#1d4ed8', '#047857', '#7e22ce'];
+          for (let b = 0; b < 4; b++) {
+            for (let bx = -2; bx <= 2; bx++) {
+              for (let bz = 3; bz <= 5; bz++) {
+                addPlushVoxel(bodyVoxels, bx, 2.5 + b * 1.2, bz, stackCols[b]);
+              }
+            }
+          }
+        }
+        // Marisa carrying a bulging burlap sack of stolen books slung over her back!
+        if (this.id === 'marisa') {
+          for (let sx = -4; sx <= 4; sx++) {
+            for (let sy = 1; sy <= 7; sy++) {
+              for (let sz = -7; sz <= -3; sz++) {
+                if (Math.hypot(sx, sy - 4, sz + 5) <= 3.6) {
+                  addPlushVoxel(bodyVoxels, sx, sy, sz, sy === 7 ? '#991b1b' : '#b45309');
+                }
+              }
+            }
+          }
+        }
+        // Unexpected Spot: Fumo Disguised as a Giant Book Jacket!
+        if (this.id === 'book_disguise_fumo') {
+          for (let by = 0; by <= 13; by++) {
+            for (let bz = -5; bz <= 4; bz++) {
+              addPlushVoxel(bodyVoxels, -5.2, by, bz, '#065f46');
+              addPlushVoxel(bodyVoxels, 5.2, by, bz, '#065f46');
+            }
+            for (let bx = -5; bx <= 5; bx++) {
+              addPlushVoxel(bodyVoxels, bx, by, -5.2, by % 4 === 0 ? '#facc15' : '#047857');
+            }
+          }
+        }
+
+        // 2. SHORT DANGLING ARMS
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || '#ffffff';
+                if (y === -3) col = skinBase;
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        // 3. SHORT SITTING / DANGLING LEGS
+        if (this.id !== 'ghost_fumo') {
+          for (const side of [-1, 1]) {
+            const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+            for (let z = 0; z <= 4; z++) {
+              for (let x = -1; x <= 1; x++) {
+                for (let y = -1; y <= 1; y++) {
+                  if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                  let col = '#ffffff';
+                  if (z === 0) col = skinBase;
+                  if (z >= 3) col = cfg.shoeColor || '#2b2d42';
+                  if (z === 4 && y === 1 && x === 0) col = '#ffffff';
+                  addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+                }
+              }
+            }
+          }
+        } else {
+          // Ghost fumo wispy tail
+          for (let t = 1; t <= 4; t++) {
+            addPlushVoxel(bodyVoxels, 0, -t * 0.7, -t * 0.8, '#bae6fd');
+          }
+        }
+
+        // 4. OVERSIZED ROUND FUMO HEAD, FACE, HAIR & HATS
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (this.id === 'sleepy_fumo') {
+                    col = (y === 5) ? '#1f141e' : skinBase; // Closed sleeping eyes
+                  } else {
+                    if (y === 6) col = '#1f141e';
+                    else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                    else col = cfg.eyeColor;
+                  }
+                } else if (Math.abs(x) === 4 && y === 3) {
+                  col = blushCol;
+                } else if (y === 2 && Math.abs(x) <= 1) {
+                  col = (x === 0) ? '#e07a7a' : smileCol;
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        // Character Head Accessories:
+        if (this.id === 'patchouli') {
+          // Lavender mob-cap with gold crescent moon emblem on front
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -7; hz <= 6; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 7.2 && r >= 4.4) {
+                addPlushVoxel(headVoxels, hx, 11.0, hz, '#f3e8ff');
+                if (r <= 6.2) addPlushVoxel(headVoxels, hx, 12.0, hz, '#d8b4fe');
+              }
+            }
+          }
+          // Gold Crescent Moon on front of hat
+          addPlushVoxel(headVoxels, 0, 11.8, 5.8, '#facc15');
+          addPlushVoxel(headVoxels, -1, 12.4, 5.6, '#fde047');
+          addPlushVoxel(headVoxels, 1, 11.2, 5.6, '#fde047');
+        }
+
+        if (this.id === 'koakuma') {
+          // Small black bat wings on the sides of her head & back
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 3; wx++) {
+              addPlushVoxel(headVoxels, side * (6.2 + wx * 0.7), 8.5 + wx * 0.4, 0, '#1e1b4b');
+              wingSolidVoxels.push({ x: side * wx, y: 1.5 + wx * 0.4, z: -0.6, color: new THREE.Color('#312e81') });
+            }
+          }
+        }
+
+        if (this.id === 'marisa') {
+          // Iconic wide-brimmed black witch hat with white bow
+          for (let hx = -9; hx <= 9; hx++) {
+            for (let hz = -9; hz <= 9; hz++) {
+              const r = Math.hypot(hx, hz);
+              if (r <= 9.5 && r >= 4.0) {
+                addPlushVoxel(headVoxels, hx, 10.2 - hz * 0.15, hz - 1.0, '#1e1b2e');
+              }
+            }
+          }
+          for (let ch = 0; ch <= 8; ch++) {
+            const coneR = Math.max(0.8, 4.8 - ch * 0.5);
+            for (let hx = -5; hx <= 5; hx++) {
+              for (let hz = -5; hz <= 5; hz++) {
+                if (Math.hypot(hx, hz) <= coneR) {
+                  addPlushVoxel(headVoxels, hx, 10.8 + ch * 0.85, hz - 1.2 - ch * 0.25, (ch === 1) ? '#f8fafc' : '#1e1b2e');
+                }
+              }
+            }
+          }
+        }
+
+        if (this.id === 'alice' || this.id === 'shanghai') {
+          // Red hairband & frilly headband
+          for (let hx = -5; hx <= 5; hx++) {
+            addPlushVoxel(headVoxels, hx, 11.2, 2.2, '#e11d48');
+          }
+        }
+
+        if (this.id === 'ghost_fumo') {
+          // White triangle Hitaikakushi headband with pale cyan spirit flames
+          for (let hx = -3; hx <= 3; hx++) {
+            for (let hy = 0; hy <= 3 - Math.abs(hx); hy++) {
+              addPlushVoxel(headVoxels, hx, 9.8 + hy * 0.7, 5.6, '#ffffff');
+            }
+          }
+        }
+
+        const matToUse = this.id === 'ghost_fumo' ? ghostMaterial : plushMaterial;
+        const registerPart = (voxels, parent) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, matToUse, this.id !== 'ghost_fumo', true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allFumoRaycastMeshes.push(m);
+          }
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        registerPart(wingSolidVoxels, this.wingsPivot);
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.5, this.squash - 0.42 * strength);
+        this.squashVel = -3.6 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 12 * strength;
+        this.limbPitch = -0.65 * strength;
+        this.limbPitchVel = -6.0 * strength;
+        const worldOrigin = new THREE.Vector3();
+        this.root.getWorldPosition(worldOrigin);
+        spawnBurstParticles(worldOrigin.add(new THREE.Vector3(0, 0.9, 0)), [this.accentColor, '#ffffff', '#fde047'], 12, 1.0);
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      resetToHome() {
+        if (this.attachedShelf) {
+          this.pos.copy(this.homePos);
+        } else {
+          this.pos.copy(this.homePos);
+          this.vel.set(0, 0, 0);
+        }
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.squeeze(0.8);
+      }
+
+      updatePhysics(dt, time) {
+        const squashStiff = 210.0;
+        const squashDamp = 11.5;
+        this.squashVel += ((1.0 - this.squash) * squashStiff - this.squashVel * squashDamp) * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash + this.squashVel * dt, 0.45, 1.55);
+
+        const headStiff = 140.0;
+        const headDamp = 7.5;
+        const idleBob = Math.sin(time * 2.4 + this.homePos.x) * 0.035;
+        this.headPitchVel += ((idleBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        const targetLimbPitch = (this.isDragged || !this.isGrounded) ? 0.58 : 0.0;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * 120.0 - this.limbPitchVel * 8.0) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * 120.0 - this.limbRollVel * 8.0) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.8, 0.9);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+
+        // Attached shelf gap fumo moves with its sliding shelf
+        if (this.attachedShelf && !this.isDragged) {
+          this.syncTransform(time);
+          return;
+        }
+
+        if (!this.isDragged) {
+          if (this.specialRole === 'ghost_patrol' && this.vel.lengthSq() < 0.5) {
+            // Wandering Ghost Fumo floats ethereally through the library aisles
+            this.pos.x = this.homePos.x + Math.sin(time * 0.75) * 4.5;
+            this.pos.z = this.homePos.z + Math.cos(time * 0.55) * 3.8;
+            this.pos.y = 1.6 + Math.sin(time * 2.2) * 0.35;
+            this.yaw = Math.atan2(Math.cos(time * 0.75), -Math.sin(time * 0.55));
+            this.isGrounded = true;
+          } else {
+            this.vel.y -= 24.0 * dt;
+            this.vel.multiplyScalar(Math.pow(0.985, dt * 60));
+            this.pos.addScaledVector(this.vel, dt);
+
+            this.yaw += this.angVel.y * dt;
+            this.pitch += this.angVel.x * dt;
+            this.roll += this.angVel.z * dt;
+            this.angVel.multiplyScalar(Math.pow(0.92, dt * 60));
+
+            this.isGrounded = false;
+
+            if (this.pos.y < 0) {
+              const impact = -this.vel.y;
+              this.pos.y = 0;
+              if (impact > 1.9) {
+                this.vel.y = impact * 0.38;
+                this.squashVel -= Math.min(8.5, impact * 0.85);
+                soundFX.playBounce(impact * 0.08);
+              } else {
+                this.vel.y = 0;
+                this.isGrounded = true;
+              }
+              this.vel.x *= 0.8;
+              this.vel.z *= 0.8;
+            }
+
+            this.pos.x = THREE.MathUtils.clamp(this.pos.x, -10.8, 10.8);
+            this.pos.z = THREE.MathUtils.clamp(this.pos.z, -10.8, 10.8);
+
+            // Check collisions against Static Props & Sliding Maze Bookshelves!
+            const r = this.radius * 0.72;
+            const centerY = this.pos.y + r;
+
+            // Static props
+            for (let i = 0; i < staticColliders.length; i++) {
+              const box = staticColliders[i];
+              const cx = THREE.MathUtils.clamp(this.pos.x, box.min.x, box.max.x);
+              const cy = THREE.MathUtils.clamp(centerY, box.min.y, box.max.y);
+              const cz = THREE.MathUtils.clamp(this.pos.z, box.min.z, box.max.z);
+              const dx = this.pos.x - cx;
+              const dy = centerY - cy;
+              const dz = this.pos.z - cz;
+              const distSq = dx * dx + dy * dy + dz * dz;
+              if (distSq < r * r) {
+                if (centerY >= box.max.y - 0.25 && this.vel.y <= 0.5) {
+                  this.pos.y = box.max.y;
+                  this.vel.y = 0;
+                  this.isGrounded = true;
+                }
+              }
+            }
+
+            // Sliding Maze Bookshelves (Thrown fumos bounce off shelves and send books tumbling!)
+            for (let i = 0; i < mazeShelves.length; i++) {
+              const sh = mazeShelves[i];
+              const cx = THREE.MathUtils.clamp(this.pos.x, sh.bboxMin.x, sh.bboxMax.x);
+              const cy = THREE.MathUtils.clamp(centerY, sh.bboxMin.y, sh.bboxMax.y);
+              const cz = THREE.MathUtils.clamp(this.pos.z, sh.bboxMin.z, sh.bboxMax.z);
+              const dx = this.pos.x - cx;
+              const dy = centerY - cy;
+              const dz = this.pos.z - cz;
+              const distSq = dx * dx + dy * dy + dz * dz;
+
+              if (distSq < r * r && distSq > 0.00001) {
+                const dist = Math.sqrt(distSq);
+                const nx = dx / dist;
+                const ny = dy / dist;
+                const nz = dz / dist;
+                const pen = r - dist;
+                this.pos.x += nx * pen;
+                this.pos.y = Math.max(0, this.pos.y + ny * pen);
+                this.pos.z += nz * pen;
+
+                const vn = this.vel.x * nx + this.vel.y * ny + this.vel.z * nz;
+                if (vn < 0) {
+                  const imp = -vn;
+                  this.vel.x -= 1.45 * vn * nx;
+                  this.vel.y -= 1.45 * vn * ny;
+                  this.vel.z -= 1.45 * vn * nz;
+                  if (imp > 2.2) {
+                    this.squashVel -= Math.min(6.5, imp * 0.6);
+                    soundFX.playBounce(imp * 0.08);
+                    sh.knockBooksOff(this.pos);
+                  }
+                }
+              }
+            }
+
+            if (this.isGrounded) {
+              this.pitch = THREE.MathUtils.lerp(this.pitch, 0, Math.min(1, dt * 9.5));
+              this.roll = THREE.MathUtils.lerp(this.roll, 0, Math.min(1, dt * 9.5));
+              this.angVel.multiplyScalar(0.75);
+            }
+          }
+        }
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+        this.leftArmPivot.rotation.set(this.limbPitch, 0, 0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.rightArmPivot.rotation.set(this.limbPitch, 0, -0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+        this.wingsPivot.rotation.x = Math.sin(time * 4.2 + this.homePos.x) * 0.07;
+      }
+    }
+
+    const castConfigs = [
+      // 1. Patchouli Knowledge (Central Reading Desk)
+      {
+        id: 'patchouli',
+        name: 'Patchouli Knowledge (Great Unmoving Library)',
+        emoji: '🌙',
+        accentColor: '#a855f7',
+        hairColor: '#9333ea',
+        eyeColor: '#6b21a8',
+        outfitMain: '#f3e8ff',
+        sleeveColor: '#e9d5ff',
+        tieColor: '#7e22ce',
+        shoeColor: '#3b0764',
+        homePos: new THREE.Vector3(-1.75, 0, -2.5),
+        homeYaw: 0.35,
+        pitchAudio: 0.96
+      },
+      // 2. Koakuma (Chasing Marisa with a Stack of Books!)
+      {
+        id: 'koakuma',
+        name: 'Koakuma (Library Assistant — Chasing Marisa!)',
+        emoji: '😈',
+        accentColor: '#e11d48',
+        hairColor: '#dc2626',
+        eyeColor: '#991b1b',
+        outfitMain: '#1f2937',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#111827',
+        homePos: new THREE.Vector3(0.5, 0, 3.2),
+        homeYaw: 1.2,
+        specialRole: 'koakuma_chaser',
+        pitchAudio: 1.08
+      },
+      // 3. Marisa Kirisame (Sneaking from Entrance to Exit with a Sack of Stolen Books!)
+      {
+        id: 'marisa',
+        name: 'Marisa Kirisame ("Borrowing" Books till I Die!)',
+        emoji: '🌟',
+        accentColor: '#facc15',
+        hairColor: '#fde047',
+        eyeColor: '#ca8a04',
+        outfitMain: '#1f2937',
+        sleeveColor: '#ffffff',
+        tieColor: '#ffffff',
+        shoeColor: '#111827',
+        hasWhiteApron: true,
+        homePos: new THREE.Vector3(-8.8, 0, 0.0),
+        homeYaw: Math.PI / 2,
+        specialRole: 'marisa_sneak',
+        pitchAudio: 1.02
+      },
+      // 4. Alice Margatroid
+      {
+        id: 'alice',
+        name: 'Alice Margatroid (Seven-Colored Puppeteer)',
+        emoji: '🪆',
+        accentColor: '#3b82f6',
+        hairColor: '#fde047',
+        eyeColor: '#1d4ed8',
+        outfitMain: '#2563eb',
+        sleeveColor: '#ffffff',
+        tieColor: '#f43f5e',
+        shoeColor: '#1e3a8a',
+        homePos: new THREE.Vector3(2.8, 0, -4.2),
+        homeYaw: -0.45,
+        pitchAudio: 1.0
+      },
+      // 5. Shanghai Doll (Mini Doll Helper beside Alice)
+      {
+        id: 'shanghai',
+        name: 'Shanghai Doll (Book-Sorting Helper)',
+        emoji: '🎀',
+        accentColor: '#f43f5e',
+        hairColor: '#fef08a',
+        eyeColor: '#2563eb',
+        outfitMain: '#1e3a8a',
+        sleeveColor: '#ffffff',
+        tieColor: '#e11d48',
+        shoeColor: '#172554',
+        scale: 0.62,
+        homePos: new THREE.Vector3(3.8, 0, -3.5),
+        homeYaw: -0.6,
+        pitchAudio: 1.38
+      },
+      // 6. Wandering Ghost Fumo
+      {
+        id: 'ghost_fumo',
+        name: 'Wandering Phantom Fumo',
+        emoji: '👻',
+        accentColor: '#38bdf8',
+        hairColor: '#e0f2fe',
+        eyeColor: '#0284c7',
+        outfitMain: '#bae6fd',
+        sleeveColor: '#e0f2fe',
+        tieColor: '#0284c7',
+        shoeColor: '#0369a1',
+        homePos: new THREE.Vector3(-3.0, 1.8, -5.0),
+        homeYaw: 0.0,
+        specialRole: 'ghost_patrol',
+        pitchAudio: 1.28
+      },
+      // 7. Unexpected Spot 1: Fumo Reading Inside a Bookshelf Gap (Attached to Shelf 0!)
+      {
+        id: 'shelf_gap_fumo',
+        name: 'Nook Fumo (Reading Inside Shelf Gap!)',
+        emoji: '📖',
+        accentColor: '#c084fc',
+        hairColor: '#a855f7',
+        eyeColor: '#7e22ce',
+        outfitMain: '#d8b4fe',
+        sleeveColor: '#ffffff',
+        tieColor: '#9333ea',
+        shoeColor: '#4c1d95',
+        scale: 0.65,
+        attachToShelf: 0,
+        homePos: new THREE.Vector3(0, 1.2, 0.15),
+        homeYaw: 0,
+        pitchAudio: 1.35
+      },
+      // 8. Unexpected Spot 2: Fumo Asleep on a Cozy Bookpile
+      {
+        id: 'sleepy_fumo',
+        name: 'Sleepy Fumo (Napping on Bookpile)',
+        emoji: '💤',
+        accentColor: '#f472b6',
+        hairColor: '#fbcfe8',
+        eyeColor: '#be123c',
+        outfitMain: '#9d174d',
+        sleeveColor: '#ffffff',
+        tieColor: '#f43f5e',
+        shoeColor: '#4c0519',
+        homePos: new THREE.Vector3(-2.45, 0.85, 2.45),
+        homeYaw: 0.75,
+        pitchAudio: 1.18
+      },
+      // 9. Unexpected Spot 3: Fumo Disguised as a Giant Green Book
+      {
+        id: 'book_disguise_fumo',
+        name: 'Incognito Fumo (Disguised as a Grimoire!)',
+        emoji: '📗',
+        accentColor: '#10b981',
+        hairColor: '#6ee7b7',
+        eyeColor: '#047857',
+        outfitMain: '#065f46',
+        sleeveColor: '#a7f3d0',
+        tieColor: '#facc15',
+        shoeColor: '#064e3b',
+        homePos: new THREE.Vector3(5.2, 0, -5.2),
+        homeYaw: -0.4,
+        pitchAudio: 1.12
+      }
+    ];
+
+    castConfigs.forEach(cfg => fumos.push(new VoxelFumo(cfg)));
+
+    // ============================================================================
+    // 10. MARISA'S MAZE HEIST VS. KOAKUMA CHASE LOGIC
+    // ============================================================================
+    const marisaFumo = fumos.find(f => f.id === 'marisa');
+    const koakumaFumo = fumos.find(f => f.id === 'koakuma');
+    const heistStatusEl = document.getElementById('heist-status');
+
+    function isPointBlockedByShelf(pt, radius = 0.65) {
+      for (let i = 0; i < mazeShelves.length; i++) {
+        const sh = mazeShelves[i];
+        if (
+          pt.x + radius > sh.bboxMin.x && pt.x - radius < sh.bboxMax.x &&
+          pt.z + radius > sh.bboxMin.z && pt.z - radius < sh.bboxMax.z
+        ) {
+          return sh;
+        }
+      }
+      return null;
+    }
+
+    function updateMarisaAndKoakumaMazeAI(dt, time) {
+      if (!marisaFumo || !koakumaFumo) return;
+
+      const exitGoal = new THREE.Vector3(9.6, 0, 0.0);
+
+      // 1. Marisa sneaks toward the Exit Portal (X = 9.6, Z = 0)
+      if (!marisaFumo.isDragged && marisaFumo.isGrounded && marisaFumo.vel.lengthSq() < 0.8) {
+        const toGoal = exitGoal.clone().sub(marisaFumo.pos);
+        toGoal.y = 0;
+        const distToGoal = toGoal.length();
+
+        if (distToGoal < 1.1) {
+          // Marisa reached the Exit Portal with her sack of books!
+          booksStolenCount += 3;
+          updateHUD();
+          soundFX.playMagicChime();
+          spawnBurstParticles(marisaFumo.pos.clone().add(new THREE.Vector3(0, 1, 0)), ['#fde047', '#34d399', '#ffffff'], 22, 1.3);
+          showBanner('🌟', 'Marisa escaped with 3 stolen grimoires! Starting next heist...');
+          marisaFumo.pos.set(-8.8, 0.4, (Math.random() - 0.5) * 4.0);
+          marisaFumo.squeeze(1.1);
+          return;
+        }
+
+        toGoal.normalize();
+        const stepSpeed = 1.65;
+        const nextPos = marisaFumo.pos.clone().addScaledVector(toGoal, stepSpeed * dt);
+        const blockingShelf = isPointBlockedByShelf(nextPos, 0.65);
+
+        if (!blockingShelf) {
+          marisaFumo.pos.copy(nextPos);
+          marisaFumo.yaw = Math.atan2(toGoal.x, toGoal.z);
+          marisaFumo.pitch = Math.sin(time * 12) * 0.06; // Sneaky tip-toe bob
+          heistStatusEl.textContent = '🌟 Marisa: Sneaking to Exit...';
+        } else {
+          // Try sidestepping along Z to go around the closed shelf
+          const sideSign = (marisaFumo.pos.z <= blockingShelf.currPos.z) ? -1 : 1;
+          const sideStep = marisaFumo.pos.clone().add(new THREE.Vector3(0, 0, sideSign * stepSpeed * dt));
+          if (!isPointBlockedByShelf(sideStep, 0.65)) {
+            marisaFumo.pos.copy(sideStep);
+            marisaFumo.yaw = sideSign > 0 ? 0 : Math.PI;
+          }
+          heistStatusEl.textContent = '🏛️ Path Blocked! Click Shelf to Open!';
+        }
+      }
+
+      // 2. Koakuma patrols and chases Marisa through open paths
+      if (!koakumaFumo.isDragged && koakumaFumo.isGrounded && koakumaFumo.vel.lengthSq() < 0.8) {
+        const toMarisa = marisaFumo.pos.clone().sub(koakumaFumo.pos);
+        toMarisa.y = 0;
+        const dist = toMarisa.length();
+
+        if (dist < 1.15 && !marisaFumo.isDragged) {
+          // Koakuma caught Marisa!
+          koakumaCatchCount++;
+          updateHUD();
+          marisaFumo.squeeze(1.2);
+          koakumaFumo.squeeze(1.0);
+          showBanner('😈', 'Koakuma caught Marisa! Sent back to the entrance!');
+          marisaFumo.pos.set(-8.8, 0.5, (Math.random() - 0.5) * 4.5);
+          koakumaFumo.pos.set(1.5, 0.2, (Math.random() > 0.5 ? 3.2 : -3.2));
+          return;
+        }
+
+        toMarisa.normalize();
+        const kSpeed = 1.28;
+        const nextKPos = koakumaFumo.pos.clone().addScaledVector(toMarisa, kSpeed * dt);
+        if (!isPointBlockedByShelf(nextKPos, 0.6)) {
+          koakumaFumo.pos.copy(nextKPos);
+          koakumaFumo.yaw = Math.atan2(toMarisa.x, toMarisa.z);
+        } else {
+          // Koakuma is blocked by a shelf! Slide along it
+          const altPos = koakumaFumo.pos.clone().add(new THREE.Vector3(0, 0, Math.sin(time * 2) * kSpeed * dt));
+          if (!isPointBlockedByShelf(altPos, 0.6)) {
+            koakumaFumo.pos.copy(altPos);
+          }
+        }
+      }
+    }
+
+    // ============================================================================
+    // 11. POINTER INTERACTION (DRAG FUMO, CLICK SHELF TO SLIDE, CLICK BOOK TO FLIP)
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let selectedFumo = null;
+    let isDraggingFumo = false;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+    const calloutBannerEl = document.getElementById('callout-banner');
+    const calloutIconEl = document.getElementById('callout-icon');
+    const calloutTextEl = document.getElementById('callout-text');
+    let bannerTimeout = null;
+
+    function showBanner(icon, text) {
+      calloutIconEl.textContent = icon;
+      calloutTextEl.textContent = text;
+      calloutBannerEl.style.display = 'flex';
+      if (bannerTimeout) clearTimeout(bannerTimeout);
+      bannerTimeout = setTimeout(() => {
+        calloutBannerEl.style.display = 'none';
+      }, 3200);
+    }
+
+    function updateHUD() {
+      document.getElementById('count-books').textContent = booksFlippedCount;
+      document.getElementById('count-stolen').textContent = booksStolenCount;
+      document.getElementById('count-caught').textContent = koakumaCatchCount;
+    }
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function onPointerDown(e) {
+      if (e.button !== 0) return;
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+      raycaster.setFromCamera(pointerNDC, camera);
+
+      // 1. Check Fumo Hit (Drag & Throw or Click to Squeeze)
+      const fumoHits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (fumoHits.length > 0 && fumoHits[0].object.userData.fumo) {
+        selectedFumo = fumoHits[0].object.userData.fumo;
+        isDraggingFumo = false;
+        controls.enabled = false; // Dragging a fumo must never rotate the camera
+
+        if (selectedFumo.attachedShelf) {
+          // Detach from shelf gap if picked up!
+          const worldP = new THREE.Vector3();
+          selectedFumo.root.getWorldPosition(worldP);
+          scene.add(selectedFumo.root);
+          selectedFumo.pos.copy(worldP);
+          selectedFumo.attachedShelf = null;
+        }
+
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), selectedFumo.pos);
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          dragOffset.subVectors(selectedFumo.pos, dragHitPoint);
+        } else {
+          dragOffset.set(0, 0, 0);
+        }
+        dragHistory = [{ pos: selectedFumo.pos.clone(), time: performance.now() }];
+        return;
+      }
+
+      // 2. Check Fluttering Books / Giant Eyed Tome / Shelf Books
+      const bookMeshes = [...flutterBookMeshes, ...allInteractiveBooks.map(b => b.mesh)];
+      const bookHits = raycaster.intersectObjects(bookMeshes, false);
+      if (bookHits.length > 0) {
+        const hitObj = bookHits[0].object;
+        booksFlippedCount++;
+        updateHUD();
+        soundFX.playPageFlip(0.95 + Math.random() * 0.3);
+
+        if (hitObj.userData.flutterBook) {
+          const fb = hitObj.userData.flutterBook;
+          fb.boostTimer = 1.8;
+          spawnBurstParticles(fb.root.position, ['#fde047', '#c084fc', '#ffffff'], 12, 1.1);
+        } else if (hitObj.userData.isGiantTome) {
+          giantTomeGroup.position.y += 0.9;
+          soundFX.playMagicChime();
+          spawnBurstParticles(giantTomeGroup.position, ['#fde047', '#a855f7', '#ef4444'], 18, 1.2);
+          showBanner('👁️', 'The Giant Grimoire blinked and snapped its pages!');
+        } else if (hitObj.userData.interactiveBook) {
+          const b = hitObj.userData.interactiveBook;
+          b.tumbled = true;
+          b.mesh.getWorldPosition(b.worldPos);
+          scene.add(b.mesh);
+          b.mesh.position.copy(b.worldPos);
+          b.vel.set((Math.random() - 0.5) * 4, 4.5, (Math.random() - 0.5) * 4);
+          b.rotVel.set(9, 9, 9);
+          spawnBurstParticles(b.worldPos, ['#fef3c7', '#facc15'], 8, 0.8);
+        }
+        return;
+      }
+    }
+
+    function onPointerMove(e) {
+      updatePointerNDC(e);
+      raycaster.setFromCamera(pointerNDC, camera);
+      const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+
+      if (selectedFumo) {
+        recordInteraction();
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          selectedFumo.isDragged = true;
+          selectedFumo.isGrounded = false;
+          selectedFumo.squashVel += 3.2;
+          soundFX.playPickup();
+        }
+        if (isDraggingFumo && raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          const targetPos = dragHitPoint.clone().add(dragOffset);
+          targetPos.x = THREE.MathUtils.clamp(targetPos.x, -10.5, 10.5);
+          targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.2, 10.5);
+          targetPos.z = THREE.MathUtils.clamp(targetPos.z, -10.5, 10.5);
+
+          const prevPos = selectedFumo.pos.clone();
+          selectedFumo.pos.lerp(targetPos, 0.55);
+          const delta = selectedFumo.pos.clone().sub(prevPos);
+          selectedFumo.headRollVel -= delta.x * 15.0;
+          selectedFumo.headPitchVel += delta.z * 15.0;
+          selectedFumo.limbRollVel -= delta.x * 20.0;
+
+          dragHistory.push({ pos: selectedFumo.pos.clone(), time: performance.now() });
+          while (dragHistory.length > 6) dragHistory.shift();
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      // Hover Tooltip for Fumos & Sliding Shelves
+      const fumoHits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (fumoHits.length > 0 && fumoHits[0].object.userData.fumo) {
+        const f = fumoHits[0].object.userData.fumo;
+        renderer.domElement.style.cursor = 'grab';
+        tooltipEmojiEl.textContent = f.emoji;
+        tooltipTextEl.textContent = f.name;
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+        return;
+      }
+
+      const shelfHits = raycaster.intersectObjects(allShelfRaycastMeshes, false);
+      if (shelfHits.length > 0 && shelfHits[0].object.userData.shelf) {
+        renderer.domElement.style.cursor = 'pointer';
+        tooltipEmojiEl.textContent = '🏛️';
+        tooltipTextEl.textContent = 'Click to Slide Bookshelf Gate';
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+        return;
+      }
+
+      renderer.domElement.style.cursor = 'default';
+      tooltipEl.style.opacity = '0';
+    }
+
+    function onPointerUp(e) {
+      controls.enabled = true;
+      const moveDist = e ? Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y) : 99;
+
+      if (selectedFumo) {
+        if (!isDraggingFumo) {
+          selectedFumo.squeeze(1.0);
+        } else {
+          selectedFumo.isDragged = false;
+          const now = performance.now();
+          while (dragHistory.length > 1 && now - dragHistory[0].time > 140) dragHistory.shift();
+          if (dragHistory.length >= 2) {
+            const first = dragHistory[0];
+            const last = dragHistory[dragHistory.length - 1];
+            const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+            const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+            if (throwVel.length() > 22) throwVel.setLength(22);
+            selectedFumo.vel.copy(throwVel);
+          }
+        }
+        selectedFumo = null;
+        isDraggingFumo = false;
+        return;
+      }
+
+      // Click without dragging on a Maze Bookshelf slides it open or closed!
+      if (moveDist < 7) {
+        raycaster.setFromCamera(pointerNDC, camera);
+        const shelfHits = raycaster.intersectObjects(allShelfRaycastMeshes, false);
+        if (shelfHits.length > 0 && shelfHits[0].object.userData.shelf) {
+          shelfHits[0].object.userData.shelf.toggleSlide();
+        }
+      }
+    }
+
+    // ============================================================================
+    // 12. DAY / NIGHT SMOOTH TRANSITION (~2 SECONDS) & HUB INTEGRATION
+    // ============================================================================
+    const daySkyCol = new THREE.Color('#3b2532');
+    const nightSkyCol = new THREE.Color('#090b1c');
+    const daySunCol = new THREE.Color('#ffe6b8');
+    const nightMoonCol = new THREE.Color('#6366f1');
+    const dayHemiSky = new THREE.Color('#ffeedd');
+    const nightHemiSky = new THREE.Color('#1e1b4b');
+    const dayHemiGround = new THREE.Color('#3a2434');
+    const nightHemiGround = new THREE.Color('#090a14');
+    const dayShaftCol = new THREE.Color('#ffe8b3');
+    const nightShaftCol = new THREE.Color('#6366f1');
+
+    function postModeToHub() {
+      const modeStr = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: modeStr }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(modeOrBool, { immediate = false, playSound = false } = {}) {
+      const targetNight = (modeOrBool === 'night' || modeOrBool === true);
+      if (targetNight === isNightMode && !immediate) return;
+      isNightMode = targetNight;
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) dayNightProgress = dayNightTarget;
+
+      document.body.classList.toggle('night-ui', isNightMode);
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
+      } catch (e) {}
+
+      if (playSound) soundFX.playPickup();
+      postModeToHub();
+    }
+
+    function toggleDayNightMode() {
+      setDayNightMode(isNightMode ? 'day' : 'night', { immediate: false, playSound: true });
+    }
+
+    function updateDayNightTransition(dt, time) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.5; // ~2 seconds transition
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      scene.background.lerpColors(daySkyCol, nightSkyCol, t);
+      scene.fog.color.copy(scene.background);
+
+      dirLight.color.lerpColors(daySunCol, nightMoonCol, t);
+      dirLight.intensity = THREE.MathUtils.lerp(1.18, 0.32, t);
+
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.68, 0.25, t);
+
+      const surgeBoost = magicSurgeTimer > 0 ? 1.65 : 0.0;
+      circleLight.intensity = THREE.MathUtils.lerp(0.55, 1.85, t) + surgeBoost;
+      candleLightNorth.intensity = THREE.MathUtils.lerp(0.5, 1.45, t) + Math.sin(time * 7) * 0.08;
+      candleLightSouth.intensity = THREE.MathUtils.lerp(0.5, 1.45, t) + Math.cos(time * 6) * 0.08;
+
+      runeGlowMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.45, 2.2, t) + (magicSurgeTimer > 0 ? 1.4 : 0);
+      candleFlameMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.9, 2.5, t);
+      ghostMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, 1.35, t);
+
+      shaftMat.color.lerpColors(dayShaftCol, nightShaftCol, t);
+      shaftMat.opacity = THREE.MathUtils.lerp(0.09, 0.05, t);
+
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.22, 0.72, t) + (magicSurgeTimer > 0 ? 0.25 : 0);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.82, 0.58, t);
+      }
+    }
+
+    // ============================================================================
+    // 13. UI BUTTONS, KEYBOARD SHORTCUTS & HUB MESSAGE LISTENERS
+    // ============================================================================
+    const muteIconEl = document.getElementById('mute-icon');
+    function syncMuteUI() {
+      muteIconEl.textContent = soundFX.enabled ? '🔊' : '🔇';
+    }
+    syncMuteUI();
+
+    function toggleMute() {
+      soundFX.enabled = !soundFX.enabled;
+      syncMuteUI();
+      try {
+        localStorage.setItem(STORAGE_MUTE_KEY, String(!soundFX.enabled));
+      } catch (e) {}
+      if (soundFX.hushGain && soundFX.ctx) {
+        soundFX.hushGain.gain.setValueAtTime(soundFX.enabled ? 0.02 : 0, soundFX.ctx.currentTime);
+      }
+      if (soundFX.enabled) {
+        soundFX.ensureAmbient();
+        soundFX.playPickup();
+      }
+    }
+
+    function restackBooksAndResetFumos() {
+      allInteractiveBooks.forEach(b => {
+        b.tumbled = false;
+        b.vel.set(0, 0, 0);
+        b.rotVel.set(0, 0, 0);
+        b.shelf.group.add(b.mesh);
+        b.mesh.position.copy(b.homeLocal);
+        b.mesh.rotation.set(0, 0, 0);
+      });
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 35));
+    }
+
+    document.getElementById('btn-magic').addEventListener('click', () => {
+      recordInteraction();
+      triggerMagicCircleSurge();
+    });
+
+    document.getElementById('btn-shuffle').addEventListener('click', () => {
+      recordInteraction();
+      mazeShelves.forEach(sh => {
+        if (Math.random() > 0.35) sh.toggleSlide();
+      });
+    });
+
+    document.getElementById('btn-squeeze-all').addEventListener('click', () => {
+      recordInteraction();
+      fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 45));
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      recordInteraction();
+      restackBooksAndResetFumos();
+    });
+
+    document.getElementById('btn-mute').addEventListener('click', () => {
+      recordInteraction();
+      toggleMute();
+    });
+
+    function onKeyDown(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      const key = e.key.toLowerCase();
+
+      if (key === 'n') {
+        e.preventDefault();
+        toggleDayNightMode();
+      } else if (key === 'm') {
+        e.preventDefault();
+        toggleMute();
+      } else if (key === 'l') {
+        e.preventDefault();
+        recordInteraction();
+        triggerMagicCircleSurge();
+      } else if (key === 'r') {
+        e.preventDefault();
+        recordInteraction();
+        restackBooksAndResetFumos();
+      } else if (key === ' ') {
+        e.preventDefault();
+        recordInteraction();
+        fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 45));
+      }
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('resize', onWindowResize);
+
+    // ============================================================================
+    // 14. MAIN ANIMATION LOOP, PAUSE / RESUME & LIFECYCLE
+    // ============================================================================
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.033, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      if (!selectedFumo && (now - lastUserInteractionTime > 5000)) {
+        controls.autoRotate = true;
+      }
+
+      controls.update();
+      updateDayNightTransition(dt, elapsed);
+
+      orreryPivot.rotation.y = elapsed * 0.65;
+      globeSpherePivot.rotation.y = elapsed * 0.25;
+
+      for (let i = 0; i < mazeShelves.length; i++) {
+        mazeShelves[i].update(dt);
+      }
+
+      updateFlutteringBooks(elapsed, dt);
+      updateParticlesAndGlyphs(elapsed, dt);
+      updateMarisaAndKoakumaMazeAI(dt, elapsed);
+
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].updatePhysics(dt, elapsed);
+      }
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function pauseRenderLoop() {
+      if (isPaused) return;
+      isPaused = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      if (soundFX.ctx && soundFX.ctx.state === 'running') {
+        soundFX.ctx.suspend().catch(() => {});
+      }
+    }
+
+    function resumeRenderLoop() {
+      if (!isPaused) return;
+      isPaused = false;
+      prevTime = performance.now();
+      if (soundFX.enabled && soundFX.ctx && soundFX.ctx.state === 'suspended') {
+        soundFX.ctx.resume().catch(() => {});
+      }
+      rafId = requestAnimationFrame(animate);
+    }
+
+    function disposeScene() {
+      pauseRenderLoop();
+      soundFX.stopPianoLoop();
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('resize', onWindowResize);
+    }
+
+    if (typeof FumoSceneLifecycle !== 'undefined') {
+      new FumoSceneLifecycle({
+        renderer,
+        scene,
+        composer,
+        audio: soundFX,
+        onToggleMode: toggleDayNightMode,
+        onSetMode: (mode) => setDayNightMode(mode === 'night' ? 'night' : 'day', { immediate: false }),
+        onPause: pauseRenderLoop,
+        onResume: resumeRenderLoop,
+        onDispose: disposeScene
+      });
+    } else {
+      window.addEventListener('message', (e) => {
+        const msg = e.data;
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.type === 'toggleMode') toggleDayNightMode();
+        else if (msg.type === 'setMode') setDayNightMode(msg.mode === 'night', { immediate: false });
+        else if (msg.type === 'pause') pauseRenderLoop();
+        else if (msg.type === 'resume') resumeRenderLoop();
+      });
+    }
+
+    window.onload = function () {
+      let savedMode = 'day';
+      try {
+        const m = localStorage.getItem(STORAGE_MODE_KEY);
+        if (m === 'night') savedMode = 'night';
+      } catch (e) {}
+
+      setDayNightMode(savedMode, { immediate: true, playSound: false });
+      updateDayNightTransition(0, 0);
+      postModeToHub();
+
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.76;
+          f.squashVel = 2.2;
+          f.headPitchVel = 4.2;
+        }, 100 + idx * 65);
+      });
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,2329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Touhou Fumo Voxel Sports Festival (Undokai) — Interactive 3D Diorama</title>
+  <link rel="stylesheet" href="../fumo-scene.css">
+  <link rel="stylesheet" href="../Shared/fumo-scene.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js r128 + Post-Processing Addons FIRST -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <!-- Shared Fumo Core SECOND (reads THREE at load time) -->
+  <script src="../fumo-core.js"></script>
+  <script src="../Shared/fumo-core.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #84ccff;
+      color: #1e293b;
+    }
+    body.night-ui {
+      background-color: #080b1a;
+      color: #f1f5f9;
+    }
+    .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.78);
+      box-shadow: 0 10px 28px -6px rgba(15, 23, 42, 0.16), 0 2px 6px rgba(15, 23, 42, 0.08);
+      transition: background 0.45s ease, color 0.45s ease, border-color 0.45s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    body.night-ui .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      border-color: rgba(251, 191, 36, 0.28);
+      color: #f8fafc;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.7), 0 0 18px rgba(251, 191, 36, 0.16);
+    }
+    .ui-btn {
+      cursor: pointer;
+      border: none;
+      outline: none;
+      font-family: inherit;
+      color: inherit;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      border-radius: 6px;
+      background: rgba(15, 23, 42, 0.09);
+      border-bottom: 2px solid rgba(15, 23, 42, 0.22);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.15);
+      border-bottom-color: rgba(255, 255, 255, 0.3);
+    }
+    /* Strictly Bottom-Right HUD (Zero UI in top-left!) */
+    #hud-bottom-right {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      z-index: 25;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 9px;
+      max-width: min(465px, 95vw);
+    }
+    .undokai-card {
+      border-radius: 18px;
+      padding: 11px 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      width: 100%;
+    }
+    .team-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+    .team-badge {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+    .score-num {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 1.3rem;
+      font-weight: 700;
+      min-width: 28px;
+      text-align: center;
+    }
+    .meter-bg {
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.3);
+      overflow: hidden;
+      position: relative;
+    }
+    .meter-fill {
+      height: 100%;
+      width: 50%;
+      background: linear-gradient(90deg, #ef4444, #f59e0b, #38bdf8);
+      transition: width 0.08s linear;
+    }
+    .meter-zone {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 68%;
+      width: 18%;
+      background: rgba(34, 197, 94, 0.45);
+      border-left: 2px solid #16a34a;
+      border-right: 2px solid #16a34a;
+      display: none;
+    }
+    #fumo-tooltip {
+      position: fixed;
+      z-index: 30;
+      pointer-events: none;
+      opacity: 0;
+      padding: 6px 12px;
+      border-radius: 12px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 0.16s ease;
+    }
+    #event-banner {
+      position: fixed;
+      bottom: 245px;
+      right: 16px;
+      z-index: 28;
+      border-radius: 16px;
+      padding: 10px 16px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Fredoka', sans-serif;
+      font-size: 0.92rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- Floating Cursor Tooltip -->
+  <div id="fumo-tooltip" class="glass-panel">
+    <span id="tooltip-emoji">⛩️</span>
+    <span id="tooltip-text">Reimu Hakurei (Red Team)</span>
+  </div>
+
+  <!-- Dynamic Event Callout / Victory Banner -->
+  <div id="event-banner" class="glass-panel">
+    <span id="banner-icon" style="font-size:1.5rem;">🏆</span>
+    <div>
+      <div id="banner-title" style="font-weight:700;">Red Team Wins the Relay!</div>
+      <div id="banner-sub" style="font-size:0.75rem; opacity:0.85;">Aya & Hatate snap photos at the podium!</div>
+    </div>
+  </div>
+
+  <!-- Strictly Bottom-Right HUD (Zero UI in top-left!) -->
+  <div id="hud-bottom-right">
+    <div class="glass-panel undokai-card">
+      <!-- Active Event Header & Commentator Ticker -->
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; font-weight:700;">
+        <span id="active-event-label" class="font-display" style="color:#dc2626; font-size:0.86rem;">🏃 EVENT 1: RELAY RACE</span>
+        <span id="commentator-status" style="opacity:0.82;">📸 Aya: "Tap SPACE to dash!"</span>
+      </div>
+
+      <!-- Red Team vs White Team Scoreboard -->
+      <div class="team-row">
+        <div class="team-badge" style="color:#dc2626;">
+          <span>🔴 Red Team (Akagumi)</span>
+          <span style="font-size:0.68rem; opacity:0.75;">Reimu • Marisa • Flan • Mokou</span>
+        </div>
+        <span id="score-red" class="score-num" style="color:#dc2626;">0</span>
+      </div>
+
+      <div class="team-row">
+        <div class="team-badge" style="color:#0284c7;">
+          <span>⚪ White Team (Shirogumi)</span>
+          <span style="font-size:0.68rem; opacity:0.75;">Cirno • Sakuya • Youmu • Kaguya</span>
+        </div>
+        <span id="score-white" class="score-num" style="color:#0284c7;">0</span>
+      </div>
+
+      <!-- Event Progress / Baton Zone / Tug Meter / Ball Throw Power -->
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.74rem; font-weight:700;">
+        <span id="meter-prompt">⚡ Tap <kbd>Space</kbd> to Dash! Click Runner in Green Zone to Pass Baton!</span>
+        <span id="meter-value" class="font-display">0%</span>
+      </div>
+      <div class="meter-bg">
+        <div id="meter-zone" class="meter-zone"></div>
+        <div id="meter-fill" class="meter-fill"></div>
+      </div>
+
+      <!-- Event Switcher & Action Controls -->
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:5px; flex-wrap:wrap; margin-top:2px;">
+        <button id="btn-prev-event" class="glass-panel ui-btn" style="padding:5px 9px; border-radius:11px; font-size:0.74rem; font-weight:700;" title="Previous Event (Q)">
+          <kbd>Q</kbd> Prev
+        </button>
+
+        <button id="btn-next-event" class="glass-panel ui-btn" style="padding:5px 9px; border-radius:11px; font-size:0.74rem; font-weight:700;" title="Next Event (E)">
+          Next <kbd>E</kbd>
+        </button>
+
+        <button id="btn-pistol" class="glass-panel ui-btn" style="padding:5px 9px; border-radius:11px; font-size:0.74rem; font-weight:700;" title="Fire Starter Pistol & Restart Event">
+          🔫 Start
+        </button>
+
+        <button id="btn-podium" class="glass-panel ui-btn" style="padding:5px 9px; border-radius:11px; font-size:0.74rem; font-weight:700;" title="Pop Paper Bell & Podium Finale">
+          🎊 Podium
+        </button>
+
+        <button id="btn-reset" class="glass-panel ui-btn" style="padding:5px 9px; border-radius:11px; font-size:0.74rem; font-weight:700;" title="Reset Fumos (R)">
+          🔄 <kbd>R</kbd>
+        </button>
+
+        <button id="btn-mute" class="glass-panel ui-btn" style="padding:5px 9px; border-radius:11px; font-size:0.74rem; font-weight:700;" title="Mute / Unmute Audio (M)">
+          <span id="mute-icon">🔊</span> <kbd>M</kbd>
+        </button>
+      </div>
+    </div>
+
+    <!-- Compact Controls Hint Bar -->
+    <div class="glass-panel" style="border-radius:14px; padding:6px 12px; font-size:0.71rem; font-weight:600; display:flex; flex-wrap:wrap; gap:6px 11px; justify-content:flex-end;">
+      <span>🏃 <b>Relay:</b> Tap <kbd>Space</kbd> + Click Baton</span>
+      <span>🪢 <b>Tug:</b> Alternate <kbd>◀</kbd> <kbd>▶</kbd></span>
+      <span>🏀 <b>Ball Toss:</b> Hold & Drag Ground</span>
+      <span>✋ <b>Drag Fumo:</b> Throw</span>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 0. TOP-LEVEL STATE VARIABLES
+    // ============================================================================
+    const STORAGE_MUTE_KEY = 'fumo_undokai_muted';
+    const STORAGE_MODE_KEY = 'fumo_undokai_mode';
+
+    let isNightMode = false;
+    let dayNightProgress = 0.0;
+    let dayNightTarget = 0.0;
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    // Undokai Event State ('relay' | 'tug' | 'ball')
+    const EVENTS = ['relay', 'tug', 'ball'];
+    let currentEventIndex = 0;
+    let scoreRed = 0;
+    let scoreWhite = 0;
+
+    // ============================================================================
+    // 1. EXTEND PLUSH SOUND ENGINE WITH UNDOKAI SYNTHESIZED AUDIO
+    // ============================================================================
+    const BaseSound = typeof PlushSoundEngine !== 'undefined' ? PlushSoundEngine : class {
+      constructor() { this.ctx = null; this.enabled = true; }
+      init() {
+        if (!this.ctx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (AC) this.ctx = new AC();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+      }
+      playSqueeze(pitch = 1.0) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const g = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(540 * pitch, now);
+          osc.frequency.exponentialRampToValueAtTime(780 * pitch, now + 0.09);
+          g.gain.setValueAtTime(0.001, now);
+          g.gain.linearRampToValueAtTime(0.1, now + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+          osc.connect(g); g.connect(this.ctx.destination);
+          osc.start(now); osc.stop(now + 0.17);
+        } catch (e) {}
+      }
+      playBounce(intensity = 0.5) {
+        if (!this.enabled || intensity < 0.08) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const g = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(120 + intensity * 30, now);
+          osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+          g.gain.setValueAtTime(Math.min(0.14, intensity * 0.1), now);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(g); g.connect(this.ctx.destination);
+          osc.start(now); osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+      playPickup() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const g = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(280, now);
+          osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
+          g.gain.setValueAtTime(0.05, now);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(g); g.connect(this.ctx.destination);
+          osc.start(now); osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+    };
+
+    const soundFX = new BaseSound();
+
+    try {
+      const savedMute = localStorage.getItem(STORAGE_MUTE_KEY);
+      if (savedMute === 'true') soundFX.enabled = false;
+    } catch (e) {}
+
+    soundFX.marchTimer = null;
+    soundFX.marchStep = 0;
+
+    // Sharp Starter Pistol Bang
+    soundFX.playStarterPistol = function () {
+      if (!this.enabled) return;
+      try {
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const bufLen = Math.floor(this.ctx.sampleRate * 0.18);
+        const buf = this.ctx.createBuffer(1, bufLen, this.ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < bufLen; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufLen * 0.25));
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buf;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1800, now);
+        filter.frequency.exponentialRampToValueAtTime(220, now + 0.16);
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.24, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.175);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start(now);
+      } catch (e) {}
+    };
+
+    // Teacher Keine's Pea Whistle
+    soundFX.playWhistle = function () {
+      if (!this.enabled) return;
+      try {
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const lfo = this.ctx.createOscillator();
+        const lfoGain = this.ctx.createGain();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(2720, now);
+        osc.frequency.setValueAtTime(2880, now + 0.15);
+
+        lfo.type = 'sine';
+        lfo.frequency.setValueAtTime(42, now);
+        lfoGain.gain.setValueAtTime(135, now);
+        lfo.connect(lfoGain);
+        lfoGain.connect(osc.frequency);
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.12, now + 0.025);
+        gain.gain.setValueAtTime(0.11, now + 0.36);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        lfo.start(now);
+        osc.start(now);
+        lfo.stop(now + 0.5);
+        osc.stop(now + 0.5);
+      } catch (e) {}
+    };
+
+    // Crowd Cheer Roar + Chime
+    soundFX.playCrowdCheer = function () {
+      if (!this.enabled) return;
+      try {
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const bufLen = Math.floor(this.ctx.sampleRate * 0.75);
+        const buf = this.ctx.createBuffer(1, bufLen, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < bufLen; i++) {
+          const env = Math.sin((i / bufLen) * Math.PI);
+          d[i] = (Math.random() * 2 - 1) * env;
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buf;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(750, now);
+        filter.frequency.linearRampToValueAtTime(1150, now + 0.35);
+        filter.Q.value = 1.6;
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.09, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.74);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start(now);
+
+        // Victory fanfare triad
+        [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
+          const osc = this.ctx.createOscillator();
+          const g = this.ctx.createGain();
+          osc.type = 'triangle';
+          const t0 = now + idx * 0.06;
+          osc.frequency.setValueAtTime(freq, t0);
+          g.gain.setValueAtTime(0.07, t0);
+          g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.28);
+          osc.connect(g);
+          g.connect(this.ctx.destination);
+          osc.start(t0);
+          osc.stop(t0 + 0.3);
+        });
+      } catch (e) {}
+    };
+
+    // Upbeat Undokai Sports Day Galop Marching Loop
+    soundFX.playMarchBeat = function () {
+      if (!this.enabled || isPaused) return;
+      try {
+        this.init();
+        if (!this.ctx || this.ctx.state !== 'running') return;
+        const melody = [
+          392.00, 523.25, 659.25, 783.99,
+          659.25, 783.99, 659.25, 523.25,
+          587.33, 659.25, 587.33, 493.88,
+          523.25, 392.00, 523.25, 659.25
+        ];
+        const freq = melody[this.marchStep % melody.length];
+        const now = this.ctx.currentTime;
+
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now);
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.022, now + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.17);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.18);
+
+        // Snare march tap on alternating steps
+        if (this.marchStep % 2 === 0) {
+          const bass = this.ctx.createOscillator();
+          const bGain = this.ctx.createGain();
+          bass.type = 'sine';
+          bass.frequency.setValueAtTime(130.81, now);
+          bass.frequency.exponentialRampToValueAtTime(55, now + 0.08);
+          bGain.gain.setValueAtTime(0.03, now);
+          bGain.gain.exponentialRampToValueAtTime(0.001, now + 0.085);
+          bass.connect(bGain);
+          bGain.connect(this.ctx.destination);
+          bass.start(now);
+          bass.stop(now + 0.09);
+        }
+        this.marchStep++;
+      } catch (e) {}
+    };
+
+    soundFX.startMarchLoop = function () {
+      if (this.marchTimer) return;
+      this.marchTimer = setInterval(() => {
+        if (!isPaused && this.enabled) this.playMarchBeat();
+      }, 210);
+    };
+
+    soundFX.stopMarchLoop = function () {
+      if (this.marchTimer) {
+        clearInterval(this.marchTimer);
+        this.marchTimer = null;
+      }
+    };
+
+    // ============================================================================
+    // 2. VOXEL & MATRIX HELPER FALLBACKS
+    // ============================================================================
+    const _voxelHash = typeof voxelHash === 'function' ? voxelHash : function (x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    };
+
+    const _tempColor = new THREE.Color();
+    const _varyColor = typeof varyColor === 'function' ? varyColor : function (hex, x, y, z, variance = 0.035, seamDarken = 0) {
+      _tempColor.set(hex);
+      const h = _voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      _tempColor.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return _tempColor.clone();
+    };
+
+    const _createSoftVoxelGeometry = typeof createSoftVoxelGeometry === 'function' ? createSoftVoxelGeometry : function (size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    };
+
+    const _getOptimalPixelRatio = typeof getOptimalPixelRatio === 'function' ? getOptimalPixelRatio : function () {
+      return Math.min(window.devicePixelRatio || 1, 2);
+    };
+
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    const tempEuler = new THREE.Euler();
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = _createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        tempQuat.identity();
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    // ============================================================================
+    // 3. SCENE, CAMERA, RENDERER, POST-PROCESSING & ORBIT CONTROLS
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#84ccff');
+    scene.fog = new THREE.FogExp2('#84ccff', 0.01);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.5, 160);
+    camera.position.set(22.0, 15.5, 23.0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(_getOptimalPixelRatio());
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.04;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.16,
+        0.52,
+        0.84
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (err) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 2.0, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.47;
+    controls.minPolarAngle = Math.PI * 0.06;
+    controls.minDistance = 8;
+    controls.maxDistance = 52;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.38;
+
+    let lastUserInteractionTime = performance.now();
+    function recordInteraction() {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+      soundFX.startMarchLoop();
+    }
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 4. CAPPED DYNAMIC LIGHTS & SHARED MATERIALS
+    // ============================================================================
+    // 1. Hemisphere Sky/Ground Light
+    const hemiLight = new THREE.HemisphereLight(0xfffbeb, 0x65a30d, 0.72);
+    hemiLight.position.set(0, 26, 0);
+    scene.add(hemiLight);
+
+    // 2. Main Sun / Moon Directional Light (Primary Shadow Caster)
+    const dirLight = new THREE.DirectionalLight(0xfff7ed, 1.22);
+    dirLight.position.set(16, 25, 15);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.near = 2;
+    dirLight.shadow.camera.far = 65;
+    const dCam = 20;
+    dirLight.shadow.camera.left = -dCam;
+    dirLight.shadow.camera.right = dCam;
+    dirLight.shadow.camera.top = dCam;
+    dirLight.shadow.camera.bottom = -dCam;
+    dirLight.shadow.bias = -0.0005;
+    scene.add(dirLight);
+
+    // 3. West Stadium Floodlight PointLight
+    const floodLightWest = new THREE.PointLight(0xe0f2fe, 0.05, 24, 1.5);
+    floodLightWest.position.set(-10.5, 7.5, -8.5);
+    scene.add(floodLightWest);
+
+    // 4. East Stadium Floodlight PointLight
+    const floodLightEast = new THREE.PointLight(0xe0f2fe, 0.05, 24, 1.5);
+    floodLightEast.position.set(10.5, 7.5, -8.5);
+    scene.add(floodLightEast);
+
+    // 5. Overhead Paper Lantern Strings Warm Glow
+    const lanternStringLight = new THREE.PointLight(0xffb703, 0.05, 20, 1.5);
+    lanternStringLight.position.set(0, 5.2, 0);
+    scene.add(lanternStringLight);
+
+    // Shared Materials
+    const plushMaterial = new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0.02 });
+    const fieldMaterial = new THREE.MeshStandardMaterial({ roughness: 0.86, metalness: 0.03 });
+    const propMaterial = new THREE.MeshStandardMaterial({ roughness: 0.65, metalness: 0.1 });
+    const floodBulbMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: new THREE.Color(0xbae6fd),
+      emissiveIntensity: 0.25,
+      roughness: 0.15
+    });
+    const lanternGlowMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfff3b0,
+      emissive: new THREE.Color(0xff9e00),
+      emissiveIntensity: 0.35,
+      roughness: 0.2
+    });
+    const iceWingMaterial = new THREE.MeshStandardMaterial({
+      color: 0xe0f2fe,
+      transparent: true,
+      opacity: 0.85,
+      emissive: new THREE.Color(0x38bdf8),
+      emissiveIntensity: 0.35
+    });
+
+    // ============================================================================
+    // 5. UNDOKAI TRACK FIELD, TENTS, SCOREBOARD, HURDLES, SNACK STAND & PODIUM
+    // ============================================================================
+    const WV = 0.35; // 1 World Voxel = 0.35 units
+    const fieldVoxels = [];
+    const propVoxels = [];
+    const lanternVoxels = [];
+    const floodBulbVoxels = [];
+
+    const propColliders = [];
+    function addCollider(minX, minY, minZ, maxX, maxY, maxZ, name) {
+      propColliders.push({
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        name
+      });
+    }
+
+    function pushWV(list, x, y, z, hex, variance = 0.025, sx = 1, sy = 1, sz = 1) {
+      list.push({
+        x, y, z,
+        color: _varyColor(hex, x, y, z, variance),
+        sx, sy, sz
+      });
+    }
+
+    const eventBoardMeshes = [];
+
+    function buildUndokaiStadium() {
+      // 1. Track Field with Oval Running Lanes & Chalk Lines (-38..38 in X, -32..32 in Z)
+      for (let x = -38; x <= 38; x++) {
+        for (let z = -32; z <= 32; z++) {
+          // Oval track equation centered at (0, 0)
+          const nx = Math.max(0, Math.abs(x) - 10);
+          const nz = z;
+          const r = Math.hypot(nx, nz);
+          let col = ((x + z) % 2 === 0) ? '#4d7c0f' : '#65a30d'; // Lush infield/outfield grass
+
+          if (r >= 11.5 && r <= 19.5) {
+            // Terracotta clay running track with 3 white chalk lane dividers
+            const isChalk = (
+              Math.abs(r - 11.8) < 0.45 ||
+              Math.abs(r - 15.5) < 0.45 ||
+              Math.abs(r - 19.2) < 0.45 ||
+              (Math.abs(x - 10) < 0.5 && z >= 11.5 && z <= 19.5) // Finish line chalk
+            );
+            col = isChalk ? '#f8fafc' : (((x + z) % 2 === 0) ? '#c2410c' : '#b45309');
+          } else if (r < 11.5) {
+            // Sandy infield for Tug-of-War & Ball Toss
+            col = ((x + z) % 2 === 0) ? '#e7cba9' : '#dec09c';
+          }
+          pushWV(fieldVoxels, x, -0.5, z, col, 0.02);
+        }
+      }
+
+      // 2. Goal Tape Posts & Red/White Ribbon across Track Finish Line (voxel x = 10, z = 12..19)
+      for (let y = 0; y <= 4; y++) {
+        pushWV(propVoxels, 10, y + 0.5, 11.5, '#f8fafc', 0.01, 0.45, 1, 0.45);
+        pushWV(propVoxels, 10, y + 0.5, 19.5, '#f8fafc', 0.01, 0.45, 1, 0.45);
+      }
+      for (let z = 12; z <= 19; z++) {
+        pushWV(propVoxels, 10, 3.2, z, z % 2 === 0 ? '#ef4444' : '#ffffff', 0.01, 0.25, 0.35, 1.0);
+      }
+
+      // 3. Track Hurdles on the Back Straight (z = -15.5, x = -8, 0, 8)
+      [-8, 0, 8].forEach(hx => {
+        for (let z = -18; z <= -13; z++) {
+          if (z === -18 || z === -13) {
+            pushWV(propVoxels, hx, 0.5, z, '#1e293b', 0.01, 0.4, 1.2, 0.4);
+          }
+          pushWV(propVoxels, hx, 1.4, z, z % 2 === 0 ? '#ef4444' : '#ffffff', 0.01, 0.35, 0.4, 1.0);
+        }
+      });
+
+      // 4. Red Team & White Team Headquarters Tents with Banners (Back Sideline: z = -25)
+      const buildTeamTent = (cx, cz, mainHex) => {
+        for (const lx of [-5, 5]) {
+          for (const lz of [-3, 3]) {
+            for (let y = 0; y <= 6; y++) {
+              pushWV(propVoxels, cx + lx, y + 0.5, cz + lz, '#e2e8f0', 0.01, 0.45, 1, 0.45);
+            }
+          }
+        }
+        for (let dx = -6; dx <= 6; dx++) {
+          for (let dz = -4; dz <= 4; dz++) {
+            const roofH = 7.0 + (4 - Math.max(Math.abs(dx) * 0.6, Math.abs(dz))) * 0.55;
+            const stripe = (Math.floor((dx + 6) / 2) % 2 === 0) ? mainHex : '#ffffff';
+            pushWV(propVoxels, cx + dx, roofH, cz + dz, stripe, 0.02);
+          }
+        }
+        addCollider((cx - 5.5) * WV, 0, (cz - 3.5) * WV, (cx + 5.5) * WV, 2.8, (cz + 3.5) * WV, 'team_tent');
+      };
+      buildTeamTent(-14, -25, '#dc2626'); // Red Team Tent
+      buildTeamTent(14, -25, '#2563eb');  // White Team Tent
+
+      // 5. Central Event & Scoreboard Stand (Clickable in 3D to switch events! At voxel 0, 0, -25)
+      for (let y = 0; y <= 9; y++) {
+        pushWV(propVoxels, -4, y + 0.5, -25, '#78350f', 0.02);
+        pushWV(propVoxels, 4, y + 0.5, -25, '#78350f', 0.02);
+      }
+      for (let x = -5; x <= 5; x++) {
+        for (let y = 4; y <= 9; y++) {
+          let bCol = '#1e293b';
+          if (x === -5 || x === 5 || y === 4 || y === 9) bCol = '#d97706';
+          else if (x < 0 && y >= 6 && y <= 7) bCol = '#ef4444';
+          else if (x > 0 && y >= 6 && y <= 7) bCol = '#f8fafc';
+          pushWV(propVoxels, x, y + 0.5, -25, bCol, 0.01);
+        }
+      }
+      // Invisible clickable mesh over the 3D Scoreboard to switch events
+      const boardHitMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(4.2, 2.5, 0.6),
+        new THREE.MeshBasicMaterial({ visible: false })
+      );
+      boardHitMesh.position.set(0, 2.3, -25 * WV);
+      boardHitMesh.userData.isEventBoard = true;
+      scene.add(boardHitMesh);
+      eventBoardMeshes.push(boardHitMesh);
+
+      // 6. Commentators' Broadcast Desk (Aya & Hatate at voxel 0, 0, -21)
+      for (let x = -3; x <= 3; x++) {
+        for (let z = -22; z <= -20; z++) {
+          for (let y = 0; y <= 2; y++) {
+            pushWV(propVoxels, x, y + 0.5, z, y === 2 ? '#ffffff' : '#dc2626', 0.02);
+          }
+        }
+      }
+      addCollider(-3.5 * WV, 0, -22.5 * WV, 3.5 * WV, 1.05, -19.5 * WV, 'broadcast_desk');
+
+      // 7. Festival Snack Stand (Yakisoba & Shaved Ice at voxel -26, 0, -18)
+      const sx = -26, sz = -18;
+      for (let dx = -4; dx <= 4; dx++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          for (let y = 0; y <= 3; y++) {
+            pushWV(propVoxels, sx + dx, y + 0.5, sz + dz, y === 3 ? '#f59e0b' : '#991b1b', 0.02);
+          }
+          const roofStripe = ((dx + 4) % 2 === 0) ? '#ef4444' : '#f8fafc';
+          pushWV(propVoxels, sx + dx, 8.2 - dz * 0.2, sz + dz, roofStripe, 0.02);
+        }
+      }
+      for (let y = 4; y <= 7; y++) {
+        pushWV(propVoxels, sx - 3, y + 0.5, sz - 1, '#78350f', 0.02, 0.5, 1, 0.5);
+        pushWV(propVoxels, sx + 3, y + 0.5, sz - 1, '#78350f', 0.02, 0.5, 1, 0.5);
+      }
+      pushWV(lanternVoxels, sx, 6.8, sz + 2, '#fde047', 0.01, 1.0, 1.3, 1.0);
+      addCollider((sx - 4.5) * WV, 0, (sz - 2.5) * WV, (sx + 4.5) * WV, 1.4, (sz + 2.5) * WV, 'snack_stand');
+
+      // 8. Victory Podium (1st, 2nd, 3rd Steps at voxel 24, 0, -18)
+      const px = 24, pz = -18;
+      for (let dx = -4; dx <= 4; dx++) {
+        const stepH = (Math.abs(dx) <= 1) ? 3 : (dx < -1 ? 2 : 1);
+        for (let dz = -1; dz <= 1; dz++) {
+          for (let y = 0; y <= stepH; y++) {
+            const pCol = (y === stepH) ? '#ef4444' : '#f8fafc';
+            pushWV(propVoxels, px + dx, y + 0.5, pz + dz, pCol, 0.015);
+          }
+        }
+      }
+      addCollider((px - 4.5) * WV, 0, (pz - 1.5) * WV, (px + 4.5) * WV, 1.4, (pz + 1.5) * WV, 'podium');
+
+      // 9. Tall Floodlight Towers & Overhead Festival Lantern Strings + Bunting Flags
+      const towerSpots = [[-30, -24], [30, -24], [-30, 24], [30, 24]];
+      towerSpots.forEach(([tx, tz]) => {
+        for (let y = 0; y <= 21; y++) {
+          pushWV(propVoxels, tx, y + 0.5, tz, '#64748b', 0.01, 0.75, 1, 0.75);
+        }
+        for (let bx = -2; bx <= 2; bx++) {
+          for (let by = 21; by <= 23; by++) {
+            pushWV(floodBulbVoxels, tx + bx * 0.8, by + 0.5, tz, '#e0f2fe', 0.01, 0.9, 0.9, 0.9);
+          }
+        }
+      });
+
+      // Overhead Lantern & Bunting Strings crisscrossing the field
+      for (let i = -28; i <= 28; i += 2) {
+        const sag = Math.cos((i / 28) * (Math.PI / 2)) * 3.2;
+        const y = 18.5 - sag;
+        const flagCol = (Math.abs(i) % 4 === 0) ? '#ef4444' : '#ffffff';
+        pushWV(propVoxels, i, y, 0, flagCol, 0.01, 0.7, 0.8, 0.3);
+        pushWV(propVoxels, 0, y, i * 0.8, flagCol, 0.01, 0.3, 0.8, 0.7);
+        if (i % 6 === 0) {
+          pushWV(lanternVoxels, i, y - 0.8, 0, i % 12 === 0 ? '#fca5a5' : '#fef08a', 0.01, 0.95, 1.25, 0.95);
+          pushWV(lanternVoxels, 0, y - 0.8, i * 0.8, '#fef08a', 0.01, 0.95, 1.25, 0.95);
+        }
+      }
+    }
+
+    buildUndokaiStadium();
+
+    const stadiumGroup = new THREE.Group();
+    scene.add(stadiumGroup);
+    stadiumGroup.add(buildVoxelInstancedMesh(fieldVoxels, WV, fieldMaterial, true, true));
+    stadiumGroup.add(buildVoxelInstancedMesh(propVoxels, WV, propMaterial, true, true));
+    stadiumGroup.add(buildVoxelInstancedMesh(lanternVoxels, WV, lanternGlowMaterial, false, false));
+    stadiumGroup.add(buildVoxelInstancedMesh(floodBulbVoxels, WV, floodBulbMaterial, false, false));
+
+    // Ground Raycast Plane for Ball Toss Aiming
+    const groundRaycastPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(60, 60),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    groundRaycastPlane.rotation.x = -Math.PI / 2;
+    scene.add(groundRaycastPlane);
+
+    // ============================================================================
+    // 6. DYNAMIC UNDOKAI PROPS: TUG ROPE, TAMAIRI BASKETS & BIG PAPER BELL (SUZUWARI)
+    // ============================================================================
+    // 1. Tug-of-War Rope with Center Red Ribbon Marker
+    const tugRopeGroup = new THREE.Group();
+    scene.add(tugRopeGroup);
+    const ropeVoxels = [];
+    for (let x = -16; x <= 16; x++) {
+      ropeVoxels.push({
+        x, y: 0, z: 0,
+        color: x === 0 ? new THREE.Color('#ef4444') : _varyColor('#d97706', x, 0, 0, 0.03),
+        sx: 1.05, sy: x === 0 ? 1.8 : 0.75, sz: 0.75
+      });
+    }
+    tugRopeGroup.add(buildVoxelInstancedMesh(ropeVoxels, 0.26, propMaterial, true, true));
+    tugRopeGroup.position.set(0, 0.55, 0);
+
+    // 2. Tamairi Ball Toss Tall Baskets (Red Pole at X = -3.2, White Pole at X = 3.2, Z = 0)
+    const tamairiGroup = new THREE.Group();
+    scene.add(tamairiGroup);
+    const basketVoxels = [];
+    [-9, 9].forEach(bx => {
+      const isRed = bx < 0;
+      for (let y = 0; y <= 12; y++) {
+        basketVoxels.push({ x: bx, y: y + 0.5, z: 0, color: new THREE.Color('#e2e8f0'), sx: 0.5, sy: 1, sz: 0.5 });
+      }
+      // Woven Basket Rim at top (y = 12..14 -> World Y ~ 4.4)
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          const r = Math.hypot(dx, dz);
+          if (r <= 2.3 && r >= 1.2) {
+            basketVoxels.push({
+              x: bx + dx * 0.75, y: 13.0, z: dz * 0.75,
+              color: new THREE.Color(isRed ? '#ef4444' : '#3b82f6'),
+              sx: 0.8, sy: 1.4, sz: 0.8
+            });
+          }
+        }
+      }
+    });
+    tamairiGroup.add(buildVoxelInstancedMesh(basketVoxels, WV, propMaterial, true, true));
+
+    // 3. Big Paper Bell (Suzuwari Piñata Sphere at X = 0, Y = 4.8, Z = -2.8)
+    const suzuwariGroup = new THREE.Group();
+    suzuwariGroup.position.set(0, 4.8, -2.8);
+    scene.add(suzuwariGroup);
+    const bellVoxels = [];
+    for (let x = -3; x <= 3; x++) {
+      for (let y = -3; y <= 3; y++) {
+        for (let z = -3; z <= 3; z++) {
+          if (Math.hypot(x, y, z) <= 3.2) {
+            const col = (y === 0) ? '#facc15' : (x < 0 ? '#ef4444' : '#ffffff');
+            bellVoxels.push({ x, y, z, color: _varyColor(col, x, y, z, 0.02) });
+          }
+        }
+      }
+    }
+    const suzuwariMesh = buildVoxelInstancedMesh(bellVoxels, 0.24, propMaterial, true, true);
+    suzuwariMesh.userData.isPaperBell = true;
+    suzuwariGroup.add(suzuwariMesh);
+    eventBoardMeshes.push(suzuwariMesh);
+
+    // ============================================================================
+    // 7. POOLED CONFETTI PARTICLES & TAMAIRI TOSSED BALLS
+    // ============================================================================
+    const PARTICLE_MAX = 140;
+    const burstParticles = [];
+    const burstMesh = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.14, 0.14, 0.14),
+      new THREE.MeshBasicMaterial({ color: 0xffffff }),
+      PARTICLE_MAX
+    );
+    for (let i = 0; i < PARTICLE_MAX; i++) {
+      burstParticles.push({
+        active: false,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        life: 0,
+        maxLife: 1,
+        color: new THREE.Color('#ffffff')
+      });
+      tempMatrix.makeScale(0, 0, 0);
+      burstMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(burstMesh);
+
+    function spawnConfettiBurst(origin, paletteHexes, count = 24, speedMult = 1.2) {
+      let spawned = 0;
+      for (let i = 0; i < PARTICLE_MAX && spawned < count; i++) {
+        const p = burstParticles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.65 + Math.random() * 0.55;
+          p.pos.copy(origin);
+          const ang = Math.random() * Math.PI * 2;
+          const spd = (1.8 + Math.random() * 3.5) * speedMult;
+          p.vel.set(Math.cos(ang) * spd, (2.5 + Math.random() * 4.0) * speedMult, Math.sin(ang) * spd);
+          p.color.set(paletteHexes[spawned % paletteHexes.length]);
+          burstMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (burstMesh.instanceColor) burstMesh.instanceColor.needsUpdate = true;
+    }
+
+    function updateParticles(dt) {
+      let dirty = false;
+      for (let i = 0; i < PARTICLE_MAX; i++) {
+        const p = burstParticles[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          burstMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= 8.5 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const s = 1.0 - (p.life / p.maxLife);
+        tempEuler.set(p.life * 9, p.life * 7, 0);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        burstMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) burstMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // Tamairi Balls Pool (Red & White Beanbags)
+    const MAX_BALLS = 24;
+    const tamairiBalls = [];
+    for (let i = 0; i < MAX_BALLS; i++) {
+      const isRed = (i % 2 === 0);
+      const bMesh = new THREE.Mesh(
+        _createSoftVoxelGeometry(0.28),
+        new THREE.MeshStandardMaterial({ color: isRed ? 0xef4444 : 0xf8fafc, roughness: 0.7 })
+      );
+      bMesh.castShadow = true;
+      bMesh.position.set((Math.random() - 0.5) * 8, 0.15, (Math.random() - 0.5) * 4 + 2);
+      scene.add(bMesh);
+      tamairiBalls.push({
+        mesh: bMesh,
+        team: isRed ? 'red' : 'white',
+        pos: bMesh.position.clone(),
+        vel: new THREE.Vector3(),
+        inFlight: false
+      });
+    }
+
+    function launchTamairiBall(startPos, targetPos, team = 'red', flightTime = 0.72) {
+      const b = tamairiBalls.find(ball => !ball.inFlight && ball.team === team) || tamairiBalls[0];
+      b.inFlight = true;
+      b.team = team;
+      b.pos.copy(startPos);
+      const g = 20.0;
+      b.vel.set(
+        (targetPos.x - startPos.x) / flightTime,
+        (targetPos.y - startPos.y + 0.5 * g * flightTime * flightTime) / flightTime,
+        (targetPos.z - startPos.z) / flightTime
+      );
+    }
+
+    // Arc Preview Dots for Ball Toss
+    const ARC_DOTS = 16;
+    const arcDotsGroup = new THREE.Group();
+    arcDotsGroup.visible = false;
+    scene.add(arcDotsGroup);
+    const arcDotMeshes = [];
+    for (let i = 0; i < ARC_DOTS; i++) {
+      const dm = new THREE.Mesh(
+        new THREE.BoxGeometry(0.16, 0.16, 0.16),
+        new THREE.MeshBasicMaterial({ color: 0xef4444 })
+      );
+      arcDotsGroup.add(dm);
+      arcDotMeshes.push(dm);
+    }
+
+    // ============================================================================
+    // 8. TOUHOU FUMO VOXEL PLUSHIE BUILDER (14 CAST & UNEXPECTED SPOT FUMOS)
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const fumos = [];
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.team = config.team; // 'red', 'white', 'staff'
+        this.emoji = config.emoji || '🎀';
+        this.accentColor = config.accentColor || '#ef4444';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.082 * this.scaleFactor;
+        this.radius = 0.85 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+        this.specialSpot = config.specialSpot || null;
+
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.tripTimer = 0.0;
+
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        this.buildCharacterVoxels(config);
+        this.syncTransform(0);
+        scene.add(this.root);
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingGlowVoxels = [];
+
+        const skinBase = '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false) => {
+          const seamDarken = (isSeam && ((Math.abs(Math.round(x + y + z)) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z,
+            color: _varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // 1. STUBBY SITTING TORSO
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain;
+              if (y === 1 && z >= 1) col = '#ffffff';
+              if (cfg.hasWhiteApron && z >= 1 && Math.abs(x) <= 2 && y <= 5) col = '#fcfcfc';
+              if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                col = '#ffffff';
+                if (Math.abs(x) <= 1 && y === 5) col = cfg.tieColor || '#ef4444';
+              }
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        // Special Props on Body:
+        // Aya's Press Camera & Hatate's Flip-Phone
+        if (this.id === 'aya') {
+          for (let cx = -2; cx <= 2; cx++) {
+            for (let cy = 3; cy <= 5; cy++) {
+              addPlushVoxel(bodyVoxels, cx, cy, 4.0, '#1e293b');
+            }
+          }
+          addPlushVoxel(bodyVoxels, 0, 4.0, 5.0, '#38bdf8');
+        }
+        // Unexpected Spot: Flag-Bearer Fumo carrying a tall Team Banner Flag!
+        if (this.id === 'flag_fumo') {
+          for (let fy = 0; fy <= 18; fy++) {
+            addPlushVoxel(rightArmVoxels, 1.5, fy - 2, 2.0, '#d97706');
+          }
+          for (let fx = 2; fx <= 7; fx++) {
+            for (let fy = 12; fy <= 16; fy++) {
+              addPlushVoxel(rightArmVoxels, fx, fy, 2.0, (fx + fy) % 2 === 0 ? '#ef4444' : '#ffffff');
+            }
+          }
+        }
+        // Unexpected Spot: Drone-Camera Fumo with quadcopter rotors above its head!
+        if (this.id === 'drone_fumo') {
+          for (const sx of [-5, 5]) {
+            for (const sz of [-5, 5]) {
+              addPlushVoxel(headVoxels, sx, 13.5, sz, '#475569');
+              addPlushVoxel(headVoxels, sx + 1, 14.2, sz, '#38bdf8');
+              addPlushVoxel(headVoxels, sx - 1, 14.2, sz, '#38bdf8');
+            }
+          }
+        }
+
+        // 2. SHORT DANGLING ARMS (With Relay Baton on Reimu & Cirno)
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || '#ffffff';
+                if (y === -3) col = skinBase;
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+        if (this.id === 'reimu' || this.id === 'cirno') {
+          for (let bz = 1; bz <= 4; bz++) {
+            addPlushVoxel(rightArmVoxels, 0.8, -2.8, bz, this.team === 'red' ? '#ef4444' : '#38bdf8');
+          }
+        }
+
+        // 3. SHORT SITTING / DANGLING LEGS WITH SHOES
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = '#ffffff';
+                if (z === 0) col = skinBase;
+                if (z >= 3) col = cfg.shoeColor || '#2b2d42';
+                if (z === 4 && y === 1 && x === 0) col = '#ffffff';
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        // 4. OVERSIZED ROUND FUMO HEAD, FACE, HAIR & HACHIMAKI SPORTS HEADBAND
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+                // Undokai Hachimaki headband around forehead (y === 8) for Red & White team athletes!
+                if (y === 8 && (this.team === 'red' || this.team === 'white')) {
+                  col = this.team === 'red' ? '#ef4444' : '#f8fafc';
+                }
+              } else if (z >= 5) {
+                if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (this.id === 'tent_sleeper') {
+                    col = (y === 5) ? '#1f141e' : skinBase;
+                  } else {
+                    if (y === 6) col = '#1f141e';
+                    else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                    else col = cfg.eyeColor;
+                  }
+                } else if (Math.abs(x) === 4 && y === 3) {
+                  col = blushCol;
+                } else if (y === 2 && Math.abs(x) <= 1) {
+                  col = (x === 0) ? '#e07a7a' : smileCol;
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        // Character Accessories:
+        if (this.id === 'reimu') {
+          for (let bx = -6; bx <= 6; bx++) {
+            addPlushVoxel(headVoxels, bx, 12.0, -1.5, '#dc2626');
+          }
+        }
+        if (this.id === 'marisa') {
+          for (let hx = -8; hx <= 8; hx++) {
+            for (let hz = -8; hz <= 8; hz++) {
+              if (Math.hypot(hx, hz) <= 8.2 && Math.hypot(hx, hz) >= 4.0) {
+                addPlushVoxel(headVoxels, hx, 10.5, hz - 1.0, '#1e1b2e');
+              }
+            }
+          }
+        }
+        if (this.id === 'flandre') {
+          const crystalCols = ['#38bdf8', '#a855f7', '#ec4899', '#f97316', '#fde047', '#4ade80'];
+          for (const side of [-1, 1]) {
+            for (let rx = 1; rx <= 6; rx++) {
+              wingGlowVoxels.push({
+                x: side * rx, y: 2.0 + (rx % 2), z: -0.5,
+                color: new THREE.Color(crystalCols[rx % crystalCols.length])
+              });
+            }
+          }
+        }
+        if (this.id === 'cirno') {
+          for (const side of [-1, 1]) {
+            for (let r = 1; r <= 5; r++) {
+              wingGlowVoxels.push({ x: side * r, y: 1.5 + (r % 2), z: -0.5, color: new THREE.Color('#7dd3fc') });
+            }
+          }
+        }
+        if (this.id === 'aya' || this.id === 'hatate') {
+          // Tiny red Tengu Tokin pillbox hat on forehead
+          for (let tx = -1; tx <= 1; tx++) {
+            for (let ty = 11; ty <= 13; ty++) {
+              addPlushVoxel(headVoxels, tx, ty, 3.5, '#dc2626');
+            }
+          }
+        }
+        if (this.id === 'keine') {
+          // Teacher Eboshi Hat + Silver Whistle
+          for (let hx = -3; hx <= 3; hx++) {
+            for (let hz = -3; hz <= 3; hz++) {
+              addPlushVoxel(headVoxels, hx, 12.0, hz, '#1e3a8a');
+            }
+          }
+          addPlushVoxel(headVoxels, 0, 1.2, 6.2, '#e2e8f0');
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allFumoRaycastMeshes.push(m);
+          }
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        if (wingGlowVoxels.length > 0) {
+          registerPart(wingGlowVoxels, this.wingsPivot, iceWingMaterial);
+        }
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.5, this.squash - 0.42 * strength);
+        this.squashVel = -3.6 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 12 * strength;
+        this.limbPitch = -0.65 * strength;
+        this.limbPitchVel = -6.0 * strength;
+        spawnConfettiBurst(this.pos.clone().add(new THREE.Vector3(0, 0.9, 0)), [this.accentColor, '#ffffff', '#fde047'], 10, 0.9);
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      tripAndTumble() {
+        if (this.tripTimer > 0) return;
+        this.tripTimer = 1.1;
+        this.vel.y = 4.2;
+        this.squashVel = -5.0;
+        soundFX.playBounce(0.9);
+        spawnConfettiBurst(this.pos, ['#f8fafc', '#fde047'], 8, 0.7);
+      }
+
+      resetToHome() {
+        this.pos.copy(this.homePos);
+        this.vel.set(0, 0, 0);
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel.set(0, 0, 0);
+        this.tripTimer = 0;
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.squeeze(0.8);
+      }
+
+      updatePhysics(dt, time) {
+        const squashStiff = 210.0;
+        const squashDamp = 11.5;
+        this.squashVel += ((1.0 - this.squash) * squashStiff - this.squashVel * squashDamp) * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash + this.squashVel * dt, 0.45, 1.55);
+
+        const headStiff = 140.0;
+        const headDamp = 7.5;
+        const idleBob = Math.sin(time * 2.5 + this.homePos.x) * 0.035;
+        this.headPitchVel += ((idleBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        const targetLimbPitch = (this.isDragged || !this.isGrounded) ? 0.58 : 0.0;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * 120.0 - this.limbPitchVel * 8.0) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * 120.0 - this.limbRollVel * 8.0) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.8, 0.9);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+
+        if (this.tripTimer > 0) {
+          this.tripTimer = Math.max(0, this.tripTimer - dt);
+          this.pitch += 9.5 * dt; // Forward tumble roll!
+        }
+
+        if (!this.isDragged) {
+          if (this.specialSpot === 'drone' && this.vel.lengthSq() < 0.5) {
+            // Drone-camera fumo hovering in a figure-8 over the stadium!
+            this.pos.x = Math.sin(time * 0.7) * 6.5;
+            this.pos.z = Math.sin(time * 1.4) * 3.5;
+            this.pos.y = 4.6 + Math.sin(time * 3.5) * 0.35;
+            this.yaw = time * 0.9;
+            this.isGrounded = true;
+          } else {
+            this.vel.y -= 24.0 * dt;
+            this.vel.multiplyScalar(Math.pow(0.985, dt * 60));
+            this.pos.addScaledVector(this.vel, dt);
+
+            this.yaw += this.angVel.y * dt;
+            this.pitch += this.angVel.x * dt;
+            this.roll += this.angVel.z * dt;
+            this.angVel.multiplyScalar(Math.pow(0.92, dt * 60));
+
+            this.isGrounded = false;
+
+            if (this.pos.y < 0) {
+              const impact = -this.vel.y;
+              this.pos.y = 0;
+              if (impact > 1.9) {
+                this.vel.y = impact * 0.38;
+                this.squashVel -= Math.min(8.5, impact * 0.85);
+                soundFX.playBounce(impact * 0.08);
+              } else {
+                this.vel.y = 0;
+                this.isGrounded = true;
+              }
+              this.vel.x *= 0.8;
+              this.vel.z *= 0.8;
+            }
+
+            this.pos.x = THREE.MathUtils.clamp(this.pos.x, -12.5, 12.5);
+            this.pos.z = THREE.MathUtils.clamp(this.pos.z, -10.5, 10.5);
+
+            const r = this.radius * 0.72;
+            const centerY = this.pos.y + r;
+            for (let i = 0; i < propColliders.length; i++) {
+              const box = propColliders[i];
+              const cx = THREE.MathUtils.clamp(this.pos.x, box.min.x, box.max.x);
+              const cy = THREE.MathUtils.clamp(centerY, box.min.y, box.max.y);
+              const cz = THREE.MathUtils.clamp(this.pos.z, box.min.z, box.max.z);
+              const dx = this.pos.x - cx;
+              const dy = centerY - cy;
+              const dz = this.pos.z - cz;
+              const distSq = dx * dx + dy * dy + dz * dz;
+              if (distSq < r * r) {
+                if (centerY >= box.max.y - 0.25 && this.vel.y <= 0.5) {
+                  this.pos.y = box.max.y;
+                  this.vel.y = 0;
+                  this.isGrounded = true;
+                }
+              }
+            }
+
+            if (this.isGrounded && this.tripTimer <= 0) {
+              this.pitch = THREE.MathUtils.lerp(this.pitch, 0, Math.min(1, dt * 9.5));
+              this.roll = THREE.MathUtils.lerp(this.roll, 0, Math.min(1, dt * 9.5));
+              this.angVel.multiplyScalar(0.75);
+            }
+          }
+        }
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+        this.leftArmPivot.rotation.set(this.limbPitch, 0, 0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.rightArmPivot.rotation.set(this.limbPitch, 0, -0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+        this.wingsPivot.rotation.x = Math.sin(time * 4.2 + this.homePos.x) * 0.07;
+      }
+    }
+
+    const castConfigs = [
+      // RED TEAM (Akagumi)
+      { id: 'reimu', name: 'Reimu Hakurei (Red Team Captain)', team: 'red', emoji: '🔴', accentColor: '#ef4444', hairColor: '#2b1e23', eyeColor: '#991b1b', outfitMain: '#dc2626', sleeveColor: '#ffffff', tieColor: '#facc15', shoeColor: '#451a03', homePos: new THREE.Vector3(-3.2, 0, 5.2), homeYaw: Math.PI / 2, pitchAudio: 1.0 },
+      { id: 'marisa', name: 'Marisa Kirisame (Red Team Sprinter)', team: 'red', emoji: '🌟', accentColor: '#facc15', hairColor: '#fde047', eyeColor: '#ca8a04', outfitMain: '#1f2937', sleeveColor: '#ffffff', tieColor: '#ef4444', shoeColor: '#111827', hasWhiteApron: true, homePos: new THREE.Vector3(-4.5, 0, 0.0), homeYaw: Math.PI / 2, pitchAudio: 0.96 },
+      { id: 'flandre', name: 'Flandre Scarlet (Red Team Power)', team: 'red', emoji: '🌈', accentColor: '#f43f5e', hairColor: '#fef08a', eyeColor: '#dc2626', outfitMain: '#e11d48', sleeveColor: '#ffffff', tieColor: '#fde047', shoeColor: '#881337', homePos: new THREE.Vector3(-3.0, 0, 0.0), homeYaw: Math.PI / 2, pitchAudio: 1.22 },
+      { id: 'mokou', name: 'Fujiwara no Mokou (Red Team Anchor)', team: 'red', emoji: '🔥', accentColor: '#f97316', hairColor: '#f1f5f9', eyeColor: '#b91c1c', outfitMain: '#991b1b', sleeveColor: '#ffffff', tieColor: '#f97316', shoeColor: '#451a03', homePos: new THREE.Vector3(-1.5, 0, 0.0), homeYaw: Math.PI / 2, pitchAudio: 0.9 },
+
+      // WHITE TEAM (Shirogumi)
+      { id: 'cirno', name: 'Cirno (White Team Captain)', team: 'white', emoji: '⚪', accentColor: '#38bdf8', hairColor: '#7dd3fc', eyeColor: '#0284c7', outfitMain: '#2563eb', sleeveColor: '#ffffff', tieColor: '#ef4444', shoeColor: '#1e3a8a', homePos: new THREE.Vector3(-3.2, 0, 6.2), homeYaw: Math.PI / 2, pitchAudio: 1.15 },
+      { id: 'sakuya', name: 'Sakuya Izayoi (White Team Ace)', team: 'white', emoji: '⏱️', accentColor: '#60a5fa', hairColor: '#e2e8f0', eyeColor: '#1d4ed8', outfitMain: '#1e3a8a', sleeveColor: '#ffffff', tieColor: '#22c55e', shoeColor: '#172554', hasWhiteApron: true, homePos: new THREE.Vector3(1.5, 0, 0.0), homeYaw: -Math.PI / 2, pitchAudio: 0.94 },
+      { id: 'youmu', name: 'Youmu Konpaku (White Team Speedster)', team: 'white', emoji: '⚔️', accentColor: '#10b981', hairColor: '#f1f5f9', eyeColor: '#0f766e', outfitMain: '#065f46', sleeveColor: '#ffffff', tieColor: '#1e293b', shoeColor: '#064e3b', homePos: new THREE.Vector3(3.0, 0, 0.0), homeYaw: -Math.PI / 2, pitchAudio: 1.06 },
+      { id: 'kaguya', name: 'Kaguya Houraisan (White Team Anchor)', team: 'white', emoji: '🎋', accentColor: '#ec4899', hairColor: '#1e1b2e', eyeColor: '#4c1d95', outfitMain: '#be185d', sleeveColor: '#fbcfe8', tieColor: '#fde047', shoeColor: '#500724', homePos: new THREE.Vector3(4.5, 0, 0.0), homeYaw: -Math.PI / 2, pitchAudio: 0.98 },
+
+      // COMMENTATORS & TEACHER REFEREE
+      { id: 'aya', name: 'Aya Shameimaru (Commentator & Photographer)', team: 'staff', emoji: '📸', accentColor: '#ef4444', hairColor: '#1e293b', eyeColor: '#b91c1c', outfitMain: '#111827', sleeveColor: '#ffffff', tieColor: '#ef4444', shoeColor: '#7f1d1d', homePos: new THREE.Vector3(-0.6, 1.05, -7.35), homeYaw: 0.0, pitchAudio: 1.08 },
+      { id: 'hatate', name: 'Hatate Himekaidou (Live Co-Commentator)', team: 'staff', emoji: '📱', accentColor: '#a855f7', hairColor: '#4c1d95', eyeColor: '#7e22ce', outfitMain: '#581c87', sleeveColor: '#ffffff', tieColor: '#fde047', shoeColor: '#3b0764', homePos: new THREE.Vector3(0.6, 1.05, -7.35), homeYaw: 0.0, pitchAudio: 1.12 },
+      { id: 'keine', name: 'Teacher Keine (Starter Pistol & Referee)', team: 'staff', emoji: '📣', accentColor: '#facc15', hairColor: '#bfdbfe', eyeColor: '#b91c1c', outfitMain: '#1e40af', sleeveColor: '#ffffff', tieColor: '#dc2626', shoeColor: '#1e1b4b', homePos: new THREE.Vector3(3.2, 0, -5.8), homeYaw: 0.2, pitchAudio: 0.95 },
+
+      // UNEXPECTED SPOTS
+      { id: 'flag_fumo', name: 'Cheerleader Fumo (Carrying Giant Flag!)', team: 'staff', emoji: '🚩', accentColor: '#f59e0b', hairColor: '#fde047', eyeColor: '#dc2626', outfitMain: '#dc2626', sleeveColor: '#ffffff', tieColor: '#facc15', shoeColor: '#451a03', homePos: new THREE.Vector3(-6.8, 0, -6.5), homeYaw: 0.4, pitchAudio: 1.16 },
+      { id: 'tent_sleeper', name: 'Sleepy Fumo (Napping Under Red Tent)', team: 'staff', emoji: '💤', accentColor: '#f472b6', hairColor: '#fbcfe8', eyeColor: '#be123c', outfitMain: '#9d174d', sleeveColor: '#ffffff', tieColor: '#f43f5e', shoeColor: '#4c0519', homePos: new THREE.Vector3(-4.9, 0, -8.6), homeYaw: 0.8, pitchAudio: 1.24 },
+      { id: 'drone_fumo', name: 'Drone-Cam Fumo (Aerial Broadcast!)', team: 'staff', emoji: '🚁', accentColor: '#38bdf8', hairColor: '#a7f3d0', eyeColor: '#0284c7', outfitMain: '#0284c7', sleeveColor: '#ffffff', tieColor: '#facc15', shoeColor: '#0c4a6e', scale: 0.68, homePos: new THREE.Vector3(0, 4.6, 0), homeYaw: 0, specialSpot: 'drone', pitchAudio: 1.38 }
+    ];
+
+    castConfigs.forEach(cfg => fumos.push(new VoxelFumo(cfg)));
+
+    // ============================================================================
+    // 9. UNDOKAI 3-EVENT GAMEPLAY ENGINE (RELAY, TUG OF WAR, BALL TOSS)
+    // ============================================================================
+    const redTeamFumos = fumos.filter(f => f.team === 'red');
+    const whiteTeamFumos = fumos.filter(f => f.team === 'white');
+
+    let relayProgressRed = 0.0;   // 0..100% around the oval track
+    let relayProgressWhite = 0.0;
+    let relaySpeedBoost = 0.0;
+    let relayBatonPassed = false;
+
+    let tugOffset = 0.0; // -1.0 (Red Wins) to +1.0 (White Wins)
+    let lastTugArrow = '';
+
+    const activeEventLabelEl = document.getElementById('active-event-label');
+    const commentatorStatusEl = document.getElementById('commentator-status');
+    const meterPromptEl = document.getElementById('meter-prompt');
+    const meterValueEl = document.getElementById('meter-value');
+    const meterFillEl = document.getElementById('meter-fill');
+    const meterZoneEl = document.getElementById('meter-zone');
+    const scoreRedEl = document.getElementById('score-red');
+    const scoreWhiteEl = document.getElementById('score-white');
+
+    const bannerEl = document.getElementById('event-banner');
+    const bannerIconEl = document.getElementById('banner-icon');
+    const bannerTitleEl = document.getElementById('banner-title');
+    const bannerSubEl = document.getElementById('banner-sub');
+    let bannerTimer = null;
+
+    function showBanner(icon, title, sub) {
+      bannerIconEl.textContent = icon;
+      bannerTitleEl.textContent = title;
+      bannerSubEl.textContent = sub;
+      bannerEl.style.display = 'flex';
+      if (bannerTimer) clearTimeout(bannerTimer);
+      bannerTimer = setTimeout(() => {
+        bannerEl.style.display = 'none';
+      }, 3600);
+    }
+
+    function updateScoresUI() {
+      scoreRedEl.textContent = scoreRed;
+      scoreWhiteEl.textContent = scoreWhite;
+    }
+
+    function trackPosFromProgress(pct, laneRadius = 5.0) {
+      const angle = (pct / 100) * Math.PI * 2;
+      const straight = 3.5;
+      const cx = Math.cos(angle) * laneRadius + (Math.cos(angle) >= 0 ? straight : -straight);
+      const cz = Math.sin(angle) * laneRadius;
+      const tangentYaw = Math.atan2(-Math.cos(angle), Math.sin(angle));
+      return { x: cx, z: cz, yaw: tangentYaw };
+    }
+
+    function configureEventStage() {
+      const ev = EVENTS[currentEventIndex];
+      soundFX.playStarterPistol();
+
+      tugRopeGroup.visible = (ev === 'tug');
+      tamairiGroup.visible = (ev === 'ball');
+
+      if (ev === 'relay') {
+        activeEventLabelEl.textContent = '🏃 EVENT 1: RELAY RACE';
+        commentatorStatusEl.textContent = '📸 Aya: "Tap SPACE rapidly to sprint!"';
+        meterPromptEl.innerHTML = '⚡ Tap <kbd>Space</kbd> to Dash! Click Runner at 70-86% to Pass Baton!';
+        meterZoneEl.style.display = 'block';
+        relayProgressRed = 0;
+        relayProgressWhite = 0;
+        relaySpeedBoost = 0;
+        relayBatonPassed = false;
+      } else if (ev === 'tug') {
+        activeEventLabelEl.textContent = '🪢 EVENT 2: TUG OF WAR (TSUNAHIKI)';
+        commentatorStatusEl.textContent = '📱 Hatate: "Alternate Left & Right Arrows!"';
+        meterPromptEl.innerHTML = '🪢 Alternate <kbd>◀</kbd> and <kbd>▶</kbd> Arrows to Pull for Red Team!';
+        meterZoneEl.style.display = 'none';
+        tugOffset = 0;
+      } else if (ev === 'ball') {
+        activeEventLabelEl.textContent = '🏀 EVENT 3: BALL TOSS (TAMAIRI)';
+        commentatorStatusEl.textContent = '📸 Aya: "Hold & Drag on Field to Aim into Basket!"';
+        meterPromptEl.innerHTML = '🎯 Hold & Drag on Field to Aim Red Balls into the Left Basket!';
+        meterZoneEl.style.display = 'none';
+      }
+    }
+
+    function switchEvent(delta) {
+      currentEventIndex = (currentEventIndex + delta + EVENTS.length) % EVENTS.length;
+      configureEventStage();
+    }
+
+    function celebratePodiumFinale() {
+      soundFX.playCrowdCheer();
+      soundFX.playWhistle();
+      // Pop the Suzuwari Paper Bell with a giant confetti shower!
+      suzuwariGroup.scale.set(1.35, 0.75, 1.35);
+      setTimeout(() => suzuwariGroup.scale.set(1, 1, 1), 280);
+      spawnConfettiBurst(suzuwariGroup.position, ['#ef4444', '#ffffff', '#facc15', '#38bdf8', '#4ade80'], 42, 1.6);
+
+      // Place top 3 fumos on the Podium!
+      if (redTeamFumos[0]) redTeamFumos[0].pos.set(24 * WV, 1.4, -18 * WV);
+      if (whiteTeamFumos[0]) whiteTeamFumos[0].pos.set(21.5 * WV, 1.05, -18 * WV);
+      if (redTeamFumos[1]) redTeamFumos[1].pos.set(26.5 * WV, 0.7, -18 * WV);
+
+      fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.1), idx * 35));
+      const champ = scoreRed >= scoreWhite ? '🔴 Red Team' : '⚪ White Team';
+      showBanner('🎊', `${champ} Leads on the Podium!`, 'The Suzuwari Paper Bell popped with confetti!');
+    }
+
+    function updateActiveEvent(dt, time) {
+      const ev = EVENTS[currentEventIndex];
+
+      if (ev === 'relay') {
+        relaySpeedBoost = Math.max(0, relaySpeedBoost - dt * 1.8);
+        const redSpd = 7.5 + relaySpeedBoost * 16.0 + (relayBatonPassed ? 5.5 : 0);
+        const whiteSpd = 11.2 + Math.sin(time * 2.5) * 1.5;
+
+        relayProgressRed += redSpd * dt;
+        relayProgressWhite += whiteSpd * dt;
+
+        // Position Red Runner (Reimu -> Marisa) & White Runner (Cirno -> Youmu) on the oval track
+        const redRunner = relayProgressRed < 75 ? redTeamFumos[0] : redTeamFumos[1];
+        const whiteRunner = relayProgressWhite < 75 ? whiteTeamFumos[0] : whiteTeamFumos[2];
+
+        if (redRunner && !redRunner.isDragged) {
+          const tp = trackPosFromProgress(relayProgressRed, 4.6);
+          redRunner.pos.x = tp.x;
+          redRunner.pos.z = tp.z;
+          redRunner.yaw = tp.yaw;
+          // Running soft-body wobble!
+          redRunner.roll = Math.sin(time * 18) * 0.16;
+          redRunner.squash = 1.0 + Math.abs(Math.sin(time * 18)) * 0.14;
+        }
+        if (whiteRunner && !whiteRunner.isDragged) {
+          const tpW = trackPosFromProgress(relayProgressWhite, 5.8);
+          whiteRunner.pos.x = tpW.x;
+          whiteRunner.pos.z = tpW.z;
+          whiteRunner.yaw = tpW.yaw;
+          whiteRunner.roll = Math.cos(time * 16) * 0.14;
+          // Occasional funny hurdle trip!
+          if (Math.abs(relayProgressWhite - 50) < 1.2 && Math.random() < 0.08) {
+            whiteRunner.tripAndTumble();
+          }
+        }
+
+        meterFillEl.style.width = `${Math.min(100, relayProgressRed)}%`;
+        meterValueEl.textContent = `${Math.round(Math.min(100, relayProgressRed))}%`;
+
+        if (relayProgressRed >= 100 || relayProgressWhite >= 100) {
+          const redWon = relayProgressRed >= 100;
+          if (redWon) scoreRed += 3;
+          else scoreWhite += 3;
+          updateScoresUI();
+          soundFX.playWhistle();
+          soundFX.playCrowdCheer();
+          spawnConfettiBurst(new THREE.Vector3(3.5, 1.5, 5.2), ['#ef4444', '#ffffff', '#fde047'], 28, 1.3);
+          showBanner(redWon ? '🔴' : '⚪', `${redWon ? 'Red Team' : 'White Team'} Wins the Relay Race!`, '+3 Undokai Points!');
+          relayProgressRed = 0;
+          relayProgressWhite = 0;
+          relayBatonPassed = false;
+        }
+      } else if (ev === 'tug') {
+        // White team AI pulls gently toward +1
+        tugOffset += (0.14 + Math.sin(time * 3) * 0.05) * dt;
+        tugOffset = THREE.MathUtils.clamp(tugOffset, -1.0, 1.0);
+
+        tugRopeGroup.position.x = tugOffset * 2.4;
+        tugRopeGroup.position.y = 0.55 + Math.sin(time * 12) * 0.04;
+
+        // Position Red & White team fumos along the swaying tug-of-war rope
+        redTeamFumos.forEach((f, idx) => {
+          if (!f.isDragged) {
+            f.pos.set(-1.4 - idx * 1.05 + tugOffset * 2.4, 0, 0);
+            f.yaw = Math.PI / 2;
+            f.pitch = -0.22 + Math.sin(time * 10 + idx) * 0.08;
+          }
+        });
+        whiteTeamFumos.forEach((f, idx) => {
+          if (!f.isDragged) {
+            f.pos.set(1.4 + idx * 1.05 + tugOffset * 2.4, 0, 0);
+            f.yaw = -Math.PI / 2;
+            f.pitch = -0.22 + Math.cos(time * 10 + idx) * 0.08;
+          }
+        });
+
+        const pct = Math.round((1.0 - (tugOffset + 1.0) * 0.5) * 100);
+        meterFillEl.style.width = `${pct}%`;
+        meterValueEl.textContent = `${pct}% Red`;
+
+        if (Math.abs(tugOffset) >= 0.98) {
+          const redWon = tugOffset < 0;
+          if (redWon) scoreRed += 3;
+          else scoreWhite += 3;
+          updateScoresUI();
+          soundFX.playWhistle();
+          soundFX.playCrowdCheer();
+          // Losing side tumbles comedy-style!
+          (redWon ? whiteTeamFumos : redTeamFumos).forEach(f => f.tripAndTumble());
+          showBanner(redWon ? '🔴' : '⚪', `${redWon ? 'Red Team' : 'White Team'} Wins Tug of War!`, '+3 Undokai Points!');
+          tugOffset = 0;
+        }
+      } else if (ev === 'ball') {
+        // White Team AI periodically tosses white balls toward the right basket (X = 3.15, Y = 4.55, Z = 0)
+        if (Math.random() < dt * 0.85) {
+          const thrower = whiteTeamFumos[Math.floor(Math.random() * whiteTeamFumos.length)];
+          if (thrower && !thrower.isDragged) {
+            thrower.squeeze(0.6);
+            const aim = new THREE.Vector3(3.15 + (Math.random() - 0.5) * 0.7, 4.55, (Math.random() - 0.5) * 0.7);
+            launchTamairiBall(thrower.pos.clone().add(new THREE.Vector3(0, 0.8, 0)), aim, 'white', 0.75);
+          }
+        }
+      }
+
+      // Update Tamairi Flying Balls & Check Basket Rim Hits
+      const redBasketTop = new THREE.Vector3(-9 * WV, 13 * WV, 0);
+      const whiteBasketTop = new THREE.Vector3(9 * WV, 13 * WV, 0);
+
+      for (let i = 0; i < tamairiBalls.length; i++) {
+        const b = tamairiBalls[i];
+        if (!b.inFlight) continue;
+
+        b.vel.y -= 20.0 * dt;
+        b.pos.addScaledVector(b.vel, dt);
+        b.mesh.position.copy(b.pos);
+
+        // Check Red Basket Score
+        if (b.pos.distanceTo(redBasketTop) < 0.68 && b.vel.y < 0) {
+          b.inFlight = false;
+          b.pos.set((Math.random() - 0.5) * 6, 0.15, 3.5);
+          b.mesh.position.copy(b.pos);
+          scoreRed++;
+          updateScoresUI();
+          soundFX.playCrowdCheer();
+          spawnConfettiBurst(redBasketTop, ['#ef4444', '#fde047', '#ffffff'], 16, 1.1);
+          showBanner('🏀', 'Red Basket Scored! +1 Point!', `Red Team: ${scoreRed} pts`);
+          continue;
+        }
+        // Check White Basket Score
+        if (b.pos.distanceTo(whiteBasketTop) < 0.68 && b.vel.y < 0) {
+          b.inFlight = false;
+          b.pos.set((Math.random() - 0.5) * 6, 0.15, 3.5);
+          b.mesh.position.copy(b.pos);
+          scoreWhite++;
+          updateScoresUI();
+          spawnConfettiBurst(whiteBasketTop, ['#38bdf8', '#ffffff'], 14, 1.0);
+          continue;
+        }
+
+        if (b.pos.y <= 0.15) {
+          b.pos.y = 0.15;
+          b.inFlight = false;
+          b.mesh.position.copy(b.pos);
+        }
+      }
+    }
+
+    // ============================================================================
+    // 10. POINTER INTERACTION (DRAG FUMO, PASS BATON, AIM BALL TOSS, EVENT BOARD)
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let selectedFumo = null;
+    let isDraggingFumo = false;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    let pendingBallAimTimer = null;
+    let isAimingBall = false;
+    let aimStartTime = 0;
+    const ballAimTarget = new THREE.Vector3(-3.15, 4.55, 0);
+    const playerBallOrigin = new THREE.Vector3(-3.15, 0.9, 4.2);
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function clearPendingBallAim() {
+      if (pendingBallAimTimer !== null) {
+        clearTimeout(pendingBallAimTimer);
+        pendingBallAimTimer = null;
+      }
+    }
+
+    function updateBallArcPreview(chargeRatio) {
+      const flightTime = THREE.MathUtils.lerp(0.85, 0.55, chargeRatio);
+      const g = 20.0;
+      const vx = (ballAimTarget.x - playerBallOrigin.x) / flightTime;
+      const vy = (ballAimTarget.y - playerBallOrigin.y + 0.5 * g * flightTime * flightTime) / flightTime;
+      const vz = (ballAimTarget.z - playerBallOrigin.z) / flightTime;
+
+      for (let i = 0; i < ARC_DOTS; i++) {
+        const t = (i / (ARC_DOTS - 1)) * flightTime;
+        arcDotMeshes[i].position.set(
+          playerBallOrigin.x + vx * t,
+          playerBallOrigin.y + vy * t - 0.5 * g * t * t,
+          playerBallOrigin.z + vz * t
+        );
+      }
+    }
+
+    function onPointerDown(e) {
+      if (e.button !== 0) return;
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+      raycaster.setFromCamera(pointerNDC, camera);
+      clearPendingBallAim();
+
+      // 1. Check 3D Event Board or Suzuwari Paper Bell Click
+      const boardHits = raycaster.intersectObjects(eventBoardMeshes, false);
+      if (boardHits.length > 0) {
+        if (boardHits[0].object.userData.isPaperBell) {
+          celebratePodiumFinale();
+        } else {
+          switchEvent(1);
+        }
+        return;
+      }
+
+      // 2. Check Fumo Hit (Drag & Throw, Squeeze, or Timed Baton Pass in Relay!)
+      const fumoHits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (fumoHits.length > 0 && fumoHits[0].object.userData.fumo) {
+        selectedFumo = fumoHits[0].object.userData.fumo;
+        isDraggingFumo = false;
+        controls.enabled = false;
+
+        // Check if clicking runner during Relay Baton Pass Zone (68%..86%)
+        if (EVENTS[currentEventIndex] === 'relay' && selectedFumo.team === 'red' && relayProgressRed >= 65 && relayProgressRed <= 88 && !relayBatonPassed) {
+          relayBatonPassed = true;
+          relaySpeedBoost += 1.4;
+          soundFX.playWhistle();
+          spawnConfettiBurst(selectedFumo.pos, ['#4ade80', '#fde047', '#ffffff'], 16, 1.2);
+          showBanner('⚡', 'Perfect Baton Pass to Marisa!', 'Turbo Sprint Boost Activated!');
+        }
+
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), selectedFumo.pos);
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          dragOffset.subVectors(selectedFumo.pos, dragHitPoint);
+        } else {
+          dragOffset.set(0, 0, 0);
+        }
+        dragHistory = [{ pos: selectedFumo.pos.clone(), time: performance.now() }];
+        return;
+      }
+
+      // 3. In Ball Toss Event (or when clicking near baskets): Hold stationary for 160ms to Aim Ball!
+      const groundHits = raycaster.intersectObject(groundRaycastPlane, false);
+      if (groundHits.length > 0) {
+        pendingBallAimTimer = setTimeout(() => {
+          pendingBallAimTimer = null;
+          isAimingBall = true;
+          controls.enabled = false;
+          aimStartTime = performance.now();
+          ballAimTarget.set(-9 * WV, 13 * WV, 0); // Default aim at Red Basket rim
+          arcDotsGroup.visible = true;
+          updateBallArcPreview(0.5);
+        }, 160);
+      }
+    }
+
+    function onPointerMove(e) {
+      updatePointerNDC(e);
+      raycaster.setFromCamera(pointerNDC, camera);
+      const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+
+      if (pendingBallAimTimer !== null && moveDist > 6) {
+        clearPendingBallAim();
+      }
+
+      if (selectedFumo) {
+        recordInteraction();
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          selectedFumo.isDragged = true;
+          selectedFumo.isGrounded = false;
+          selectedFumo.squashVel += 3.2;
+          soundFX.playPickup();
+        }
+        if (isDraggingFumo && raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          const targetPos = dragHitPoint.clone().add(dragOffset);
+          targetPos.x = THREE.MathUtils.clamp(targetPos.x, -12.0, 12.0);
+          targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.2, 11.0);
+          targetPos.z = THREE.MathUtils.clamp(targetPos.z, -10.0, 10.0);
+
+          const prevPos = selectedFumo.pos.clone();
+          selectedFumo.pos.lerp(targetPos, 0.55);
+          const delta = selectedFumo.pos.clone().sub(prevPos);
+          selectedFumo.headRollVel -= delta.x * 15.0;
+          selectedFumo.headPitchVel += delta.z * 15.0;
+          selectedFumo.limbRollVel -= delta.x * 20.0;
+
+          dragHistory.push({ pos: selectedFumo.pos.clone(), time: performance.now() });
+          while (dragHistory.length > 6) dragHistory.shift();
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      if (isAimingBall) {
+        const groundHits = raycaster.intersectObject(groundRaycastPlane, false);
+        if (groundHits.length > 0) {
+          ballAimTarget.x = THREE.MathUtils.clamp(groundHits[0].point.x, -5.5, 5.5);
+          ballAimTarget.z = THREE.MathUtils.clamp(groundHits[0].point.z, -3.5, 3.5);
+          ballAimTarget.y = 13 * WV;
+        }
+        return;
+      }
+
+      const fumoHits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (fumoHits.length > 0 && fumoHits[0].object.userData.fumo) {
+        const f = fumoHits[0].object.userData.fumo;
+        renderer.domElement.style.cursor = 'grab';
+        tooltipEmojiEl.textContent = f.emoji;
+        tooltipTextEl.textContent = f.name;
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else {
+        renderer.domElement.style.cursor = 'default';
+        tooltipEl.style.opacity = '0';
+      }
+    }
+
+    function onPointerUp() {
+      clearPendingBallAim();
+      controls.enabled = true;
+
+      if (selectedFumo) {
+        if (!isDraggingFumo) {
+          selectedFumo.squeeze(1.0);
+        } else {
+          selectedFumo.isDragged = false;
+          const now = performance.now();
+          while (dragHistory.length > 1 && now - dragHistory[0].time > 140) dragHistory.shift();
+          if (dragHistory.length >= 2) {
+            const first = dragHistory[0];
+            const last = dragHistory[dragHistory.length - 1];
+            const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+            const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+            if (throwVel.length() > 22) throwVel.setLength(22);
+            selectedFumo.vel.copy(throwVel);
+          }
+        }
+        selectedFumo = null;
+        isDraggingFumo = false;
+        return;
+      }
+
+      if (isAimingBall) {
+        isAimingBall = false;
+        arcDotsGroup.visible = false;
+        const holdSec = (performance.now() - aimStartTime) / 1000;
+        const chargeRatio = THREE.MathUtils.clamp(holdSec / 0.9, 0.2, 1.0);
+        launchTamairiBall(playerBallOrigin, ballAimTarget, 'red', THREE.MathUtils.lerp(0.85, 0.55, chargeRatio));
+        soundFX.playPickup();
+      }
+    }
+
+    // ============================================================================
+    // 11. DAY / NIGHT SMOOTH TRANSITION (~2 SECONDS) & HUB INTEGRATION
+    // ============================================================================
+    const daySkyCol = new THREE.Color('#84ccff');
+    const nightSkyCol = new THREE.Color('#080b1a');
+    const daySunCol = new THREE.Color('#fff7ed');
+    const nightMoonCol = new THREE.Color('#60a5fa');
+    const dayHemiSky = new THREE.Color('#fffbeb');
+    const nightHemiSky = new THREE.Color('#1e293b');
+    const dayHemiGround = new THREE.Color('#65a30d');
+    const nightHemiGround = new THREE.Color('#0f172a');
+
+    function postModeToHub() {
+      const modeStr = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: modeStr }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(modeStr, { immediate = false, playSound = false } = {}) {
+      const targetNight = (modeStr === 'night' || modeStr === true);
+      if (targetNight === isNightMode && !immediate) return; // Absolute check
+      isNightMode = targetNight;
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) dayNightProgress = dayNightTarget;
+
+      document.body.classList.toggle('night-ui', isNightMode);
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
+      } catch (e) {}
+
+      if (playSound) soundFX.playPickup();
+      postModeToHub();
+    }
+
+    function toggleDayNightMode() {
+      setDayNightMode(isNightMode ? 'day' : 'night', { immediate: false, playSound: true });
+    }
+
+    function updateDayNightTransition(dt) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.5;
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      scene.background.lerpColors(daySkyCol, nightSkyCol, t);
+      scene.fog.color.copy(scene.background);
+
+      dirLight.color.lerpColors(daySunCol, nightMoonCol, t);
+      dirLight.intensity = THREE.MathUtils.lerp(1.22, 0.36, t);
+
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.72, 0.25, t);
+
+      floodLightWest.intensity = THREE.MathUtils.lerp(0.05, 1.65, t);
+      floodLightEast.intensity = THREE.MathUtils.lerp(0.05, 1.65, t);
+      lanternStringLight.intensity = THREE.MathUtils.lerp(0.05, 1.55, t);
+
+      floodBulbMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.2, 2.4, t);
+      lanternGlowMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.3, 2.2, t);
+      iceWingMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.3, 1.1, t);
+
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.16, 0.68, t);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.84, 0.6, t);
+      }
+    }
+
+    // ============================================================================
+    // 12. UI BUTTONS, KEYBOARD SHORTCUTS (Q, E, SPACE, ARROWS, M, N, R) & LIFECYCLE
+    // ============================================================================
+    const muteIconEl = document.getElementById('mute-icon');
+    function syncMuteUI() {
+      muteIconEl.textContent = soundFX.enabled ? '🔊' : '🔇';
+    }
+    syncMuteUI();
+
+    function toggleMute() {
+      soundFX.enabled = !soundFX.enabled;
+      syncMuteUI();
+      try {
+        localStorage.setItem(STORAGE_MUTE_KEY, String(!soundFX.enabled));
+      } catch (e) {}
+      if (soundFX.enabled) {
+        soundFX.playPickup();
+        soundFX.startMarchLoop();
+      }
+    }
+
+    document.getElementById('btn-prev-event').addEventListener('click', () => { recordInteraction(); switchEvent(-1); });
+    document.getElementById('btn-next-event').addEventListener('click', () => { recordInteraction(); switchEvent(1); });
+    document.getElementById('btn-pistol').addEventListener('click', () => { recordInteraction(); configureEventStage(); });
+    document.getElementById('btn-podium').addEventListener('click', () => { recordInteraction(); celebratePodiumFinale(); });
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      recordInteraction();
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 35));
+    });
+    document.getElementById('btn-mute').addEventListener('click', () => { recordInteraction(); toggleMute(); });
+
+    function onKeyDown(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      // Avoid number keys 1-9 since the hub uses them!
+      const key = e.key.toLowerCase();
+
+      if (key === 'n') {
+        e.preventDefault();
+        toggleDayNightMode();
+      } else if (key === 'm') {
+        e.preventDefault();
+        toggleMute();
+      } else if (key === 'e') {
+        e.preventDefault();
+        recordInteraction();
+        switchEvent(1);
+      } else if (key === 'q') {
+        e.preventDefault();
+        recordInteraction();
+        switchEvent(-1);
+      } else if (key === 'r') {
+        e.preventDefault();
+        recordInteraction();
+        fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 35));
+      } else if (key === ' ') {
+        e.preventDefault();
+        recordInteraction();
+        if (EVENTS[currentEventIndex] === 'relay') {
+          relaySpeedBoost = Math.min(1.6, relaySpeedBoost + 0.38);
+          soundFX.playPickup();
+        } else {
+          fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.0), idx * 40));
+        }
+      } else if (key === 'arrowleft' || key === 'arrowright') {
+        e.preventDefault();
+        recordInteraction();
+        if (EVENTS[currentEventIndex] === 'tug' && key !== lastTugArrow) {
+          lastTugArrow = key;
+          tugOffset -= 0.085; // Pull toward Red Team (-1.0)
+          soundFX.playBounce(0.4);
+        }
+      }
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('resize', onWindowResize);
+
+    // ============================================================================
+    // 13. MAIN ANIMATION LOOP & FUMO SCENE LIFECYCLE
+    // ============================================================================
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.033, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      if (!selectedFumo && !isAimingBall && (now - lastUserInteractionTime > 5000)) {
+        controls.autoRotate = true;
+      }
+
+      if (isAimingBall) {
+        const holdSec = (now - aimStartTime) / 1000;
+        const chargeRatio = THREE.MathUtils.clamp(holdSec / 0.9, 0.2, 1.0);
+        meterFillEl.style.width = `${chargeRatio * 100}%`;
+        meterValueEl.textContent = `${Math.round(chargeRatio * 100)}%`;
+        updateBallArcPreview(chargeRatio);
+      }
+
+      controls.update();
+      updateDayNightTransition(dt);
+      updateActiveEvent(dt, elapsed);
+      updateParticles(dt);
+
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].updatePhysics(dt, elapsed);
+      }
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function pauseRenderLoop() {
+      if (isPaused) return;
+      isPaused = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+
+    function resumeRenderLoop() {
+      if (!isPaused) return;
+      isPaused = false;
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    function disposeScene() {
+      pauseRenderLoop();
+      clearPendingBallAim();
+      soundFX.stopMarchLoop();
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('resize', onWindowResize);
+    }
+
+    const _sceneLifecycle = new FumoSceneLifecycle({
+      renderer,
+      scene,
+      composer,
+      audio: soundFX,
+      onToggleMode: toggleDayNightMode,
+      onSetMode: (mode) => setDayNightMode(mode === 'night' ? 'night' : 'day', { immediate: false }),
+      onPause: pauseRenderLoop,
+      onResume: resumeRenderLoop,
+      onDispose: disposeScene
+    });
+
+    window.addEventListener('load', () => {
+      let savedMode = 'day';
+      try {
+        const m = localStorage.getItem(STORAGE_MODE_KEY);
+        if (m === 'night') savedMode = 'night';
+      } catch (e) {}
+
+      setDayNightMode(savedMode, { immediate: true, playSound: false });
+      updateDayNightTransition(0);
+      configureEventStage();
+      postModeToHub();
+
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.76;
+          f.squashVel = 2.2;
+          f.headPitchVel = 4.2;
+        }, 90 + idx * 55);
+      });
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    });
+  </script>
+</body>
+</html>

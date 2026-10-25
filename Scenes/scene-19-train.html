@@ -33,6 +33,10 @@
       overflow: hidden;
       font-family: 'Quicksand', sans-serif;
       background-color: #0b0d1e;
+      transition: background-color 0.8s ease;
+    }
+    body:not(.night-ui) {
+      background-color: #bfe3ff;
     }
     h1, .font-display {
       font-family: 'Fredoka', sans-serif;
@@ -105,6 +109,13 @@
       <span id="fumo-badge-name">Reimu Hakurei</span>
       <span id="fumo-badge-status" class="opacity-70 ml-1">Window Seat</span>
     </div>
+
+    <!-- Day / Night Toggle Button -->
+    <button id="btn-mode" title="Toggle Day / Night Mode (N)"
+      class="glass-panel ui-btn rounded-2xl px-3.5 py-2 flex items-center gap-1.5 text-xs sm:text-sm font-semibold">
+      <span id="mode-btn-icon" class="text-base leading-none">☀️</span>
+      <span id="mode-btn-label" class="hidden sm:inline">Day</span>
+    </button>
 
     <!-- Blow Steam Whistle Button -->
     <button id="btn-whistle" title="Blow Steam Whistle (W)"
@@ -199,6 +210,7 @@
       <span>🖱️ <b>Click Fumo:</b> Squeeze</span>
       <span>✋ <b>Drag:</b> Toss</span>
       <span>🚂 <b>Click Whistle / Tea Cart:</b> Interact</span>
+      <span><kbd>N</kbd> Day / Night</span>
       <span><kbd>↑</kbd><kbd>↓</kbd> Train Speed</span>
     </div>
   </div>
@@ -1594,7 +1606,7 @@
     // 8A. Starry Night Sky Dome (Instanced Voxel Stars)
     const STAR_COUNT = 260;
     const starGeom = new THREE.BoxGeometry(0.18, 0.18, 0.18);
-    const starMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
+    const starMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false });
     const starMesh = new THREE.InstancedMesh(starGeom, starMat, STAR_COUNT);
     for (let i = 0; i < STAR_COUNT; i++) {
       const theta = Math.random() * Math.PI * 2;
@@ -1621,7 +1633,7 @@
     const FIREFLY_COUNT = 75;
     const fireflyData = [];
     const fireflyGeom = new THREE.BoxGeometry(0.12, 0.12, 0.12);
-    const fireflyMat = new THREE.MeshBasicMaterial({ color: 0xd9f99d, transparent: true, opacity: 0.85 });
+    const fireflyMat = new THREE.MeshBasicMaterial({ color: 0xd9f99d, transparent: true, opacity: 0.85, depthWrite: false });
     const fireflyMesh = new THREE.InstancedMesh(fireflyGeom, fireflyMat, FIREFLY_COUNT);
     for (let i = 0; i < FIREFLY_COUNT; i++) {
       fireflyData.push({
@@ -3043,6 +3055,39 @@
     const dayHemiGround = new THREE.Color('#9ab087');
     const nightHemiGround = new THREE.Color('#0c0e1c');
 
+    const btnMode = document.getElementById('btn-mode');
+    const modeBtnIcon = document.getElementById('mode-btn-icon');
+    const modeBtnLabel = document.getElementById('mode-btn-label');
+
+    function isInIframe() {
+      try {
+        return window.self !== window.top;
+      } catch (e) {
+        return true;
+      }
+    }
+
+    function updateModeButtonUI() {
+      if (!modeBtnIcon || !modeBtnLabel) return;
+      if (isNightMode) {
+        modeBtnIcon.textContent = '☀️';
+        modeBtnLabel.textContent = 'Day';
+        if (btnMode) btnMode.setAttribute('title', 'Switch to Day Mode (N)');
+      } else {
+        modeBtnIcon.textContent = '🌙';
+        modeBtnLabel.textContent = 'Night';
+        if (btnMode) btnMode.setAttribute('title', 'Switch to Night Mode (N)');
+      }
+    }
+
+    if (btnMode) {
+      btnMode.addEventListener('click', () => {
+        recordInteraction();
+        soundFX.unlock();
+        toggleDayNight();
+      });
+    }
+
     function notifyParentMode() {
       const modeStr = isNightMode ? 'night' : 'day';
       try {
@@ -3052,13 +3097,14 @@
       } catch (e) {}
     }
 
-    function setDayNightMode(night, { immediate = false, playSound = true } = {}) {
+    function setDayNightMode(night, { immediate = false, playSound = true, notifyParent = true } = {}) {
       isNightMode = Boolean(night);
       dayNightTarget = isNightMode ? 1.0 : 0.0;
       if (immediate) {
         dayNightProgress = dayNightTarget;
       }
       document.body.classList.toggle('night-ui', isNightMode);
+      updateModeButtonUI();
 
       try {
         localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
@@ -3067,11 +3113,13 @@
       if (playSound) {
         soundFX.playPickup();
       }
-      notifyParentMode();
+      if (notifyParent) {
+        notifyParentMode();
+      }
     }
 
     function toggleDayNight() {
-      setDayNightMode(!isNightMode, { immediate: false, playSound: true });
+      setDayNightMode(!isNightMode, { immediate: false, playSound: true, notifyParent: true });
     }
 
     function updateDayNightAndTunnel(dt, tunnelFactor) {
@@ -3115,6 +3163,8 @@
 
       starMat.opacity = THREE.MathUtils.lerp(0.0, 0.92, t);
       fireflyMat.opacity = THREE.MathUtils.lerp(0.0, 0.88, t);
+      starMesh.visible = (t > 0.01);
+      fireflyMesh.visible = (effNight > 0.05);
 
       if (bloomPass) {
         bloomPass.strength = THREE.MathUtils.lerp(0.14, 0.65, effNight);
@@ -3337,12 +3387,17 @@
       rafId = requestAnimationFrame(animate);
     }
 
+    let hasExplicitModeSet = false;
+
     // Hub Message Listener
     window.addEventListener('message', (e) => {
       const data = e.data;
       if (!data || typeof data !== 'object') return;
       if (data.type === 'toggleMode') {
         toggleDayNight();
+      } else if (data.type === 'setMode' && (data.mode === 'day' || data.mode === 'night')) {
+        hasExplicitModeSet = true;
+        setDayNightMode(data.mode === 'night', { immediate: false, playSound: false, notifyParent: false });
       } else if (data.type === 'pause') {
         pauseRenderLoop();
       } else if (data.type === 'resume') {
@@ -3351,16 +3406,30 @@
     });
 
     window.onload = function () {
-      let initialNight = true;
-      try {
-        const saved = localStorage.getItem(STORAGE_MODE_KEY);
-        if (saved === 'day') initialNight = false;
-        else if (saved === 'night') initialNight = true;
-      } catch (e) {}
+      if (!hasExplicitModeSet) {
+        let initialNight = true;
+        let hasSaved = false;
+        try {
+          const saved = localStorage.getItem(STORAGE_MODE_KEY);
+          if (saved === 'day') {
+            initialNight = false;
+            hasSaved = true;
+          } else if (saved === 'night') {
+            initialNight = true;
+            hasSaved = true;
+          }
+        } catch (e) {}
 
-      setDayNightMode(initialNight, { immediate: true, playSound: false });
+        // In an iframe without explicit saved state, avoid forcing parent mode unless saved
+        setDayNightMode(initialNight, {
+          immediate: true,
+          playSound: false,
+          notifyParent: hasSaved || !isInIframe()
+        });
+      }
       updateDayNightAndTunnel(0, 0);
       updateSpeedGaugeUI();
+      updateModeButtonUI();
 
       // Welcoming gentle plushie bounce on load
       fumos.forEach((f, idx) => {

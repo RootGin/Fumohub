@@ -1,0 +1,3416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Garden of the Sun — Touhou Fumo Voxel Sunflower Field</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Shared Hub Stylesheet -->
+  <link rel="stylesheet" href="../Shared/fumo-scene.css" />
+
+  <!-- Three.js r128 + Post-Processing Addons FIRST -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <!-- Shared Fumo Core Library SECOND (reads THREE at load time) -->
+  <script src="../Shared/fumo-core.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #16182c;
+    }
+    h1, h2, .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .glass-panel {
+      background: rgba(255, 252, 240, 0.84);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.78);
+      box-shadow: 0 10px 28px -6px rgba(45, 32, 10, 0.18), 0 2px 6px rgba(45, 32, 10, 0.08);
+      transition: background 0.45s ease, color 0.45s ease, border-color 0.45s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      color: #292524;
+    }
+    body.night-ui .glass-panel {
+      background: rgba(22, 25, 48, 0.85);
+      border-color: rgba(250, 204, 21, 0.28);
+      color: #fef9c3;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.65), 0 0 18px rgba(250, 204, 21, 0.14);
+    }
+    .ui-btn {
+      cursor: pointer;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+    #fumo-tooltip {
+      pointer-events: none;
+      transition: opacity 0.15s ease, transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 5px;
+      font-size: 0.7rem;
+      line-height: 1.2;
+      border-radius: 5px;
+      background: rgba(0, 0, 0, 0.09);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.2);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.14);
+      border-bottom-color: rgba(255, 255, 255, 0.28);
+    }
+    @keyframes pop-bounce {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.18); }
+    }
+    .stat-pop {
+      animation: pop-bounce 0.32s ease-out;
+    }
+  </style>
+</head>
+<body class="text-stone-800">
+  <div id="canvas-container"></div>
+
+  <!-- Floating 3D Speech / Status Bubble Overlay (Spring!, Scowl 💢, Achoo!, Zzz) -->
+  <div id="world-callout" class="fixed z-20 pointer-events-none hidden -translate-x-1/2 -translate-y-full">
+    <div class="glass-panel rounded-2xl px-3 py-1 text-xs font-display font-bold shadow-lg border-2 border-amber-400 whitespace-nowrap" id="world-callout-text">
+      🌸 SPRING IS HERE!!
+    </div>
+  </div>
+
+  <!-- Hold-to-Grow Sunflower Progress Indicator -->
+  <div id="grow-meter" class="fixed z-30 pointer-events-none hidden -translate-x-1/2 -translate-y-full">
+    <div class="glass-panel rounded-2xl px-3 py-2 w-44 shadow-xl border-2 border-amber-400">
+      <div class="flex items-center justify-between text-[11px] font-display font-bold mb-1">
+        <span id="grow-label">🌱 Growing Sprout...</span>
+        <span id="grow-height-tag" class="text-amber-600 dark:text-amber-300">1.0x</span>
+      </div>
+      <div class="w-full h-2.5 bg-black/15 rounded-full overflow-hidden">
+        <div id="grow-bar" class="h-full bg-gradient-to-r from-lime-400 via-amber-400 to-rose-500 transition-all duration-75" style="width: 15%;"></div>
+      </div>
+      <div class="text-[10px] opacity-75 text-center mt-0.5 font-semibold" id="grow-hint">
+        Hold for Launcher Size!
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Cursor Tooltip -->
+  <div id="fumo-tooltip" class="fixed z-30 opacity-0 px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold flex items-center gap-2 shadow-lg">
+    <span id="tooltip-emoji">🌻</span>
+    <span id="tooltip-text">Yuuka Kazami Fumo</span>
+  </div>
+
+  <!-- BOTTOM-RIGHT HUD (Strict Hub Rule: ZERO UI in Top-Left!) -->
+  <div class="fixed bottom-4 right-4 z-20 flex flex-col items-end gap-2 max-w-[96vw]">
+    <!-- Toast & Active Status Row -->
+    <div class="flex flex-wrap items-center justify-end gap-2">
+      <div id="event-toast" class="glass-panel rounded-2xl px-3.5 py-1.5 text-xs font-bold hidden items-center gap-2 border-2 border-amber-400">
+        <span id="event-toast-icon">🌻</span>
+        <span id="event-toast-text">New Record! Confetti Pop!</span>
+      </div>
+
+      <div id="fumo-badge" class="glass-panel rounded-2xl px-3.5 py-1.5 text-xs font-semibold flex items-center gap-2">
+        <span id="fumo-badge-dot" class="w-2.5 h-2.5 rounded-full inline-block bg-amber-400"></span>
+        <span id="fumo-badge-name">Hold Ground to Grow</span>
+        <span id="fumo-badge-status" class="opacity-75 ml-1">Click Flowers & Fumos</span>
+      </div>
+    </div>
+
+    <!-- Silly Counters Bar (Bottom-Right) -->
+    <div class="glass-panel rounded-2xl px-3.5 py-1.5 flex items-center gap-4 text-xs font-semibold">
+      <div class="flex items-center gap-1.5" title="Hold-click on the ground to grow new sunflowers!">
+        <span class="text-sm">🌻</span>
+        <span class="opacity-75">Flowers grown:</span>
+        <span id="count-flowers" class="font-display font-bold text-sm text-amber-600">0</span>
+      </div>
+      <div class="w-px h-4 bg-current opacity-15"></div>
+      <div class="flex items-center gap-1.5" title="Grow a tall Launcher flower or drop a Fumo on one and click its stem!">
+        <span class="text-sm">🚀</span>
+        <span class="opacity-75">Fumo launched:</span>
+        <span id="count-launched" class="font-display font-bold text-sm text-rose-500">0</span>
+      </div>
+      <div class="w-px h-4 bg-current opacity-15"></div>
+      <div class="flex items-center gap-1.5" title="Medicine's pink poison makes sunflowers & fumos sneeze!">
+        <span class="text-sm">🤧</span>
+        <span class="opacity-75">Sneezes:</span>
+        <span id="count-sneezes" class="font-display font-bold text-sm text-fuchsia-500">0</span>
+      </div>
+    </div>
+
+    <!-- Action & Hotkey Controls Row (Bottom-Right) -->
+    <div class="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2">
+      <!-- Petal Storm (P Key) -->
+      <button id="btn-petal-storm" title="Start a Swirling Petal Storm! (Shortcut: P)"
+        class="glass-panel ui-btn rounded-2xl px-3 py-2 flex items-center gap-1.5 text-xs font-semibold">
+        <span>🌼</span>
+        <span class="hidden sm:inline">Petal Storm</span>
+        <kbd>P</kbd>
+      </button>
+
+      <!-- Bee Conga Line (B Key) -->
+      <button id="btn-bee-conga" title="Toggle Wriggle's Chonky Bee Conga Line! (Shortcut: B)"
+        class="glass-panel ui-btn rounded-2xl px-3 py-2 flex items-center gap-1.5 text-xs font-semibold">
+        <span>🐝</span>
+        <span id="label-conga" class="hidden sm:inline">Bee Conga</span>
+        <kbd>B</kbd>
+      </button>
+
+      <!-- Watering Can (W Key) -->
+      <button id="btn-water" title="Give Yuuka the Watering Can to Perk Flowers & Splash Fumos! (Shortcut: W)"
+        class="glass-panel ui-btn rounded-2xl px-3 py-2 flex items-center gap-1.5 text-xs font-semibold">
+        <span>🚿</span>
+        <span class="hidden sm:inline">Water Field</span>
+        <kbd>W</kbd>
+      </button>
+
+      <!-- Squeeze All (Space) -->
+      <button id="btn-squeeze-all" title="Squeeze All Fumos! (Shortcut: Space)"
+        class="glass-panel ui-btn rounded-2xl px-3 py-2 flex items-center gap-1.5 text-xs font-semibold">
+        <span>✨</span>
+        <span class="hidden md:inline">Squeeze</span>
+      </button>
+
+      <!-- Reset Fumos (R Key) -->
+      <button id="btn-reset" title="Reset All Fumos to Their Spots (Shortcut: R)"
+        class="glass-panel ui-btn rounded-2xl px-2.5 py-2 flex items-center gap-1 text-xs font-semibold">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+        </svg>
+      </button>
+
+      <!-- Mute Toggle (M Key) -->
+      <button id="btn-sound" title="Toggle Sound & Ukulele / Crickets Audio (Shortcut: M)"
+        class="glass-panel ui-btn rounded-2xl p-2 flex items-center justify-center">
+        <svg id="icon-sound-on" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+        </svg>
+        <svg id="icon-sound-off" class="w-4 h-4 hidden opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <line x1="23" y1="9" x2="17" y2="15"></line>
+          <line x1="17" y1="9" x2="23" y2="15"></line>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 0. TOP-LEVEL STATE VARIABLES (Prevents ReferenceError before initialization)
+    // ============================================================================
+    const STORAGE_MUTE_KEY = 'fumo_sunflower_mute';
+    const STORAGE_MODE_KEY = 'fumo_sunflower_mode';
+    const STORAGE_STATS_KEY = 'fumo_sunflower_stats';
+
+    let isNightMode = false;
+    let dayNightProgress = 0.0;
+    let dayNightTarget = 0.0;
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    // ============================================================================
+    // 1. SHARED CORE SYMBOLS & EXTENDED WEB AUDIO API SOUND ENGINE
+    // ============================================================================
+    const _voxelHash = typeof voxelHash === 'function' ? voxelHash : function(x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    };
+
+    const _tempCol = new THREE.Color();
+    const _varyColor = typeof varyColor === 'function' ? varyColor : function(hexOrString, x, y, z, variance = 0.035, seamDarken = 0) {
+      _tempCol.set(hexOrString);
+      const h = _voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      _tempCol.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return _tempCol.clone();
+    };
+
+    const _createSoftVoxelGeometry = typeof createSoftVoxelGeometry === 'function' ? createSoftVoxelGeometry : function(size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    };
+
+    const _getOptimalPixelRatio = typeof getOptimalPixelRatio === 'function' ? getOptimalPixelRatio : function() {
+      return Math.min(window.devicePixelRatio || 1, 2);
+    };
+
+    const BaseSoundEngine = typeof PlushSoundEngine !== 'undefined' ? PlushSoundEngine : class {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+      }
+      playSqueeze(pitchMultiplier = 1.0) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc1 = this.ctx.createOscillator();
+          const gain1 = this.ctx.createGain();
+          osc1.type = 'sine';
+          const baseFreq = (520 + Math.random() * 80) * pitchMultiplier;
+          osc1.frequency.setValueAtTime(baseFreq, now);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.085);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.16);
+          gain1.gain.setValueAtTime(0.001, now);
+          gain1.gain.linearRampToValueAtTime(0.11, now + 0.025);
+          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+          osc1.connect(gain1);
+          gain1.connect(this.ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.18);
+
+          const osc2 = this.ctx.createOscillator();
+          const gain2 = this.ctx.createGain();
+          osc2.type = 'triangle';
+          osc2.frequency.setValueAtTime(baseFreq * 1.1, now + 0.11);
+          osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.65, now + 0.21);
+          gain2.gain.setValueAtTime(0.001, now + 0.11);
+          gain2.gain.linearRampToValueAtTime(0.08, now + 0.13);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+          osc2.connect(gain2);
+          gain2.connect(this.ctx.destination);
+          osc2.start(now + 0.11);
+          osc2.stop(now + 0.25);
+        } catch (e) {}
+      }
+      playBounce(intensity = 0.5) {
+        if (!this.enabled || intensity < 0.08) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const vol = Math.min(0.14, intensity * 0.12);
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(115 + Math.min(80, intensity * 35), now);
+          osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+      playPickup() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(280, now);
+          osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+    };
+
+    // Extend PlushSoundEngine with breeze, bee buzz, flower pop, sneeze, springy sproing, ukulele & night crickets
+    class SunflowerSoundEngine extends BaseSoundEngine {
+      constructor() {
+        super();
+        this.ambientStarted = false;
+        this.breezeGain = null;
+        this.beeGain = null;
+        this.loopTimer = null;
+        this.step = 0;
+        this.isPausedState = false;
+        this.isNightState = false;
+      }
+
+      ensureAmbient() {
+        if (!this.enabled || this.isPausedState) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+
+          if (!this.ambientStarted) {
+            this.ambientStarted = true;
+
+            // 1. Soft Breeze Noise Bed
+            const bufferSize = this.ctx.sampleRate * 2;
+            const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const out = noiseBuffer.getChannelData(0);
+            let last = 0;
+            for (let i = 0; i < bufferSize; i++) {
+              const w = Math.random() * 2 - 1;
+              out[i] = (last + 0.02 * w) / 1.02;
+              last = out[i];
+            }
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = noiseBuffer;
+            noise.loop = true;
+
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.value = 380;
+            filter.Q.value = 0.8;
+
+            this.breezeGain = this.ctx.createGain();
+            this.breezeGain.gain.value = 0.035;
+            noise.connect(filter);
+            filter.connect(this.breezeGain);
+            this.breezeGain.connect(this.ctx.destination);
+            noise.start(0);
+
+            // 2. Subtle Bumblebee Hum Oscillator
+            const beeOsc = this.ctx.createOscillator();
+            const beeFilter = this.ctx.createBiquadFilter();
+            this.beeGain = this.ctx.createGain();
+            beeOsc.type = 'sawtooth';
+            beeOsc.frequency.value = 92;
+            beeFilter.type = 'lowpass';
+            beeFilter.frequency.value = 210;
+            this.beeGain.gain.value = 0.012;
+            beeOsc.connect(beeFilter);
+            beeFilter.connect(this.beeGain);
+            this.beeGain.connect(this.ctx.destination);
+            beeOsc.start(0);
+
+            // 3. Goofy Ukulele Melody (Day) & Cricket Chirps (Night)
+            this.startMelodyLoop();
+          }
+          this.syncMuteState();
+        } catch (e) {}
+      }
+
+      startMelodyLoop() {
+        if (this.loopTimer) clearInterval(this.loopTimer);
+        const ukeNotes = [523.25, 659.25, 783.99, 880.00, 1046.50, 783.99, 659.25, 587.33];
+        const nightNotes = [392.00, 440.00, 523.25, 659.25];
+
+        this.loopTimer = setInterval(() => {
+          if (!this.enabled || this.isPausedState || !this.ctx || this.ctx.state !== 'running') return;
+          try {
+            const now = this.ctx.currentTime;
+
+            if (!this.isNightState) {
+              if (Math.random() < 0.78) {
+                const freq = ukeNotes[(this.step + (Math.random() < 0.25 ? 2 : 0)) % ukeNotes.length];
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(freq, now);
+                gain.gain.setValueAtTime(0.001, now);
+                gain.gain.linearRampToValueAtTime(0.025, now + 0.015);
+                gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.34);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.36);
+              }
+            } else {
+              if (this.step % 2 === 0) {
+                for (let c = 0; c < 3; c++) {
+                  const cOsc = this.ctx.createOscillator();
+                  const cGain = this.ctx.createGain();
+                  cOsc.type = 'sine';
+                  const t0 = now + c * 0.045;
+                  cOsc.frequency.setValueAtTime(4100 + (c % 2) * 180, t0);
+                  cGain.gain.setValueAtTime(0.001, t0);
+                  cGain.gain.linearRampToValueAtTime(0.012, t0 + 0.01);
+                  cGain.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.038);
+                  cOsc.connect(cGain);
+                  cGain.connect(this.ctx.destination);
+                  cOsc.start(t0);
+                  cOsc.stop(t0 + 0.04);
+                }
+              }
+              if (this.step % 3 === 0) {
+                const freq = nightNotes[(this.step / 3) % nightNotes.length];
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, now);
+                gain.gain.setValueAtTime(0.001, now);
+                gain.gain.linearRampToValueAtTime(0.018, now + 0.03);
+                gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.75);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.8);
+              }
+            }
+            this.step++;
+          } catch (e) {}
+        }, 320);
+      }
+
+      syncMuteState() {
+        if (!this.ctx) return;
+        try {
+          const active = this.enabled && !this.isPausedState;
+          if (this.breezeGain) {
+            this.breezeGain.gain.setTargetAtTime(active ? 0.035 : 0.0001, this.ctx.currentTime, 0.1);
+          }
+          if (this.beeGain) {
+            const beeTarget = active ? (this.isNightState ? 0.002 : 0.012) : 0.0001;
+            this.beeGain.gain.setTargetAtTime(beeTarget, this.ctx.currentTime, 0.15);
+          }
+        } catch (e) {}
+      }
+
+      playFlowerPop(pitch = 1.0) {
+        if (!this.enabled) return;
+        try {
+          this.ensureAmbient();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(320 * pitch, now);
+          osc.frequency.exponentialRampToValueAtTime(780 * pitch, now + 0.09);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.11, now + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.12);
+        } catch (e) {}
+      }
+
+      playSneeze(pitch = 1.0) {
+        if (!this.enabled) return;
+        try {
+          this.ensureAmbient();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+
+          const osc1 = this.ctx.createOscillator();
+          const g1 = this.ctx.createGain();
+          osc1.type = 'triangle';
+          osc1.frequency.setValueAtTime(420 * pitch, now);
+          osc1.frequency.exponentialRampToValueAtTime(680 * pitch, now + 0.07);
+          g1.gain.setValueAtTime(0.001, now);
+          g1.gain.linearRampToValueAtTime(0.07, now + 0.02);
+          g1.gain.exponentialRampToValueAtTime(0.001, now + 0.075);
+          osc1.connect(g1);
+          g1.connect(this.ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.08);
+
+          const osc2 = this.ctx.createOscillator();
+          const g2 = this.ctx.createGain();
+          osc2.type = 'sawtooth';
+          osc2.frequency.setValueAtTime(860 * pitch, now + 0.085);
+          osc2.frequency.exponentialRampToValueAtTime(290 * pitch, now + 0.21);
+          g2.gain.setValueAtTime(0.001, now + 0.085);
+          g2.gain.linearRampToValueAtTime(0.085, now + 0.10);
+          g2.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+          osc2.connect(g2);
+          g2.connect(this.ctx.destination);
+          osc2.start(now + 0.085);
+          osc2.stop(now + 0.23);
+        } catch (e) {}
+      }
+
+      playSproing() {
+        if (!this.enabled) return;
+        try {
+          this.ensureAmbient();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const lfo = this.ctx.createOscillator();
+          const lfoGain = this.ctx.createGain();
+          const gain = this.ctx.createGain();
+
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(190, now);
+          osc.frequency.exponentialRampToValueAtTime(640, now + 0.38);
+
+          lfo.frequency.value = 28;
+          lfoGain.gain.value = 65;
+          lfo.connect(lfoGain);
+          lfoGain.connect(osc.frequency);
+
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.13, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          lfo.start(now);
+          osc.stop(now + 0.44);
+          lfo.stop(now + 0.44);
+        } catch (e) {}
+      }
+
+      playBeeBoing() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(240, now);
+          osc.frequency.exponentialRampToValueAtTime(380, now + 0.06);
+          osc.frequency.exponentialRampToValueAtTime(210, now + 0.14);
+          gain.gain.setValueAtTime(0.06, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.16);
+        } catch (e) {}
+      }
+
+      playFanfare() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            osc.type = 'triangle';
+            const t0 = now + idx * 0.065;
+            osc.frequency.setValueAtTime(freq, t0);
+            g.gain.setValueAtTime(0.001, t0);
+            g.gain.linearRampToValueAtTime(0.09, t0 + 0.015);
+            g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.24);
+            osc.connect(g);
+            g.connect(this.ctx.destination);
+            osc.start(t0);
+            osc.stop(t0 + 0.25);
+          });
+        } catch (e) {}
+      }
+
+      dispose() {
+        if (this.loopTimer) {
+          clearInterval(this.loopTimer);
+          this.loopTimer = null;
+        }
+        if (this.ctx) {
+          try { this.ctx.close(); } catch (e) {}
+        }
+      }
+    }
+
+    const soundFX = new SunflowerSoundEngine();
+
+    try {
+      if (localStorage.getItem(STORAGE_MUTE_KEY) === 'true') {
+        soundFX.enabled = false;
+      }
+    } catch (e) {}
+
+    // ============================================================================
+    // 2. SCENE, CAMERA, RENDERER & POST-PROCESSING
+    // ============================================================================
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    const tempEuler = new THREE.Euler();
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = _createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        if (v.rx || v.ry || v.rz) {
+          tempEuler.set(v.rx || 0, v.ry || 0, v.rz || 0);
+          tempQuat.setFromEuler(tempEuler);
+        } else {
+          tempQuat.identity();
+        }
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#7ccBFF');
+    scene.fog = new THREE.FogExp2('#7ccBFF', 0.0065);
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.5, 160);
+    camera.position.set(19.0, 13.5, 21.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(_getOptimalPixelRatio());
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.94;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.12,
+        0.52,
+        0.86
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (err) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0.0, 2.0, 0.0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.47;
+    controls.minPolarAngle = Math.PI * 0.08;
+    controls.minDistance = 8;
+    controls.maxDistance = 44;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.40;
+
+    let lastUserInteractionTime = performance.now();
+    let lastCursorMoveTime = performance.now();
+    const cursorWorldTarget = new THREE.Vector3(0, 2.5, 4);
+
+    const recordInteraction = () => {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+      soundFX.ensureAmbient();
+    };
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 3. CAPPED DYNAMIC LIGHTING & SHARED MATERIALS
+    // ============================================================================
+    const hemiLight = new THREE.HemisphereLight(0xfff9e6, 0x658a4e, 0.56);
+    hemiLight.position.set(0, 28, 0);
+    scene.add(hemiLight);
+
+    const sunDirLight = new THREE.DirectionalLight(0xfff0c4, 1.02);
+    sunDirLight.position.set(16, 24, 14);
+    sunDirLight.castShadow = true;
+    sunDirLight.shadow.mapSize.width = 2048;
+    sunDirLight.shadow.mapSize.height = 2048;
+    sunDirLight.shadow.camera.near = 2;
+    sunDirLight.shadow.camera.far = 58;
+    const dCam = 16.5;
+    sunDirLight.shadow.camera.left = -dCam;
+    sunDirLight.shadow.camera.right = dCam;
+    sunDirLight.shadow.camera.top = dCam;
+    sunDirLight.shadow.camera.bottom = -dCam;
+    sunDirLight.shadow.bias = -0.0006;
+    sunDirLight.shadow.radius = 2.2;
+    scene.add(sunDirLight);
+
+    const barnLanternLight = new THREE.PointLight(0xffa63b, 0.06, 15.0, 1.6);
+    barnLanternLight.position.set(-5.5, 3.8, -5.2);
+    scene.add(barnLanternLight);
+
+    const windmillLanternLight = new THREE.PointLight(0xffb84d, 0.06, 15.0, 1.6);
+    windmillLanternLight.position.set(4.5, 4.2, -5.5);
+    scene.add(windmillLanternLight);
+
+    const fenceLanternLight = new THREE.PointLight(0xffaa33, 0.06, 13.0, 1.6);
+    fenceLanternLight.position.set(-3.2, 2.2, 5.2);
+    scene.add(fenceLanternLight);
+
+    const plushMaterial = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0.02 });
+    const terrainMaterial = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0.04 });
+    const glossyMaterial = new THREE.MeshStandardMaterial({ roughness: 0.28, metalness: 0.12 });
+
+    const waterMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.78,
+      roughness: 0.16,
+      metalness: 0.08,
+      emissive: new THREE.Color(0x0284c7),
+      emissiveIntensity: 0.12
+    });
+
+    const lanternEmissiveMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfff5d6,
+      emissive: new THREE.Color(0xff9e2c),
+      emissiveIntensity: 0.35,
+      roughness: 0.2
+    });
+
+    const fairyWingMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.84,
+      roughness: 0.2,
+      metalness: 0.1,
+      emissive: new THREE.Color(0xbae6fd),
+      emissiveIntensity: 0.28
+    });
+
+    // ============================================================================
+    // 4. GARDEN OF THE SUN DIORAMA ARCHITECTURE (100% SOLID BASE & HILL)
+    // ============================================================================
+    const RV = 0.25;
+    const furnitureColliders = [];
+
+    function addCollider(minX, minY, minZ, maxX, maxY, maxZ, name = 'prop') {
+      furnitureColliders.push({
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        name
+      });
+    }
+
+    const solidWorldVoxels = [];
+    const glossyWorldVoxels = [];
+    const lanternBulbVoxels = [];
+    const waterPoolVoxels = [];
+
+    function pushVoxel(list, rx, ry, rz, colorHex, variance = 0.035, sx = 1, sy = 1, sz = 1) {
+      list.push({
+        x: rx, y: ry, z: rz,
+        color: _varyColor(colorHex, rx, ry, rz, variance),
+        sx, sy, sz
+      });
+    }
+
+    function pushBox(list, x0, y0, z0, x1, y1, z1, colorFnOrHex, variance = 0.03) {
+      for (let x = x0; x <= x1; x++) {
+        for (let y = y0; y <= y1; y++) {
+          for (let z = z0; z <= z1; z++) {
+            if (x > x0 && x < x1 && y > y0 && y < y1 && z > z0 && z < z1) continue;
+            const c = typeof colorFnOrHex === 'function' ? colorFnOrHex(x, y, z) : colorFnOrHex;
+            if (c) pushVoxel(list, x + 0.5, y + 0.5, z + 0.5, c, variance);
+          }
+        }
+      }
+    }
+
+    function isOnDirtPath(gx, gz) {
+      const pathCenterX = Math.sin(gz * 0.11) * 6.5 - 2.0;
+      const branchToBarn = (gz < -8 && Math.abs(gx - (-22 - (gz + 8) * 0.3)) < 3.2);
+      return Math.abs(gx - pathCenterX) < 3.2 || branchToBarn;
+    }
+
+    function isInMudPuddle(gx, gz) {
+      const dx = (gx + 8) * 0.9;
+      const dz = (gz - 16) * 1.1;
+      return (dx * dx + dz * dz) <= 18.0;
+    }
+
+    function isWorldPointInMudPuddle(wx, wz) {
+      return isInMudPuddle(wx / RV, wz / RV);
+    }
+
+    function getFieldGridHeight(gx, gz) {
+      const hillDist = Math.hypot(gx - 24, gz + 24);
+      if (hillDist < 19) {
+        const h = Math.round(Math.cos((hillDist / 19) * (Math.PI * 0.5)) * 10);
+        return Math.max(0, h);
+      }
+      return 0;
+    }
+
+    function getWorldGroundY(wx, wz) {
+      const gx = Math.round(wx / RV);
+      const gz = Math.round(wz / RV);
+      return (getFieldGridHeight(gx, gz) + 1) * RV;
+    }
+
+    const windmillRotorGroup = new THREE.Group();
+    scene.add(windmillRotorGroup);
+
+    const skyCelestialGroup = new THREE.Group();
+    scene.add(skyCelestialGroup);
+    let sunMoonMesh = null;
+    const cloudGroups = [];
+
+    function buildGardenOfTheSunWorld() {
+      const MIN_BASE_Y = -5;
+
+      const heightMap = {};
+      for (let gx = -38; gx <= 37; gx++) {
+        for (let gz = -38; gz <= 37; gz++) {
+          heightMap[`${gx},${gz}`] = getFieldGridHeight(gx, gz);
+        }
+      }
+
+      for (let gx = -38; gx <= 37; gx++) {
+        for (let gz = -38; gz <= 37; gz++) {
+          const topY = heightMap[`${gx},${gz}`];
+          let minNeighborY = topY;
+          for (let dx = -2; dx <= 2; dx++) {
+            for (let dz = -2; dz <= 2; dz++) {
+              const nh = heightMap[`${gx + dx},${gz + dz}`];
+              if (nh !== undefined && nh < minNeighborY) minNeighborY = nh;
+            }
+          }
+
+          const isOuter = (gx === -38 || gx === 37 || gz === -38 || gz === 37);
+
+          for (let gy = MIN_BASE_Y; gy <= topY; gy++) {
+            if (!isOuter && gy !== MIN_BASE_Y && gy < minNeighborY - 1) continue;
+
+            let col = '#6b4423';
+            if (gy === MIN_BASE_Y) {
+              col = '#3d2514';
+            } else if (gy === topY) {
+              if (isInMudPuddle(gx, gz)) {
+                const r2 = Math.pow(gx + 8, 2) + Math.pow(gz - 16, 2);
+                col = r2 < 9 ? '#4a3219' : '#5c3d1e';
+                pushVoxel(glossyWorldVoxels, gx + 0.5, gy + 0.42, gz + 0.5, col, 0.025, 1, 0.85, 1);
+                continue;
+              } else if (isOnDirtPath(gx, gz) && topY <= 1) {
+                col = ((gx + gz) % 3 === 0) ? '#c29b61' : '#b58950';
+              } else if (gx >= -16 && gx <= 26 && gz >= -16 && gz <= 18 && topY === 0 && (Math.abs(gx) % 6 <= 1)) {
+                col = '#5c3c1e';
+              } else {
+                col = ((gx + gz) % 2 === 0) ? '#55a630' : '#66b839';
+              }
+            } else if (gy === topY - 1) {
+              col = '#4d7c0f';
+            }
+            pushVoxel(solidWorldVoxels, gx + 0.5, gy + 0.5, gz + 0.5, col, 0.035);
+          }
+        }
+      }
+
+      addCollider(2.5, 0.25, -9.5, 9.2, 2.75, -2.5, 'sunflower_hill');
+
+      pushBox(solidWorldVoxels, -35, 1, -35, -21, 12, -21, (x, y, z) => {
+        if (z === -21 && x >= -31 && x <= -25 && y <= 9) {
+          if (x === -31 || x === -25 || y === 9 || x === -28 || Math.abs((x + 28) - (y - 5)) <= 0) {
+            return '#f8fafc';
+          }
+          return '#991b1b';
+        }
+        if (x === -35 || x === -21 || y === 12) return '#f8fafc';
+        return '#dc2626';
+      }, 0.025);
+
+      for (let ry = 13; ry <= 19; ry++) {
+        const inset = Math.max(0, ry - 13);
+        for (let rx = -36 + inset; rx <= -20 - inset; rx++) {
+          for (let rz = -36; rz <= -20; rz++) {
+            if (ry < 19 && rx > -36 + inset && rx < -20 - inset && rz > -36 && rz < -20) continue;
+            const isGableTrim = (rz === -20 || rz === -36) && (rx === -36 + inset || rx === -20 - inset);
+            const col = isGableTrim ? '#ffffff' : ((rz === -20 || rz === -36) ? '#dc2626' : '#475569');
+            pushVoxel(solidWorldVoxels, rx + 0.5, ry + 0.5, rz + 0.5, col, 0.02);
+          }
+        }
+      }
+      pushVoxel(lanternBulbVoxels, -28.0, 11.2, -19.8, '#ffea85', 0.01, 1.4, 1.6, 1.4);
+      addCollider(-8.9, 0.25, -8.9, -5.1, 4.8, -5.1, 'red_barn');
+
+      const hayBales = [
+        { x0: -19, y0: 1, z0: -31, x1: -16, y1: 3, z1: -27 },
+        { x0: -19, y0: 1, z0: -26, x1: -16, y1: 3, z1: -22 },
+        { x0: -19, y0: 4, z0: -29, x1: -16, y1: 6, z1: -25 }
+      ];
+      hayBales.forEach(b => {
+        pushBox(solidWorldVoxels, b.x0, b.y0, b.z0, b.x1, b.y1, b.z1, (x, y, z) => {
+          return (z === b.z0 + 1 || z === b.z1 - 1) ? '#ca8a04' : '#facc15';
+        }, 0.04);
+      });
+      addCollider(-4.8, 0.25, -7.8, -3.8, 1.75, -5.4, 'hay_bales');
+
+      for (let y = 3; y <= 21; y++) {
+        const r = y <= 10 ? 3 : (y <= 17 ? 2 : 1);
+        pushBox(solidWorldVoxels, 14 - r, y, -30 - r, 14 + r, y, -30 + r, (x, py, z) => {
+          if (py === 10 || py === 17) return '#5c3a21';
+          return ((x + z) % 2 === 0) ? '#9c6644' : '#8d5b3a';
+        }, 0.025);
+      }
+      pushBox(solidWorldVoxels, 12, 22, -32, 16, 23, -28, '#b91c1c');
+      pushVoxel(lanternBulbVoxels, 14.5, 15.5, -26.8, '#ffea85', 0.01, 1.3, 1.5, 1.3);
+      addCollider(2.7, 0.25, -8.3, 4.4, 5.8, -6.7, 'windmill_tower');
+
+      windmillRotorGroup.position.set(14.5 * RV, 19.5 * RV, -26.2 * RV);
+      const sailVoxels = [];
+      sailVoxels.push({ x: 0, y: 0, z: 0, color: new THREE.Color('#4a2f1b'), sx: 1.6, sy: 1.6, sz: 2.0 });
+      for (let arm = 0; arm < 4; arm++) {
+        const isVert = (arm % 2 === 0);
+        const dir = arm < 2 ? 1 : -1;
+        for (let i = 1; i <= 11; i++) {
+          const ax = isVert ? 0 : dir * i;
+          const ay = isVert ? dir * i : 0;
+          sailVoxels.push({ x: ax, y: ay, z: 0.4, color: new THREE.Color('#5c3a21'), sx: 0.65, sy: 0.65, sz: 0.65 });
+          if (i >= 3) {
+            for (let w = 1; w <= 2; w++) {
+              const lattX = isVert ? dir * w : ax;
+              const lattY = isVert ? ay : -dir * w;
+              sailVoxels.push({
+                x: lattX, y: lattY, z: 0.2,
+                color: _varyColor((i + w) % 2 === 0 ? '#fef3c7' : '#fde68a', i, w, arm, 0.02),
+                sx: 0.9, sy: 0.9, sz: 0.25
+              });
+            }
+          }
+        }
+      }
+      const rotorMesh = buildVoxelInstancedMesh(sailVoxels, 0.16, terrainMaterial, true, true);
+      if (rotorMesh) windmillRotorGroup.add(rotorMesh);
+
+      const fencePostsX = [-36, -30, -24, -18, -12, -6, 0, 6];
+      fencePostsX.forEach((fx, i) => {
+        for (let y = 1; y <= 4; y++) {
+          pushVoxel(solidWorldVoxels, fx + 0.5, y + 0.5, 22.5, '#784b2c', 0.025);
+        }
+        if (i < fencePostsX.length - 1) {
+          for (let rx = fx + 1; rx < fencePostsX[i + 1]; rx++) {
+            pushVoxel(solidWorldVoxels, rx + 0.5, 2.3, 22.5, '#8d5b3a', 0.02, 1, 0.55, 0.45);
+            pushVoxel(solidWorldVoxels, rx + 0.5, 3.8, 22.5, '#8d5b3a', 0.02, 1, 0.55, 0.45);
+          }
+        }
+      });
+      pushVoxel(lanternBulbVoxels, -11.5, 5.6, 22.5, '#ffb703', 0.01, 1.1, 1.4, 1.1);
+      pushVoxel(solidWorldVoxels, -11.5, 6.5, 22.5, '#3b2313', 0.01, 1.4, 0.35, 1.4);
+
+      for (let gx = -31; gx <= -20; gx++) {
+        for (let gz = 4; gz <= 15; gz++) {
+          const check = ((Math.floor((gx + 31) / 2) + Math.floor((gz - 4) / 2)) % 2 === 0);
+          const bCol = check ? '#ef4444' : '#ffffff';
+          pushVoxel(solidWorldVoxels, gx + 0.5, 1.15, gz + 0.5, bCol, 0.02, 1, 0.35, 1);
+        }
+      }
+      pushBox(solidWorldVoxels, -29, 1, 6, -26, 3, 9, '#b45309');
+      pushBox(solidWorldVoxels, -29, 4, 6, -26, 4, 9, '#d97706');
+      pushBox(glossyWorldVoxels, -23, 1, 8, -22, 4, 9, '#fde047');
+      pushVoxel(glossyWorldVoxels, -22.5, 4.8, 8.5, '#ffffff', 0.01, 1.4, 0.5, 1.4);
+      pushVoxel(glossyWorldVoxels, -21.2, 2.8, 8.5, '#fef08a', 0.01, 0.5, 1.6, 0.5);
+      pushVoxel(glossyWorldVoxels, -24.5, 1.8, 11.5, '#facc15', 0.01, 0.9, 1.3, 0.9);
+      pushVoxel(glossyWorldVoxels, -22.5, 1.8, 12.2, '#facc15', 0.01, 0.9, 1.3, 0.9);
+
+      for (let gx = 15; gx <= 25; gx++) {
+        for (let gz = 19; gz <= 29; gz++) {
+          const r = Math.hypot(gx - 20, gz - 24);
+          if (r <= 5.2) {
+            if (r >= 3.9) {
+              pushVoxel(glossyWorldVoxels, gx + 0.5, 1.4, gz + 0.5, '#38bdf8', 0.02, 1.1, 1.1, 1.1);
+              pushVoxel(glossyWorldVoxels, gx + 0.5, 2.3, gz + 0.5, '#facc15', 0.02, 1.1, 0.9, 1.1);
+            } else {
+              pushVoxel(solidWorldVoxels, gx + 0.5, 1.0, gz + 0.5, '#bae6fd', 0.01);
+              pushVoxel(waterPoolVoxels, gx + 0.5, 1.8, gz + 0.5, '#38bdf8', 0.02, 1.02, 0.7, 1.02);
+            }
+          }
+        }
+      }
+      pushVoxel(glossyWorldVoxels, 18.2, 2.4, 25.8, '#fde047', 0.01, 1.1, 0.9, 1.3);
+      pushVoxel(glossyWorldVoxels, 18.2, 3.0, 26.3, '#fde047', 0.01, 0.8, 0.8, 0.8);
+      pushVoxel(glossyWorldVoxels, 18.2, 3.0, 26.9, '#f97316', 0.01, 0.5, 0.35, 0.5);
+      addCollider(3.75, 0.25, 4.75, 6.25, 0.55, 7.25, 'cirno_kiddie_pool');
+
+      for (let wx = -25; wx <= -21; wx++) {
+        for (let wy = 1; wy <= 4; wy++) {
+          for (let wz = 16; wz <= 19; wz++) {
+            const isInside = (wx > -25 && wy > 1 && wy < 4 && wz > 16 && wz < 19);
+            if (isInside) continue;
+            pushVoxel(glossyWorldVoxels, wx + 0.5, wy + 0.5, wz + 0.5, '#94a3b8', 0.025);
+          }
+        }
+      }
+      for (let s = 1; s <= 3; s++) {
+        pushVoxel(glossyWorldVoxels, -25.5 - s * 0.7, 2.0 + s * 0.5, 17.5, s === 3 ? '#eab308' : '#94a3b8', 0.02);
+      }
+      addCollider(-6.4, 0.25, 3.9, -5.1, 1.25, 4.9, 'giant_watering_can');
+
+      const sunVoxels = [];
+      for (let sx = -4; sx <= 4; sx++) {
+        for (let sy = -4; sy <= 4; sy++) {
+          for (let sz = -2; sz <= 2; sz++) {
+            if (Math.hypot(sx, sy, sz) <= 4.3) {
+              sunVoxels.push({ x: sx, y: sy, z: sz, color: new THREE.Color('#fde047') });
+            }
+          }
+        }
+      }
+      sunMoonMesh = buildVoxelInstancedMesh(sunVoxels, 0.36, lanternEmissiveMaterial, false, false);
+      if (sunMoonMesh) {
+        sunMoonMesh.position.set(15.0, 14.5, -15.0);
+        skyCelestialGroup.add(sunMoonMesh);
+      }
+
+      const cloudCoords = [
+        { x: -10, y: 12.5, z: -13, scale: 1.1 },
+        { x: 2,   y: 13.8, z: -15, scale: 1.35 },
+        { x: -14, y: 11.8, z: 2,   scale: 0.95 },
+        { x: 12,  y: 12.8, z: 4,   scale: 1.05 }
+      ];
+      cloudCoords.forEach((cc, idx) => {
+        const cGroup = new THREE.Group();
+        cGroup.position.set(cc.x, cc.y, cc.z);
+        const cVox = [];
+        for (let x = -4; x <= 4; x++) {
+          for (let y = -1; y <= 2; y++) {
+            for (let z = -2; z <= 2; z++) {
+              const d1 = Math.hypot(x + 1.5, y * 1.3, z);
+              const d2 = Math.hypot(x - 1.5, (y - 0.4) * 1.2, z);
+              if (d1 <= 2.6 || d2 <= 2.8) {
+                cVox.push({ x, y, z, color: _varyColor('#ffffff', x, y, idx, 0.015) });
+              }
+            }
+          }
+        }
+        const cm = buildVoxelInstancedMesh(cVox, 0.28 * cc.scale, plushMaterial, false, false);
+        if (cm) cGroup.add(cm);
+        scene.add(cGroup);
+        cloudGroups.push({ group: cGroup, baseX: cc.x, speed: 0.22 + idx * 0.06, phase: idx * 1.7 });
+      });
+    }
+
+    buildGardenOfTheSunWorld();
+
+    const worldGroup = new THREE.Group();
+    scene.add(worldGroup);
+
+    const solidWorldMesh = buildVoxelInstancedMesh(solidWorldVoxels, RV, terrainMaterial, true, true);
+    const glossyWorldMesh = buildVoxelInstancedMesh(glossyWorldVoxels, RV, glossyMaterial, true, true);
+    const lanternBulbMesh = buildVoxelInstancedMesh(lanternBulbVoxels, RV, lanternEmissiveMaterial, false, false);
+    const waterPoolMesh = buildVoxelInstancedMesh(waterPoolVoxels, RV, waterMaterial, false, true);
+
+    if (solidWorldMesh) worldGroup.add(solidWorldMesh);
+    if (glossyWorldMesh) worldGroup.add(glossyWorldMesh);
+    if (lanternBulbMesh) worldGroup.add(lanternBulbMesh);
+    if (waterPoolMesh) worldGroup.add(waterPoolMesh);
+
+    // ============================================================================
+    // 5. NOSY, DRAMATIC VOXEL SUNFLOWERS WITH FACES ('ᗜˬᗜ') & LAUNCHER MECHANIC
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const fumos = [];
+    const sunflowers = [];
+    const allSunflowerRaycastMeshes = [];
+
+    class VoxelSunflower {
+      constructor(x, z, opts = {}) {
+        this.pos = new THREE.Vector3(x, getWorldGroundY(x, z), z);
+        this.isGiantBoss = Boolean(opts.isGiantBoss);
+        this.isLauncher = Boolean(opts.isLauncher);
+        this.baseScale = opts.scale || (0.88 + (_voxelHash(x * 10, 0, z * 10) * 0.28));
+        this.heightScale = opts.heightScale || 1.0;
+        this.bloomScale = 1.0;
+        this.bloomVel = 0.0;
+        this.danceTimer = 0.0;
+        this.sneezeCooldown = 0.0;
+        this.sneezeWindup = 0.0;
+        this.phase = _voxelHash(x * 3, 7, z * 5) * Math.PI * 2;
+        this.delayFactor = 2.8 + _voxelHash(x, 11, z) * 3.5;
+
+        this.currYaw = 0;
+        this.currPitch = 0;
+        this.yawVel = 0;
+        this.pitchVel = 0;
+
+        this.root = new THREE.Group();
+        this.root.position.copy(this.pos);
+
+        this.stemGroup = new THREE.Group();
+        this.root.add(this.stemGroup);
+
+        this.headPivot = new THREE.Group();
+        this.root.add(this.headPivot);
+
+        this.petalsGroup = new THREE.Group();
+        this.headPivot.add(this.petalsGroup);
+
+        this.buildFlowerMeshes();
+        this.updateTransform(0, 0.016, false);
+        scene.add(this.root);
+      }
+
+      buildFlowerMeshes() {
+        const U = (this.isGiantBoss ? 0.145 : 0.072) * this.baseScale;
+        this.U = U;
+        this.stemBaseHeight = 11 * U;
+
+        const stemVoxels = [];
+        const discVoxels = [];
+        const petalVoxels = [];
+
+        for (let y = 0; y <= 11; y++) {
+          const curveX = Math.sin((y / 11) * Math.PI) * 0.35;
+          stemVoxels.push({ x: curveX, y, z: 0, color: _varyColor('#4d7c0f', 0, y, 0, 0.03) });
+          if (y === 4 || y === 7) {
+            const side = (y === 4) ? -1 : 1;
+            for (let lx = 1; lx <= 3; lx++) {
+              stemVoxels.push({
+                x: curveX + side * lx * 0.9,
+                y: y + (lx === 2 ? 0.4 : 0),
+                z: 0.2,
+                color: _varyColor('#65a30d', lx, y, 0, 0.03),
+                sx: 1.1, sy: 0.55, sz: 1.4
+              });
+            }
+            if (!this.isGiantBoss && _voxelHash(this.pos.x * 13, y, this.pos.z * 17) > 0.72) {
+              stemVoxels.push({
+                x: curveX + side * 2.0,
+                y: y + 0.75,
+                z: 0.3,
+                color: new THREE.Color('#dc2626'),
+                sx: 0.65, sy: 0.5, sz: 0.75
+              });
+              stemVoxels.push({
+                x: curveX + side * 2.0,
+                y: y + 0.8,
+                z: 0.65,
+                color: new THREE.Color('#0f172a'),
+                sx: 0.4, sy: 0.4, sz: 0.4
+              });
+            }
+          }
+        }
+
+        for (let x = -3; x <= 3; x++) {
+          for (let y = -3; y <= 3; y++) {
+            const r = Math.hypot(x, y);
+            if (r <= 3.3) {
+              let col = (r < 2.2) ? '#582f0e' : '#7f4f24';
+              if ((Math.abs(x) === 1 || Math.abs(x) === 2) && y === 1) {
+                col = (Math.abs(x) === 1) ? '#1c1917' : '#ffffff';
+              } else if (Math.abs(x) === 2 && y === 0) {
+                col = '#fb7185';
+              } else if (Math.abs(x) <= 1 && y === -1) {
+                col = '#fef08a';
+              }
+              discVoxels.push({ x, y, z: 0.6, color: _varyColor(col, x, y, 1, 0.025) });
+              discVoxels.push({ x, y, z: -0.2, color: _varyColor('#3f6212', x, y, -1, 0.025) });
+            }
+          }
+        }
+
+        for (let x = -5; x <= 5; x++) {
+          for (let y = -5; y <= 5; y++) {
+            const r = Math.hypot(x, y);
+            if (r > 3.1 && r <= 5.3) {
+              const angle = Math.atan2(y, x);
+              const petalLobe = Math.cos(angle * 12) * 0.45;
+              if (r <= 4.85 + petalLobe) {
+                const pCol = r > 4.2 ? '#facc15' : '#eab308';
+                petalVoxels.push({ x, y, z: 0.35, color: _varyColor(pCol, x, y, 2, 0.035) });
+              }
+            }
+          }
+        }
+
+        if (this.isGiantBoss) {
+          for (let bx = -3; bx <= 3; bx++) {
+            const bh = Math.min(2, Math.abs(bx));
+            for (let by = -bh; by <= bh; by++) {
+              petalVoxels.push({
+                x: -3.2 + bx * 0.65,
+                y: 4.6 + by * 0.65,
+                z: 1.1,
+                color: new THREE.Color(bx === 0 ? '#fbbf24' : '#e11d48')
+              });
+            }
+          }
+        }
+
+        const sMesh = buildVoxelInstancedMesh(stemVoxels, U, terrainMaterial, true, true);
+        const dMesh = buildVoxelInstancedMesh(discVoxels, U, plushMaterial, true, true);
+        const pMesh = buildVoxelInstancedMesh(petalVoxels, U, plushMaterial, true, true);
+
+        [sMesh, dMesh, pMesh].forEach(m => {
+          if (m) {
+            m.userData.sunflower = this;
+            allSunflowerRaycastMeshes.push(m);
+          }
+        });
+
+        if (sMesh) this.stemGroup.add(sMesh);
+        if (dMesh) this.headPivot.add(dMesh);
+        if (pMesh) this.petalsGroup.add(pMesh);
+      }
+
+      triggerDanceAndBloom(withGiggle = true) {
+        this.bloomScale = 1.38;
+        this.bloomVel = 3.5;
+        this.danceTimer = 0.9;
+        spawnPollenBurst(this.getHeadWorldPos(), ['#fde047', '#facc15', '#ffffff', '#a3e635'], 14);
+        if (withGiggle) {
+          soundFX.playFlowerPop(this.isGiantBoss ? 0.72 : (0.95 + Math.random() * 0.3));
+        }
+
+        let launchedAny = false;
+        const headPos = this.getHeadWorldPos();
+        fumos.forEach(f => {
+          const distXZ = Math.hypot(f.pos.x - this.pos.x, f.pos.z - this.pos.z);
+          if ((this.isLauncher && distXZ < 1.8) || (distXZ < 1.1 && f.pos.y > headPos.y - 0.8)) {
+            launchFumoFromFlower(f, this);
+            launchedAny = true;
+          } else if (distXZ < 2.2) {
+            f.squeeze(0.8);
+          }
+        });
+        return launchedAny;
+      }
+
+      triggerSneeze() {
+        if (this.sneezeCooldown > 0) return;
+        this.sneezeCooldown = 4.2 + Math.random() * 2.0;
+        this.sneezeWindup = 0.38;
+      }
+
+      getHeadWorldPos() {
+        return new THREE.Vector3(
+          this.pos.x,
+          this.pos.y + this.stemBaseHeight * this.heightScale,
+          this.pos.z
+        );
+      }
+
+      updateTransform(time, dt, isNight) {
+        if (this.sneezeCooldown > 0) this.sneezeCooldown = Math.max(0, this.sneezeCooldown - dt);
+
+        if (this.sneezeWindup > 0) {
+          this.sneezeWindup -= dt;
+          if (this.sneezeWindup <= 0) {
+            const headPos = this.getHeadWorldPos();
+            spawnPollenBurst(headPos, ['#fde047', '#facc15', '#fef08a', '#fb7185'], 16);
+            soundFX.playSneeze(this.isGiantBoss ? 0.7 : 1.15);
+            this.bloomScale = 1.35;
+            this.pitchVel += 12.0;
+            incrementStat('sneezes');
+            showWorldCallout(headPos, '🤧 ACHOO!!');
+
+            fumos.forEach(f => {
+              if (f.pos.distanceTo(this.pos) < 3.4 && !f.isDragged) {
+                setTimeout(() => {
+                  f.squeeze(0.9);
+                  f.vel.y = Math.max(f.vel.y, 4.5);
+                  soundFX.playSneeze(f.pitchAudio * 1.1);
+                  incrementStat('sneezes');
+                  showWorldCallout(f.pos.clone().add(new THREE.Vector3(0, 1.3, 0)), '🤧 Choo!');
+                }, 180);
+              }
+            });
+          }
+        }
+
+        const bForce = (1.0 - this.bloomScale) * 160 - this.bloomVel * 10;
+        this.bloomVel += bForce * dt;
+        this.bloomScale = THREE.MathUtils.clamp(this.bloomScale + this.bloomVel * dt, 0.65, 1.65);
+
+        if (this.danceTimer > 0) {
+          this.danceTimer = Math.max(0, this.danceTimer - dt);
+        }
+
+        const breezeWave = Math.sin(time * 2.1 + this.pos.x * 0.45 + this.pos.z * 0.35) * 0.08;
+        const danceWiggle = this.danceTimer > 0 ? Math.sin(time * 24) * 0.22 : 0;
+
+        this.stemGroup.scale.set(
+          1.0 + (this.isLauncher ? Math.sin(time * 6) * 0.08 : 0),
+          this.heightScale,
+          1.0 + (this.isLauncher ? Math.cos(time * 6) * 0.08 : 0)
+        );
+        this.stemGroup.rotation.z = breezeWave + danceWiggle;
+
+        const topY = this.stemBaseHeight * this.heightScale;
+        this.headPivot.position.set(
+          -Math.sin(breezeWave + danceWiggle) * topY * 0.45,
+          topY,
+          0
+        );
+
+        let targetLookPos = null;
+        let gossipLean = 0;
+
+        if (isNight) {
+          if (this.isGiantBoss && sunMoonMesh) {
+            targetLookPos = sunMoonMesh.position;
+          } else {
+            targetLookPos = new THREE.Vector3(this.pos.x, this.pos.y - 1.5, this.pos.z + 2.5);
+          }
+        } else {
+          for (let i = 0; i < fumos.length; i++) {
+            for (let j = i + 1; j < fumos.length; j++) {
+              if (fumos[i].pos.distanceTo(fumos[j].pos) < 2.5) {
+                const pairMid = fumos[i].pos.clone().add(fumos[j].pos).multiplyScalar(0.5);
+                if (pairMid.distanceTo(this.pos) < 4.2) {
+                  targetLookPos = pairMid.clone().add(new THREE.Vector3(0, 0.8, 0));
+                  gossipLean = 0.22;
+                  break;
+                }
+              }
+            }
+            if (targetLookPos) break;
+          }
+
+          if (!targetLookPos) {
+            const cursorIdleSec = (performance.now() - lastCursorMoveTime) / 1000;
+            if (cursorIdleSec < 1.8) {
+              targetLookPos = cursorWorldTarget;
+            } else {
+              let nearestDist = Infinity;
+              let nearestFumo = null;
+              for (let i = 0; i < fumos.length; i++) {
+                const d = fumos[i].pos.distanceTo(this.pos);
+                if (d < nearestDist) {
+                  nearestDist = d;
+                  nearestFumo = fumos[i];
+                }
+              }
+              if (nearestFumo) {
+                targetLookPos = nearestFumo.pos.clone().add(new THREE.Vector3(0, 0.9, 0));
+              }
+            }
+          }
+        }
+
+        let desiredYaw = 0;
+        let desiredPitch = 0;
+        if (targetLookPos) {
+          const headWorld = this.getHeadWorldPos();
+          const dx = targetLookPos.x - headWorld.x;
+          const dy = targetLookPos.y - headWorld.y;
+          const dz = targetLookPos.z - headWorld.z;
+          desiredYaw = Math.atan2(dx, dz);
+          const distXZ = Math.max(0.5, Math.hypot(dx, dz));
+          desiredPitch = THREE.MathUtils.clamp(-Math.atan2(dy, distXZ), -0.65, 0.65);
+        }
+
+        if (this.sneezeWindup > 0) {
+          desiredPitch = -0.55;
+        }
+
+        let yawDiff = desiredYaw - this.currYaw;
+        while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+        while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+
+        const stiff = this.delayFactor * 6.5;
+        const damp = 5.2;
+        this.yawVel += (yawDiff * stiff - this.yawVel * damp) * dt;
+        this.pitchVel += ((desiredPitch - this.currPitch) * stiff - this.pitchVel * damp) * dt;
+        this.currYaw += this.yawVel * dt;
+        this.currPitch += this.pitchVel * dt;
+
+        this.headPivot.rotation.order = 'YXZ';
+        this.headPivot.rotation.set(this.currPitch + gossipLean, this.currYaw, danceWiggle * 1.2);
+        this.headPivot.scale.setScalar(this.bloomScale);
+
+        const petalJiggle = 1.0 + Math.sin(time * 7.5 + this.phase) * 0.035 + (this.bloomScale - 1.0) * 0.3;
+        this.petalsGroup.scale.set(petalJiggle, petalJiggle, 1.0);
+      }
+    }
+
+    (function populateSunflowerField() {
+      sunflowers.push(new VoxelSunflower(6.2, -5.8, { isGiantBoss: true, scale: 1.45, heightScale: 1.35 }));
+
+      const rowZCoords = [-3.8, -1.8, 0.2, 2.2, 4.2];
+      const colXCoords = [-7.2, -5.4, -3.6, 1.4, 3.2, 5.0, 6.8, 8.2];
+
+      rowZCoords.forEach((rz, rIdx) => {
+        colXCoords.forEach((cx, cIdx) => {
+          const wx = cx + (_voxelHash(cx, rIdx, rz) - 0.5) * 0.45;
+          const wz = rz + (_voxelHash(rz, cIdx, cx) - 0.5) * 0.45;
+          const gx = Math.round(wx / RV);
+          const gz = Math.round(wz / RV);
+          if (isOnDirtPath(gx, gz) || isInMudPuddle(gx, gz)) return;
+          if (Math.hypot(wx - 5.0, wz - 6.0) < 2.2) return;
+          sunflowers.push(new VoxelSunflower(wx, wz));
+        });
+      });
+    })();
+
+    // ============================================================================
+    // 6. CHONKY VOXEL BUMBLEBEES, BUTTERFLIES, SCARECROW CROWS & POOLED PARTICLES
+    // ============================================================================
+    const bees = [];
+    const BEE_COUNT = 7;
+
+    function createChonkyBee(idx) {
+      const group = new THREE.Group();
+      const bodyVox = [];
+      const wingVox = [];
+      const U = idx === 0 ? 0.105 : 0.082;
+
+      for (let x = -2; x <= 2; x++) {
+        for (let y = -2; y <= 2; y++) {
+          for (let z = -3; z <= 3; z++) {
+            if (Math.hypot(x, y, z * 0.8) <= 2.45) {
+              let col = ((z + 4) % 2 === 0) ? '#facc15' : '#1c1917';
+              if (z === 3 && Math.abs(x) === 1 && y === 0) col = '#ffffff';
+              if (z === 3 && Math.abs(x) === 2 && y === -1) col = '#fb7185';
+              bodyVox.push({ x, y, z, color: _varyColor(col, x, y, z, 0.025) });
+            }
+          }
+        }
+      }
+      bodyVox.push({ x: 0, y: 0, z: -3.6, color: new THREE.Color('#1c1917'), sx: 0.5, sy: 0.5, sz: 0.9 });
+
+      if (idx === 1) {
+        for (let hx = -2; hx <= 2; hx++) {
+          for (let hz = -2; hz <= 2; hz++) {
+            if (Math.hypot(hx, hz) <= 2.3) {
+              bodyVox.push({ x: hx * 0.7, y: 2.4, z: 1.0 + hz * 0.7, color: new THREE.Color('#1e1b24'), sx: 0.75, sy: 0.4, sz: 0.75 });
+            }
+          }
+        }
+        bodyVox.push({ x: 0, y: 3.1, z: 1.0, color: new THREE.Color('#f8fafc'), sx: 1.3, sy: 0.5, sz: 1.3 });
+        bodyVox.push({ x: 0, y: 3.8, z: 0.8, color: new THREE.Color('#1e1b24'), sx: 0.9, sy: 1.1, sz: 0.9 });
+      }
+
+      for (const side of [-1, 1]) {
+        wingVox.push({ x: side * 1.8, y: 2.2, z: 0, color: new THREE.Color('#e0f2fe'), sx: 1.8, sy: 0.25, sz: 1.2 });
+      }
+
+      const bMesh = buildVoxelInstancedMesh(bodyVox, U, plushMaterial, true, true);
+      const wMesh = buildVoxelInstancedMesh(wingVox, U, fairyWingMaterial, false, false);
+      const wingPivot = new THREE.Group();
+      if (bMesh) group.add(bMesh);
+      if (wMesh) wingPivot.add(wMesh);
+      group.add(wingPivot);
+      scene.add(group);
+
+      return {
+        group,
+        wingPivot,
+        pos: new THREE.Vector3((idx - 3) * 2.2, 2.2 + (idx % 3) * 0.4, (idx % 2 === 0 ? -1 : 2)),
+        vel: new THREE.Vector3(),
+        angle: (idx / BEE_COUNT) * Math.PI * 2,
+        squash: 1.0,
+        squashVel: 0,
+        bonkCooldown: 0
+      };
+    }
+
+    for (let i = 0; i < BEE_COUNT; i++) {
+      bees.push(createChonkyBee(i));
+    }
+
+    let isBeeCongaActive = false;
+
+    function updateChonkyBees(time, dt, isNight) {
+      for (let i = 0; i < bees.length; i++) {
+        const b = bees[i];
+        if (b.bonkCooldown > 0) b.bonkCooldown -= dt;
+
+        b.squashVel += ((1.0 - b.squash) * 180 - b.squashVel * 10) * dt;
+        b.squash = THREE.MathUtils.clamp(b.squash + b.squashVel * dt, 0.55, 1.45);
+
+        let targetPos = new THREE.Vector3();
+        if (petalStormTimer > 0) {
+          const chaseAngle = time * 2.6 + i * 0.9;
+          targetPos.set(Math.cos(chaseAngle) * 5.2, 2.4 + Math.sin(time * 5 + i) * 0.7, Math.sin(chaseAngle) * 5.2);
+        } else if (isBeeCongaActive && fumos[5]) {
+          const wriggle = fumos[5];
+          const trailPhase = time * 2.2 - i * 0.55;
+          targetPos.set(
+            wriggle.pos.x + Math.cos(trailPhase) * (1.4 + i * 0.55),
+            wriggle.pos.y + 1.15 + Math.sin(time * 6 - i * 0.8) * 0.25,
+            wriggle.pos.z + Math.sin(trailPhase) * (1.4 + i * 0.55)
+          );
+        } else {
+          b.angle += (isNight ? 0.35 : 0.85) * dt;
+          const r = 2.8 + (i % 3) * 1.4;
+          targetPos.set(
+            Math.cos(b.angle + i) * r,
+            (isNight ? 1.3 : 1.75) + Math.sin(time * 3.2 + i * 1.7) * 0.45,
+            Math.sin(b.angle * 0.8 + i) * r
+          );
+        }
+
+        const prevPos = b.pos.clone();
+        b.pos.lerp(targetPos, Math.min(1, dt * 3.5));
+
+        if (!isNight && b.bonkCooldown <= 0) {
+          for (let s = 0; s < sunflowers.length; s++) {
+            const sf = sunflowers[s];
+            const headPos = sf.getHeadWorldPos();
+            if (b.pos.distanceTo(headPos) < 0.78) {
+              b.bonkCooldown = 1.6;
+              b.squash = 0.62;
+              b.squashVel = -3.0;
+              sf.bloomScale = 1.28;
+              sf.yawVel += (Math.random() - 0.5) * 12;
+              const push = b.pos.clone().sub(headPos).normalize().multiplyScalar(0.55);
+              b.pos.add(push);
+              soundFX.playBeeBoing();
+              break;
+            }
+          }
+        }
+
+        const moveDir = b.pos.clone().sub(prevPos);
+        if (moveDir.lengthSq() > 0.00001) {
+          b.group.rotation.y = Math.atan2(moveDir.x, moveDir.z);
+        }
+        b.group.rotation.z = Math.sin(time * 5 + i) * 0.14;
+        b.group.position.copy(b.pos);
+
+        const sy = b.squash;
+        const sxz = 1.0 / Math.sqrt(sy);
+        b.group.scale.set(sxz, sy, sxz);
+        b.wingPivot.scale.y = 0.6 + 0.5 * Math.sin(time * 45 + i);
+      }
+    }
+
+    const CRITTERS_COUNT = 34;
+    const critterData = [];
+    const critterGeom = new THREE.BoxGeometry(0.13, 0.06, 0.15);
+    const critterMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const critterMesh = new THREE.InstancedMesh(critterGeom, critterMat, CRITTERS_COUNT);
+    for (let i = 0; i < CRITTERS_COUNT; i++) {
+      critterData.push({
+        cx: -7.5 + Math.random() * 15,
+        cy: 1.0 + Math.random() * 3.5,
+        cz: -6.5 + Math.random() * 13,
+        phase: Math.random() * Math.PI * 2,
+        speed: 1.1 + Math.random() * 1.4,
+        radius: 0.9 + Math.random() * 2.2
+      });
+    }
+    scene.add(critterMesh);
+
+    function updateCritters(time, nightFactor) {
+      const butterflyPalette = ['#f472b6', '#38bdf8', '#fb923c', '#c084fc'];
+      for (let i = 0; i < CRITTERS_COUNT; i++) {
+        const c = critterData[i];
+        const t = time * c.speed + c.phase;
+        const x = c.cx + Math.cos(t) * c.radius;
+        const y = c.cy + Math.sin(t * 2.3) * 0.38;
+        const z = c.cz + Math.sin(t * 0.9) * c.radius;
+        tempPos.set(x, y, z);
+        tempEuler.set(0, -t, Math.sin(time * 16 + i) * 0.35);
+        tempQuat.setFromEuler(tempEuler);
+
+        const pulse = nightFactor > 0.45
+          ? (0.45 + 0.65 * Math.max(0, Math.sin(time * 3.4 + c.phase)))
+          : (0.85 + 0.25 * Math.sin(time * 18 + i));
+        tempScale.set(pulse, 1, pulse);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        critterMesh.setMatrixAt(i, tempMatrix);
+
+        if (nightFactor > 0.45) {
+          _tempCol.set(i % 2 === 0 ? '#fde047' : '#a3e635');
+        } else {
+          _tempCol.set(butterflyPalette[i % butterflyPalette.length]);
+        }
+        critterMesh.setColorAt(i, _tempCol);
+      }
+      critterMesh.instanceMatrix.needsUpdate = true;
+      if (critterMesh.instanceColor) critterMesh.instanceColor.needsUpdate = true;
+    }
+
+    const PARTICLE_MAX = 140;
+    const particles = [];
+    const partGeom = new THREE.BoxGeometry(0.11, 0.11, 0.11);
+    const partMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const partMesh = new THREE.InstancedMesh(partGeom, partMat, PARTICLE_MAX);
+    for (let i = 0; i < PARTICLE_MAX; i++) {
+      particles.push({
+        active: false,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        life: 0,
+        maxLife: 1,
+        swirl: false,
+        gravity: 6.5,
+        color: new THREE.Color('#fde047')
+      });
+      tempMatrix.makeScale(0, 0, 0);
+      partMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(partMesh);
+
+    function spawnPollenBurst(origin, palette, count = 12, gravity = 5.5, swirl = false) {
+      let spawned = 0;
+      for (let i = 0; i < PARTICLE_MAX && spawned < count; i++) {
+        const p = particles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = swirl ? (1.8 + Math.random() * 1.2) : (0.55 + Math.random() * 0.35);
+          p.swirl = swirl;
+          p.gravity = gravity;
+          p.pos.copy(origin).add(new THREE.Vector3((Math.random() - 0.5) * 0.4, 0.3, (Math.random() - 0.5) * 0.4));
+          const angle = (spawned / count) * Math.PI * 2 + Math.random() * 0.4;
+          const speed = swirl ? (1.5 + Math.random() * 3.0) : (1.6 + Math.random() * 2.2);
+          p.vel.set(Math.cos(angle) * speed, (swirl ? 1.5 : 2.4) + Math.random() * 2.0, Math.sin(angle) * speed);
+          p.color.set(palette[spawned % palette.length]);
+          partMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (partMesh.instanceColor) partMesh.instanceColor.needsUpdate = true;
+    }
+
+    let petalStormTimer = 0;
+    let wateringTimer = 0;
+
+    function updateParticles(dt, time) {
+      if (petalStormTimer > 0) {
+        petalStormTimer = Math.max(0, petalStormTimer - dt);
+        if (Math.random() < dt * 28 && sunflowers.length > 0) {
+          const sf = sunflowers[Math.floor(Math.random() * sunflowers.length)];
+          spawnPollenBurst(sf.getHeadWorldPos(), ['#facc15', '#fde047', '#fb923c', '#ffffff'], 3, 1.2, true);
+        }
+      }
+
+      let dirty = false;
+      for (let i = 0; i < PARTICLE_MAX; i++) {
+        const p = particles[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          partMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        if (p.swirl) {
+          p.vel.x += Math.cos(time * 4 + i) * 3.5 * dt;
+          p.vel.z += Math.sin(time * 4 + i) * 3.5 * dt;
+        }
+        p.vel.y -= p.gravity * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const s = (1.0 - (p.life / p.maxLife)) * (p.swirl ? 1.25 : 1.0);
+        tempEuler.set(p.life * 7, p.life * 5, 0);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(s, s * 0.6, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        partMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) partMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 7. SILLY COUNTERS, CONFETTI POP & FLOATING CALLOUT BUBBLES
+    // ============================================================================
+    const stats = { flowers: 0, launched: 0, sneezes: 0 };
+    try {
+      const savedStats = JSON.parse(localStorage.getItem(STORAGE_STATS_KEY) || '{}');
+      if (typeof savedStats.flowers === 'number') stats.flowers = savedStats.flowers;
+      if (typeof savedStats.launched === 'number') stats.launched = savedStats.launched;
+      if (typeof savedStats.sneezes === 'number') stats.sneezes = savedStats.sneezes;
+    } catch (e) {}
+
+    const countFlowersEl = document.getElementById('count-flowers');
+    const countLaunchedEl = document.getElementById('count-launched');
+    const countSneezesEl = document.getElementById('count-sneezes');
+    const eventToastEl = document.getElementById('event-toast');
+    const eventToastIconEl = document.getElementById('event-toast-icon');
+    const eventToastTextEl = document.getElementById('event-toast-text');
+
+    function syncStatsUI(popKey = null) {
+      countFlowersEl.textContent = stats.flowers;
+      countLaunchedEl.textContent = stats.launched;
+      countSneezesEl.textContent = stats.sneezes;
+      const mapEl = { flowers: countFlowersEl, launched: countLaunchedEl, sneezes: countSneezesEl };
+      if (popKey && mapEl[popKey]) {
+        mapEl[popKey].classList.remove('stat-pop');
+        void mapEl[popKey].offsetWidth;
+        mapEl[popKey].classList.add('stat-pop');
+      }
+      try {
+        localStorage.setItem(STORAGE_STATS_KEY, JSON.stringify(stats));
+      } catch (e) {}
+    }
+    syncStatsUI();
+
+    let toastTimer = null;
+    function showToast(icon, text) {
+      eventToastIconEl.textContent = icon;
+      eventToastTextEl.textContent = text;
+      eventToastEl.classList.remove('hidden');
+      eventToastEl.classList.add('flex');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        eventToastEl.classList.add('hidden');
+        eventToastEl.classList.remove('flex');
+      }, 3000);
+    }
+
+    function incrementStat(key, originPos = null) {
+      stats[key] = (stats[key] || 0) + 1;
+      syncStatsUI(key);
+      if (stats[key] === 1 || stats[key] % 5 === 0) {
+        const burstPos = originPos || new THREE.Vector3(0, 3.0, 0);
+        spawnPollenBurst(burstPos, ['#f43f5e', '#38bdf8', '#facc15', '#4ade80', '#c084fc'], 20, 4.0, true);
+        soundFX.playFanfare();
+        const labels = { flowers: 'Flowers Grown', launched: 'Fumos Launched', sneezes: 'Field Sneezes' };
+        showToast('🎉', `New Record! ${stats[key]} ${labels[key]}!`);
+      }
+    }
+
+    const calloutEl = document.getElementById('world-callout');
+    const calloutTextEl = document.getElementById('world-callout-text');
+    let calloutTargetPos = new THREE.Vector3();
+    let calloutTimer = 0;
+
+    function showWorldCallout(worldPos, text, duration = 1.6) {
+      calloutTargetPos.copy(worldPos);
+      calloutTextEl.textContent = text;
+      calloutTimer = duration;
+      calloutEl.classList.remove('hidden');
+    }
+
+    function updateWorldCallout(dt) {
+      if (calloutTimer <= 0) return;
+      calloutTimer -= dt;
+      if (calloutTimer <= 0) {
+        calloutEl.classList.add('hidden');
+        return;
+      }
+      const p = calloutTargetPos.clone();
+      p.project(camera);
+      const sx = (p.x * 0.5 + 0.5) * window.innerWidth;
+      const sy = (-(p.y * 0.5) + 0.5) * window.innerHeight;
+      calloutEl.style.left = `${THREE.MathUtils.clamp(sx, 90, window.innerWidth - 90)}px`;
+      calloutEl.style.top = `${THREE.MathUtils.clamp(sy, 50, window.innerHeight - 90)}px`;
+    }
+
+    // ============================================================================
+    // 8. TOUHOU FUMO VOXEL PLUSHIE BUILDER & SILLY FIELD BEHAVIORS
+    // ============================================================================
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.emoji = config.emoji || '🌻';
+        this.accentColor = config.accentColor || '#ef4444';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.082 * this.scaleFactor;
+        this.radius = 0.85 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+
+        this.isPlantedInDirt = Boolean(config.isPlantedInDirt);
+        this.isStuckHeadFirst = false;
+        this.ridesBeeIndex = config.ridesBeeIndex !== undefined ? config.ridesBeeIndex : -1;
+        this.isSleeping = Boolean(config.isSleeping);
+        this.scowlTimer = 0;
+        this.scarecrowNapTimer = 0;
+
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+        this.nightPos = config.nightPos ? config.nightPos.clone() : null;
+        this.nightYaw = config.nightYaw !== undefined ? config.nightYaw : this.homeYaw;
+
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isDragged = false;
+
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        this.scowlGroup = new THREE.Group();
+        this.headPivot.add(this.scowlGroup);
+        this.scowlGroup.visible = false;
+
+        this.crowsGroup = new THREE.Group();
+        this.squashGroup.add(this.crowsGroup);
+
+        this.buildCharacterVoxels(config);
+        this.syncTransform(0);
+        scene.add(this.root);
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingSolidVoxels = [];
+        const wingGlowVoxels = [];
+
+        const skinBase = '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false, sx = 1, sy = 1, sz = 1) => {
+          const seamDarken = (isSeam && ((Math.abs(x + y + z) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z, sx, sy, sz,
+            color: _varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain;
+
+              if (this.id === 'yuuka') {
+                col = ((x + y + z) % 2 === 0) ? '#dc2626' : '#991b1b';
+                if (y >= 5 && z >= 2 && Math.abs(x) <= 1) col = '#fef08a';
+              } else if (this.id === 'pot_fumo') {
+                col = (y >= 5) ? '#ea580c' : '#c2410c';
+                if (y === 6 && z >= 2 && Math.abs(x) <= 2) col = '#ef4444';
+              } else {
+                if (y === 1 && z >= 1) col = '#ffffff';
+                if (cfg.hasWhiteApron && z >= 1 && Math.abs(x) <= 2 && y <= 5) col = '#fcfcfc';
+                if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                  col = '#ffffff';
+                  if (Math.abs(x) <= 1 && y === 5) col = cfg.tieColor || '#ef4444';
+                }
+              }
+
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || '#ffffff';
+                if (y === -3) col = (this.id === 'scarecrow') ? '#eab308' : skinBase;
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = '#ffffff';
+                if (z === 0) col = skinBase;
+                if (z >= 3) col = cfg.shoeColor || '#2b2d42';
+                if (z === 4 && y === 1 && x === 0) col = '#ffffff';
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (this.isSleeping) {
+                    col = (y === 5) ? '#1f141e' : skinBase;
+                  } else if (y === 6) {
+                    col = '#1f141e';
+                  } else if (y === 5 && Math.abs(x) === 2) {
+                    col = '#ffffff';
+                  } else {
+                    col = cfg.eyeColor;
+                  }
+                } else if (Math.abs(x) === 4 && y === 3) {
+                  col = blushCol;
+                } else if (y === 2 && Math.abs(x) <= 1) {
+                  col = (x === 0) ? '#e07a7a' : smileCol;
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        if (this.id === 'yuuka') {
+          for (let py = -2; py <= 12; py++) {
+            addPlushVoxel(leftArmVoxels, -1.5, py, 2.0, '#e2e8f0', false, 0.5, 1, 0.5);
+          }
+          for (let px = -5; px <= 5; px++) {
+            for (let pz = -5; pz <= 5; pz++) {
+              const r = Math.hypot(px, pz);
+              if (r <= 5.2) {
+                const domeY = 12.2 - r * 0.35;
+                const pCol = r > 4.2 ? '#fbcfe8' : '#ffffff';
+                addPlushVoxel(leftArmVoxels, -1.5 + px * 0.85, domeY, 2.0 + pz * 0.85, pCol);
+              }
+            }
+          }
+          for (let wx = -1; wx <= 1; wx++) {
+            for (let wz = 1; wz <= 3; wz++) {
+              addPlushVoxel(rightArmVoxels, 1.2 + wx * 0.7, -2.5, wz * 0.8, '#22c55e');
+            }
+          }
+          addPlushVoxel(rightArmVoxels, 1.2, -2.0, 3.4, '#eab308', false, 0.8, 0.8, 1.2);
+
+          const scowlVox = [
+            { x: -3.2, y: 6.8, z: 6.1, color: new THREE.Color('#1f141e'), sx: 1.3, sy: 0.7, sz: 0.6 },
+            { x: -2.0, y: 6.2, z: 6.1, color: new THREE.Color('#1f141e'), sx: 1.3, sy: 0.7, sz: 0.6 },
+            { x: 3.2,  y: 6.8, z: 6.1, color: new THREE.Color('#1f141e'), sx: 1.3, sy: 0.7, sz: 0.6 },
+            { x: 2.0,  y: 6.2, z: 6.1, color: new THREE.Color('#1f141e'), sx: 1.3, sy: 0.7, sz: 0.6 },
+            { x: 4.2, y: 9.5, z: 5.5, color: new THREE.Color('#ef4444'), sx: 2.2, sy: 0.7, sz: 0.7 },
+            { x: 4.2, y: 9.5, z: 5.5, color: new THREE.Color('#ef4444'), sx: 0.7, sy: 2.2, sz: 0.7 }
+          ];
+          const scowlMesh = buildVoxelInstancedMesh(scowlVox, this.FV, plushMaterial, false, false);
+          if (scowlMesh) this.scowlGroup.add(scowlMesh);
+        }
+
+        if (this.id === 'medicine') {
+          for (let bx = -5; bx <= 5; bx++) {
+            addPlushVoxel(headVoxels, bx, 11.5, -1.5, '#e11d48');
+            if (Math.abs(bx) >= 2) addPlushVoxel(headVoxels, bx, 12.3, -1.5, '#e11d48');
+          }
+          addPlushVoxel(wingSolidVoxels, 6.5, 5.0, 2.0, '#38bdf8', false, 1.8, 2.2, 1.5);
+          addPlushVoxel(wingSolidVoxels, 6.5, 7.2, 2.0, skinBase, false, 2.0, 2.0, 2.0);
+          addPlushVoxel(wingSolidVoxels, 6.5, 8.5, 2.0, '#fde047', false, 2.2, 1.0, 2.2);
+        }
+
+        if (this.id === 'lily') {
+          for (let ch = 0; ch <= 6; ch++) {
+            const r = Math.max(1.5, 5.5 - ch * 0.55);
+            for (let hx = -6; hx <= 6; hx++) {
+              for (let hz = -6; hz <= 6; hz++) {
+                if (Math.hypot(hx, hz) <= r) {
+                  addPlushVoxel(headVoxels, hx, 10.5 + ch * 0.85, hz, ch === 0 ? '#ef4444' : '#ffffff');
+                }
+              }
+            }
+          }
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 6; wx++) {
+              wingGlowVoxels.push({ x: side * wx, y: 1.5 + (wx % 3), z: -0.5, color: new THREE.Color('#ffffff'), sx: 1.1, sy: 1.4, sz: 0.5 });
+            }
+          }
+        }
+
+        if (this.id === 'daiyousei') {
+          for (let py = 1; py <= 6; py++) {
+            addPlushVoxel(headVoxels, 6.8, py, 1.5, py === 5 ? '#facc15' : cfg.hairColor);
+          }
+          for (const side of [-1, 1]) {
+            for (let wx = 1; wx <= 5; wx++) {
+              wingGlowVoxels.push({ x: side * wx, y: 1.0 + wx * 0.4, z: -0.5, color: new THREE.Color('#bae6fd'), sx: 1.0, sy: 1.3, sz: 0.5 });
+            }
+          }
+        }
+
+        if (this.id === 'rumia') {
+          addPlushVoxel(headVoxels, 5.8, 8.8, 2.0, '#dc2626', false, 1.5, 1.5, 1.5);
+        }
+
+        if (this.id === 'wriggle') {
+          for (const side of [-1, 1]) {
+            for (let a = 1; a <= 4; a++) {
+              addPlushVoxel(headVoxels, side * (2.0 + a * 0.65), 11.0 + a * 0.85, 3.0 + a * 0.3, a === 4 ? '#fde047' : '#1e293b', false, 0.55, 0.85, 0.55);
+            }
+          }
+        }
+
+        if (this.id === 'cirno') {
+          for (let deg = 0; deg < 12; deg++) {
+            const ang = (deg / 12) * Math.PI * 2;
+            const cx = Math.cos(ang) * 6.2;
+            const cz = Math.sin(ang) * 5.8;
+            addPlushVoxel(headVoxels, cx, 10.2, cz, deg % 2 === 0 ? '#facc15' : '#eab308', false, 1.3, 0.9, 1.3);
+          }
+          const wingAngles = [0.45, 0.05, -0.35];
+          for (const side of [-1, 1]) {
+            for (let w = 0; w < 3; w++) {
+              const ang = wingAngles[w];
+              for (let r = 1; r <= 6; r++) {
+                wingGlowVoxels.push({
+                  x: side * (1.2 + Math.cos(ang) * r),
+                  y: 1.0 + Math.sin(ang) * r,
+                  z: -0.5,
+                  color: new THREE.Color('#7dd3fc'),
+                  sx: 1.0, sy: 0.8, sz: 0.5
+                });
+              }
+            }
+          }
+        }
+
+        if (this.id === 'scarecrow') {
+          for (let ch = 0; ch <= 7; ch++) {
+            const r = Math.max(0.9, 7.5 - ch * 0.85);
+            for (let hx = -7; hx <= 7; hx++) {
+              for (let hz = -7; hz <= 7; hz++) {
+                if (Math.hypot(hx, hz) <= r) {
+                  const patch = (hx > 1 && hz > 1 && ch >= 2 && ch <= 4);
+                  addPlushVoxel(headVoxels, hx, 10.2 + ch * 0.8, hz, patch ? '#ef4444' : '#92400e');
+                }
+              }
+            }
+          }
+          const crowVox = [];
+          for (const side of [-1, 1]) {
+            const cx = side * 6.2;
+            crowVox.push({ x: cx, y: 7.4, z: 0.5, color: new THREE.Color('#1e293b'), sx: 1.4, sy: 1.4, sz: 2.0 });
+            crowVox.push({ x: cx, y: 8.6, z: 1.4, color: new THREE.Color('#0f172a'), sx: 1.2, sy: 1.2, sz: 1.2 });
+            crowVox.push({ x: cx, y: 8.5, z: 2.3, color: new THREE.Color('#f59e0b'), sx: 0.5, sy: 0.5, sz: 0.9 });
+          }
+          const cMesh = buildVoxelInstancedMesh(crowVox, this.FV, plushMaterial, true, true);
+          if (cMesh) this.crowsGroup.add(cMesh);
+        }
+
+        if (this.id === 'costume_fumo') {
+          for (let deg = 0; deg < 16; deg++) {
+            const ang = (deg / 16) * Math.PI * 2;
+            const px = Math.cos(ang) * 7.8;
+            const py = 5.8 + Math.sin(ang) * 7.4;
+            addPlushVoxel(headVoxels, px, py, 2.5, deg % 2 === 0 ? '#facc15' : '#f59e0b', false, 1.6, 1.6, 0.9);
+          }
+        }
+
+        if (this.id === 'planted_fumo') {
+          addPlushVoxel(headVoxels, 0, 12.2, 0, '#4d7c0f', false, 0.6, 2.0, 0.6);
+          addPlushVoxel(headVoxels, -1.4, 13.2, 0, '#65a30d', false, 1.6, 0.6, 1.0);
+          addPlushVoxel(headVoxels, 1.4, 13.2, 0, '#84cc16', false, 1.6, 0.6, 1.0);
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allFumoRaycastMeshes.push(m);
+          }
+          return m;
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        registerPart(wingSolidVoxels, this.wingsPivot);
+        if (wingGlowVoxels.length > 0) {
+          registerPart(wingGlowVoxels, this.wingsPivot, fairyWingMaterial);
+        }
+      }
+
+      triggerYuukaScowl() {
+        this.scowlTimer = 2.6;
+        this.scowlGroup.visible = true;
+        this.squeeze(0.9);
+        showWorldCallout(this.pos.clone().add(new THREE.Vector3(0, 1.6, 0)), '💢 MY SUNFLOWERS!!', 2.2);
+      }
+
+      squeeze(strength = 1.0) {
+        if (this.isStuckHeadFirst) {
+          this.isStuckHeadFirst = false;
+          this.vel.set((Math.random() - 0.5) * 3, 7.5, (Math.random() - 0.5) * 3);
+          this.pitch = 0;
+          this.roll = 0;
+          sunflowers.push(new VoxelSunflower(this.pos.x, this.pos.z, { scale: 0.72, heightScale: 0.75 }));
+          incrementStat('flowers', this.pos);
+          soundFX.playFlowerPop(1.2);
+          showWorldCallout(this.pos.clone().add(new THREE.Vector3(0, 1.4, 0)), '🌱 Popped Free!');
+        }
+        this.squash = Math.max(0.52, this.squash - 0.42 * strength);
+        this.squashVel = -3.5 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 11 * strength;
+        this.limbPitch = -0.65 * strength;
+        this.limbPitchVel = -6.0 * strength;
+        spawnPollenBurst(this.pos, [this.accentColor, '#ff85a1', '#fde047', '#ffffff'], 12);
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      resetToHome() {
+        const targetHome = (isNightMode && this.nightPos) ? this.nightPos : this.homePos;
+        this.pos.copy(targetHome);
+        this.vel.set(0, 0, 0);
+        this.yaw = (isNightMode && this.nightPos) ? this.nightYaw : this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.isStuckHeadFirst = false;
+        this.isDragged = false;
+        this.squeeze(0.75);
+      }
+
+      updatePhysics(dt, time) {
+        if (this.scowlTimer > 0) {
+          this.scowlTimer -= dt;
+          if (this.scowlTimer <= 0) {
+            this.scowlGroup.visible = false;
+          }
+        }
+
+        const squashStiff = 210.0;
+        const squashDamp = 11.5;
+        this.squashVel += ((1.0 - this.squash) * squashStiff - this.squashVel * squashDamp) * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash + this.squashVel * dt, 0.45, 1.55);
+
+        const headStiff = 140.0;
+        const headDamp = 7.5;
+        const idleHeadBob = Math.sin(time * 2.2 + this.homePos.x) * 0.03;
+        this.headPitchVel += ((idleHeadBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        const targetLimbPitch = (this.isDragged || !this.isGrounded) ? 0.58 : 0.0;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * 120 - this.limbPitchVel * 8) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * 120 - this.limbRollVel * 8) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.8, 0.9);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+
+        if (!this.isDragged) {
+          if (this.ridesBeeIndex >= 0 && bees[this.ridesBeeIndex] && this.vel.lengthSq() < 0.25 && !this.isStuckHeadFirst) {
+            const bee = bees[this.ridesBeeIndex];
+            this.pos.copy(bee.pos).add(new THREE.Vector3(0, 0.28, 0));
+            this.yaw = bee.group.rotation.y;
+            this.roll = bee.group.rotation.z;
+            this.isGrounded = true;
+            this.syncTransform(time);
+            return;
+          }
+
+          if (this.isStuckHeadFirst) {
+            this.pitch = Math.PI * 0.92 + Math.sin(time * 16) * 0.08;
+            this.roll = Math.cos(time * 14) * 0.12;
+            this.limbPitch = Math.sin(time * 22) * 0.65;
+            this.syncTransform(time);
+            return;
+          }
+
+          this.vel.y -= 24.0 * dt;
+          this.vel.multiplyScalar(Math.pow(0.985, dt * 60));
+          this.pos.addScaledVector(this.vel, dt);
+
+          this.yaw += this.angVel.y * dt;
+          this.pitch += this.angVel.x * dt;
+          this.roll += this.angVel.z * dt;
+          this.angVel.multiplyScalar(Math.pow(0.92, dt * 60));
+
+          this.isGrounded = false;
+
+          const groundY = (this.isPlantedInDirt && this.pos.distanceTo(this.homePos) < 0.6)
+            ? getWorldGroundY(this.pos.x, this.pos.z) - 0.58
+            : getWorldGroundY(this.pos.x, this.pos.z);
+
+          if (this.pos.y <= groundY) {
+            const impact = -this.vel.y;
+            this.pos.y = groundY;
+
+            if (impact > 9.5 && Math.abs(this.angVel.length()) > 1.8 && this.id !== 'yuuka') {
+              this.isStuckHeadFirst = true;
+              this.pos.y = groundY + 0.65;
+              this.vel.set(0, 0, 0);
+              this.angVel.set(0, 0, 0);
+              spawnPollenBurst(new THREE.Vector3(this.pos.x, groundY, this.pos.z), ['#78350f', '#a16207', '#65a30d'], 12);
+              soundFX.playBounce(1.0);
+              showWorldCallout(this.pos.clone().add(new THREE.Vector3(0, 0.8, 0)), '🌱 Stuck Head-First! Click Me!');
+
+              if (fumos[0] && Math.abs(this.pos.x) < 7.5 && Math.abs(this.pos.z) < 5.0) {
+                fumos[0].triggerYuukaScowl();
+              }
+              this.syncTransform(time);
+              return;
+            }
+
+            if (impact > 1.9) {
+              this.vel.y = impact * 0.40;
+              this.squashVel -= Math.min(9.0, impact * 0.9);
+              this.headPitchVel += (Math.random() - 0.5) * impact * 2.0;
+              soundFX.playBounce(impact * 0.08);
+
+              if (isWorldPointInMudPuddle(this.pos.x, this.pos.z)) {
+                spawnPollenBurst(this.pos, ['#5c3d1e', '#78350f', '#92400e'], 12);
+              }
+              if (impact > 4.2 && fumos[0] && this !== fumos[0]) {
+                for (let s = 0; s < sunflowers.length; s++) {
+                  if (sunflowers[s].pos.distanceTo(this.pos) < 1.5) {
+                    fumos[0].triggerYuukaScowl();
+                    sunflowers[s].bloomScale = 0.7;
+                    break;
+                  }
+                }
+              }
+            } else {
+              this.vel.y = 0;
+              this.isGrounded = true;
+            }
+            this.vel.x *= 0.80;
+            this.vel.z *= 0.80;
+          }
+
+          const r = this.radius * 0.72;
+          const centerY = this.pos.y + r;
+          for (let i = 0; i < furnitureColliders.length; i++) {
+            const box = furnitureColliders[i];
+            const cx = THREE.MathUtils.clamp(this.pos.x, box.min.x, box.max.x);
+            const cy = THREE.MathUtils.clamp(centerY, box.min.y, box.max.y);
+            const cz = THREE.MathUtils.clamp(this.pos.z, box.min.z, box.max.z);
+            const dx = this.pos.x - cx;
+            const dy = centerY - cy;
+            const dz = this.pos.z - cz;
+            const distSq = dx * dx + dy * dy + dz * dz;
+
+            if (distSq < r * r) {
+              const dist = Math.sqrt(distSq);
+              if (centerY >= box.max.y - 0.28 && this.vel.y <= 0.6) {
+                const impact = -this.vel.y;
+                this.pos.y = box.max.y;
+                if (impact > 2.0) {
+                  this.vel.y = impact * 0.36;
+                  this.squashVel -= Math.min(8.0, impact * 0.8);
+                  soundFX.playBounce(impact * 0.08);
+                } else {
+                  this.vel.y = 0;
+                  this.isGrounded = true;
+                }
+                this.vel.x *= 0.80;
+                this.vel.z *= 0.80;
+              } else if (dist > 0.0001) {
+                const nx = dx / dist, ny = dy / dist, nz = dz / dist;
+                const pen = r - dist;
+                this.pos.x += nx * pen;
+                this.pos.y += ny * pen;
+                this.pos.z += nz * pen;
+              }
+            }
+          }
+
+          const bound = 8.9;
+          this.pos.x = THREE.MathUtils.clamp(this.pos.x, -bound, bound);
+          this.pos.z = THREE.MathUtils.clamp(this.pos.z, -bound, bound);
+
+          if (this.isGrounded) {
+            this.pitch = THREE.MathUtils.lerp(this.pitch, 0, Math.min(1, dt * 9.5));
+            this.roll = THREE.MathUtils.lerp(this.roll, 0, Math.min(1, dt * 9.5));
+            this.angVel.multiplyScalar(0.75);
+          }
+        }
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        if (this.id === 'rumia' || this.id === 'scarecrow') {
+          const wave = (this.id === 'scarecrow' && !isNightMode) ? Math.sin(time * 5.5) * 0.22 : 0;
+          this.leftArmPivot.rotation.set(0, 0, 1.35 + wave);
+          this.rightArmPivot.rotation.set(0, 0, -1.35 - wave);
+          this.crowsGroup.position.y = Math.sin(time * 5.5) * 0.04;
+        } else {
+          this.leftArmPivot.rotation.set(this.limbPitch, 0, 0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+          this.rightArmPivot.rotation.set(this.limbPitch, 0, -0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        }
+
+        const sleepNod = (this.id === 'scarecrow' && (isNightMode || Math.sin(time * 0.4) > 0.7)) ? 0.38 : 0;
+        this.headPivot.rotation.set(this.headPitch + sleepNod, 0, this.headRoll);
+
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+
+        const wingFlutter = Math.sin(time * 4.2 + this.homePos.x) * 0.08 + (1.0 - this.squash) * 0.35;
+        this.wingsPivot.rotation.x = wingFlutter;
+      }
+    }
+
+    function launchFumoFromFlower(fumo, flower) {
+      fumo.isGrounded = false;
+      fumo.isStuckHeadFirst = false;
+      fumo.vel.set((Math.random() - 0.5) * 5.5, 16.5, (Math.random() - 0.5) * 5.5);
+      fumo.angVel.set((Math.random() - 0.5) * 9, (Math.random() - 0.5) * 9, (Math.random() - 0.5) * 9);
+      flower.bloomScale = 1.5;
+      soundFX.playSproing();
+      spawnPollenBurst(flower.getHeadWorldPos(), ['#fde047', '#f43f5e', '#38bdf8', '#ffffff'], 18);
+      incrementStat('launched', flower.getHeadWorldPos());
+      showWorldCallout(flower.getHeadWorldPos(), `🚀 SPROING!! ${fumo.name.split(' ')[0]} Launched!`);
+    }
+
+    // ============================================================================
+    // 9. SPAWN THE COMPLETE CAST OF 13 TOUHOU FUMO PLUSHIES
+    // ============================================================================
+    const fumoConfigs = [
+      {
+        id: 'yuuka',
+        name: 'Yuuka Kazami (Garden Owner)',
+        emoji: '🌻',
+        accentColor: '#22c55e',
+        hairColor: '#4ade80',
+        eyeColor: '#dc2626',
+        outfitMain: '#dc2626',
+        sleeveColor: '#ffffff',
+        tieColor: '#fde047',
+        shoeColor: '#451a03',
+        homePos: new THREE.Vector3(-0.8, 0.25, 1.4),
+        homeYaw: 0.25,
+        nightPos: new THREE.Vector3(-2.8, 0.25, 4.9),
+        nightYaw: 0.45,
+        pitchAudio: 0.92
+      },
+      {
+        id: 'medicine',
+        name: 'Medicine Melancholy & Su-san',
+        emoji: '🧪',
+        accentColor: '#ec4899',
+        hairColor: '#fde047',
+        eyeColor: '#be123c',
+        outfitMain: '#9d174d',
+        sleeveColor: '#fbcfe8',
+        tieColor: '#e11d48',
+        shoeColor: '#4c0519',
+        scale: 0.92,
+        homePos: new THREE.Vector3(-4.5, 0.25, -0.8),
+        homeYaw: 0.85,
+        pitchAudio: 1.22
+      },
+      {
+        id: 'lily',
+        name: 'Lily White ("Spring is Here!")',
+        emoji: '🌸',
+        accentColor: '#f472b6',
+        hairColor: '#fef08a',
+        eyeColor: '#2563eb',
+        outfitMain: '#f8fafc',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#dc2626',
+        homePos: new THREE.Vector3(-2.2, 0.25, -2.8),
+        homeYaw: 0.35,
+        pitchAudio: 1.18
+      },
+      {
+        id: 'daiyousei',
+        name: 'Daiyousei (Hiding in Sunflowers)',
+        emoji: '🍃',
+        accentColor: '#4ade80',
+        hairColor: '#84cc16',
+        eyeColor: '#15803d',
+        outfitMain: '#2563eb',
+        sleeveColor: '#ffffff',
+        tieColor: '#facc15',
+        shoeColor: '#1e3a8a',
+        scale: 0.92,
+        homePos: new THREE.Vector3(2.3, 0.25, -0.7),
+        homeYaw: -0.6,
+        pitchAudio: 1.15
+      },
+      {
+        id: 'rumia',
+        name: 'Rumia (Hiding Badly in T-Pose)',
+        emoji: '🎀',
+        accentColor: '#ef4444',
+        hairColor: '#fde047',
+        eyeColor: '#dc2626',
+        outfitMain: '#1e293b',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#0f172a',
+        scale: 0.92,
+        homePos: new THREE.Vector3(4.1, 0.25, 1.3),
+        homeYaw: -0.45,
+        pitchAudio: 1.10
+      },
+      {
+        id: 'wriggle',
+        name: 'Wriggle Nightbug (Bee Parade Leader)',
+        emoji: '🐝',
+        accentColor: '#84cc16',
+        hairColor: '#15803d',
+        eyeColor: '#ca8a04',
+        outfitMain: '#1e293b',
+        sleeveColor: '#ffffff',
+        tieColor: '#dc2626',
+        shoeColor: '#0f172a',
+        homePos: new THREE.Vector3(0.4, 0.25, 3.6),
+        homeYaw: -0.25,
+        pitchAudio: 1.05
+      },
+      {
+        id: 'cirno',
+        name: 'Cirno (Sunflower Crown in Kiddie Pool)',
+        emoji: '❄️',
+        accentColor: '#38bdf8',
+        hairColor: '#7dd3fc',
+        eyeColor: '#0284c7',
+        outfitMain: '#2563eb',
+        sleeveColor: '#ffffff',
+        tieColor: '#ef4444',
+        shoeColor: '#1e3a8a',
+        homePos: new THREE.Vector3(5.0, 0.38, 6.0),
+        homeYaw: -0.55,
+        pitchAudio: 1.16
+      },
+      {
+        id: 'scarecrow',
+        name: 'Scarecrow Fumo (Crows Love Him)',
+        emoji: '🐦‍⬛',
+        accentColor: '#d97706',
+        hairColor: '#fde68a',
+        eyeColor: '#78350f',
+        outfitMain: '#b45309',
+        sleeveColor: '#d97706',
+        tieColor: '#dc2626',
+        shoeColor: '#451a03',
+        homePos: new THREE.Vector3(-6.2, 0.25, -1.2),
+        homeYaw: 0.65,
+        pitchAudio: 0.88
+      },
+      {
+        id: 'planted_fumo',
+        name: 'Planted Koishi Fumo (Water Me!)',
+        emoji: '🌱',
+        accentColor: '#4ade80',
+        hairColor: '#a7f3d0',
+        eyeColor: '#0d9488',
+        outfitMain: '#eab308',
+        sleeveColor: '#ffffff',
+        tieColor: '#15803d',
+        shoeColor: '#1e293b',
+        isPlantedInDirt: true,
+        homePos: new THREE.Vector3(-4.5, -0.33, 2.2),
+        homeYaw: 0.4,
+        pitchAudio: 1.28
+      },
+      {
+        id: 'costume_fumo',
+        name: 'Disguised Marisa Fumo ("I Am a Flower")',
+        emoji: '🌞',
+        accentColor: '#facc15',
+        hairColor: '#fde047',
+        eyeColor: '#ca8a04',
+        outfitMain: '#15803d',
+        sleeveColor: '#84cc16',
+        tieColor: '#facc15',
+        shoeColor: '#3f6212',
+        homePos: new THREE.Vector3(2.3, 0.25, 2.2),
+        homeYaw: -0.25,
+        pitchAudio: 1.02
+      },
+      {
+        id: 'can_fumo',
+        name: 'Shinmyoumaru (Asleep in Watering Can)',
+        emoji: '💤',
+        accentColor: '#c084fc',
+        hairColor: '#e2e8f0',
+        eyeColor: '#9333ea',
+        outfitMain: '#be123c',
+        sleeveColor: '#ffffff',
+        tieColor: '#eab308',
+        shoeColor: '#31102f',
+        scale: 0.72,
+        isSleeping: true,
+        homePos: new THREE.Vector3(-5.75, 0.45, 4.4),
+        homeYaw: 1.25,
+        pitchAudio: 1.38
+      },
+      {
+        id: 'bee_rider',
+        name: 'Bee-Rider Fairy Fumo',
+        emoji: '🍯',
+        accentColor: '#fbbf24',
+        hairColor: '#fda4af',
+        eyeColor: '#e11d48',
+        outfitMain: '#facc15',
+        sleeveColor: '#ffffff',
+        tieColor: '#1c1917',
+        shoeColor: '#78350f',
+        scale: 0.65,
+        ridesBeeIndex: 0,
+        homePos: new THREE.Vector3(0, 2.5, 0),
+        homeYaw: 0,
+        pitchAudio: 1.42
+      },
+      {
+        id: 'pot_fumo',
+        name: 'Flower Pot Wearing a Fumo',
+        emoji: '🪴',
+        accentColor: '#ea580c',
+        hairColor: '#fb923c',
+        eyeColor: '#9a3412',
+        outfitMain: '#c2410c',
+        sleeveColor: '#fed7aa',
+        tieColor: '#ef4444',
+        shoeColor: '#7c2d12',
+        scale: 0.85,
+        homePos: new THREE.Vector3(-4.2, 1.75, -6.5),
+        homeYaw: 0.35,
+        pitchAudio: 0.95
+      }
+    ];
+
+    fumoConfigs.forEach(cfg => {
+      fumos.push(new VoxelFumo(cfg));
+    });
+
+    function resolveFumoToFumoCollisions() {
+      for (let i = 0; i < fumos.length; i++) {
+        for (let j = i + 1; j < fumos.length; j++) {
+          const a = fumos[i];
+          const b = fumos[j];
+          if (a.ridesBeeIndex >= 0 || b.ridesBeeIndex >= 0) continue;
+          const minDist = (a.radius + b.radius) * 0.78;
+          const dx = b.pos.x - a.pos.x;
+          const dy = (b.pos.y + b.radius * 0.6) - (a.pos.y + a.radius * 0.6);
+          const dz = b.pos.z - a.pos.z;
+          const distSq = dx * dx + dy * dy + dz * dz;
+
+          if (distSq < minDist * minDist && distSq > 0.0001) {
+            const dist = Math.sqrt(distSq);
+            const nx = dx / dist, ny = dy / dist, nz = dz / dist;
+            const overlap = (minDist - dist) * 0.5;
+            if (!a.isDragged) { a.pos.x -= nx * overlap; a.pos.z -= nz * overlap; }
+            if (!b.isDragged) { b.pos.x += nx * overlap; b.pos.z += nz * overlap; }
+
+            const rvx = b.vel.x - a.vel.x, rvy = b.vel.y - a.vel.y, rvz = b.vel.z - a.vel.z;
+            const vn = rvx * nx + rvy * ny + rvz * nz;
+            if (vn < 0) {
+              const imp = -vn * 0.68;
+              if (!a.isDragged) { a.vel.x -= imp * nx; a.vel.z -= imp * nz; a.squashVel -= Math.min(5, imp * 0.6); }
+              if (!b.isDragged) { b.vel.x += imp * nx; b.vel.z += imp * nz; b.squashVel -= Math.min(5, imp * 0.6); }
+              if (imp > 1.5) soundFX.playBounce(imp * 0.07);
+            }
+          }
+        }
+      }
+    }
+
+    // ============================================================================
+    // 10. POINTER INTERACTION: FUMO DRAG/THROW, FLOWER CLICK & HOLD-TO-GROW SPROUT
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const groundCastPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.25);
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let hoveredFumo = null;
+    let selectedFumo = null;
+    let isDraggingFumo = false;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    let growingFlower = null;
+    let growHoldTime = 0;
+    let growSoundCooldown = 0;
+    let clickedSunflowerCandidate = null;
+
+    const growMeterEl = document.getElementById('grow-meter');
+    const growBarEl = document.getElementById('grow-bar');
+    const growHeightTagEl = document.getElementById('grow-height-tag');
+    const growLabelEl = document.getElementById('grow-label');
+    const growHintEl = document.getElementById('grow-hint');
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+    const badgeDotEl = document.getElementById('fumo-badge-dot');
+    const badgeNameEl = document.getElementById('fumo-badge-name');
+    const badgeStatusEl = document.getElementById('fumo-badge-status');
+
+    function updateUIBadge(fumo, statusText) {
+      if (!fumo) {
+        badgeDotEl.style.backgroundColor = '#facc15';
+        badgeNameEl.textContent = 'Hold Ground to Grow';
+        badgeStatusEl.textContent = statusText || 'Click Flowers & Fumos';
+        return;
+      }
+      badgeDotEl.style.backgroundColor = fumo.accentColor;
+      badgeNameEl.textContent = fumo.name.split(' (')[0];
+      badgeStatusEl.textContent = statusText;
+    }
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function pickFumoUnderPointer() {
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (hits.length > 0 && hits[0].object.userData.fumo) {
+        return { fumo: hits[0].object.userData.fumo, point: hits[0].point };
+      }
+      return null;
+    }
+
+    function pickSunflowerUnderPointer() {
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(allSunflowerRaycastMeshes, false);
+      if (hits.length > 0 && hits[0].object.userData.sunflower) {
+        return hits[0].object.userData.sunflower;
+      }
+      return null;
+    }
+
+    function pickGroundUnderPointer() {
+      raycaster.setFromCamera(pointerNDC, camera);
+      if ( solidWorldMesh ) {
+        const hits = raycaster.intersectObject(solidWorldMesh, false);
+        if (hits.length > 0 && hits[0].point.y <= 3.0 && Math.abs(hits[0].point.x) < 8.5 && Math.abs(hits[0].point.z) < 8.5) {
+          return hits[0].point;
+        }
+      }
+      const pt = new THREE.Vector3();
+      if (raycaster.ray.intersectPlane(groundCastPlane, pt)) {
+        if (Math.abs(pt.x) < 8.5 && Math.abs(pt.z) < 8.5) return pt;
+      }
+      return null;
+    }
+
+    const onPointerDown = (e) => {
+      if (e.button !== 0) return;
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+      clickedSunflowerCandidate = null;
+
+      const hitFumo = pickFumoUnderPointer();
+      if (hitFumo) {
+        selectedFumo = hitFumo.fumo;
+        isDraggingFumo = false;
+        controls.enabled = false;
+
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), selectedFumo.pos);
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          dragOffset.subVectors(selectedFumo.pos, dragHitPoint);
+        } else {
+          dragOffset.set(0, 0, 0);
+        }
+        dragHistory = [{ pos: selectedFumo.pos.clone(), time: performance.now() }];
+        updateUIBadge(selectedFumo, 'Selected');
+        return;
+      }
+
+      const hitFlower = pickSunflowerUnderPointer();
+      if (hitFlower) {
+        clickedSunflowerCandidate = hitFlower;
+        return;
+      }
+
+      const groundPt = pickGroundUnderPointer();
+      if (groundPt) {
+        growingFlower = new VoxelSunflower(groundPt.x, groundPt.z, { scale: 0.35, heightScale: 0.25 });
+        sunflowers.push(growingFlower);
+        growHoldTime = 0;
+        growSoundCooldown = 0;
+        growMeterEl.classList.remove('hidden');
+        growMeterEl.style.left = `${e.clientX}px`;
+        growMeterEl.style.top = `${e.clientY - 16}px`;
+        soundFX.playFlowerPop(0.8);
+      }
+    };
+
+    const onPointerMove = (e) => {
+      updatePointerNDC(e);
+      lastCursorMoveTime = performance.now();
+
+      raycaster.setFromCamera(pointerNDC, camera);
+      const cursorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.8);
+      raycaster.ray.intersectPlane(cursorPlane, cursorWorldTarget);
+
+      if (growingFlower) {
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+        if (moveDist > 12 && growHoldTime < 0.22) {
+          scene.remove(growingFlower.root);
+          sunflowers.pop();
+          growingFlower = null;
+          growMeterEl.classList.add('hidden');
+        } else {
+          controls.enabled = false;
+          growMeterEl.style.left = `${e.clientX}px`;
+          growMeterEl.style.top = `${e.clientY - 16}px`;
+        }
+      }
+
+      if (selectedFumo) {
+        recordInteraction();
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          selectedFumo.isDragged = true;
+          selectedFumo.isGrounded = false;
+          selectedFumo.isStuckHeadFirst = false;
+          selectedFumo.ridesBeeIndex = -1;
+          selectedFumo.squashVel += 3.2;
+          soundFX.playPickup();
+          updateUIBadge(selectedFumo, 'Dragging — Release to Throw!');
+        }
+
+        if (isDraggingFumo) {
+          raycaster.setFromCamera(pointerNDC, camera);
+          if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+            const targetPos = dragHitPoint.clone().add(dragOffset);
+            targetPos.x = THREE.MathUtils.clamp(targetPos.x, -8.8, 8.8);
+            targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.3, 12.0);
+            targetPos.z = THREE.MathUtils.clamp(targetPos.z, -8.8, 8.8);
+
+            const prevPos = selectedFumo.pos.clone();
+            selectedFumo.pos.lerp(targetPos, 0.55);
+
+            const deltaMove = selectedFumo.pos.clone().sub(prevPos);
+            selectedFumo.headRollVel -= deltaMove.x * 16.0;
+            selectedFumo.headPitchVel += deltaMove.z * 16.0 - deltaMove.y * 10.0;
+            selectedFumo.limbRollVel -= deltaMove.x * 22.0;
+            selectedFumo.roll = THREE.MathUtils.lerp(selectedFumo.roll, THREE.MathUtils.clamp(-deltaMove.x * 1.4, -0.45, 0.45), 0.3);
+            selectedFumo.pitch = THREE.MathUtils.lerp(selectedFumo.pitch, THREE.MathUtils.clamp(deltaMove.z * 1.4, -0.45, 0.45), 0.3);
+
+            const now = performance.now();
+            dragHistory.push({ pos: selectedFumo.pos.clone(), time: now });
+            while (dragHistory.length > 6) dragHistory.shift();
+          }
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      const hitFumo = pickFumoUnderPointer();
+      if (hitFumo) {
+        hoveredFumo = hitFumo.fumo;
+        renderer.domElement.style.cursor = 'grab';
+        tooltipEmojiEl.textContent = hoveredFumo.emoji;
+        tooltipTextEl.textContent = hoveredFumo.isStuckHeadFirst ? `${hoveredFumo.name} (Click to Free!)` : hoveredFumo.name;
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+        return;
+      }
+      hoveredFumo = null;
+
+      const hitFlower = pickSunflowerUnderPointer();
+      if (hitFlower) {
+        renderer.domElement.style.cursor = 'pointer';
+        tooltipEmojiEl.textContent = hitFlower.isLauncher ? '🚀' : '🌻';
+        tooltipTextEl.textContent = hitFlower.isLauncher
+          ? 'Launcher Sunflower! (Click to Sproing Fumos!)'
+          : (hitFlower.isGiantBoss ? 'Giant Bowed Sunflower (Click to Dance!)' : 'Nosy Sunflower (Click to Bloom & Dance!)');
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+      } else {
+        renderer.domElement.style.cursor = 'default';
+        tooltipEl.style.opacity = '0';
+      }
+    };
+
+    const onPointerUp = (e) => {
+      if (growingFlower) {
+        controls.enabled = true;
+        growMeterEl.classList.add('hidden');
+        const finalHeight = Math.max(0.95, growingFlower.heightScale);
+        growingFlower.heightScale = finalHeight;
+        growingFlower.root.scale.setScalar(1.0);
+        if (finalHeight >= 1.85) {
+          growingFlower.isLauncher = true;
+          showWorldCallout(growingFlower.getHeadWorldPos(), '🚀 Tall Launcher Sunflower Ready!');
+        }
+        growingFlower.triggerDanceAndBloom(true);
+        incrementStat('flowers', growingFlower.getHeadWorldPos());
+        growingFlower = null;
+      }
+
+      if (clickedSunflowerCandidate) {
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+        if (moveDist < 8) {
+          clickedSunflowerCandidate.triggerDanceAndBloom(true);
+        }
+        clickedSunflowerCandidate = null;
+      }
+
+      if (selectedFumo) {
+        controls.enabled = true;
+        recordInteraction();
+
+        if (!isDraggingFumo) {
+          selectedFumo.squeeze(1.0);
+          updateUIBadge(selectedFumo, 'Squeezed! ᗜˬᗜ');
+        } else {
+          selectedFumo.isDragged = false;
+          const now = performance.now();
+          while (dragHistory.length > 1 && now - dragHistory[0].time > 140) {
+            dragHistory.shift();
+          }
+          if (dragHistory.length >= 2) {
+            const first = dragHistory[0];
+            const last = dragHistory[dragHistory.length - 1];
+            const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+            const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+            if (throwVel.length() > 22) throwVel.setLength(22);
+            selectedFumo.vel.copy(throwVel);
+
+            const speed = throwVel.length();
+            selectedFumo.angVel.set(
+              throwVel.z * 0.65 + (Math.random() - 0.5) * speed * 0.4,
+              (Math.random() - 0.5) * speed * 0.5,
+              -throwVel.x * 0.65 + (Math.random() - 0.5) * speed * 0.4
+            );
+          } else {
+            selectedFumo.vel.set(0, 0, 0);
+          }
+          updateUIBadge(selectedFumo, 'Thrown!');
+        }
+
+        selectedFumo = null;
+        isDraggingFumo = false;
+        renderer.domElement.style.cursor = hoveredFumo ? 'grab' : 'default';
+      }
+    };
+
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+
+    // ============================================================================
+    // 11. SPECIAL ACTIONS: PETAL STORM (P), BEE CONGA (B), WATERING CAN (W)
+    // ============================================================================
+    function startPetalStorm() {
+      petalStormTimer = 5.5;
+      sunflowers.forEach((sf, i) => {
+        if (i % 2 === 0) sf.triggerDanceAndBloom(false);
+      });
+      soundFX.playFanfare();
+      showToast('🌼', 'Petal Storm! The bees are chasing the swirling petals!');
+    }
+
+    function toggleBeeConga() {
+      isBeeCongaActive = !isBeeCongaActive;
+      document.getElementById('label-conga').textContent = isBeeCongaActive ? 'Conga: ON!' : 'Bee Conga';
+      soundFX.playBeeBoing();
+      if (isBeeCongaActive && fumos[5]) {
+        fumos[5].squeeze(1.0);
+        showWorldCallout(fumos[5].pos.clone().add(new THREE.Vector3(0, 1.4, 0)), '🐝 Bee Conga Line!!');
+      }
+    }
+
+    function triggerYuukaWateringCan() {
+      wateringTimer = 2.8;
+      if (fumos[0]) {
+        fumos[0].squeeze(0.95);
+        showWorldCallout(fumos[0].pos.clone().add(new THREE.Vector3(0, 1.5, 0)), '🚿 Watering the Sunflowers!');
+      }
+      sunflowers.forEach((sf) => {
+        sf.heightScale = Math.min(2.2, sf.heightScale + 0.12);
+        sf.bloomScale = 1.28;
+      });
+      fumos.forEach((f, idx) => {
+        if (idx !== 0) {
+          spawnPollenBurst(f.pos, ['#38bdf8', '#7dd3fc', '#e0f2fe', '#ffffff'], 8);
+          f.squeeze(0.65);
+        }
+      });
+      soundFX.playFlowerPop(1.1);
+    }
+
+    // ============================================================================
+    // 12. DAY / NIGHT SMOOTH INTERPOLATION (~2 SECONDS) & HUB MODE COMPLIANCE
+    // ============================================================================
+    const daySkyColor = new THREE.Color('#7ccBFF');
+    const duskSkyColor = new THREE.Color('#fb923c');
+    const nightSkyColor = new THREE.Color('#090d21');
+
+    const daySunLightCol = new THREE.Color('#fff0c4');
+    const duskSunLightCol = new THREE.Color('#fdba74');
+    const nightMoonLightCol = new THREE.Color('#6b93e6');
+
+    const dayHemiSky = new THREE.Color('#fff9e6');
+    const nightHemiSky = new THREE.Color('#1e294a');
+    const dayHemiGround = new THREE.Color('#658a4e');
+    const nightHemiGround = new THREE.Color('#0c1324');
+
+    function postModeToParent() {
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: isNightMode ? 'night' : 'day' }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function onSetMode(mode) {
+      const targetNight = (mode === 'night');
+      if (targetNight === isNightMode) return;
+      isNightMode = targetNight;
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      soundFX.isNightState = isNightMode;
+      soundFX.syncMuteState();
+      document.body.classList.toggle('night-ui', isNightMode);
+
+      if (fumos[0] && !fumos[0].isDragged && fumos[0].nightPos) {
+        const dest = isNightMode ? fumos[0].nightPos : fumos[0].homePos;
+        fumos[0].pos.copy(dest);
+        fumos[0].yaw = isNightMode ? fumos[0].nightYaw : fumos[0].homeYaw;
+        fumos[0].squeeze(0.6);
+      }
+
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
+      } catch (e) {}
+      postModeToParent();
+    }
+
+    function onToggleMode() {
+      onSetMode(isNightMode ? 'day' : 'night');
+      soundFX.playPickup();
+    }
+
+    function updateDayNightTransition(dt) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.52;
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      if (t < 0.5) {
+        scene.background.lerpColors(daySkyColor, duskSkyColor, t * 2);
+        sunDirLight.color.lerpColors(daySunLightCol, duskSunLightCol, t * 2);
+      } else {
+        scene.background.lerpColors(duskSkyColor, nightSkyColor, (t - 0.5) * 2);
+        sunDirLight.color.lerpColors(duskSunLightCol, nightMoonLightCol, (t - 0.5) * 2);
+      }
+      scene.fog.color.copy(scene.background);
+
+      sunDirLight.intensity = THREE.MathUtils.lerp(1.02, 0.34, t);
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.56, 0.24, t);
+
+      barnLanternLight.intensity = THREE.MathUtils.lerp(0.06, 1.55, t);
+      windmillLanternLight.intensity = THREE.MathUtils.lerp(0.06, 1.50, t);
+      fenceLanternLight.intensity = THREE.MathUtils.lerp(0.06, 1.45, t);
+
+      lanternEmissiveMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.32, 2.35, t);
+      fairyWingMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.25, 0.95, t);
+
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.12, 0.68, t);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.86, 0.62, t);
+      }
+    }
+
+    // ============================================================================
+    // 13. UI BUTTONS & KEYBOARD LISTENERS (No 1-9 Keys! P, B, W, N, M, R, Space)
+    // ============================================================================
+    const btnSound = document.getElementById('btn-sound');
+    const iconSoundOn = document.getElementById('icon-sound-on');
+    const iconSoundOff = document.getElementById('icon-sound-off');
+
+    function syncSoundButtonUI() {
+      iconSoundOn.classList.toggle('hidden', !soundFX.enabled);
+      iconSoundOff.classList.toggle('hidden', soundFX.enabled);
+    }
+    syncSoundButtonUI();
+
+    function toggleMute() {
+      soundFX.enabled = !soundFX.enabled;
+      syncSoundButtonUI();
+      soundFX.syncMuteState();
+      try {
+        localStorage.setItem(STORAGE_MUTE_KEY, soundFX.enabled ? 'false' : 'true');
+      } catch (e) {}
+      if (soundFX.enabled) {
+        soundFX.ensureAmbient();
+        soundFX.playPickup();
+      }
+    }
+
+    btnSound.addEventListener('click', toggleMute);
+    document.getElementById('btn-petal-storm').addEventListener('click', startPetalStorm);
+    document.getElementById('btn-bee-conga').addEventListener('click', toggleBeeConga);
+    document.getElementById('btn-water').addEventListener('click', triggerYuukaWateringCan);
+
+    document.getElementById('btn-squeeze-all').addEventListener('click', () => {
+      fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 45));
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 40));
+      updateUIBadge(null, 'Reset');
+    });
+
+    const onKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      const key = e.key.toLowerCase();
+      if (key === 'n') {
+        e.preventDefault();
+        onToggleMode();
+      } else if (key === 'p') {
+        e.preventDefault();
+        startPetalStorm();
+      } else if (key === 'b') {
+        e.preventDefault();
+        toggleBeeConga();
+      } else if (key === 'w') {
+        e.preventDefault();
+        triggerYuukaWateringCan();
+      } else if (key === 'm') {
+        e.preventDefault();
+        toggleMute();
+      } else if (key === 'r') {
+        e.preventDefault();
+        fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 40));
+      } else if (key === ' ') {
+        e.preventDefault();
+        fumos.forEach((f, idx) => setTimeout(() => f.squeeze(1.05), idx * 45));
+      }
+    };
+
+    const onResize = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('resize', onResize);
+
+    // ============================================================================
+    // 14. MAIN ANIMATION LOOP & FumoSceneLifecycle REGISTRATION
+    // ============================================================================
+    let lilyShoutCooldown = 5.0;
+
+    function updateFieldAmbientEvents(elapsed, dt) {
+      windmillRotorGroup.rotation.z = -elapsed * 0.75;
+      cloudGroups.forEach(cg => {
+        cg.group.position.x = cg.baseX + Math.sin(elapsed * cg.speed + cg.phase) * 2.5;
+      });
+
+      if (growingFlower) {
+        growHoldTime += dt;
+        growingFlower.heightScale = Math.min(2.45, 0.35 + growHoldTime * 1.15);
+        const s = Math.min(1.05, 0.45 + growHoldTime * 0.45);
+        growingFlower.root.scale.set(
+          s * (1 + Math.sin(elapsed * 28) * 0.08),
+          1.0,
+          s * (1 + Math.cos(elapsed * 28) * 0.08)
+        );
+
+        const pct = Math.min(100, Math.round((growingFlower.heightScale / 2.2) * 100));
+        growBarEl.style.width = `${pct}%`;
+        growHeightTagEl.textContent = `${growingFlower.heightScale.toFixed(1)}x`;
+        if (growingFlower.heightScale >= 1.85) {
+          growLabelEl.textContent = '🚀 LAUNCHER SIZE!';
+          growHintEl.textContent = 'Release to pop Launcher!';
+        } else {
+          growLabelEl.textContent = '🌱 Growing Sprout...';
+          growHintEl.textContent = 'Keep holding for Launcher!';
+        }
+
+        growSoundCooldown -= dt;
+        if (growSoundCooldown <= 0) {
+          soundFX.playFlowerPop(0.75 + growingFlower.heightScale * 0.35);
+          growSoundCooldown = 0.16;
+        }
+      }
+
+      if (fumos[1]) {
+        const med = fumos[1];
+        if (!med.isDragged && med.isGrounded) {
+          med.pos.x = med.homePos.x + Math.sin(elapsed * 0.65) * 1.3;
+          med.pos.z = med.homePos.z + Math.cos(elapsed * 0.45) * 1.1;
+          med.yaw = Math.atan2(Math.cos(elapsed * 0.65), -Math.sin(elapsed * 0.45));
+        }
+        if (Math.random() < dt * 7.5) {
+          spawnPollenBurst(med.pos, ['#f472b6', '#ec4899', '#fbcfe8', '#d946ef'], 2, 1.5, true);
+        }
+        for (let i = 0; i < sunflowers.length; i++) {
+          if (sunflowers[i].pos.distanceTo(med.pos) < 2.2 && Math.random() < dt * 0.9) {
+            sunflowers[i].triggerSneeze();
+          }
+        }
+      }
+
+      if (fumos[2]) {
+        const lily = fumos[2];
+        if (Math.random() < dt * 4.5) {
+          spawnPollenBurst(lily.pos.clone().add(new THREE.Vector3(0, 0.9, 0)), ['#fbcfe8', '#ffffff', '#fde047'], 2, 2.0, true);
+        }
+        lilyShoutCooldown -= dt;
+        if (lilyShoutCooldown <= 0) {
+          lilyShoutCooldown = 8.5 + Math.random() * 5.0;
+          if (!isNightMode) {
+            lily.squeeze(0.65);
+            showWorldCallout(lily.pos.clone().add(new THREE.Vector3(0, 1.5, 0)), '🌸 SPRING IS HERE!!');
+          } else if (fumos[7]) {
+            showWorldCallout(fumos[7].pos.clone().add(new THREE.Vector3(0, 1.5, 0)), '💤 Zzz... *snore*');
+          }
+        }
+      }
+
+      if (wateringTimer > 0 && fumos[0]) {
+        wateringTimer -= dt;
+        if (Math.random() < dt * 25) {
+          spawnPollenBurst(
+            fumos[0].pos.clone().add(new THREE.Vector3(0.4, 1.1, 0.4)),
+            ['#38bdf8', '#7dd3fc', '#bae6fd', '#ffffff'],
+            4,
+            7.0,
+            false
+          );
+        }
+      }
+
+      if (isNightMode && Math.random() < dt * 3.5 && sunflowers.length > 1) {
+        const sf = sunflowers[1 + Math.floor(Math.random() * (sunflowers.length - 1))];
+        spawnPollenBurst(sf.getHeadWorldPos(), ['#bae6fd', '#e0f2fe', '#fef08a'], 1, -1.2, false);
+      }
+    }
+
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.033, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      if (!selectedFumo && !growingFlower && (now - lastUserInteractionTime > 4800)) {
+        controls.autoRotate = true;
+      }
+
+      controls.update();
+      updateDayNightTransition(dt);
+      updateFieldAmbientEvents(elapsed, dt);
+
+      for (let i = 0; i < sunflowers.length; i++) {
+        sunflowers[i].updateTransform(elapsed, dt, dayNightProgress > 0.55);
+      }
+
+      updateChonkyBees(elapsed, dt, dayNightProgress > 0.55);
+      updateCritters(elapsed, dayNightProgress);
+      updateParticles(dt, elapsed);
+      updateWorldCallout(dt);
+
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].updatePhysics(dt, elapsed);
+      }
+      resolveFumoToFumoCollisions();
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function onPause() {
+      if (isPaused) return;
+      isPaused = true;
+      soundFX.isPausedState = true;
+      soundFX.syncMuteState();
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+
+    function onResume() {
+      if (!isPaused) return;
+      isPaused = false;
+      soundFX.isPausedState = false;
+      soundFX.syncMuteState();
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    function onDispose() {
+      isPaused = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('resize', onResize);
+      soundFX.dispose();
+    }
+
+    let lifecycle = null;
+    if (typeof FumoSceneLifecycle !== 'undefined') {
+      lifecycle = new FumoSceneLifecycle({
+        renderer,
+        scene,
+        composer,
+        audio: soundFX,
+        onToggleMode,
+        onSetMode,
+        onPause,
+        onResume,
+        onDispose
+      });
+    }
+
+    (function initScene() {
+      let initialMode = 'day';
+      try {
+        const savedMode = localStorage.getItem(STORAGE_MODE_KEY);
+        if (savedMode === 'night') initialMode = 'night';
+      } catch (e) {}
+
+      if (initialMode === 'night') {
+        isNightMode = true;
+        dayNightProgress = 1.0;
+        dayNightTarget = 1.0;
+        soundFX.isNightState = true;
+        document.body.classList.add('night-ui');
+        if (fumos[0] && fumos[0].nightPos) {
+          fumos[0].pos.copy(fumos[0].nightPos);
+          fumos[0].yaw = fumos[0].nightYaw;
+        }
+      }
+      updateDayNightTransition(0);
+      postModeToParent();
+
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.78;
+          f.squashVel = 2.0;
+          f.headPitchVel = 4.0;
+        }, 100 + idx * 55);
+      });
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    })();
+  </script>
+</body>
+</html>

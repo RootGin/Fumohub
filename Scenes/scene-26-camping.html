@@ -1,0 +1,2363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Touhou Fumo Voxel Camping Trip & Ghost Stories — Interactive 3D Diorama</title>
+  <link rel="stylesheet" href="../fumo-scene.css">
+  <link rel="stylesheet" href="../Shared/fumo-scene.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js r128 + Post-Processing Addons FIRST -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <!-- Shared Fumo Core SECOND (reads THREE at load time) -->
+  <script src="../fumo-core.js"></script>
+  <script src="../Shared/fumo-core.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', sans-serif;
+      background-color: #a8d8f0;
+      color: #1e293b;
+    }
+    body.night-ui {
+      background-color: #060919;
+      color: #fef3c7;
+    }
+    .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .glass-panel {
+      background: rgba(255, 252, 245, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.78);
+      box-shadow: 0 10px 28px -6px rgba(25, 18, 10, 0.18), 0 2px 6px rgba(25, 18, 10, 0.08);
+      transition: background 0.45s ease, color 0.45s ease, border-color 0.45s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    body.night-ui .glass-panel {
+      background: rgba(15, 20, 42, 0.86);
+      border-color: rgba(251, 146, 60, 0.34);
+      color: #fef3c7;
+      box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.75), 0 0 18px rgba(249, 115, 22, 0.18);
+    }
+    .ui-btn {
+      cursor: pointer;
+      border: none;
+      outline: none;
+      font-family: inherit;
+      color: inherit;
+    }
+    .ui-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+    }
+    .ui-btn:active {
+      transform: translateY(1px) scale(0.97);
+    }
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      border-radius: 6px;
+      background: rgba(15, 23, 42, 0.09);
+      border-bottom: 2px solid rgba(15, 23, 42, 0.22);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.15);
+      border-bottom-color: rgba(255, 255, 255, 0.3);
+    }
+    /* Strictly Bottom-Right HUD (Zero UI in top-left!) */
+    #hud-bottom-right {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      z-index: 25;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 9px;
+      max-width: min(465px, 95vw);
+    }
+    .camp-card {
+      border-radius: 18px;
+      padding: 11px 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+    }
+    .stat-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+    .stat-num {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+    .roast-bar-bg {
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.28);
+      overflow: hidden;
+      position: relative;
+    }
+    .roast-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #fef3c7, #f59e0b, #b45309, #1c1917);
+      transition: width 0.06s linear;
+    }
+    #fumo-tooltip {
+      position: fixed;
+      z-index: 30;
+      pointer-events: none;
+      opacity: 0;
+      padding: 6px 12px;
+      border-radius: 12px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 0.16s ease;
+    }
+    #camp-banner {
+      position: fixed;
+      bottom: 235px;
+      right: 16px;
+      z-index: 28;
+      border-radius: 16px;
+      padding: 10px 16px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Fredoka', sans-serif;
+      font-size: 0.88rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- Floating Cursor Tooltip -->
+  <div id="fumo-tooltip" class="glass-panel">
+    <span id="tooltip-emoji">🔥</span>
+    <span id="tooltip-text">Bonfire (Click to Add Logs!)</span>
+  </div>
+
+  <!-- Dynamic Campfire Event Callout Banner -->
+  <div id="camp-banner" class="glass-panel">
+    <span id="banner-icon" style="font-size:1.45rem;">🍢</span>
+    <div>
+      <div id="banner-title" style="font-weight:700;">Golden Marshmallow Roasted!</div>
+      <div id="banner-sub" style="font-size:0.75rem; opacity:0.85;">Yuyuko is eyeing it hungrily...</div>
+    </div>
+  </div>
+
+  <!-- Strictly Bottom-Right HUD (Zero UI in top-left!) -->
+  <div id="hud-bottom-right">
+    <div class="glass-panel camp-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.74rem; font-weight:700; opacity:0.85;">
+        <span>🏕️ FUMO FOREST CAMP & BONFIRE</span>
+        <span id="story-status" style="color:#d97706;">🔦 Click Marisa for Ghost Story</span>
+      </div>
+
+      <!-- Marshmallow Counter & Fire Level -->
+      <div class="stat-row">
+        <span>🍢 Golden Roasts: <strong id="count-golden" class="stat-num" style="color:#d97706;">0</strong></span>
+        <span>💨 Burnt: <strong id="count-burnt" class="stat-num" style="color:#64748b;">0</strong></span>
+        <span>🔥 Logs: <strong id="count-logs" class="stat-num" style="color:#ea580c;">3</strong>/7</span>
+      </div>
+
+      <!-- Marshmallow Roast Meter & Stargazing Status -->
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.74rem; font-weight:700;">
+        <span id="roast-prompt">🍢 Drag Marshmallow Stick over Fire to Roast!</span>
+        <span id="constellation-label" style="color:#38bdf8;">🔭 <kbd>G</kbd> Stargaze</span>
+      </div>
+      <div class="roast-bar-bg">
+        <div id="roast-bar" class="roast-bar-fill"></div>
+      </div>
+
+      <!-- Action Buttons Row -->
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:5px; flex-wrap:wrap; margin-top:2px;">
+        <button id="btn-log" class="glass-panel ui-btn" style="padding:5px 9px; border-radius:11px; font-size:0.74rem; font-weight:700;" title="Toss Another Log on the Bonfire">
+          🪵 +Log
+        </button>
+
+        <button id="btn-story" class="glass-panel ui-btn" style="padding:5px 9px; border-radius:11px; font-size:0.74rem; font-weight:700;" title="Toggle Marisa's Spooky Ghost Story & Koishi Cameo">
+          🔦 Ghost Story
+        </button>
+
+        <button id="btn-stargaze" class="glass-panel ui-btn" style="padding:5px 9px; border-radius:11px; font-size:0.74rem; font-weight:700;" title="Point Telescope at Constellations (G)">
+          🔭 Sky <kbd>G</kbd>
+        </button>
+
+        <button id="btn-reset" class="glass-panel ui-btn" style="padding:5px 9px; border-radius:11px; font-size:0.74rem; font-weight:700;" title="Reset Fumos & Fresh Marshmallows (R)">
+          🔄 <kbd>R</kbd>
+        </button>
+
+        <button id="btn-mute" class="glass-panel ui-btn" style="padding:5px 9px; border-radius:11px; font-size:0.74rem; font-weight:700;" title="Mute / Unmute Audio (M)">
+          <span id="mute-icon">🔊</span> <kbd>M</kbd>
+        </button>
+      </div>
+    </div>
+
+    <!-- Compact Controls Hint Bar -->
+    <div class="glass-panel" style="border-radius:14px; padding:6px 12px; font-size:0.71rem; font-weight:600; display:flex; flex-wrap:wrap; gap:6px 11px; justify-content:flex-end;">
+      <span>🔥 <b>Click Fire:</b> Add Logs</span>
+      <span>🍢 <b>Drag Stick:</b> Roast Marshmallow</span>
+      <span>🔦 <b>Click Marisa:</b> Spooky Story</span>
+      <span>🔭 <kbd>G</kbd> Constellations</span>
+      <span>✋ <b>Drag Fumo:</b> Throw</span>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 0. TOP-LEVEL STATE VARIABLES
+    // ============================================================================
+    const STORAGE_MUTE_KEY = 'fumo_camping_muted';
+    const STORAGE_MODE_KEY = 'fumo_camping_mode';
+
+    let isNightMode = true; // Night is the star! Will sync with hub on load
+    let dayNightProgress = 1.0;
+    let dayNightTarget = 1.0;
+    let prevTime = performance.now();
+    let isPaused = false;
+    let rafId = null;
+
+    let goldenRoasts = 0;
+    let burntRoasts = 0;
+    let fireLogCount = 3; // 1..7 logs
+    let ghostStoryActive = false;
+    let ghostStoryTimer = 0.0;
+    let stargazeMode = false;
+    let activeConstellationIdx = 0;
+
+    // ============================================================================
+    // 1. EXTEND PLUSH SOUND ENGINE WITH CAMPFIRE, GUITAR, OWL & CRICKETS AUDIO
+    // ============================================================================
+    const BaseSound = typeof PlushSoundEngine !== 'undefined' ? PlushSoundEngine : class {
+      constructor() { this.ctx = null; this.enabled = true; }
+      init() {
+        if (!this.ctx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (AC) this.ctx = new AC();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+      }
+      playSqueeze(pitch = 1.0) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const g = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(540 * pitch, now);
+          osc.frequency.exponentialRampToValueAtTime(780 * pitch, now + 0.09);
+          g.gain.setValueAtTime(0.001, now);
+          g.gain.linearRampToValueAtTime(0.1, now + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+          osc.connect(g); g.connect(this.ctx.destination);
+          osc.start(now); osc.stop(now + 0.17);
+        } catch (e) {}
+      }
+      playBounce(intensity = 0.5) {
+        if (!this.enabled || intensity < 0.08) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const g = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(120 + intensity * 30, now);
+          osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+          g.gain.setValueAtTime(Math.min(0.14, intensity * 0.1), now);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(g); g.connect(this.ctx.destination);
+          osc.start(now); osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+      playPickup() {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const g = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(280, now);
+          osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
+          g.gain.setValueAtTime(0.05, now);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+          osc.connect(g); g.connect(this.ctx.destination);
+          osc.start(now); osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+    };
+
+    const soundFX = new BaseSound();
+
+    try {
+      const savedMute = localStorage.getItem(STORAGE_MUTE_KEY);
+      if (savedMute === 'true') soundFX.enabled = false;
+    } catch (e) {}
+
+    soundFX.campLoopTimer = null;
+    soundFX.guitarStep = 0;
+    soundFX.windGain = null;
+    soundFX.ambientStarted = false;
+
+    soundFX.ensureAmbient = function () {
+      if (!this.enabled || isPaused) return;
+      try {
+        this.init();
+        if (!this.ctx) return;
+
+        if (!this.ambientStarted) {
+          this.ambientStarted = true;
+          // Gentle forest wind bed
+          const bufLen = this.ctx.sampleRate * 2;
+          const buf = this.ctx.createBuffer(1, bufLen, this.ctx.sampleRate);
+          const d = buf.getChannelData(0);
+          let last = 0;
+          for (let i = 0; i < bufLen; i++) {
+            const w = Math.random() * 2 - 1;
+            d[i] = (last + 0.025 * w) / 1.025;
+            last = d[i];
+          }
+          const src = this.ctx.createBufferSource();
+          src.buffer = buf;
+          src.loop = true;
+
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.value = 290;
+          filter.Q.value = 0.85;
+
+          this.windGain = this.ctx.createGain();
+          this.windGain.gain.value = 0.022;
+          src.connect(filter);
+          filter.connect(this.windGain);
+          this.windGain.connect(this.ctx.destination);
+          src.start(0);
+        }
+
+        if (!this.campLoopTimer) {
+          this.startCampfireLoop();
+        }
+      } catch (e) {}
+    };
+
+    // Crisp Fire Crackle / Log Snap
+    soundFX.playFireCrackle = function (intensity = 1.0) {
+      if (!this.enabled) return;
+      try {
+        this.ensureAmbient();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const bufLen = Math.floor(this.ctx.sampleRate * 0.055);
+        const buf = this.ctx.createBuffer(1, bufLen, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < bufLen; i++) {
+          d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufLen * 0.3));
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buf;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1600 + Math.random() * 900, now);
+        filter.Q.value = 3.0;
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(Math.min(0.14, 0.07 * intensity), now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start(now);
+      } catch (e) {}
+    };
+
+    // Happy Pop when a Marshmallow reaches Golden Perfection (or Puff when Burnt!)
+    soundFX.playRoastPop = function (isBurnt = false) {
+      if (!this.enabled) return;
+      try {
+        this.ensureAmbient();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        if (!isBurnt) {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(440, now);
+          osc.frequency.exponentialRampToValueAtTime(880, now + 0.11);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+        } else {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(180, now);
+          osc.frequency.exponentialRampToValueAtTime(65, now + 0.22);
+          gain.gain.setValueAtTime(0.1, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+        }
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.25);
+      } catch (e) {}
+    };
+
+    // Spooky Ghost Story Chord / Owl Hoot ("Hoo-hoo!")
+    soundFX.playOwlHoot = function () {
+      if (!this.enabled) return;
+      try {
+        this.ensureAmbient();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        [0, 0.28].forEach((offset, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          const t0 = now + offset;
+          const dur = idx === 0 ? 0.18 : 0.36;
+          osc.frequency.setValueAtTime(340, t0);
+          osc.frequency.exponentialRampToValueAtTime(295, t0 + dur);
+          gain.gain.setValueAtTime(0.001, t0);
+          gain.gain.linearRampToValueAtTime(0.06, t0 + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.0008, t0 + dur);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t0);
+          osc.stop(t0 + dur + 0.02);
+        });
+      } catch (e) {}
+    };
+
+    // Warm Acoustic Fingerpicked Campfire Guitar Loop + Night Crickets & Fire Crackles
+    soundFX.playCampStep = function () {
+      if (!this.enabled || isPaused) return;
+      try {
+        this.init();
+        if (!this.ctx || this.ctx.state !== 'running') return;
+        const now = this.ctx.currentTime;
+
+        // Cozy G major / E minor / C major9 / D7 campfire guitar arpeggio
+        const guitarNotes = [
+          196.00, 293.66, 392.00, 493.88, 392.00, 293.66,
+          164.81, 246.94, 329.63, 493.88, 329.63, 246.94,
+          261.63, 329.63, 392.00, 587.33, 392.00, 329.63,
+          293.66, 369.99, 440.00, 523.25, 440.00, 369.99
+        ];
+        const freq = guitarNotes[this.guitarStep % guitarNotes.length];
+        this.guitarStep++;
+
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(ghostStoryActive ? freq * 0.94 : freq, now);
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.028, now + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.44);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.45);
+
+        // Random fire crackle proportional to log count
+        if (Math.random() < 0.35 + fireLogCount * 0.06) {
+          this.playFireCrackle(0.5 + fireLogCount * 0.1);
+        }
+
+        // Nighttime cricket chirp & occasional distant owl
+        if (isNightMode && this.guitarStep % 3 === 0) {
+          for (let c = 0; c < 2; c++) {
+            const cOsc = this.ctx.createOscillator();
+            const cGain = this.ctx.createGain();
+            cOsc.type = 'sine';
+            const t0 = now + c * 0.04;
+            cOsc.frequency.setValueAtTime(4250, t0);
+            cGain.gain.setValueAtTime(0.008, t0);
+            cGain.gain.exponentialRampToValueAtTime(0.0004, t0 + 0.032);
+            cOsc.connect(cGain);
+            cGain.connect(this.ctx.destination);
+            cOsc.start(t0);
+            cOsc.stop(t0 + 0.035);
+          }
+        }
+        if (isNightMode && this.guitarStep % 24 === 0) {
+          this.playOwlHoot();
+        }
+      } catch (e) {}
+    };
+
+    soundFX.startCampfireLoop = function () {
+      if (this.campLoopTimer) return;
+      this.campLoopTimer = setInterval(() => {
+        if (!isPaused && this.enabled) this.playCampStep();
+      }, 330);
+    };
+
+    soundFX.stopCampfireLoop = function () {
+      if (this.campLoopTimer) {
+        clearInterval(this.campLoopTimer);
+        this.campLoopTimer = null;
+      }
+    };
+
+    // ============================================================================
+    // 2. VOXEL & MATRIX HELPER FALLBACKS
+    // ============================================================================
+    const _voxelHash = typeof voxelHash === 'function' ? voxelHash : function (x, y, z) {
+      let n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+      return n - Math.floor(n);
+    };
+
+    const _tempColor = new THREE.Color();
+    const _varyColor = typeof varyColor === 'function' ? varyColor : function (hex, x, y, z, variance = 0.035, seamDarken = 0) {
+      _tempColor.set(hex);
+      const h = _voxelHash(x, y, z);
+      const delta = (h - 0.5) * 2 * variance - seamDarken;
+      _tempColor.offsetHSL(0, (h - 0.5) * 0.03, delta);
+      return _tempColor.clone();
+    };
+
+    const _createSoftVoxelGeometry = typeof createSoftVoxelGeometry === 'function' ? createSoftVoxelGeometry : function (size = 1) {
+      const s = size * 0.985;
+      return new THREE.BoxGeometry(s, s, s);
+    };
+
+    const _getOptimalPixelRatio = typeof getOptimalPixelRatio === 'function' ? getOptimalPixelRatio : function () {
+      return Math.min(window.devicePixelRatio || 1, 2);
+    };
+
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    const tempEuler = new THREE.Euler();
+
+    function buildVoxelInstancedMesh(voxels, unitSize, material, castShadow = true, receiveShadow = true) {
+      if (!voxels || voxels.length === 0) return null;
+      const geom = _createSoftVoxelGeometry(unitSize);
+      const mesh = new THREE.InstancedMesh(geom, material, voxels.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+
+      for (let i = 0; i < voxels.length; i++) {
+        const v = voxels[i];
+        tempPos.set(v.x * unitSize, v.y * unitSize, v.z * unitSize);
+        tempQuat.identity();
+        tempScale.set(v.sx || 1, v.sy || 1, v.sz || 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, v.color instanceof THREE.Color ? v.color : new THREE.Color(v.color));
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      return mesh;
+    }
+
+    // ============================================================================
+    // 3. SCENE, CAMERA, RENDERER, POST-PROCESSING & ORBIT CONTROLS
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#060919');
+    scene.fog = new THREE.FogExp2('#060919', 0.011);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.5, 160);
+    camera.position.set(18.5, 12.5, 20.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(_getOptimalPixelRatio());
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.58,
+        0.55,
+        0.65
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (err) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.8, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.48;
+    controls.minPolarAngle = Math.PI * 0.04;
+    controls.minDistance = 7;
+    controls.maxDistance = 48;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.35;
+
+    let lastUserInteractionTime = performance.now();
+    function recordInteraction() {
+      lastUserInteractionTime = performance.now();
+      controls.autoRotate = false;
+      soundFX.ensureAmbient();
+    }
+    controls.addEventListener('start', recordInteraction);
+
+    // ============================================================================
+    // 4. CAPPED DYNAMIC LIGHTS & SHARED MATERIALS
+    // ============================================================================
+    // 1. Hemisphere Sky/Ground Light
+    const hemiLight = new THREE.HemisphereLight(0xfffbeb, 0x1e293b, 0.42);
+    hemiLight.position.set(0, 26, 0);
+    scene.add(hemiLight);
+
+    // 2. Sun / Moon Directional Light (Primary Shadow Caster)
+    const dirLight = new THREE.DirectionalLight(0x93c5fd, 0.45);
+    dirLight.position.set(-16, 22, -14);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.near = 2;
+    dirLight.shadow.camera.far = 62;
+    const dCam = 18;
+    dirLight.shadow.camera.left = -dCam;
+    dirLight.shadow.camera.right = dCam;
+    dirLight.shadow.camera.top = dCam;
+    dirLight.shadow.camera.bottom = -dCam;
+    dirLight.shadow.bias = -0.0005;
+    scene.add(dirLight);
+
+    // 3. Central Flickering Bonfire PointLight (Casts warm campfire shadows!)
+    const bonfireLight = new THREE.PointLight(0xff7b00, 1.85, 22, 1.5);
+    bonfireLight.position.set(0, 1.8, 0);
+    bonfireLight.castShadow = true;
+    bonfireLight.shadow.mapSize.width = 1024;
+    bonfireLight.shadow.mapSize.height = 1024;
+    bonfireLight.shadow.bias = -0.001;
+    scene.add(bonfireLight);
+
+    // 4. Marisa's Under-Chin Spooky Flashlight PointLight
+    const flashlightLight = new THREE.PointLight(0x60a5fa, 0.0, 9, 1.6);
+    flashlightLight.position.set(-2.3, 1.1, -1.8);
+    scene.add(flashlightLight);
+
+    // 5. Glowing Camp Tents Warm Lantern PointLight
+    const tentLanternLight = new THREE.PointLight(0xffb703, 0.85, 16, 1.6);
+    tentLanternLight.position.set(-5.8, 2.2, -5.8);
+    scene.add(tentLanternLight);
+
+    // Shared Materials
+    const plushMaterial = new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0.02 });
+    const terrainMaterial = new THREE.MeshStandardMaterial({ roughness: 0.86, metalness: 0.03 });
+    const propMaterial = new THREE.MeshStandardMaterial({ roughness: 0.62, metalness: 0.12 });
+    const lakeMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.84,
+      roughness: 0.12,
+      metalness: 0.08,
+      transmission: 0.35,
+      emissive: new THREE.Color(0x0284c7),
+      emissiveIntensity: 0.18
+    });
+    const fireEmissiveMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfffbeb,
+      emissive: new THREE.Color(0xff6b00),
+      emissiveIntensity: 2.2,
+      roughness: 0.2
+    });
+    const lanternEmissiveMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfef08a,
+      emissive: new THREE.Color(0xf59e0b),
+      emissiveIntensity: 1.5,
+      roughness: 0.2
+    });
+    const crystalWingMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.2,
+      metalness: 0.1,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 0.5
+    });
+
+    // ============================================================================
+    // 5. FOREST CLEARING, TENTS, HAMMOCK, COOLER, GRILL, TELESCOPE, LAKE & TREES
+    // ============================================================================
+    const WV = 0.35; // 1 World Voxel = 0.35 units
+    const terrainVoxels = [];
+    const propVoxels = [];
+    const lakeVoxels = [];
+    const lanternVoxels = [];
+
+    const propColliders = [];
+    function addCollider(minX, minY, minZ, maxX, maxY, maxZ, name) {
+      propColliders.push({
+        min: new THREE.Vector3(minX, minY, minZ),
+        max: new THREE.Vector3(maxX, maxY, maxZ),
+        name
+      });
+    }
+
+    function pushWV(list, x, y, z, hex, variance = 0.025, sx = 1, sy = 1, sz = 1) {
+      list.push({
+        x, y, z,
+        color: _varyColor(hex, x, y, z, variance),
+        sx, sy, sz
+      });
+    }
+
+    const telescopeTubePivot = new THREE.Group();
+
+    function buildForestCampsite() {
+      // 1. Forest Clearing Floor & Nearby Lake on East/Front-Right (x > 14, z > 4)
+      for (let x = -36; x <= 36; x++) {
+        for (let z = -34; z <= 34; z++) {
+          const distCenter = Math.hypot(x, z);
+          const lakeDist = Math.hypot((x - 22) * 0.85, (z - 14) * 0.95);
+
+          if (lakeDist < 11.2) {
+            // Shimmering Forest Lake + Wooden Pier
+            const wCol = lakeDist < 6.5 ? '#0284c7' : '#38bdf8';
+            pushWV(lakeVoxels, x, -0.55, z, wCol, 0.02, 1, 0.85, 1);
+          } else {
+            const edgeHill = Math.max(0, Math.floor((distCenter - 26) * 0.28));
+            for (let y = 0; y <= edgeHill; y++) {
+              let col = ((x + z) % 2 === 0) ? '#2d5a27' : '#36692f'; // Pine forest moss/grass
+              if (distCenter < 9.5) {
+                col = ((x + z) % 2 === 0) ? '#6e4e32' : '#5e4128'; // Warm packed earth around campfire
+              } else if (lakeDist < 12.8) {
+                col = '#cbd5e1'; // Pebbly lake shore
+              }
+              pushWV(terrainVoxels, x, y - 0.5, z, col, 0.03);
+            }
+          }
+        }
+      }
+
+      // 2. Stone-Ringed Campfire Pit at Center (0, 0, 0)
+      for (let deg = 0; deg < 16; deg++) {
+        const a = (deg / 16) * Math.PI * 2;
+        const sx = Math.cos(a) * 3.8;
+        const sz = Math.sin(a) * 3.8;
+        pushWV(propVoxels, sx, 0.4, sz, deg % 2 === 0 ? '#64748b' : '#475569', 0.03, 1.3, 1.1, 1.3);
+      }
+      for (let x = -3; x <= 3; x++) {
+        for (let z = -3; z <= 3; z++) {
+          if (Math.hypot(x, z) <= 3.2) {
+            pushWV(terrainVoxels, x, 0.1, z, '#1c1917', 0.02, 1, 0.4, 1); // Charcoal bed
+          }
+        }
+      }
+
+      // 3. Three Log Benches Arranged Around the Campfire Circle
+      // Bench 1 (North-West), Bench 2 (North-East), Bench 3 (South-West)
+      const benches = [
+        { cx: -7, cz: -5, dx: 0.7, dz: -0.7 },
+        { cx: 7,  cz: -5, dx: 0.7, dz: 0.7 },
+        { cx: -6, cz: 7,  dx: 0.8, dz: 0.6 }
+      ];
+      benches.forEach((b) => {
+        for (let t = -4; t <= 4; t++) {
+          const lx = b.cx + t * b.dx;
+          const lz = b.cz + t * b.dz;
+          pushWV(propVoxels, lx, 0.65, lz, '#78350f', 0.025, 1.25, 1.25, 1.25);
+          if (Math.abs(t) === 4) {
+            pushWV(propVoxels, lx, 0.65, lz, '#d97706', 0.02, 1.3, 1.1, 1.3); // Cut log rings
+          }
+        }
+        addCollider((b.cx - 3.5) * WV, 0, (b.cz - 3.5) * WV, (b.cx + 3.5) * WV, 0.55, (b.cz + 3.5) * WV, 'log_bench');
+      });
+
+      // 4. Three Cozy A-Frame & Dome Tents with Glowing Lanterns!
+      const buildCampTent = (tx, tz, tentHex, trimHex) => {
+        for (let dz = -5; dz <= 5; dz++) {
+          for (let y = 0; y <= 6; y++) {
+            const halfW = Math.max(0, 5 - y * 0.75);
+            for (let dx = -Math.ceil(halfW); dx <= Math.ceil(halfW); dx++) {
+              const isShell = (Math.abs(dx) >= halfW - 0.8 || dz === -5 || (dz === 5 && Math.abs(dx) >= 2));
+              if (isShell) {
+                const col = (y === 6 || Math.abs(dz) === 5) ? trimHex : tentHex;
+                pushWV(propVoxels, tx + dx, y + 0.5, tz + dz, col, 0.02);
+              } else if (y === 0) {
+                pushWV(propVoxels, tx + dx, 0.2, tz + dz, '#334155', 0.01); // Tent floor mat
+              }
+            }
+          }
+        }
+        // Hanging warm camp lantern at tent entrance
+        pushWV(lanternVoxels, tx, 5.2, tz + 5.6, '#fde047', 0.01, 1.0, 1.3, 1.0);
+        addCollider((tx - 5) * WV, 0, (tz - 5) * WV, (tx + 5) * WV, 2.5, (tz + 5) * WV, 'camp_tent');
+      };
+
+      buildCampTent(-18, -18, '#ea580c', '#fed7aa'); // Warm Amber Tent (North-West)
+      buildCampTent(0, -22, '#059669', '#a7f3d0');   // Forest Green Tent (North)
+      buildCampTent(18, -16, '#4f46e5', '#c7d2fe');  // Indigo Star Tent (North-East)
+
+      // 5. Cozy Puffy Sleeping Bag near South-East of Fire (For Sleeping-Bag Fumo at voxel 6, 0, 8)
+      const sbX = 5, sbZ = 8;
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dz = -3; dz <= 3; dz++) {
+          if (Math.hypot(dx * 1.2, dz * 0.8) <= 2.8) {
+            const sCol = dz < -1 ? '#f8fafc' : '#e11d48';
+            pushWV(propVoxels, sbX + dx, 0.55, sbZ + dz, sCol, 0.02, 1, 0.9, 1);
+          }
+        }
+      }
+      addCollider((sbX - 2.5) * WV, 0, (sbZ - 3.5) * WV, (sbX + 2.5) * WV, 0.5, (sbZ + 3.5) * WV, 'sleeping_bag');
+
+      // 6. Hammock Strung Between Two Pine Trees on West Side (voxel -20, y, 4..14)
+      for (let z = 5; z <= 13; z++) {
+        const sag = Math.cos(((z - 9) / 5) * (Math.PI / 2)) * 1.4;
+        for (let x = -21; x <= -19; x++) {
+          const hCol = (z % 2 === 0) ? '#0284c7' : '#bae6fd';
+          pushWV(propVoxels, x, 3.8 - sag, z, hCol, 0.02, 1, 0.45, 1);
+        }
+      }
+      addCollider(-21.5 * WV, 0, 4.5 * WV, -18.5 * WV, 1.3, 13.5 * WV, 'hammock');
+
+      // 7. Reimu's Grill with Sausages & Boiling Kettle (voxel 6, 0, -2)
+      const gx = 6, gz = -1;
+      for (const lx of [-1.5, 1.5]) {
+        for (const lz of [-1, 1]) {
+          pushWV(propVoxels, gx + lx, 0.6, gz + lz, '#1e293b', 0.01, 0.35, 1.4, 0.35);
+        }
+      }
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          pushWV(propVoxels, gx + dx, 1.4, gz + dz, '#334155', 0.01, 1, 0.35, 1);
+        }
+      }
+      // Sizzling Sausages & Copper Kettle on Grill
+      pushWV(propVoxels, gx - 1.2, 1.8, gz - 0.3, '#b91c1c', 0.02, 0.6, 0.5, 1.6);
+      pushWV(propVoxels, gx - 0.2, 1.8, gz + 0.2, '#991b1b', 0.02, 0.6, 0.5, 1.6);
+      pushWV(propVoxels, gx + 1.2, 2.0, gz, '#d97706', 0.01, 1.3, 1.3, 1.3); // Kettle
+      addCollider((gx - 2.5) * WV, 0, (gz - 1.5) * WV, (gx + 2.5) * WV, 0.9, (gz + 1.5) * WV, 'grill');
+
+      // 8. Cirno's Ice Cooler Box Packed with Frost & Drinks (voxel -11, 0, 2)
+      const cx = -11, cz = 2;
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          pushWV(propVoxels, cx + dx, 0.6, cz + dz, '#0284c7', 0.01);
+          pushWV(propVoxels, cx + dx, 1.5, cz + dz, '#38bdf8', 0.01);
+          pushWV(lakeVoxels, cx + dx * 0.8, 2.2, cz + dz * 0.8, '#e0f2fe', 0.02, 0.9, 0.6, 0.9); // Ice cubes
+        }
+      }
+      pushWV(propVoxels, cx - 0.8, 2.6, cz, '#ef4444', 0.01, 0.5, 1.0, 0.5); // Soda can
+      pushWV(propVoxels, cx + 0.8, 2.6, cz, '#22c55e', 0.01, 0.5, 1.0, 0.5); // Melon soda
+      addCollider((cx - 2.5) * WV, 0, (cz - 1.5) * WV, (cx + 2.5) * WV, 1.0, (cz + 1.5) * WV, 'cooler');
+
+      // 9. Acoustic Campfire Guitar Leaning Against Bench (voxel -4.5, 0, -6.5)
+      const qx = -4.5, qz = -6.5;
+      pushWV(propVoxels, qx, 0.8, qz, '#b45309', 0.02, 1.6, 1.8, 0.6);
+      pushWV(propVoxels, qx, 1.9, qz - 0.2, '#92400e', 0.02, 1.2, 1.2, 0.5);
+      pushWV(propVoxels, qx, 3.1, qz - 0.4, '#451a03', 0.01, 0.45, 1.8, 0.35);
+
+      // 10. Brass Stargazing Telescope on Tripod near Lake Shore (voxel 11, 0, 2 -> World 3.85, 0, 0.7)
+      const tx = 11, tz = 2;
+      for (let y = 0; y <= 3; y++) {
+        pushWV(propVoxels, tx - 1 + y * 0.25, y * 0.8 + 0.4, tz - 1 + y * 0.25, '#78350f', 0.01, 0.35, 1, 0.35);
+        pushWV(propVoxels, tx + 1 - y * 0.25, y * 0.8 + 0.4, tz - 1 + y * 0.25, '#78350f', 0.01, 0.35, 1, 0.35);
+        pushWV(propVoxels, tx, y * 0.8 + 0.4, tz + 1 - y * 0.25, '#78350f', 0.01, 0.35, 1, 0.35);
+      }
+      telescopeTubePivot.position.set(tx * WV, 3.4 * WV, tz * WV);
+      const scopeVox = [];
+      for (let z = -2; z <= 3; z++) {
+        const s = z >= 2 ? 1.15 : 0.85;
+        scopeVox.push({ x: 0, y: 0, z, color: new THREE.Color(z === 3 ? '#38bdf8' : '#f59e0b'), sx: s, sy: s, sz: 1.0 });
+      }
+      telescopeTubePivot.add(buildVoxelInstancedMesh(scopeVox, 0.18, propMaterial, true, true));
+      telescopeTubePivot.rotation.set(-0.55, 0.6, 0);
+      scene.add(telescopeTubePivot);
+      addCollider((tx - 1.5) * WV, 0, (tz - 1.5) * WV, (tx + 1.5) * WV, 1.5, (tz + 1.5) * WV, 'telescope');
+
+      // 11. Towering Pine Trees Around the Clearing (including Tree at (-14, 15) where a Fumo is stuck!)
+      const treeCoords = [
+        [-20, 4], [-20, 14], [-14, 15], [-28, -8], [-27, -24],
+        [-10, -28], [10, -28], [26, -24], [29, -6], [-26, 22], [-6, 25]
+      ];
+      treeCoords.forEach(([px, pz], idx) => {
+        const h = 12 + (idx % 3) * 3;
+        for (let y = 0; y <= 4; y++) {
+          pushWV(propVoxels, px, y + 0.5, pz, '#451a03', 0.02, 1.2, 1, 1.2);
+        }
+        for (let y = 4; y <= h; y++) {
+          const rad = Math.max(0.8, (h + 1 - y) * 0.48 + ((y % 2 === 0) ? 0.5 : 0));
+          for (let dx = -4; dx <= 4; dx++) {
+            for (let dz = -4; dz <= 4; dz++) {
+              if (Math.hypot(dx, dz) <= rad) {
+                pushWV(terrainVoxels, px + dx, y + 0.5, pz + dz, (y % 2 === 0) ? '#14532d' : '#166534', 0.03);
+              }
+            }
+          }
+        }
+      });
+    }
+
+    buildForestCampsite();
+
+    const campsiteGroup = new THREE.Group();
+    scene.add(campsiteGroup);
+    campsiteGroup.add(buildVoxelInstancedMesh(terrainVoxels, WV, terrainMaterial, true, true));
+    campsiteGroup.add(buildVoxelInstancedMesh(propVoxels, WV, propMaterial, true, true));
+    campsiteGroup.add(buildVoxelInstancedMesh(lakeVoxels, WV, lakeMaterial, false, true));
+    campsiteGroup.add(buildVoxelInstancedMesh(lanternVoxels, WV, lanternEmissiveMaterial, false, false));
+
+    // Invisible Raycast Plane for Dragging Marshmallow Sticks
+    const groundRaycastPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(60, 60),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    groundRaycastPlane.rotation.x = -Math.PI / 2;
+    scene.add(groundRaycastPlane);
+
+    // ============================================================================
+    // 6. INTERACTIVE BONFIRE (CLICK TO ADD LOGS) & MARSHMALLOW ROASTING STICKS
+    // ============================================================================
+    const bonfireGroup = new THREE.Group();
+    scene.add(bonfireGroup);
+
+    const logMeshes = [];
+    const flameBlockMeshes = [];
+    const bonfireHitMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.4, 1.5, 1.8, 12),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    bonfireHitMesh.position.set(0, 0.9, 0);
+    bonfireHitMesh.userData.isBonfire = true;
+    scene.add(bonfireHitMesh);
+
+    function buildBonfireMeshes() {
+      for (let i = 0; i < 7; i++) {
+        const lMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(0.28, 0.26, 1.45),
+          new THREE.MeshStandardMaterial({ color: 0x5c2d16, roughness: 0.85 })
+        );
+        const angle = (i / 7) * Math.PI * 2;
+        lMesh.position.set(Math.cos(angle) * 0.25, 0.22 + (i > 3 ? 0.22 : 0), Math.sin(angle) * 0.25);
+        lMesh.rotation.set((i % 2 === 0 ? 0.25 : -0.22), angle, 0);
+        lMesh.visible = i < fireLogCount;
+        bonfireGroup.add(lMesh);
+        logMeshes.push(lMesh);
+      }
+
+      const flameCols = [0xff4500, 0xff7b00, 0xffaa00, 0xfde047];
+      for (let i = 0; i < 18; i++) {
+        const fMat = new THREE.MeshStandardMaterial({
+          color: 0xfffbeb,
+          emissive: new THREE.Color(flameCols[i % flameCols.length]),
+          emissiveIntensity: 2.2,
+          roughness: 0.2
+        });
+        const fMesh = new THREE.Mesh(_createSoftVoxelGeometry(0.26), fMat);
+        bonfireGroup.add(fMesh);
+        flameBlockMeshes.push({
+          mesh: fMesh,
+          angle: (i / 18) * Math.PI * 2,
+          radius: (i % 3) * 0.22,
+          phase: i * 0.7,
+          speed: 3.5 + (i % 4) * 1.2
+        });
+      }
+    }
+    buildBonfireMeshes();
+
+    function addBonfireLog() {
+      if (fireLogCount < 7) {
+        fireLogCount++;
+      } else {
+        fireLogCount = 3; // Cycle back after max blaze
+      }
+      logMeshes.forEach((m, idx) => { m.visible = idx < fireLogCount; });
+      document.getElementById('count-logs').textContent = fireLogCount;
+      soundFX.playFireCrackle(1.5);
+      spawnCampParticles(new THREE.Vector3(0, 0.8, 0), ['#ff7b00', '#fde047', '#ef4444'], 18, 1.3);
+      showBanner('🔥', `Bonfire Stoked! (${fireLogCount}/7 Logs)`, 'Flames, sparks, and warmth increased!');
+    }
+
+    // Draggable Marshmallow Roasting Sticks + Squirrel Thief!
+    const marshmallowSticks = [];
+    const stickRaycastMeshes = [];
+
+    function createMarshmallowStick(idx, homePos, homeYaw) {
+      const group = new THREE.Group();
+      group.position.copy(homePos);
+      group.rotation.y = homeYaw;
+      scene.add(group);
+
+      const stickMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.08, 0.08, 1.55),
+        new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.8 })
+      );
+      stickMesh.position.set(0, 0, -0.4);
+      group.add(stickMesh);
+
+      const mallowMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
+      const mallowMesh = new THREE.Mesh(_createSoftVoxelGeometry(0.28), mallowMat);
+      mallowMesh.position.set(0, 0, -1.2);
+      mallowMesh.castShadow = true;
+      group.add(mallowMesh);
+
+      const stickObj = {
+        idx,
+        group,
+        stickMesh,
+        mallowMesh,
+        mallowMat,
+        homePos: homePos.clone(),
+        homeYaw,
+        pos: homePos.clone(),
+        roastTime: 0.0, // 0..3.5s = Golden, >4.5s = Burnt!
+        state: 'raw'    // 'raw', 'golden', 'burnt'
+      };
+      stickMesh.userData.mallowStick = stickObj;
+      mallowMesh.userData.mallowStick = stickObj;
+      stickRaycastMeshes.push(stickMesh, mallowMesh);
+      marshmallowSticks.push(stickObj);
+    }
+
+    createMarshmallowStick(0, new THREE.Vector3(-1.4, 0.75, 1.6), 0.65);
+    createMarshmallowStick(1, new THREE.Vector3(1.5, 0.75, 1.5), -0.65);
+
+    // Unexpected Spot 3: Voxel Squirrel Stealing a Marshmallow on the East Log!
+    const squirrelGroup = new THREE.Group();
+    squirrelGroup.position.set(2.8, 0.7, 2.2);
+    scene.add(squirrelGroup);
+    const sqVox = [
+      { x: 0, y: 0, z: 0, color: new THREE.Color('#b45309'), sx: 1.1, sy: 1.1, sz: 1.4 },
+      { x: 0, y: 0.9, z: 0.8, color: new THREE.Color('#d97706'), sx: 1.0, sy: 1.0, sz: 1.0 },
+      // Bushy curled squirrel tail
+      { x: 0, y: 0.8, z: -1.1, color: new THREE.Color('#92400e'), sx: 1.2, sy: 1.8, sz: 1.1 },
+      { x: 0, y: 1.9, z: -0.9, color: new THREE.Color('#b45309'), sx: 1.3, sy: 1.2, sz: 1.2 },
+      // Stolen marshmallow held in squirrel's paws!
+      { x: 0, y: 0.7, z: 1.8, color: new THREE.Color('#fef3c7'), sx: 1.1, sy: 1.1, sz: 1.1 }
+    ];
+    const sqMesh = buildVoxelInstancedMesh(sqVox, 0.16, plushMaterial, true, true);
+    squirrelGroup.add(sqMesh);
+
+    // ============================================================================
+    // 7. STARRY SKY, SHOOTING STARS, LAKE MIST & TELESCOPE CONSTELLATIONS (G KEY)
+    // ============================================================================
+    const STAR_COUNT = 220;
+    const starData = [];
+    const starMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
+    const starMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.16, 0.16, 0.16), starMat, STAR_COUNT);
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = 0.15 + Math.random() * (Math.PI * 0.36);
+      const r = 42 + Math.random() * 8;
+      starData.push({
+        x: Math.cos(theta) * Math.cos(phi) * r,
+        y: Math.sin(phi) * r,
+        z: Math.sin(theta) * Math.cos(phi) * r,
+        phase: Math.random() * Math.PI * 2,
+        scale: 0.6 + Math.random() * 1.1
+      });
+    }
+    scene.add(starMesh);
+
+    // Occasional Shooting Star across the night sky
+    const shootingStarMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.9, 0.14, 0.14),
+      new THREE.MeshBasicMaterial({ color: 0xfef08a })
+    );
+    shootingStarMesh.visible = false;
+    scene.add(shootingStarMesh);
+    let shootingStarTimer = 3.5;
+    let shootingStarLife = 0.0;
+    const shootingStarPos = new THREE.Vector3();
+    const shootingStarVel = new THREE.Vector3();
+
+    // Touhou Constellations (Revealed when pressing G or clicking Telescope!)
+    const constellations = [
+      {
+        name: '☯️ Hakurei Yin-Yang Orb',
+        pts: [[-8, 22, -26], [-4, 25, -26], [0, 26, -26], [4, 25, -26], [6, 21, -26], [2, 18, -26], [-4, 18, -26], [-8, 22, -26]]
+      },
+      {
+        name: '🌟 Marisa\'s Mini-Hakkero Octagon',
+        pts: [[-5, 20, -26], [0, 26, -26], [5, 20, -26], [-6, 24, -26], [6, 24, -26], [-5, 20, -26]]
+      },
+      {
+        name: '❄️ Cirno\'s Nine-Crystal Star',
+        pts: [[0, 27, -26], [0, 17, -26], [0, 22, -26], [-5, 25, -26], [5, 19, -26], [0, 22, -26], [5, 25, -26], [-5, 19, -26]]
+      }
+    ];
+    const constellationGroup = new THREE.Group();
+    scene.add(constellationGroup);
+
+    function rebuildConstellationLines() {
+      while (constellationGroup.children.length > 0) {
+        constellationGroup.remove(constellationGroup.children[0]);
+      }
+      const c = constellations[activeConstellationIdx % constellations.length];
+      const points = c.pts.map(([x, y, z]) => new THREE.Vector3(x, y, z));
+      const lineGeom = new THREE.BufferGeometry().setFromPoints(points);
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: stargazeMode ? 0.95 : 0.25 });
+      const line = new THREE.Line(lineGeom, lineMat);
+      constellationGroup.add(line);
+
+      points.forEach(p => {
+        const node = new THREE.Mesh(
+          new THREE.BoxGeometry(0.45, 0.45, 0.45),
+          new THREE.MeshBasicMaterial({ color: 0xfef08a })
+        );
+        node.position.copy(p);
+        constellationGroup.add(node);
+      });
+      document.getElementById('constellation-label').innerHTML = stargazeMode
+        ? `🔭 ${c.name}`
+        : `🔭 <kbd>G</kbd> Stargaze`;
+    }
+    rebuildConstellationLines();
+
+    // Morning Mist Drifting over the Lake (Daytime) & Fire Sparks (Nighttime)
+    const MIST_COUNT = 55;
+    const mistData = [];
+    const mistMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc, transparent: true, opacity: 0.0 });
+    const mistMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.95, 0.28, 0.95), mistMat, MIST_COUNT);
+    for (let i = 0; i < MIST_COUNT; i++) {
+      mistData.push({
+        x: 4.5 + (Math.random() - 0.5) * 6.5,
+        y: 0.25 + Math.random() * 0.7,
+        z: 3.5 + (Math.random() - 0.5) * 6.5,
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.4 + Math.random() * 0.4
+      });
+    }
+    scene.add(mistMesh);
+
+    // Pooled Campfire Sparks & Smoke Puffs
+    const PARTICLE_MAX = 120;
+    const campParticles = [];
+    const campPartMesh = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.13, 0.13, 0.13),
+      new THREE.MeshBasicMaterial({ color: 0xffffff }),
+      PARTICLE_MAX
+    );
+    for (let i = 0; i < PARTICLE_MAX; i++) {
+      campParticles.push({
+        active: false,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        life: 0,
+        maxLife: 1,
+        isSmoke: false,
+        color: new THREE.Color('#ff7b00')
+      });
+      tempMatrix.makeScale(0, 0, 0);
+      campPartMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(campPartMesh);
+
+    function spawnCampParticles(origin, paletteHexes, count = 12, speedMult = 1.0, isSmoke = false) {
+      let spawned = 0;
+      for (let i = 0; i < PARTICLE_MAX && spawned < count; i++) {
+        const p = campParticles[i];
+        if (!p.active) {
+          p.active = true;
+          p.isSmoke = isSmoke;
+          p.life = 0;
+          p.maxLife = isSmoke ? (0.9 + Math.random() * 0.5) : (0.5 + Math.random() * 0.4);
+          p.pos.copy(origin);
+          const ang = Math.random() * Math.PI * 2;
+          const spd = (0.8 + Math.random() * 1.8) * speedMult;
+          p.vel.set(Math.cos(ang) * spd, (2.2 + Math.random() * 2.5) * speedMult, Math.sin(ang) * spd);
+          p.color.set(paletteHexes[spawned % paletteHexes.length]);
+          campPartMesh.setColorAt(i, p.color);
+          spawned++;
+        }
+      }
+      if (campPartMesh.instanceColor) campPartMesh.instanceColor.needsUpdate = true;
+    }
+
+    function updateSkyFireAndParticles(time, dt) {
+      // 1. Update Bonfire Flames & Rising Embers proportional to fireLogCount
+      const fireScale = 0.65 + (fireLogCount / 7) * 0.95;
+      for (let i = 0; i < flameBlockMeshes.length; i++) {
+        const f = flameBlockMeshes[i];
+        const cycle = (time * f.speed + f.phase) % 1.0;
+        const h = cycle * 1.65 * fireScale;
+        const r = f.radius * (1.0 - cycle * 0.65) * fireScale;
+        f.mesh.position.set(
+          Math.cos(f.angle + time * 2) * r,
+          0.35 + h,
+          Math.sin(f.angle + time * 2) * r
+        );
+        const s = (1.0 - cycle * 0.75) * fireScale;
+        f.mesh.scale.setScalar(Math.max(0.1, s));
+      }
+
+      if (Math.random() < dt * (4 + fireLogCount * 2)) {
+        spawnCampParticles(new THREE.Vector3(0, 0.6, 0), ['#ff7b00', '#fde047', '#ef4444'], 1, 0.85, false);
+      }
+
+      // 2. Twinkling Stars & Shooting Star
+      starMat.opacity = THREE.MathUtils.lerp(0.0, 0.95, dayNightProgress);
+      if (dayNightProgress > 0.1) {
+        for (let i = 0; i < STAR_COUNT; i++) {
+          const s = starData[i];
+          tempPos.set(s.x, s.y, s.z);
+          tempQuat.identity();
+          const twinkle = s.scale * (0.65 + 0.35 * Math.sin(time * 3.0 + s.phase));
+          tempScale.setScalar(twinkle);
+          tempMatrix.compose(tempPos, tempQuat, tempScale);
+          starMesh.setMatrixAt(i, tempMatrix);
+        }
+        starMesh.instanceMatrix.needsUpdate = true;
+
+        shootingStarTimer -= dt;
+        if (shootingStarTimer <= 0 && shootingStarLife <= 0) {
+          shootingStarTimer = 5.5 + Math.random() * 6.0;
+          shootingStarLife = 0.75;
+          shootingStarPos.set(-18 + Math.random() * 12, 22 + Math.random() * 6, -28);
+          shootingStarVel.set(24, -8, 4);
+          shootingStarMesh.visible = true;
+        }
+        if (shootingStarLife > 0) {
+          shootingStarLife -= dt;
+          shootingStarPos.addScaledVector(shootingStarVel, dt);
+          shootingStarMesh.position.copy(shootingStarPos);
+          if (shootingStarLife <= 0) shootingStarMesh.visible = false;
+        }
+      }
+
+      // 3. Daytime Lake Morning Mist
+      mistMat.opacity = THREE.MathUtils.lerp(0.42, 0.04, dayNightProgress);
+      for (let i = 0; i < MIST_COUNT; i++) {
+        const m = mistData[i];
+        const mx = m.x + Math.sin(time * m.speed + m.phase) * 0.9;
+        const mz = m.z + Math.cos(time * m.speed + m.phase) * 0.7;
+        tempPos.set(mx, m.y, mz);
+        tempQuat.identity();
+        tempScale.set(1.2, 1, 1.2);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mistMesh.setMatrixAt(i, tempMatrix);
+      }
+      mistMesh.instanceMatrix.needsUpdate = true;
+
+      // 4. Squirrel nibbling animation
+      squirrelGroup.position.y = 0.7 + Math.abs(Math.sin(time * 7)) * 0.08;
+      squirrelGroup.rotation.y = -0.8 + Math.sin(time * 2.5) * 0.15;
+
+      // 5. Update Pooled Sparks & Smoke Particles
+      let dirty = false;
+      for (let i = 0; i < PARTICLE_MAX; i++) {
+        const p = campParticles[i];
+        if (!p.active) continue;
+        dirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          campPartMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        if (p.isSmoke) {
+          p.vel.y = 1.8; // Smoke rises steadily
+        } else {
+          p.vel.y -= 5.5 * dt;
+        }
+        p.pos.addScaledVector(p.vel, dt);
+        const s = p.isSmoke ? (0.6 + (p.life / p.maxLife) * 1.4) : (1.0 - (p.life / p.maxLife));
+        tempEuler.set(p.life * 6, p.life * 5, 0);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.setScalar(s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        campPartMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (dirty) campPartMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    // ============================================================================
+    // 8. TOUHOU FUMO VOXEL PLUSHIE BUILDER (10 CAST + UNEXPECTED SPOTS)
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const fumos = [];
+
+    class VoxelFumo {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.emoji = config.emoji || '🏕️';
+        this.accentColor = config.accentColor || '#ef4444';
+        this.scaleFactor = config.scale || 1.0;
+        this.FV = 0.082 * this.scaleFactor;
+        this.radius = 0.85 * this.scaleFactor;
+        this.pitchAudio = config.pitchAudio || 1.0;
+
+        this.homePos = config.homePos.clone();
+        this.homeYaw = config.homeYaw || 0;
+        this.specialBehaviour = config.specialBehaviour || null;
+
+        this.pos = this.homePos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel = new THREE.Vector3();
+        this.isGrounded = true;
+        this.isDragged = false;
+
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+        this.limbPitch = 0.0;
+        this.limbRoll = 0.0;
+        this.limbPitchVel = 0.0;
+        this.limbRollVel = 0.0;
+
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.2 * this.FV, 0.5 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.3 * this.FV, 1.8 * this.FV, 3.2 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.wingsPivot = new THREE.Group();
+        this.wingsPivot.position.set(0, 4.8 * this.FV, -3.5 * this.FV);
+        this.squashGroup.add(this.wingsPivot);
+
+        this.buildCharacterVoxels(config);
+        this.syncTransform(0);
+        scene.add(this.root);
+      }
+
+      buildCharacterVoxels(cfg) {
+        const bodyVoxels = [];
+        const headVoxels = [];
+        const leftArmVoxels = [];
+        const rightArmVoxels = [];
+        const leftLegVoxels = [];
+        const rightLegVoxels = [];
+        const wingGlowVoxels = [];
+
+        const skinBase = '#ffe5d4';
+        const blushCol = '#ff9ebb';
+        const smileCol = '#4a2525';
+
+        const addPlushVoxel = (arr, x, y, z, col, isSeam = false) => {
+          const seamDarken = (isSeam && ((Math.abs(Math.round(x + y + z)) % 2) === 0)) ? 0.055 : 0;
+          arr.push({
+            x, y, z,
+            color: _varyColor(col, x + this.id.length * 7, y, z, 0.04, seamDarken)
+          });
+        };
+
+        // 1. STUBBY SITTING TORSO
+        for (let y = 0; y <= 7; y++) {
+          const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - (y * 0.12);
+          for (let x = -4; x <= 4; x++) {
+            for (let z = -3; z <= 3; z++) {
+              const dist = Math.hypot(x, z * 1.15);
+              if (dist > rMax) continue;
+
+              const isSideSeam = (z === 0 && Math.abs(x) >= rMax - 0.9);
+              let col = cfg.outfitMain;
+              if (y === 1 && z >= 1) col = '#ffffff';
+              if (cfg.hasWhiteApron && z >= 1 && Math.abs(x) <= 2 && y <= 5) col = '#fcfcfc';
+              if (y >= 5 && z >= 2 && Math.abs(x) <= 2) {
+                col = '#ffffff';
+                if (Math.abs(x) <= 1 && y === 5) col = cfg.tieColor || '#ef4444';
+              }
+              addPlushVoxel(bodyVoxels, x, y + 0.5, z, col, isSideSeam);
+            }
+          }
+        }
+
+        // Character-Specific Props:
+        // Marisa holding a glowing flashlight under her chin!
+        if (this.id === 'marisa') {
+          for (let fy = 3; fy <= 6; fy++) {
+            addPlushVoxel(rightArmVoxels, -2.2, fy - 4, 3.8, fy === 6 ? '#60a5fa' : '#334155');
+          }
+        }
+        // Yuyuko holding a double-skewer of roasted food!
+        if (this.id === 'yuyuko') {
+          for (let sz = 1; sz <= 6; sz++) {
+            addPlushVoxel(rightArmVoxels, 0.5, -2.0, sz, sz >= 4 ? '#f59e0b' : '#78350f');
+            addPlushVoxel(leftArmVoxels, -0.5, -2.0, sz, sz >= 4 ? '#fef3c7' : '#78350f');
+          }
+        }
+        // Koishi's Purple Third Eye & Heart Cords in front of her torso
+        if (this.id === 'koishi') {
+          addPlushVoxel(bodyVoxels, 0, 4.0, 4.0, '#a855f7');
+          addPlushVoxel(bodyVoxels, -1, 5.0, 3.6, '#ec4899');
+          addPlushVoxel(bodyVoxels, 1, 5.0, 3.6, '#ec4899');
+        }
+
+        // 2. SHORT DANGLING ARMS
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftArmVoxels : rightArmVoxels;
+          for (let y = -3; y <= 0; y++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let z = -1; z <= 1; z++) {
+                if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                let col = cfg.sleeveColor || '#ffffff';
+                if (y === -3) col = skinBase;
+                addPlushVoxel(targetArr, x * 0.85 + side * 0.4, y, z * 0.85, col, x === 0);
+              }
+            }
+          }
+        }
+
+        // 3. SHORT SITTING / DANGLING LEGS
+        for (const side of [-1, 1]) {
+          const targetArr = side === -1 ? leftLegVoxels : rightLegVoxels;
+          for (let z = 0; z <= 4; z++) {
+            for (let x = -1; x <= 1; x++) {
+              for (let y = -1; y <= 1; y++) {
+                if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                let col = '#ffffff';
+                if (z === 0) col = skinBase;
+                if (z >= 3) col = cfg.shoeColor || '#2b2d42';
+                if (z === 4 && y === 1 && x === 0) col = '#ffffff';
+                addPlushVoxel(targetArr, x * 0.9, y * 0.9, z * 0.9, col, y === 0);
+              }
+            }
+          }
+        }
+
+        // 4. OVERSIZED ROUND FUMO HEAD, FACE, HAIR & HATS
+        for (let y = 0; y <= 12; y++) {
+          for (let x = -7; x <= 7; x++) {
+            for (let z = -6; z <= 6; z++) {
+              const dy = (y - 6.0) * 1.05;
+              const dx = x * 0.94;
+              const dz = z * 1.02;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              if (dist > 6.4 || dist < 4.5) continue;
+
+              let col = skinBase;
+              const isHeadSeam = (z === 0 && Math.abs(x) >= 5);
+              const isBackOrTop = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3);
+              const isForeheadBangs = (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+              const isSideLocks = (Math.abs(x) >= 5 && z >= 2 && y >= 2);
+
+              if (isBackOrTop || isForeheadBangs || isSideLocks) {
+                col = cfg.hairColor;
+              } else if (z >= 5) {
+                if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                  if (y === 6) col = '#1f141e';
+                  else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                  else col = cfg.eyeColor;
+                } else if (Math.abs(x) === 4 && y === 3) {
+                  col = blushCol;
+                } else if (y === 2 && Math.abs(x) <= 1) {
+                  col = (x === 0) ? '#e07a7a' : smileCol;
+                }
+              }
+
+              addPlushVoxel(headVoxels, x, y, z, col, isHeadSeam);
+            }
+          }
+        }
+
+        // Character Hats & Wings:
+        if (this.id === 'reimu') {
+          for (let bx = -6; bx <= 6; bx++) addPlushVoxel(headVoxels, bx, 12.0, -1.5, '#dc2626');
+        }
+        if (this.id === 'marisa') {
+          for (let hx = -8; hx <= 8; hx++) {
+            for (let hz = -8; hz <= 8; hz++) {
+              if (Math.hypot(hx, hz) <= 8.5 && Math.hypot(hx, hz) >= 4.0) {
+                addPlushVoxel(headVoxels, hx, 10.5, hz - 1.0, '#1e1b2e');
+              }
+            }
+          }
+        }
+        if (this.id === 'yuyuko') {
+          // Light blue Hitaikakushi mob-cap with red ghost crest
+          for (let hx = -6; hx <= 6; hx++) {
+            for (let hz = -5; hz <= 5; hz++) {
+              if (Math.hypot(hx, hz) <= 6.2 && Math.hypot(hx, hz) >= 4.2) {
+                addPlushVoxel(headVoxels, hx, 11.4, hz, '#bae6fd');
+              }
+            }
+          }
+          addPlushVoxel(headVoxels, 0, 11.8, 5.5, '#e11d48');
+        }
+        if (this.id === 'koishi') {
+          // Dark dome hat with yellow ribbon
+          for (let hx = -7; hx <= 7; hx++) {
+            for (let hz = -7; hz <= 7; hz++) {
+              if (Math.hypot(hx, hz) <= 7.2 && Math.hypot(hx, hz) >= 4.2) {
+                addPlushVoxel(headVoxels, hx, 10.8, hz, '#1e293b');
+              }
+            }
+          }
+          addPlushVoxel(headVoxels, 4.5, 11.5, 3.5, '#facc15');
+        }
+        if (this.id === 'flandre') {
+          const crystalCols = ['#38bdf8', '#a855f7', '#ec4899', '#f97316', '#fde047', '#4ade80'];
+          for (const side of [-1, 1]) {
+            for (let rx = 1; rx <= 6; rx++) {
+              wingGlowVoxels.push({
+                x: side * rx, y: 2.0 + (rx % 2), z: -0.5,
+                color: new THREE.Color(crystalCols[rx % crystalCols.length])
+              });
+            }
+          }
+        }
+        if (this.id === 'cirno') {
+          for (const side of [-1, 1]) {
+            for (let r = 1; r <= 5; r++) {
+              wingGlowVoxels.push({ x: side * r, y: 1.5 + (r % 2), z: -0.5, color: new THREE.Color('#7dd3fc') });
+            }
+          }
+        }
+
+        const registerPart = (voxels, parent, mat = plushMaterial) => {
+          const m = buildVoxelInstancedMesh(voxels, this.FV, mat, true, true);
+          if (m) {
+            m.userData.fumo = this;
+            parent.add(m);
+            allFumoRaycastMeshes.push(m);
+          }
+        };
+
+        registerPart(bodyVoxels, this.squashGroup);
+        registerPart(headVoxels, this.headPivot);
+        registerPart(leftArmVoxels, this.leftArmPivot);
+        registerPart(rightArmVoxels, this.rightArmPivot);
+        registerPart(leftLegVoxels, this.leftLegPivot);
+        registerPart(rightLegVoxels, this.rightLegPivot);
+        if (wingGlowVoxels.length > 0) {
+          registerPart(wingGlowVoxels, this.wingsPivot, crystalWingMaterial);
+        }
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.5, this.squash - 0.42 * strength);
+        this.squashVel = -3.6 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * strength;
+        this.headRollVel += (Math.random() > 0.5 ? 1 : -1) * 12 * strength;
+        this.limbPitch = -0.65 * strength;
+        this.limbPitchVel = -6.0 * strength;
+        spawnCampParticles(this.pos.clone().add(new THREE.Vector3(0, 0.9, 0)), [this.accentColor, '#ffffff', '#fde047'], 10, 0.9, false);
+        soundFX.playSqueeze(this.pitchAudio);
+      }
+
+      resetToHome() {
+        this.pos.copy(this.homePos);
+        this.vel.set(0, 0, 0);
+        this.yaw = this.homeYaw;
+        this.pitch = 0;
+        this.roll = 0;
+        this.angVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.squeeze(0.8);
+      }
+
+      updatePhysics(dt, time) {
+        const squashStiff = 210.0;
+        const squashDamp = 11.5;
+        this.squashVel += ((1.0 - this.squash) * squashStiff - this.squashVel * squashDamp) * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash + this.squashVel * dt, 0.45, 1.55);
+
+        const headStiff = 140.0;
+        const headDamp = 7.5;
+        const idleBob = Math.sin(time * 2.4 + this.homePos.x) * 0.035;
+        this.headPitchVel += ((idleBob - this.headPitch) * headStiff - this.headPitchVel * headDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * headStiff - this.headRollVel * headDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.55, 0.55);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.55, 0.55);
+
+        const targetLimbPitch = (this.isDragged || !this.isGrounded) ? 0.58 : 0.0;
+        this.limbPitchVel += ((targetLimbPitch - this.limbPitch) * 120.0 - this.limbPitchVel * 8.0) * dt;
+        this.limbRollVel += ((0 - this.limbRoll) * 120.0 - this.limbRollVel * 8.0) * dt;
+        this.limbPitch = THREE.MathUtils.clamp(this.limbPitch + this.limbPitchVel * dt, -0.8, 0.9);
+        this.limbRoll = THREE.MathUtils.clamp(this.limbRoll + this.limbRollVel * dt, -0.6, 0.6);
+
+        // Startled Youmu shivers during Marisa's Ghost Story!
+        if (this.id === 'youmu' && ghostStoryActive && !this.isDragged) {
+          this.roll = Math.sin(time * 34) * 0.12;
+          this.squash = 1.0 + Math.sin(time * 28) * 0.06;
+        }
+
+        // Unexpected Spot: Fumo stuck upside-down in a pine tree wiggling its legs!
+        if (this.specialBehaviour === 'stuck_in_tree' && this.pos.distanceTo(this.homePos) < 1.2 && !this.isDragged) {
+          this.pitch = Math.PI * 0.88 + Math.sin(time * 12) * 0.08;
+          this.limbPitch = Math.sin(time * 18) * 0.6;
+          this.syncTransform(time);
+          return;
+        }
+
+        if (!this.isDragged) {
+          this.vel.y -= 24.0 * dt;
+          this.vel.multiplyScalar(Math.pow(0.985, dt * 60));
+          this.pos.addScaledVector(this.vel, dt);
+
+          this.yaw += this.angVel.y * dt;
+          this.pitch += this.angVel.x * dt;
+          this.roll += this.angVel.z * dt;
+          this.angVel.multiplyScalar(Math.pow(0.92, dt * 60));
+
+          this.isGrounded = false;
+
+          // Sleeping bag burial check (Only face showing inside sleeping bag at 1.75, 0, 2.8)
+          const distToBag = Math.hypot(this.pos.x - 1.75, this.pos.z - 2.8);
+          const floorY = (distToBag < 0.85) ? -0.35 : 0.0;
+
+          if (this.pos.y < floorY) {
+            const impact = -this.vel.y;
+            this.pos.y = floorY;
+            if (impact > 1.8) {
+              // Extra bouncy rebound if thrown onto a tent or sleeping bag!
+              const bounceMult = distToBag < 1.2 ? 0.65 : 0.38;
+              this.vel.y = impact * bounceMult;
+              this.squashVel -= Math.min(8.5, impact * 0.85);
+              soundFX.playBounce(impact * 0.08);
+            } else {
+              this.vel.y = 0;
+              this.isGrounded = true;
+            }
+            this.vel.x *= 0.8;
+            this.vel.z *= 0.8;
+          }
+
+          this.pos.x = THREE.MathUtils.clamp(this.pos.x, -11.5, 11.5);
+          this.pos.z = THREE.MathUtils.clamp(this.pos.z, -10.5, 10.5);
+
+          const r = this.radius * 0.72;
+          const centerY = this.pos.y + r;
+          for (let i = 0; i < propColliders.length; i++) {
+            const box = propColliders[i];
+            const cx = THREE.MathUtils.clamp(this.pos.x, box.min.x, box.max.x);
+            const cy = THREE.MathUtils.clamp(centerY, box.min.y, box.max.y);
+            const cz = THREE.MathUtils.clamp(this.pos.z, box.min.z, box.max.z);
+            const dx = this.pos.x - cx;
+            const dy = centerY - cy;
+            const dz = this.pos.z - cz;
+            const distSq = dx * dx + dy * dy + dz * dz;
+            if (distSq < r * r) {
+              if (centerY >= box.max.y - 0.28 && this.vel.y <= 0.5) {
+                const imp = -this.vel.y;
+                this.pos.y = box.max.y;
+                if (imp > 2.0 && (box.name === 'camp_tent' || box.name === 'hammock' || box.name === 'sleeping_bag')) {
+                  // Trampoline bounce off tents, hammock & sleeping bags!
+                  this.vel.y = imp * 0.68;
+                  this.squashVel -= 6.0;
+                  soundFX.playBounce(imp * 0.1);
+                } else {
+                  this.vel.y = 0;
+                  this.isGrounded = true;
+                }
+              }
+            }
+          }
+
+          if (this.isGrounded) {
+            this.pitch = THREE.MathUtils.lerp(this.pitch, 0, Math.min(1, dt * 9.5));
+            this.roll = THREE.MathUtils.lerp(this.roll, 0, Math.min(1, dt * 9.5));
+            this.angVel.multiplyScalar(0.75);
+          }
+        }
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.order = 'YXZ';
+        this.root.rotation.set(this.pitch, this.yaw, this.roll);
+
+        const sy = this.squash;
+        const sxz = 1.0 / Math.sqrt(Math.max(0.35, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+        this.leftArmPivot.rotation.set(this.limbPitch, 0, 0.18 + Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.rightArmPivot.rotation.set(this.limbPitch, 0, -0.18 - Math.abs(this.limbPitch) * 0.35 + this.limbRoll);
+        this.leftLegPivot.rotation.set(this.limbPitch * 1.15, 0.08, this.limbRoll * 0.5);
+        this.rightLegPivot.rotation.set(this.limbPitch * 1.15, -0.08, this.limbRoll * 0.5);
+        this.wingsPivot.rotation.x = Math.sin(time * 4.2 + this.homePos.x) * 0.07;
+      }
+    }
+
+    const castConfigs = [
+      // 1. Reimu Hakurei (Cooking Sausages & Boiling Tea at the Grill)
+      { id: 'reimu', name: 'Reimu Hakurei (Camp Chef)', emoji: '🍳', accentColor: '#ef4444', hairColor: '#2b1e23', eyeColor: '#991b1b', outfitMain: '#dc2626', sleeveColor: '#ffffff', tieColor: '#facc15', shoeColor: '#451a03', homePos: new THREE.Vector3(2.2, 0.45, -1.5), homeYaw: -0.75, pitchAudio: 1.0 },
+      // 2. Marisa Kirisame (Telling a Spooky Ghost Story with a Flashlight Under Her Chin!)
+      { id: 'marisa', name: 'Marisa Kirisame (Click for Ghost Story!)', emoji: '🔦', accentColor: '#facc15', hairColor: '#fde047', eyeColor: '#ca8a04', outfitMain: '#1f2937', sleeveColor: '#ffffff', tieColor: '#ffffff', shoeColor: '#111827', hasWhiteApron: true, homePos: new THREE.Vector3(-2.4, 0.45, -1.9), homeYaw: 0.72, pitchAudio: 0.96 },
+      // 3. Sakuya Izayoi (Setting Up Tents with Precision)
+      { id: 'sakuya', name: 'Sakuya Izayoi (Setting Up Camp Tents)', emoji: '⛺', accentColor: '#60a5fa', hairColor: '#e2e8f0', eyeColor: '#1d4ed8', outfitMain: '#1e3a8a', sleeveColor: '#ffffff', tieColor: '#22c55e', shoeColor: '#172554', hasWhiteApron: true, homePos: new THREE.Vector3(-4.2, 0, -4.8), homeYaw: 0.45, pitchAudio: 0.94 },
+      // 4. Cirno (Keeping Drinks Ice-Cold by the Cooler)
+      { id: 'cirno', name: 'Cirno (Keeping the Cooler Ice-Cold!)', emoji: '🧊', accentColor: '#38bdf8', hairColor: '#7dd3fc', eyeColor: '#0284c7', outfitMain: '#2563eb', sleeveColor: '#ffffff', tieColor: '#ef4444', shoeColor: '#1e3a8a', homePos: new THREE.Vector3(-3.6, 0, 1.4), homeYaw: 1.1, pitchAudio: 1.16 },
+      // 5. Flandre Scarlet (Mesmerized by the Flickering Bonfire)
+      { id: 'flandre', name: 'Flandre Scarlet (Fascinated by the Fire)', emoji: '🔥', accentColor: '#f43f5e', hairColor: '#fef08a', eyeColor: '#dc2626', outfitMain: '#e11d48', sleeveColor: '#ffffff', tieColor: '#fde047', shoeColor: '#881337', homePos: new THREE.Vector3(0.0, 0, -2.3), homeYaw: 0.0, pitchAudio: 1.22 },
+      // 6. Yuyuko Saigyouji (Roasting Everything in Sight)
+      { id: 'yuyuko', name: 'Yuyuko Saigyouji (Roasting Everything!)', emoji: '🍢', accentColor: '#f472b6', hairColor: '#fbcfe8', eyeColor: '#be123c', outfitMain: '#38bdf8', sleeveColor: '#e0f2fe', tieColor: '#1d4ed8', shoeColor: '#1e3a8a', homePos: new THREE.Vector3(-1.9, 0.45, 2.2), homeYaw: 2.35, pitchAudio: 0.92 },
+      // 7. Youmu Konpaku (Terrified & Shivering at Marisa's Ghost Story!)
+      { id: 'youmu', name: 'Youmu Konpaku (Terrified of Ghost Stories!)', emoji: '😱', accentColor: '#10b981', hairColor: '#f1f5f9', eyeColor: '#0f766e', outfitMain: '#065f46', sleeveColor: '#ffffff', tieColor: '#1e293b', shoeColor: '#064e3b', homePos: new THREE.Vector3(-2.7, 0.45, 1.5), homeYaw: 2.15, pitchAudio: 1.12 },
+      // 8. Koishi Komeiji (Appearing Unnoticed in the Circle During Ghost Stories!)
+      { id: 'koishi', name: 'Koishi Komeiji ("Right Behind You...")', emoji: '👁️', accentColor: '#a855f7', hairColor: '#a7f3d0', eyeColor: '#0d9488', outfitMain: '#eab308', sleeveColor: '#ffffff', tieColor: '#15803d', shoeColor: '#1e293b', homePos: new THREE.Vector3(0.2, 0, 2.6), homeYaw: Math.PI, pitchAudio: 1.28 },
+      // 9. Unexpected Spot 1: Snug Fumo Inside a Sleeping Bag with Only Its Face Showing!
+      { id: 'bag_fumo', name: 'Snug Fumo (Tucked in Sleeping Bag!)', emoji: '🛌', accentColor: '#e11d48', hairColor: '#fda4af', eyeColor: '#be123c', outfitMain: '#e11d48', sleeveColor: '#ffffff', tieColor: '#facc15', shoeColor: '#881337', homePos: new THREE.Vector3(1.75, -0.35, 2.8), homeYaw: -2.4, pitchAudio: 1.18 },
+      // 10. Unexpected Spot 2: Clumsy Fumo Stuck Upside-Down in a Pine Tree!
+      { id: 'tree_fumo', name: 'Tree-Stuck Fumo (Help Me Down!)', emoji: '🌲', accentColor: '#4ade80', hairColor: '#86efac', eyeColor: '#15803d', outfitMain: '#1d4ed8', sleeveColor: '#ffffff', tieColor: '#facc15', shoeColor: '#1e3a8a', homePos: new THREE.Vector3(-4.9, 2.6, 5.25), homeYaw: 0.5, specialBehaviour: 'stuck_in_tree', pitchAudio: 1.32 }
+    ];
+
+    castConfigs.forEach(cfg => fumos.push(new VoxelFumo(cfg)));
+
+    // Koishi starts unnoticed (semi-hidden until Ghost Story mode or hovered/clicked!)
+    const koishiFumo = fumos.find(f => f.id === 'koishi');
+    if (koishiFumo) koishiFumo.root.visible = false;
+
+    // ============================================================================
+    // 9. GHOST STORY MODE & TELESCOPE STARGAZING LOGIC
+    // ============================================================================
+    const bannerEl = document.getElementById('camp-banner');
+    const bannerIconEl = document.getElementById('banner-icon');
+    const bannerTitleEl = document.getElementById('banner-title');
+    const bannerSubEl = document.getElementById('banner-sub');
+    let bannerTimeout = null;
+
+    function showBanner(icon, title, sub) {
+      bannerIconEl.textContent = icon;
+      bannerTitleEl.textContent = title;
+      bannerSubEl.textContent = sub;
+      bannerEl.style.display = 'flex';
+      if (bannerTimeout) clearTimeout(bannerTimeout);
+      bannerTimeout = setTimeout(() => {
+        bannerEl.style.display = 'none';
+      }, 3600);
+    }
+
+    function toggleGhostStory() {
+      ghostStoryActive = !ghostStoryActive;
+      ghostStoryTimer = ghostStoryActive ? 9.0 : 0.0;
+
+      const marisa = fumos.find(f => f.id === 'marisa');
+      const youmu = fumos.find(f => f.id === 'youmu');
+      if (marisa) marisa.squeeze(1.0);
+      if (youmu && ghostStoryActive) {
+        youmu.squeeze(1.3);
+        youmu.vel.y = 3.5; // Startled jump!
+      }
+      if (koishiFumo) {
+        koishiFumo.root.visible = ghostStoryActive;
+        if (ghostStoryActive) koishiFumo.squeeze(0.9);
+      }
+
+      document.getElementById('story-status').textContent = ghostStoryActive
+        ? '👻 Spooky Story Active! (Koishi Appeared!)'
+        : '🔦 Click Marisa for Ghost Story';
+
+      if (ghostStoryActive) {
+        soundFX.playOwlHoot();
+        showBanner('🔦', 'Marisa: "...And then Mary called from right behind you!"', 'Youmu is shivering — and Koishi appeared unnoticed in the circle!');
+      }
+    }
+
+    function toggleStargaze() {
+      if (!stargazeMode) {
+        stargazeMode = true;
+      } else {
+        activeConstellationIdx = (activeConstellationIdx + 1) % constellations.length;
+        if (activeConstellationIdx === 0) stargazeMode = false;
+      }
+      rebuildConstellationLines();
+      soundFX.playPickup();
+
+      if (stargazeMode) {
+        const c = constellations[activeConstellationIdx % constellations.length];
+        showBanner('🔭', `Telescope Locked: ${c.name}`, 'Press G again to cycle constellations or return to camp!');
+      }
+    }
+
+    // ============================================================================
+    // 10. POINTER INTERACTION (DRAG MARSHMALLOW STICK, ADD LOGS, DRAG FUMO)
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragHitPoint = new THREE.Vector3();
+    const dragOffset = new THREE.Vector3();
+
+    let selectedFumo = null;
+    let isDraggingFumo = false;
+    let selectedStick = null;
+    let pointerDownScreen = new THREE.Vector2();
+    let dragHistory = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+    const roastBarEl = document.getElementById('roast-bar');
+    const roastPromptEl = document.getElementById('roast-prompt');
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function onPointerDown(e) {
+      if (e.button !== 0) return;
+      recordInteraction();
+      updatePointerNDC(e);
+      pointerDownScreen.set(e.clientX, e.clientY);
+      raycaster.setFromCamera(pointerNDC, camera);
+
+      // 1. Check Marshmallow Stick Hit (Drag over Bonfire to Roast!)
+      const stickHits = raycaster.intersectObjects(stickRaycastMeshes, false);
+      if (stickHits.length > 0 && stickHits[0].object.userData.mallowStick) {
+        selectedStick = stickHits[0].object.userData.mallowStick;
+        controls.enabled = false;
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), selectedStick.pos);
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          dragOffset.subVectors(selectedStick.pos, dragHitPoint);
+        }
+        soundFX.playPickup();
+        return;
+      }
+
+      // 2. Check Fumo Hit (Drag & Throw or Click Marisa for Ghost Story)
+      const fumoHits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (fumoHits.length > 0 && fumoHits[0].object.userData.fumo) {
+        const hitFumo = fumoHits[0].object.userData.fumo;
+        if (!hitFumo.root.visible) return;
+        selectedFumo = hitFumo;
+        isDraggingFumo = false;
+        controls.enabled = false;
+
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), selectedFumo.pos);
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          dragOffset.subVectors(selectedFumo.pos, dragHitPoint);
+        } else {
+          dragOffset.set(0, 0, 0);
+        }
+        dragHistory = [{ pos: selectedFumo.pos.clone(), time: performance.now() }];
+        return;
+      }
+
+      // 3. Check Bonfire Hit (Click to Add Logs!)
+      const fireHits = raycaster.intersectObject(bonfireHitMesh, false);
+      if (fireHits.length > 0) {
+        addBonfireLog();
+        return;
+      }
+    }
+
+    function onPointerMove(e) {
+      updatePointerNDC(e);
+      raycaster.setFromCamera(pointerNDC, camera);
+      const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+
+      // Dragging Marshmallow Stick
+      if (selectedStick) {
+        if (raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          selectedStick.pos.copy(dragHitPoint).add(dragOffset);
+          selectedStick.pos.x = THREE.MathUtils.clamp(selectedStick.pos.x, -4.5, 4.5);
+          selectedStick.pos.y = THREE.MathUtils.clamp(selectedStick.pos.y, 0.4, 3.5);
+          selectedStick.pos.z = THREE.MathUtils.clamp(selectedStick.pos.z, -4.5, 4.5);
+          selectedStick.group.position.copy(selectedStick.pos);
+          selectedStick.group.lookAt(0, selectedStick.pos.y * 0.7, 0);
+        }
+        renderer.domElement.style.cursor = 'grabbing';
+        return;
+      }
+
+      // Dragging a Fumo
+      if (selectedFumo) {
+        recordInteraction();
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          selectedFumo.isDragged = true;
+          selectedFumo.isGrounded = false;
+          selectedFumo.squashVel += 3.2;
+          soundFX.playPickup();
+        }
+        if (isDraggingFumo && raycaster.ray.intersectPlane(dragPlane, dragHitPoint)) {
+          const targetPos = dragHitPoint.clone().add(dragOffset);
+          targetPos.x = THREE.MathUtils.clamp(targetPos.x, -11.0, 11.0);
+          targetPos.y = THREE.MathUtils.clamp(targetPos.y, 0.2, 10.0);
+          targetPos.z = THREE.MathUtils.clamp(targetPos.z, -10.0, 10.0);
+
+          const prevPos = selectedFumo.pos.clone();
+          selectedFumo.pos.lerp(targetPos, 0.55);
+          const delta = selectedFumo.pos.clone().sub(prevPos);
+          selectedFumo.headRollVel -= delta.x * 15.0;
+          selectedFumo.headPitchVel += delta.z * 15.0;
+          selectedFumo.limbRollVel -= delta.x * 20.0;
+
+          dragHistory.push({ pos: selectedFumo.pos.clone(), time: performance.now() });
+          while (dragHistory.length > 6) dragHistory.shift();
+          tooltipEl.style.opacity = '0';
+          renderer.domElement.style.cursor = 'grabbing';
+          return;
+        }
+      }
+
+      // Hover Tooltip
+      const stickHits = raycaster.intersectObjects(stickRaycastMeshes, false);
+      if (stickHits.length > 0) {
+        renderer.domElement.style.cursor = 'grab';
+        tooltipEmojiEl.textContent = '🍢';
+        tooltipTextEl.textContent = 'Marshmallow Stick (Drag Over Fire!)';
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+        return;
+      }
+
+      const fumoHits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (fumoHits.length > 0 && fumoHits[0].object.userData.fumo && fumoHits[0].object.userData.fumo.root.visible) {
+        const f = fumoHits[0].object.userData.fumo;
+        renderer.domElement.style.cursor = 'grab';
+        tooltipEmojiEl.textContent = f.emoji;
+        tooltipTextEl.textContent = f.name;
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+        return;
+      }
+
+      const fireHits = raycaster.intersectObject(bonfireHitMesh, false);
+      if (fireHits.length > 0) {
+        renderer.domElement.style.cursor = 'pointer';
+        tooltipEmojiEl.textContent = '🔥';
+        tooltipTextEl.textContent = 'Bonfire (Click to Toss Logs!)';
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+        return;
+      }
+
+      renderer.domElement.style.cursor = 'default';
+      tooltipEl.style.opacity = '0';
+    }
+
+    function onPointerUp() {
+      controls.enabled = true;
+
+      if (selectedStick) {
+        selectedStick = null;
+        return;
+      }
+
+      if (selectedFumo) {
+        if (!isDraggingFumo) {
+          if (selectedFumo.id === 'marisa') {
+            toggleGhostStory();
+          } else {
+            selectedFumo.squeeze(1.0);
+          }
+        } else {
+          selectedFumo.isDragged = false;
+          const now = performance.now();
+          while (dragHistory.length > 1 && now - dragHistory[0].time > 140) dragHistory.shift();
+          if (dragHistory.length >= 2) {
+            const first = dragHistory[0];
+            const last = dragHistory[dragHistory.length - 1];
+            const dtSec = Math.max(0.016, (last.time - first.time) / 1000);
+            const throwVel = last.pos.clone().sub(first.pos).divideScalar(dtSec);
+            if (throwVel.length() > 22) throwVel.setLength(22);
+            selectedFumo.vel.copy(throwVel);
+          }
+        }
+        selectedFumo = null;
+        isDraggingFumo = false;
+      }
+    }
+
+    // Update Marshmallow Roasting Heat when held near the Bonfire
+    function updateMarshmallowRoasting(dt) {
+      let maxPct = 0;
+      for (let i = 0; i < marshmallowSticks.length; i++) {
+        const st = marshmallowSticks[i];
+        const mallowWorld = new THREE.Vector3();
+        st.mallowMesh.getWorldPosition(mallowWorld);
+        const distToFire = Math.hypot(mallowWorld.x, mallowWorld.z);
+
+        if (distToFire < 1.85 && mallowWorld.y < 2.5) {
+          st.roastTime += dt * (0.8 + fireLogCount * 0.15);
+
+          if (st.roastTime >= 1.8 && st.roastTime < 3.6 && st.state === 'raw') {
+            st.state = 'golden';
+            st.mallowMat.color.set('#f59e0b');
+            st.mallowMesh.scale.setScalar(1.22);
+            goldenRoasts++;
+            document.getElementById('count-golden').textContent = goldenRoasts;
+            roastPromptEl.textContent = '✨ GOLDEN PERFECTION! Pull Stick Back Now!';
+            soundFX.playRoastPop(false);
+            spawnCampParticles(mallowWorld, ['#fde047', '#f59e0b', '#ffffff'], 14, 1.0, false);
+            showBanner('🍢', 'Golden Marshmallow Perfection!', `Total Golden Roasts: ${goldenRoasts}`);
+          } else if (st.roastTime >= 3.6 && st.state !== 'burnt') {
+            st.state = 'burnt';
+            st.mallowMat.color.set('#1c1917');
+            st.mallowMesh.scale.setScalar(0.85);
+            burntRoasts++;
+            document.getElementById('count-burnt').textContent = burntRoasts;
+            roastPromptEl.textContent = '💨 OOPS! Burnt to a Crisp! (Click R for Fresh Mallow)';
+            soundFX.playRoastPop(true);
+            spawnCampParticles(mallowWorld, ['#334155', '#475569', '#1e293b'], 18, 0.9, true);
+            showBanner('💨', 'Marshmallow Charred with a Puff of Smoke!', 'Yuyuko will probably still eat it...');
+          }
+        }
+        maxPct = Math.max(maxPct, Math.min(100, (st.roastTime / 3.8) * 100));
+      }
+      roastBarEl.style.width = `${maxPct}%`;
+    }
+
+    function resetMarshmallowsAndFumos() {
+      marshmallowSticks.forEach(st => {
+        st.roastTime = 0;
+        st.state = 'raw';
+        st.mallowMat.color.set('#ffffff');
+        st.mallowMesh.scale.setScalar(1.0);
+        st.pos.copy(st.homePos);
+        st.group.position.copy(st.homePos);
+        st.group.rotation.set(0, st.homeYaw, 0);
+      });
+      roastPromptEl.textContent = '🍢 Drag Marshmallow Stick over Fire to Roast!';
+      fumos.forEach((f, idx) => setTimeout(() => f.resetToHome(), idx * 35));
+    }
+
+    // ============================================================================
+    // 11. DAY / NIGHT SMOOTH TRANSITION (~2 SECONDS) & HUB INTEGRATION
+    // ============================================================================
+    const daySkyCol = new THREE.Color('#a8d8f0');
+    const nightSkyCol = new THREE.Color('#060919');
+    const daySunCol = new THREE.Color('#fffbeb');
+    const nightMoonCol = new THREE.Color('#60a5fa');
+    const dayHemiSky = new THREE.Color('#f0f9ff');
+    const nightHemiSky = new THREE.Color('#1e1b4b');
+    const dayHemiGround = new THREE.Color('#3f6212');
+    const nightHemiGround = new THREE.Color('#090d16');
+
+    function postModeToHub() {
+      const modeStr = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode: modeStr }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(modeStr, { immediate = false, playSound = false } = {}) {
+      const targetNight = (modeStr === 'night' || modeStr === true);
+      if (targetNight === isNightMode && !immediate) return; // Absolute idempotent check
+      isNightMode = targetNight;
+      dayNightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) dayNightProgress = dayNightTarget;
+
+      document.body.classList.toggle('night-ui', isNightMode);
+      try {
+        localStorage.setItem(STORAGE_MODE_KEY, isNightMode ? 'night' : 'day');
+      } catch (e) {}
+
+      if (playSound) soundFX.playPickup();
+      postModeToHub();
+    }
+
+    function toggleDayNightMode() {
+      setDayNightMode(isNightMode ? 'day' : 'night', { immediate: false, playSound: true });
+    }
+
+    function updateDayNightTransition(dt, time) {
+      if (Math.abs(dayNightProgress - dayNightTarget) > 0.0005) {
+        const step = dt * 0.5;
+        if (dayNightProgress < dayNightTarget) {
+          dayNightProgress = Math.min(dayNightTarget, dayNightProgress + step);
+        } else {
+          dayNightProgress = Math.max(dayNightTarget, dayNightProgress - step);
+        }
+      }
+
+      const t = dayNightProgress < 0.5
+        ? 4 * dayNightProgress * dayNightProgress * dayNightProgress
+        : 1 - Math.pow(-2 * dayNightProgress + 2, 3) / 2;
+
+      scene.background.lerpColors(daySkyCol, nightSkyCol, t);
+      scene.fog.color.copy(scene.background);
+
+      // Ghost Story mode dims the ambient lights and makes bonfire shadows crawl!
+      if (ghostStoryActive) {
+        ghostStoryTimer -= dt;
+        if (ghostStoryTimer <= 0) toggleGhostStory();
+      }
+      const spookyDim = ghostStoryActive ? 0.35 : 1.0;
+
+      dirLight.color.lerpColors(daySunCol, nightMoonCol, t);
+      dirLight.intensity = THREE.MathUtils.lerp(1.18, 0.28, t) * spookyDim;
+
+      hemiLight.color.lerpColors(dayHemiSky, nightHemiSky, t);
+      hemiLight.groundColor.lerpColors(dayHemiGround, nightHemiGround, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.75, 0.22, t) * spookyDim;
+
+      // Bonfire flicker & crawling shadow movement
+      const logMult = 0.55 + (fireLogCount / 7) * 0.85;
+      const flicker = Math.sin(time * 11) * 0.14 + Math.cos(time * 17) * 0.09;
+      bonfireLight.intensity = (THREE.MathUtils.lerp(0.65, 2.15, t) + flicker) * logMult * (ghostStoryActive ? 0.65 : 1.0);
+      bonfireLight.position.x = Math.sin(time * (ghostStoryActive ? 6 : 2.5)) * (ghostStoryActive ? 0.32 : 0.08);
+      bonfireLight.position.z = Math.cos(time * (ghostStoryActive ? 5 : 2.2)) * (ghostStoryActive ? 0.32 : 0.08);
+
+      flashlightLight.intensity = ghostStoryActive ? (1.85 + Math.sin(time * 14) * 0.2) : 0.0;
+      tentLanternLight.intensity = THREE.MathUtils.lerp(0.1, 0.95, t) * spookyDim;
+
+      fireEmissiveMaterial.emissiveIntensity = THREE.MathUtils.lerp(1.1, 2.5, t) * logMult;
+      lanternEmissiveMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.35, 1.9, t);
+
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.16, 0.65, t);
+        bloomPass.threshold = THREE.MathUtils.lerp(0.84, 0.62, t);
+      }
+    }
+
+    // ============================================================================
+    // 12. UI BUTTONS, KEYBOARD SHORTCUTS (G, M, N, R, SPACE) & LIFECYCLE
+    // ============================================================================
+    const muteIconEl = document.getElementById('mute-icon');
+    function syncMuteUI() {
+      muteIconEl.textContent = soundFX.enabled ? '🔊' : '🔇';
+    }
+    syncMuteUI();
+
+    function toggleMute() {
+      soundFX.enabled = !soundFX.enabled;
+      syncMuteUI();
+      try {
+        localStorage.setItem(STORAGE_MUTE_KEY, String(!soundFX.enabled));
+      } catch (e) {}
+      if (soundFX.windGain && soundFX.ctx) {
+        soundFX.windGain.gain.setValueAtTime(soundFX.enabled ? 0.022 : 0, soundFX.ctx.currentTime);
+      }
+      if (soundFX.enabled) {
+        soundFX.ensureAmbient();
+        soundFX.playPickup();
+      }
+    }
+
+    document.getElementById('btn-log').addEventListener('click', () => { recordInteraction(); addBonfireLog(); });
+    document.getElementById('btn-story').addEventListener('click', () => { recordInteraction(); toggleGhostStory(); });
+    document.getElementById('btn-stargaze').addEventListener('click', () => { recordInteraction(); toggleStargaze(); });
+    document.getElementById('btn-reset').addEventListener('click', () => { recordInteraction(); resetMarshmallowsAndFumos(); });
+    document.getElementById('btn-mute').addEventListener('click', () => { recordInteraction(); toggleMute(); });
+
+    function onKeyDown(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      // Avoid number keys 1-9 since the hub uses them!
+      const key = e.key.toLowerCase();
+
+      if (key === 'n') {
+        e.preventDefault();
+        toggleDayNightMode();
+      } else if (key === 'm') {
+        e.preventDefault();
+        toggleMute();
+      } else if (key === 'g') {
+        e.preventDefault();
+        recordInteraction();
+        toggleStargaze();
+      } else if (key === 'r') {
+        e.preventDefault();
+        recordInteraction();
+        resetMarshmallowsAndFumos();
+      } else if (key === ' ') {
+        e.preventDefault();
+        recordInteraction();
+        fumos.forEach((f, idx) => {
+          if (f.root.visible) setTimeout(() => f.squeeze(1.0), idx * 45);
+        });
+      }
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('resize', onWindowResize);
+
+    // ============================================================================
+    // 13. MAIN ANIMATION LOOP & FUMO SCENE LIFECYCLE
+    // ============================================================================
+    const defaultTarget = new THREE.Vector3(0, 1.8, 0);
+    const skyLookTarget = new THREE.Vector3(0, 16.5, -18.0);
+
+    function animate(now) {
+      if (isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.033, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      if (!selectedFumo && !selectedStick && !stargazeMode && (now - lastUserInteractionTime > 5000)) {
+        controls.autoRotate = true;
+      }
+
+      // Smoothly tilt camera toward the starry constellations when Stargaze Mode (G) is active
+      controls.target.lerp(stargazeMode ? skyLookTarget : defaultTarget, dt * 3.5);
+      controls.update();
+
+      updateDayNightTransition(dt, elapsed);
+      updateSkyFireAndParticles(elapsed, dt);
+      updateMarshmallowRoasting(dt);
+
+      for (let i = 0; i < fumos.length; i++) {
+        fumos[i].updatePhysics(dt, elapsed);
+      }
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function pauseRenderLoop() {
+      if (isPaused) return;
+      isPaused = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+
+    function resumeRenderLoop() {
+      if (!isPaused) return;
+      isPaused = false;
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    }
+
+    function disposeScene() {
+      pauseRenderLoop();
+      soundFX.stopCampfireLoop();
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('resize', onWindowResize);
+    }
+
+    const _sceneLifecycle = new FumoSceneLifecycle({
+      renderer,
+      scene,
+      composer,
+      audio: soundFX,
+      onToggleMode: toggleDayNightMode,
+      onSetMode: (mode) => setDayNightMode(mode === 'night' ? 'night' : 'day', { immediate: false }),
+      onPause: pauseRenderLoop,
+      onResume: resumeRenderLoop,
+      onDispose: disposeScene
+    });
+
+    window.addEventListener('load', () => {
+      let savedMode = 'night';
+      try {
+        const m = localStorage.getItem(STORAGE_MODE_KEY);
+        if (m === 'day' || m === 'night') savedMode = m;
+      } catch (e) {}
+
+      setDayNightMode(savedMode, { immediate: true, playSound: false });
+      updateDayNightTransition(0, 0);
+      postModeToHub();
+
+      fumos.forEach((f, idx) => {
+        setTimeout(() => {
+          f.squash = 0.76;
+          f.squashVel = 2.2;
+          f.headPitchVel = 4.2;
+        }, 90 + idx * 55);
+      });
+
+      prevTime = performance.now();
+      rafId = requestAnimationFrame(animate);
+    });
+  </script>
+</body>
+</html>
