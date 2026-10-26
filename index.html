@@ -1054,6 +1054,10 @@
         oldFrame.classList.remove("is-visible");
         hideOverlay();
 
+        try {
+          if (newFrame.contentWindow) newFrame.contentWindow.focus();
+        } catch (err) {}
+
         if (isDropdownOpen) {
           postToScene({ type: "pause" });
         }
@@ -1107,10 +1111,51 @@
       renderDropdownList(searchInput.value);
     });
 
-    // Close dropdown when clicking outside HUD
+    function forwardKeyToScene(e) {
+      if (document.activeElement === searchInput) return;
+      const activeFrame = getActiveFrame();
+      if (activeFrame && activeFrame.contentWindow) {
+        try {
+          // Direct dispatch for same-origin iframe
+          activeFrame.contentWindow.dispatchEvent(new KeyboardEvent(e.type, {
+            key: e.key,
+            code: e.code,
+            bubbles: true,
+            cancelable: true,
+            shiftKey: e.shiftKey,
+            ctrlKey: e.ctrlKey,
+            altKey: e.altKey,
+            metaKey: e.metaKey,
+            repeat: e.repeat
+          }));
+          return;
+        } catch (err) {}
+
+        try {
+          // Fallback postMessage for cross-origin iframe
+          activeFrame.contentWindow.postMessage({
+            type: e.type,
+            key: e.key,
+            code: e.code,
+            shiftKey: e.shiftKey,
+            ctrlKey: e.ctrlKey,
+            altKey: e.altKey,
+            metaKey: e.metaKey,
+            repeat: e.repeat,
+            __fumoForwardedKey: true
+          }, '*');
+        } catch (err) {}
+      }
+    }
+
+    // Close dropdown when clicking outside HUD and ensure active scene iframe has focus
     document.addEventListener("pointerdown", (e) => {
       if (isDropdownOpen && !hudRoot.contains(e.target)) {
         closeDropdown();
+      }
+      const activeFrame = getActiveFrame();
+      if (activeFrame && activeFrame.contentWindow) {
+        try { activeFrame.contentWindow.focus(); } catch (err) {}
       }
     });
 
@@ -1153,20 +1198,31 @@
       if (e.key === "ArrowLeft" || e.key === "[") {
         e.preventDefault();
         stepScene(-1);
+        return;
       } else if (e.key === "ArrowRight" || e.key === "]") {
         e.preventDefault();
         stepScene(1);
-      } else if (e.key === "n" || e.key === "N") {
+        return;
+      } else if (isDropdownOpen && (e.key === "n" || e.key === "N")) {
         e.preventDefault();
         triggerToggleMode();
-      } else if (/^[1-9]$/.test(e.key)) {
+        return;
+      } else if (isDropdownOpen && /^[1-9]$/.test(e.key)) {
         const targetIdx = parseInt(e.key, 10) - 1;
         if (targetIdx < SCENES.length) {
           e.preventDefault();
           closeDropdown();
           loadScene(targetIdx);
+          return;
         }
       }
+
+      // Forward roaming and interaction keys to the active diorama scene
+      forwardKeyToScene(e);
+    });
+
+    window.addEventListener("keyup", (e) => {
+      forwardKeyToScene(e);
     });
 
     // ============================================================================

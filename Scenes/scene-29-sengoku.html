@@ -144,6 +144,34 @@
       background: rgba(251, 191, 36, 0.22) !important;
     }
 
+    #volume-slider {
+      width: 72px;
+      height: 5px;
+      accent-color: #d97706;
+      cursor: pointer;
+    }
+    body.night-ui #volume-slider {
+      accent-color: #f59e0b;
+    }
+    #volume-readout {
+      min-width: 32px;
+      font-size: 11px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #92400e;
+      text-align: right;
+      cursor: pointer;
+      user-select: none;
+    }
+    body.night-ui #volume-readout {
+      color: #fde68a;
+    }
+    @media (max-width: 640px) {
+      #volume-slider {
+        width: 50px;
+      }
+    }
+
     kbd {
       font-family: 'Fredoka', sans-serif;
       display: inline-block; padding: 1px 6px; font-size: 0.72rem; line-height: 1.2;
@@ -232,7 +260,7 @@
       <span>🙇 <kbd>B</kbd> Bow to Samurai</span>
       <span>🪁 <kbd>F</kbd> Fly Kite</span>
       <span>🔔 <b>Click Props:</b> Bell, Cannon, Noren, Kabuki, Rice Bale</span>
-      <span><kbd>WASD</kbd> Pan • <kbd>R</kbd> Restart Battle • <kbd>M</kbd> Mute</span>
+      <span><kbd>WASD</kbd> Move • <kbd>Shift</kbd> Sprint • <kbd>Space</kbd>/<kbd>C</kbd> Elevate • <kbd>1-4</kbd> Bookmarks • <kbd>R</kbd> Battle • <kbd>M</kbd> Mute • <kbd>+</kbd>/<kbd>-</kbd> Vol</span>
     </div>
   </div>
 
@@ -312,17 +340,24 @@
       </div>
     </div>
 
-    <!-- Bottom-Right Utility Row (Scroll Unlocks, Help, Mute) -->
-    <div class="flex items-center justify-end gap-1.5">
+    <!-- Bottom-Right Utility Row (Scroll Unlocks, Help, Sound/Volume Widget) -->
+    <div class="flex items-center justify-end gap-1.5 flex-wrap">
       <button id="btn-open-scroll" class="glass-panel ui-btn rounded-xl px-3 py-1.5 text-xs font-bold flex items-center gap-1" title="View Campaign Victory Scroll & Unlocks">
         <span>📜</span><span>Chronicle</span>
       </button>
       <button id="btn-help" class="glass-panel ui-btn rounded-xl px-2.5 py-1.5 text-xs font-bold" title="Toggle Controls Help (H)">
         ❔ <kbd>H</kbd>
       </button>
-      <button id="btn-mute" class="glass-panel ui-btn rounded-xl px-2.5 py-1.5 text-xs font-bold flex items-center gap-1" title="Mute / Unmute Audio (M)">
-        <span id="mute-icon">🔊</span><kbd>M</kbd>
-      </button>
+      <div id="volume-widget" class="glass-panel rounded-xl px-2.5 py-1 text-xs font-bold flex items-center gap-2" title="Adjust Volume (+ / - or Slider, click % to cycle)">
+        <button type="button" id="btn-mute" class="ui-btn flex items-center gap-1 p-0.5" title="Mute / Unmute Audio (Shortcut: M)" aria-label="Toggle Mute">
+          <span id="mute-icon">🔊</span><kbd class="text-[10px]">M</kbd>
+        </button>
+        <span id="bgm-indicator" class="hidden sm:inline-flex items-center gap-1 text-[11px] opacity-80 max-w-[140px] truncate" title="Current Soundtrack">
+          <span>🎵</span><span id="bgm-title" class="truncate">Passing the Castle Wall</span>
+        </span>
+        <input type="range" id="volume-slider" min="0" max="100" value="70" step="1" aria-label="Master Volume" />
+        <span id="volume-readout" title="Click to cycle / reset volume">70%</span>
+      </div>
     </div>
   </div>
 
@@ -350,18 +385,210 @@
 
   <script>
     // ============================================================================
-    // 1. SENGOKU PROCEDURAL AUDIO SYNTHESIZER (Extends PlushSoundEngine)
+    // 1. SENGOKU SOUNDTRACK & PROCEDURAL AUDIO ENGINE (Extends PlushSoundEngine)
     // ============================================================================
+    const TRACK_DEFS = {
+      day: {
+        id: 'day',
+        name: 'Passing the Castle Wall',
+        label: 'Day BGM',
+        src: '../assets/Passing_the_Castle_Wall.mp3'
+      },
+      night: {
+        id: 'night',
+        name: 'Moonlight Upon the Stone',
+        label: 'Night BGM',
+        src: '../assets/Moonlight_Upon_the_Stone.mp3'
+      },
+      war: {
+        id: 'war',
+        name: 'Crimson Petals on Iron',
+        label: 'War Game BGM',
+        src: '../assets/Crimson_Petals_on_Iron.mp3'
+      },
+      victory: {
+        id: 'victory',
+        name: '天下を分かつ刃',
+        label: 'Victory BGM',
+        src: encodeURI('../assets/天下を分かつ刃.mp3')
+      }
+    };
+
     class SengokuSoundEngine extends PlushSoundEngine {
       constructor() {
         super();
         this.isBattle = false;
         this.isNight = false;
+        this.isVictory = false;
+        this.volume = 0.70;
+        this.baseBgmFactor = 0.55;
+        this.masterGain = null;
+        this.currentTrackKey = null;
+        this.fadeTimer = null;
+        this.userInteracted = false;
+        this.isSuspended = false;
+        this.bgmFailed = false;
+
+        this.audios = {};
+        for (const [key, info] of Object.entries(TRACK_DEFS)) {
+          const a = new Audio(info.src);
+          a.loop = true;
+          a.preload = 'auto';
+          a.volume = 0;
+          a.addEventListener('error', () => {
+            this.bgmFailed = true;
+          });
+          this.audios[key] = a;
+        }
+
+        // Fallback procedural melody timer (only active if MP3s fail)
         this.musicTimer = null;
         this.stepIdx = 0;
       }
 
+      init() {
+        super.init();
+        if (this.ctx && !this.masterGain) {
+          this.masterGain = this.ctx.createGain();
+          this.masterGain.gain.setValueAtTime(this.enabled ? this.volume : 0, this.ctx.currentTime);
+          this.masterGain.connect(this.ctx.destination);
+        }
+      }
+
+      setVolume(val) {
+        this.volume = Math.max(0, Math.min(1, val));
+        if (this.ctx && this.masterGain) {
+          try {
+            this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+            this.masterGain.gain.setValueAtTime(this.enabled ? this.volume : 0, this.ctx.currentTime);
+          } catch (e) {}
+        }
+        this.updateCurrentAudioVolume();
+        if (typeof updateVolumeUI === 'function') updateVolumeUI();
+      }
+
+      getEffectiveBgmVolume() {
+        if (!this.enabled || this.isSuspended) return 0;
+        return Math.max(0, Math.min(1, this.volume * this.baseBgmFactor));
+      }
+
+      updateCurrentAudioVolume() {
+        const target = this.getEffectiveBgmVolume();
+        if (this.currentTrackKey && this.audios[this.currentTrackKey] && !this.fadeTimer) {
+          this.audios[this.currentTrackKey].volume = target;
+        }
+      }
+
+      getDesiredTrackKey() {
+        if (this.isVictory) return 'victory';
+        if (this.isBattle) return 'war';
+        if (this.isNight) return 'night';
+        return 'day';
+      }
+
+      updateTrack(immediate = false) {
+        const desiredKey = this.getDesiredTrackKey();
+        if (desiredKey === this.currentTrackKey && !immediate) {
+          this.updateCurrentAudioVolume();
+          this.updateNowPlayingUI();
+          return;
+        }
+
+        const oldKey = this.currentTrackKey;
+        this.currentTrackKey = desiredKey;
+        this.updateNowPlayingUI();
+
+        if (!this.userInteracted) return;
+
+        const targetVol = this.getEffectiveBgmVolume();
+        const oldAudio = oldKey ? this.audios[oldKey] : null;
+        const newAudio = desiredKey ? this.audios[desiredKey] : null;
+
+        if (this.fadeTimer) {
+          clearInterval(this.fadeTimer);
+          this.fadeTimer = null;
+        }
+
+        if (immediate || !oldAudio || oldAudio.paused) {
+          if (oldAudio && oldAudio !== newAudio) {
+            oldAudio.pause();
+            oldAudio.currentTime = 0;
+            oldAudio.volume = 0;
+          }
+          if (newAudio) {
+            newAudio.volume = targetVol;
+            if (this.enabled && !this.isSuspended) {
+              newAudio.play().catch(() => {});
+            }
+          }
+          return;
+        }
+
+        const startFade = performance.now();
+        const duration = 850;
+        const startOldVol = oldAudio.volume;
+
+        if (newAudio && newAudio !== oldAudio) {
+          newAudio.volume = 0;
+          if (this.enabled && !this.isSuspended) {
+            newAudio.play().catch(() => {});
+          }
+        }
+
+        this.fadeTimer = setInterval(() => {
+          const elapsed = performance.now() - startFade;
+          const t = Math.min(1, elapsed / duration);
+
+          if (oldAudio && oldAudio !== newAudio) {
+            oldAudio.volume = Math.max(0, startOldVol * (1 - t));
+          }
+          if (newAudio) {
+            newAudio.volume = Math.min(1, targetVol * t);
+          }
+
+          if (t >= 1) {
+            clearInterval(this.fadeTimer);
+            this.fadeTimer = null;
+            if (oldAudio && oldAudio !== newAudio) {
+              oldAudio.pause();
+              oldAudio.currentTime = 0;
+              oldAudio.volume = 0;
+            }
+            if (newAudio) {
+              newAudio.volume = targetVol;
+            }
+          }
+        }, 30);
+      }
+
+      updateNowPlayingUI() {
+        const key = this.currentTrackKey || this.getDesiredTrackKey();
+        const info = TRACK_DEFS[key];
+        const el = document.getElementById('bgm-title');
+        if (el && info) {
+          el.textContent = info.name;
+          const indicator = document.getElementById('bgm-indicator');
+          if (indicator) indicator.title = `Soundtrack: ${info.name} (${info.label})`;
+        }
+      }
+
       startMusicLoop() {
+        this.userInteracted = true;
+        this.init();
+        if (this.masterGain && this.ctx) {
+          try {
+            this.masterGain.gain.setValueAtTime(this.enabled ? this.volume : 0, this.ctx.currentTime);
+          } catch (e) {}
+        }
+        this.updateTrack();
+
+        // If audio failed to load, start procedural fallback loop
+        if (this.bgmFailed && !this.musicTimer) {
+          this.startProceduralFallbackLoop();
+        }
+      }
+
+      startProceduralFallbackLoop() {
         if (this.musicTimer) return;
         const townNotes = [293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25];
         const battleNotes = [293.66, 311.13, 392.00, 440.00, 466.16, 587.33];
@@ -371,8 +598,6 @@
           try {
             const now = this.ctx.currentTime;
             this.stepIdx++;
-
-            // 1. Plucked Koto / Shamisen Melody
             const scale = this.isBattle ? battleNotes : townNotes;
             const seq = [0, 2, 3, 4, 2, 5, 3, 1];
             let freq = scale[seq[this.stepIdx % seq.length] % scale.length];
@@ -388,23 +613,55 @@
               gain.gain.linearRampToValueAtTime(vol, now + 0.015);
               gain.gain.exponentialRampToValueAtTime(0.0001, now + (this.isNight ? 0.65 : 0.36));
               osc.connect(gain);
-              gain.connect(this.ctx.destination);
+              gain.connect(this.masterGain || this.ctx.destination);
               osc.start(now);
               osc.stop(now + 0.7);
-            }
-
-            // 2. Driving Taiko Drum Beat during Tactical Battle
-            if (this.isBattle && (this.stepIdx % 2 === 0)) {
-              this.playTaiko(0.45);
             }
           } catch (e) {}
         }, 360);
       }
 
       stopLoops() {
+        if (this.fadeTimer) {
+          clearInterval(this.fadeTimer);
+          this.fadeTimer = null;
+        }
         if (this.musicTimer) {
           clearInterval(this.musicTimer);
           this.musicTimer = null;
+        }
+        for (const key in this.audios) {
+          try {
+            this.audios[key].pause();
+          } catch (e) {}
+        }
+      }
+
+      suspend() {
+        this.isSuspended = true;
+        this.stopLoops();
+        super.suspend();
+      }
+
+      resume() {
+        this.isSuspended = false;
+        super.resume();
+        if (this.enabled && this.userInteracted) {
+          this.updateTrack(true);
+        }
+      }
+
+      dispose() {
+        this.stopLoops();
+        for (const key in this.audios) {
+          try {
+            this.audios[key].pause();
+            this.audios[key].src = '';
+          } catch (e) {}
+        }
+        this.audios = {};
+        if (this.ctx && typeof this.ctx.close === 'function') {
+          this.ctx.close().catch(() => {});
         }
       }
 
@@ -420,7 +677,8 @@
           osc.frequency.exponentialRampToValueAtTime(42, now + 0.22);
           gain.gain.setValueAtTime(0.14 * intensity, now);
           gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-          osc.connect(gain); gain.connect(this.ctx.destination);
+          osc.connect(gain);
+          gain.connect(this.masterGain || this.ctx.destination);
           osc.start(now); osc.stop(now + 0.26);
         } catch (e) {}
       }
@@ -439,7 +697,8 @@
             gain.gain.setValueAtTime(0.001, now);
             gain.gain.linearRampToValueAtTime(idx === 0 ? 0.045 : 0.025, now + 0.2);
             gain.gain.exponentialRampToValueAtTime(0.0005, now + 1.1);
-            osc.connect(gain); gain.connect(this.ctx.destination);
+            osc.connect(gain);
+            gain.connect(this.masterGain || this.ctx.destination);
             osc.start(now); osc.stop(now + 1.15);
           });
         } catch (e) {}
@@ -458,7 +717,8 @@
             osc.frequency.exponentialRampToValueAtTime(f * 0.65, now + 0.14);
             gain.gain.setValueAtTime(0.045, now + i * 0.02);
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
-            osc.connect(gain); gain.connect(this.ctx.destination);
+            osc.connect(gain);
+            gain.connect(this.masterGain || this.ctx.destination);
             osc.start(now + i * 0.02); osc.stop(now + 0.18);
           });
         } catch (e) {}
@@ -476,7 +736,8 @@
           osc.frequency.exponentialRampToValueAtTime(28, now + 0.38);
           gain.gain.setValueAtTime(0.16, now);
           gain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
-          osc.connect(gain); gain.connect(this.ctx.destination);
+          osc.connect(gain);
+          gain.connect(this.masterGain || this.ctx.destination);
           osc.start(now); osc.stop(now + 0.45);
         } catch (e) {}
       }
@@ -493,7 +754,8 @@
           osc.frequency.exponentialRampToValueAtTime(220, now + 0.16);
           gain.gain.setValueAtTime(0.05, now);
           gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
-          osc.connect(gain); gain.connect(this.ctx.destination);
+          osc.connect(gain);
+          gain.connect(this.masterGain || this.ctx.destination);
           osc.start(now); osc.stop(now + 0.19);
         } catch (e) {}
       }
@@ -510,7 +772,8 @@
             osc.frequency.setValueAtTime(f, now);
             gain.gain.setValueAtTime(0.08 / (i + 1), now);
             gain.gain.exponentialRampToValueAtTime(0.0005, now + 1.4);
-            osc.connect(gain); gain.connect(this.ctx.destination);
+            osc.connect(gain);
+            gain.connect(this.masterGain || this.ctx.destination);
             osc.start(now); osc.stop(now + 1.45);
           });
         } catch (e) {}
@@ -545,6 +808,8 @@
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.06;
+    renderer.domElement.tabIndex = 0;
+    renderer.domElement.style.outline = 'none';
     container.appendChild(renderer.domElement);
 
     let composer = null;
@@ -1415,43 +1680,114 @@
     // 4. WAVING CLAN BANNERS (NOBORI) & DRIFTING CHERRY PETALS / PARTICLES
     // ============================================================================
     const banners = [];
-    function createWavingBanner(x, y, z, colorHex) {
+    function createWavingBanner(x, y, z, colorHex, scale = 1.0) {
       const grp = new THREE.Group();
       grp.position.set(x, y, z);
-      const pole = new THREE.Mesh(createSoftVoxelGeometry(1.0), solidMaterial);
-      pole.scale.set(0.18, 4.4, 0.18);
-      pole.position.y = 2.2;
+      grp.scale.setScalar(scale);
+
+      const poleMat = new THREE.MeshStandardMaterial({ color: 0x3f2314, roughness: 0.75 });
+      const loopMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85 });
+      const clothMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.82 });
+      const isGoldBanner = (colorHex.toLowerCase() === '#facc15');
+      const crestMat = isGoldBanner
+        ? new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.5 })
+        : goldMaterial;
+
+      // 1. Lacquered vertical pole, wooden base stand & top crossbar (Yokogami)
+      const baseStand = new THREE.Mesh(createSoftVoxelGeometry(1.0), poleMat);
+      baseStand.scale.set(0.55, 0.22, 0.55);
+      baseStand.position.y = 0.11;
+      grp.add(baseStand);
+
+      const pole = new THREE.Mesh(createSoftVoxelGeometry(1.0), poleMat);
+      pole.scale.set(0.18, 4.7, 0.18);
+      pole.position.y = 2.35;
       grp.add(pole);
 
+      const crossbar = new THREE.Mesh(createSoftVoxelGeometry(1.0), poleMat);
+      crossbar.scale.set(1.48, 0.13, 0.13);
+      crossbar.position.set(0.66, 4.58, 0);
+      grp.add(crossbar);
+
+      // Golden finial (Hoju) atop the pole
+      const finial = new THREE.Mesh(createSoftVoxelGeometry(1.0), goldMaterial);
+      finial.scale.set(0.28, 0.32, 0.28);
+      finial.position.set(0, 4.82, 0);
+      grp.add(finial);
+
+      // 2. 9 High-resolution cloth segments with Kamon Clan Symbol & bottom stripes
       const stripMeshes = [];
-      for (let s = 0; s < 5; s++) {
-        const st = new THREE.Mesh(createSoftVoxelGeometry(1.0), new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.85 }));
-        st.scale.set(1.15, 0.58, 0.12);
-        st.position.set(0.68, 3.9 - s * 0.6, 0);
-        grp.add(st);
-        stripMeshes.push(st);
+      const segCount = 9;
+      const segH = 0.38;
+
+      for (let s = 0; s < segCount; s++) {
+        const segPivot = new THREE.Group();
+        segPivot.position.set(0.72, 4.35 - s * (segH * 0.94), 0);
+
+        // Main cloth ribbon
+        const st = new THREE.Mesh(createSoftVoxelGeometry(1.0), clothMat);
+        st.scale.set(1.22, segH, 0.09);
+        st.castShadow = true;
+        segPivot.add(st);
+
+        // Side fabric loops (Chichi) tying the cloth to the vertical pole
+        if (s % 2 === 0) {
+          const loop = new THREE.Mesh(createSoftVoxelGeometry(1.0), loopMat);
+          loop.scale.set(0.22, 0.11, 0.15);
+          loop.position.set(-0.62, 0, 0);
+          segPivot.add(loop);
+        }
+
+        // Emblazoned Clan Crest (Kamon) on upper-middle segments (s = 1..4)
+        // + Horizontal battle stripe on lower segment (s = 7)
+        if (s === 1 || s === 4) {
+          // Top & bottom points of the Takeda-bishi / Scarlet diamond crest
+          const sym = new THREE.Mesh(createSoftVoxelGeometry(1.0), crestMat);
+          sym.scale.set(0.36, segH * 0.85, 0.13);
+          segPivot.add(sym);
+        } else if (s === 2 || s === 3) {
+          // Wide center of the crest + flanking wing tips
+          const symMain = new THREE.Mesh(createSoftVoxelGeometry(1.0), crestMat);
+          symMain.scale.set(0.78, segH * 0.92, 0.13);
+          segPivot.add(symMain);
+
+          const symCore = new THREE.Mesh(createSoftVoxelGeometry(1.0), clothMat);
+          symCore.scale.set(0.24, segH * 0.55, 0.15);
+          segPivot.add(symCore);
+        } else if (s === 7) {
+          // Lower horizontal clan rank stripe
+          const stripe = new THREE.Mesh(createSoftVoxelGeometry(1.0), crestMat);
+          stripe.scale.set(1.23, segH * 0.45, 0.12);
+          segPivot.add(stripe);
+        }
+
+        grp.add(segPivot);
+        stripMeshes.push(segPivot);
       }
+
       scene.add(grp);
-      banners.push({ grp, stripMeshes, phase: x * 0.5 + z * 0.3 });
+      banners.push({ grp, stripMeshes, phase: x * 0.45 + z * 0.35 });
     }
 
     [
-      // Ote-Mon Gatehouse & Honmaru Curtain Walls
-      [-5.5, CY, -16.2, '#dc2626'], [5.5, CY, -16.2, '#dc2626'],
-      [-11.5, CY + 3.2, -16.5, '#dc2626'], [11.5, CY + 3.2, -16.5, '#dc2626'],
-      // Corner Yagura Turret Roofs & Ninomaru Bailey Walls
-      [-16.2, CY + 4.2, -14.2, '#b91c1c'], [16.2, CY + 4.2, -14.2, '#b91c1c'],
-      [-6.5, NINOMARU_Y, -13.0, '#dc2626'], [6.5, NINOMARU_Y, -13.0, '#dc2626'],
-      [-18.0, NINOMARU_Y, -13.0, '#dc2626'], [18.0, NINOMARU_Y, -13.0, '#dc2626'],
-      // Tenshu Keep 1st-Tier Roof & 5th-Tier Daimyo Balcony
-      [-9.5, CY + 6.2, -17.5, '#dc2626'], [9.5, CY + 6.2, -17.5, '#dc2626'],
-      [-4.8, CY + 23.2, -21.5, '#facc15'], [4.8, CY + 23.2, -21.5, '#facc15'],
-      // Expanded Arena: Red Clan West Bank & Cherry Clan East Honjin
-      [14, 0, -8, '#dc2626'], [14, 0, 18, '#dc2626'], [26, 0, -2, '#dc2626'], [26, 0, 14, '#dc2626'],
-      [46, 1.8, -4, '#ec4899'], [46, 1.8, 12, '#ec4899'],
-      [50, 3.6, -1, '#ec4899'], [50, 3.6, 9, '#ec4899'], [55, 3.6, 4, '#facc15']
-    ].forEach(([x, y, z, c]) => {
-      createWavingBanner(x, y, z, c);
+      // Ote-Mon Gatehouse (moved forward to z = -14.8 to clear the z = -16.8 roof overhang)
+      [-5.6, CY, -14.8, '#dc2626', 0.80], [5.6, CY, -14.8, '#dc2626', 0.80],
+      // Honmaru Curtain Wall Walkways (raised above the roof ridge at CY + 3.85 & scaled to 0.72)
+      [-11.5, CY + 3.85, -16.8, '#dc2626', 0.72], [11.5, CY + 3.85, -16.8, '#dc2626', 0.72],
+      // Corner Yagura Turrets (pushed out to z = -12.8 to clear the 2nd-tier roof eaves)
+      [-16.2, CY + 4.2, -12.8, '#b91c1c', 0.72], [16.2, CY + 4.2, -12.8, '#b91c1c', 0.72],
+      // Ninomaru Bailey Walls (moved inside the courtyard to z = -11.8 so they don't clip the wall roof)
+      [-6.5, NINOMARU_Y, -11.8, '#dc2626', 0.82], [6.5, NINOMARU_Y, -11.8, '#dc2626', 0.82],
+      [-18.0, NINOMARU_Y, -11.8, '#dc2626', 0.82], [18.0, NINOMARU_Y, -11.8, '#dc2626', 0.82],
+      // Tenshu Keep 1st-Tier Roof & 5th-Tier Daimyo Balcony (scaled to 0.65 to fit under the top roof)
+      [-9.5, CY + 6.4, -16.2, '#dc2626', 0.72], [9.5, CY + 6.4, -16.2, '#dc2626', 0.72],
+      [-4.8, CY + 23.25, -20.8, '#facc15', 0.65], [4.8, CY + 23.25, -20.8, '#facc15', 0.65],
+      // Expanded Arena: Red Clan West Bank & Cherry Clan East Honjin (full size in open field, 0.85 near pavilion)
+      [14, 0, -8, '#dc2626', 1.0], [14, 0, 18, '#dc2626', 1.0], [26, 0, -2, '#dc2626', 1.0], [26, 0, 14, '#dc2626', 1.0],
+      [46, 1.8, -4, '#ec4899', 1.0], [46, 1.8, 12, '#ec4899', 1.0],
+      [48.5, 3.6, -1, '#ec4899', 0.85], [48.5, 3.6, 9, '#ec4899', 0.85], [56.8, 3.6, 4, '#facc15', 0.85]
+    ].forEach(([x, y, z, c, s]) => {
+      createWavingBanner(x, y, z, c, s);
     });
 
     const PETAL_COUNT = 130;
@@ -1696,14 +2032,20 @@
             }
           }
 
-          // Sashimono Clan Back Banner
+          // Sashimono Clan Back Banner with Top Crossbar & Clan Kamon Symbol
           if (this.clan === 'red' || this.clan === 'cherry') {
             for (let py = 3; py <= 16; py++) addV(bodyV, 0, py, -3.8, '#5c3824');
+            for (let px = -2; px <= 2; px++) addV(bodyV, px, 16, -4.1, '#5c3824'); // Top crossbar
             const bCol = this.clan === 'red' ? '#dc2626' : '#ec4899';
-            for (let py = 10; py <= 16; py++) {
+            for (let py = 9; py <= 16; py++) {
               for (let px = -2; px <= 2; px++) {
-                const isCrest = (Math.abs(px) <= 1 && py >= 12 && py <= 14);
-                addV(bodyV, px, py, -4.3, isCrest ? '#fef08a' : bCol);
+                const dy = py - 13;
+                // Red Clan: Diamond/Bat Wing Kamon | Cherry Clan: 4-Petal Sakura Cross Kamon
+                const isCrest = this.clan === 'red'
+                  ? (Math.abs(px) + Math.abs(dy) <= 2 && !(px === 0 && dy === 0))
+                  : ((Math.abs(px) === 1 && Math.abs(dy) === 1) || (px === 0 && dy === 0) || (Math.abs(px) + Math.abs(dy) === 1));
+                const isBorder = (py === 9);
+                addV(bodyV, px, py, -4.3, (isCrest || isBorder) ? '#fef08a' : bCol);
               }
             }
           }
@@ -2011,7 +2353,17 @@
     const formationLineMat = new THREE.LineBasicMaterial({ color: 0xfacc15, linewidth: 2 });
     const formationLineGeom = new THREE.BufferGeometry();
     const formationLines = new THREE.LineSegments(formationLineGeom, formationLineMat);
+    formationLines.renderOrder = 16;
+    formationLines.frustumCulled = false;
     battleGroup.add(formationLines);
+
+    const pathLineMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, linewidth: 3, transparent: true, opacity: 0.95, depthTest: false });
+    const pathLineGeom = new THREE.BufferGeometry();
+    const pathLine = new THREE.Line(pathLineGeom, pathLineMat);
+    pathLine.renderOrder = 20;
+    pathLine.frustumCulled = false;
+    pathLine.visible = false;
+    battleGroup.add(pathLine);
 
     const activeProjectiles = [];
 
@@ -2053,11 +2405,20 @@
       return 'plain';
     }
 
+    function getTileElevation(wx, wz, terr) {
+      if (terr === 'wall') return 2.45;
+      if (terr === 'river') return 0.04;
+      const h = getTerrainHeightAt(wx, wz);
+      const ground = Math.max(0.10, h);
+      return ground + 0.06;
+    }
+
     function buildBattleGrid(isSiege) {
       while (battleGroup.children.length > 0) {
         battleGroup.remove(battleGroup.children[0]);
       }
       battleGroup.add(formationLines);
+      battleGroup.add(pathLine);
       gridTiles.length = 0;
 
       const tileGeo = new THREE.PlaneGeometry(TILE_SIZE * 0.92, TILE_SIZE * 0.92);
@@ -2069,16 +2430,22 @@
           const wx = GRID_ORIGIN_X + gx * TILE_SIZE;
           const wz = GRID_ORIGIN_Z + gz * TILE_SIZE;
           const terr = getTileTerrain(gx, gz, isSiege);
-          const wy = terr === 'wall' ? 2.4 : Math.max(0.08, getTerrainHeightAt(wx, wz) + 0.08);
+          const wy = getTileElevation(wx, wz, terr);
 
           const mat = new THREE.MeshBasicMaterial({
             color: 0xffffff,
             transparent: true,
             opacity: inBattleMode ? 0.22 : 0.0,
-            depthWrite: false
+            depthWrite: false,
+            depthTest: true,
+            polygonOffset: true,
+            polygonOffsetFactor: -1.0,
+            polygonOffsetUnits: -4.0,
+            side: THREE.DoubleSide
           });
           const m = new THREE.Mesh(tileGeo, mat);
           m.position.set(wx, wy, wz);
+          m.renderOrder = 12;
           m.userData.tile = { gx, gz, wx, wy, wz, terrain: terr };
           battleGroup.add(m);
           gridTiles[gx][gz] = { gx, gz, wx, wy, wz, terrain: terr, mesh: m, mode: 'none' };
@@ -2238,12 +2605,13 @@
     }
 
     function highlightUnitRanges(unit) {
+      if (pathLine) pathLine.visible = false;
       for (let gx = 0; gx < GRID_W; gx++) {
         for (let gz = 0; gz < GRID_H; gz++) {
           const t = gridTiles[gx][gz];
           t.mode = 'none';
           t.mesh.material.color.setHex(0xffffff);
-          t.mesh.material.opacity = inBattleMode ? 0.16 : 0.0;
+          t.mesh.material.opacity = inBattleMode ? 0.20 : 0.0;
         }
       }
       if (!unit || !inBattleMode) return;
@@ -2256,19 +2624,19 @@
 
           if (gx === unit.gx && gz === unit.gz) {
             t.mesh.material.color.setHex(0xfacc15);
-            t.mesh.material.opacity = 0.55;
+            t.mesh.material.opacity = 0.68;
           } else if (abilityTargetingMode && unit.clan === 'red' && !unit.acted && dist <= unit.range + 1) {
             t.mode = 'ability';
             t.mesh.material.color.setHex(0xa855f7);
-            t.mesh.material.opacity = 0.52;
-          } else if (!unit.moved && !occ && dist <= unit.move && t.terrain !== 'wall') {
+            t.mesh.material.opacity = 0.62;
+          } else if (!unit.moved && !occ && dist <= unit.move && t.terrain !== 'wall' && t.terrain !== 'river') {
             t.mode = 'move';
             t.mesh.material.color.setHex(0x38bdf8);
-            t.mesh.material.opacity = 0.45;
+            t.mesh.material.opacity = 0.58;
           } else if (!unit.acted && occ && occ.clan !== unit.clan && dist <= unit.range) {
             t.mode = 'attack';
             t.mesh.material.color.setHex(0xef4444);
-            t.mesh.material.opacity = 0.55;
+            t.mesh.material.opacity = 0.68;
           }
         }
       }
@@ -2428,6 +2796,8 @@
       const cherryAlive = battleUnits.filter(u => u.clan === 'cherry' && !u.routed && u.hp > 0).length;
 
       if (!cherryCmd || cherryCmd.routed || cherryAlive === 0) {
+        soundFX.isVictory = true;
+        soundFX.updateTrack();
         soundFX.playVictoryChant();
         campaignState.stagesWon[currentBattleStage] = true;
         const prevBest = campaignState.bestTurns[currentBattleStage];
@@ -2552,6 +2922,8 @@
     function toggleWarGameMode(enable) {
       inBattleMode = Boolean(enable);
       soundFX.isBattle = inBattleMode;
+      soundFX.isVictory = false;
+      soundFX.updateTrack();
       document.getElementById('battle-hud').classList.toggle('hidden', !inBattleMode);
       document.getElementById('battle-hud').classList.toggle('flex', inBattleMode);
       document.getElementById('town-hud').classList.toggle('hidden', inBattleMode);
@@ -2649,6 +3021,8 @@
 
     const onPointerDown = (e) => {
       if (e.target !== renderer.domElement || e.button !== 0) return;
+      window.focus();
+      if (cameraBookmarkAnim) cameraBookmarkAnim = null;
       recordInput();
       soundFX.init();
       soundFX.startMusicLoop();
@@ -2745,6 +3119,136 @@
         return;
       }
 
+      if (inBattleMode) {
+        if (pathLine && !selectedUnit) pathLine.visible = false;
+
+        // 1. Raycast plush units on the battlefield
+        const fHits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+        if (fHits.length > 0 && fHits[0].object.userData.fumo) {
+          const f = fHits[0].object.userData.fumo;
+          const u = f.unitRef;
+
+          if (u && !u.routed && u.hp > 0) {
+            const tile = gridTiles[u.gx][u.gz];
+
+            if (selectedUnit && currentTurn === 'red' && !aiThinking) {
+              if (tile && tile.mode === 'attack') {
+                pathLine.visible = true;
+                pathLineMat.color.setHex(0xef4444);
+                const pts = [
+                  selectedUnit.fumo.pos.x, selectedUnit.fumo.pos.y + 0.45, selectedUnit.fumo.pos.z,
+                  tile.wx, tile.wy + 0.45, tile.wz
+                ];
+                pathLineGeom.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+                pathLineGeom.computeBoundingSphere();
+                tooltipEmojiEl.textContent = '⚔️';
+                tooltipTextEl.textContent = `Attack ${u.name} (HP ${u.hp}/${u.maxHp} • DEF ${u.def})`;
+                tooltipEl.classList.remove('opacity-0');
+                tooltipEl.style.left = `${e.clientX + 14}px`;
+                tooltipEl.style.top = `${e.clientY - 18}px`;
+                renderer.domElement.style.cursor = 'pointer';
+                return;
+              } else if (tile && tile.mode === 'ability') {
+                pathLine.visible = true;
+                pathLineMat.color.setHex(0xa855f7);
+                const pts = [
+                  selectedUnit.fumo.pos.x, selectedUnit.fumo.pos.y + 0.45, selectedUnit.fumo.pos.z,
+                  tile.wx, tile.wy + 0.45, tile.wz
+                ];
+                pathLineGeom.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+                pathLineGeom.computeBoundingSphere();
+                tooltipEmojiEl.textContent = '✨';
+                tooltipTextEl.textContent = `Ability Target: ${u.name}`;
+                tooltipEl.classList.remove('opacity-0');
+                tooltipEl.style.left = `${e.clientX + 14}px`;
+                tooltipEl.style.top = `${e.clientY - 18}px`;
+                renderer.domElement.style.cursor = 'pointer';
+                return;
+              }
+            }
+
+            if (pathLine) pathLine.visible = false;
+            tooltipEmojiEl.textContent = u.emoji;
+            tooltipTextEl.textContent = `${u.name} [${u.unitType.toUpperCase()}] • HP ${u.hp}/${u.maxHp} • ATK ${u.atk} DEF ${u.def}${u.clan === 'red' && u !== selectedUnit ? ' (Click to Select)' : ''}`;
+            tooltipEl.classList.remove('opacity-0');
+            tooltipEl.style.left = `${e.clientX + 14}px`;
+            tooltipEl.style.top = `${e.clientY - 18}px`;
+            renderer.domElement.style.cursor = (u.clan === 'red' && !u.acted) ? 'pointer' : 'default';
+            return;
+          }
+        }
+
+        // 2. Raycast tactical grid tiles
+        if (selectedUnit && !aiThinking && currentTurn === 'red') {
+          const tileMeshes = battleGroup.children.filter(c => c.userData && c.userData.tile);
+          const tileHits = raycaster.intersectObjects(tileMeshes, false);
+          if (tileHits.length > 0) {
+            const tData = tileHits[0].object.userData.tile;
+            const tile = gridTiles[tData.gx][tData.gz];
+            if (tile.mode === 'move') {
+              pathLine.visible = true;
+              pathLineMat.color.setHex(0x38bdf8);
+              const dist = Math.abs(tile.gx - selectedUnit.gx) + Math.abs(tile.gz - selectedUnit.gz);
+              const pts = [
+                selectedUnit.fumo.pos.x, selectedUnit.fumo.pos.y + 0.35, selectedUnit.fumo.pos.z,
+                tile.wx, Math.max(selectedUnit.fumo.pos.y, tile.wy) + 0.35, selectedUnit.fumo.pos.z,
+                tile.wx, tile.wy + 0.35, tile.wz
+              ];
+              pathLineGeom.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+              pathLineGeom.computeBoundingSphere();
+              tooltipEmojiEl.textContent = '🚶';
+              tooltipTextEl.textContent = `Move (${tile.terrain.toUpperCase()}) • Dist ${dist}/${selectedUnit.move}`;
+              tooltipEl.classList.remove('opacity-0');
+              tooltipEl.style.left = `${e.clientX + 14}px`;
+              tooltipEl.style.top = `${e.clientY - 18}px`;
+              renderer.domElement.style.cursor = 'pointer';
+              return;
+            } else if (tile.mode === 'attack') {
+              const enemy = getUnitAt(tile.gx, tile.gz);
+              if (enemy) {
+                pathLine.visible = true;
+                pathLineMat.color.setHex(0xef4444);
+                const pts = [
+                  selectedUnit.fumo.pos.x, selectedUnit.fumo.pos.y + 0.45, selectedUnit.fumo.pos.z,
+                  tile.wx, tile.wy + 0.45, tile.wz
+                ];
+                pathLineGeom.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+                pathLineGeom.computeBoundingSphere();
+                tooltipEmojiEl.textContent = '⚔️';
+                tooltipTextEl.textContent = `Attack ${enemy.name} (HP ${enemy.hp}/${enemy.maxHp})`;
+                tooltipEl.classList.remove('opacity-0');
+                tooltipEl.style.left = `${e.clientX + 14}px`;
+                tooltipEl.style.top = `${e.clientY - 18}px`;
+                renderer.domElement.style.cursor = 'pointer';
+                return;
+              }
+            } else if (tile.mode === 'ability') {
+              pathLine.visible = true;
+              pathLineMat.color.setHex(0xa855f7);
+              const pts = [
+                selectedUnit.fumo.pos.x, selectedUnit.fumo.pos.y + 0.45, selectedUnit.fumo.pos.z,
+                tile.wx, tile.wy + 0.45, tile.wz
+              ];
+              pathLineGeom.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+              pathLineGeom.computeBoundingSphere();
+              tooltipEmojiEl.textContent = '✨';
+              tooltipTextEl.textContent = `Ability Area: ${tile.terrain.toUpperCase()}`;
+              tooltipEl.classList.remove('opacity-0');
+              tooltipEl.style.left = `${e.clientX + 14}px`;
+              tooltipEl.style.top = `${e.clientY - 18}px`;
+              renderer.domElement.style.cursor = 'pointer';
+              return;
+            }
+          }
+        }
+
+        if (pathLine) pathLine.visible = false;
+        tooltipEl.classList.add('opacity-0');
+        renderer.domElement.style.cursor = 'default';
+        return;
+      }
+
+      // Free-roam props & fumo hover
       const propHits = raycaster.intersectObjects(interactiveProps, false);
       if (propHits.length > 0 && propHits[0].object.userData.prop) {
         tooltipEmojiEl.textContent = '✨';
@@ -2764,7 +3268,7 @@
         tooltipEl.classList.remove('opacity-0');
         tooltipEl.style.left = `${e.clientX + 14}px`;
         tooltipEl.style.top = `${e.clientY - 18}px`;
-        renderer.domElement.style.cursor = inBattleMode ? 'pointer' : 'grab';
+        renderer.domElement.style.cursor = 'grab';
         return;
       }
 
@@ -2825,6 +3329,7 @@
       if (immediate) nightProgress = nightTarget;
       document.body.classList.toggle('night-ui', isNightMode);
       soundFX.isNight = isNightMode;
+      soundFX.updateTrack(immediate);
       notifyHubModeChanged();
     }
 
@@ -2862,6 +3367,82 @@
     // ============================================================================
     const keys = {};
     const MUTE_STORAGE_KEY = 'fumo_sengoku_mute';
+    const VOLUME_STORAGE_KEY = 'fumo_sengoku_volume';
+    const camForward = new THREE.Vector3();
+    const camRight = new THREE.Vector3();
+    const camMove = new THREE.Vector3();
+    const camVelocity = new THREE.Vector3();
+    let cameraBookmarkAnim = null;
+
+    function updateVolumeUI() {
+      const volPct = Math.round(soundFX.volume * 100);
+      const slider = document.getElementById('volume-slider');
+      const readout = document.getElementById('volume-readout');
+      const icon = document.getElementById('mute-icon');
+
+      if (slider) {
+        slider.value = volPct;
+        slider.style.opacity = soundFX.enabled ? '1' : '0.45';
+      }
+      if (readout) {
+        readout.textContent = soundFX.enabled ? `${volPct}%` : '0%';
+        readout.style.opacity = soundFX.enabled ? '1' : '0.6';
+      }
+      if (icon) {
+        if (!soundFX.enabled || volPct === 0) {
+          icon.textContent = '🔇';
+        } else if (volPct < 50) {
+          icon.textContent = '🔉';
+        } else {
+          icon.textContent = '🔊';
+        }
+      }
+    }
+
+    function setVolume(pct) {
+      soundFX.userInteracted = true;
+      soundFX.init();
+      if (!soundFX.enabled && pct > 0) {
+        soundFX.enabled = true;
+        try { localStorage.setItem(MUTE_STORAGE_KEY, '0'); } catch (e) {}
+      }
+      soundFX.setVolume(pct / 100);
+      try { localStorage.setItem(VOLUME_STORAGE_KEY, String(soundFX.volume)); } catch (e) {}
+    }
+
+    function toggleMute() {
+      soundFX.userInteracted = true;
+      soundFX.init();
+      soundFX.enabled = !soundFX.enabled;
+      if (soundFX.masterGain && soundFX.ctx) {
+        try {
+          soundFX.masterGain.gain.cancelScheduledValues(soundFX.ctx.currentTime);
+          soundFX.masterGain.gain.setValueAtTime(soundFX.enabled ? soundFX.volume : 0, soundFX.ctx.currentTime);
+        } catch (e) {}
+      }
+      soundFX.updateCurrentAudioVolume();
+      if (soundFX.enabled) {
+        const cur = soundFX.currentTrackKey ? soundFX.audios[soundFX.currentTrackKey] : null;
+        if (cur && cur.paused) {
+          cur.play().catch(() => {});
+        } else if (!soundFX.currentTrackKey) {
+          soundFX.updateTrack();
+        }
+      }
+      updateVolumeUI();
+      try { localStorage.setItem(MUTE_STORAGE_KEY, soundFX.enabled ? '0' : '1'); } catch (e) {}
+      showBannerToast(soundFX.enabled ? 'Sound Unmuted 🔊' : 'Sound Muted 🔇', `Master Volume: ${Math.round(soundFX.volume * 100)}%`);
+    }
+
+    function onVolumeReadoutClick() {
+      const currentPct = Math.round(soundFX.volume * 100);
+      let targetPct = 70;
+      if (currentPct === 70) targetPct = 100;
+      else if (currentPct === 100) targetPct = 30;
+      else targetPct = 70;
+      setVolume(targetPct);
+      showBannerToast('Volume Reset 🔊', `Volume set to ${targetPct}%`);
+    }
 
     function triggerTownBow() {
       soundFX.playPickup();
@@ -2877,67 +3458,133 @@
       showBannerToast('Edo Yakko Kite 🪁', kiteActive ? 'Kite Launched into the Castle Breeze!' : 'Kite Reeled In');
     }
 
-    function toggleMute() {
-      soundFX.enabled = !soundFX.enabled;
-      document.getElementById('mute-icon').textContent = soundFX.enabled ? '🔊' : '🔇';
-      try { localStorage.setItem(MUTE_STORAGE_KEY, soundFX.enabled ? '0' : '1'); } catch (e) {}
+    function setCameraBookmark(idx) {
+      recordInput();
+      controls.autoRotate = false;
+      soundFX.playTaiko(0.8);
+
+      const bookmarks = {
+        1: { target: new THREE.Vector3(0, 15, -25.5), pos: new THREE.Vector3(0, 32, 12), name: '🏯 Tenshu Castle Keep', desc: '5-Tier Citadel & Daimyo Keep' },
+        2: { target: new THREE.Vector3(-45, 10, -18), pos: new THREE.Vector3(-45, 24, 12), name: '⛩️ West Shrine Pagoda', desc: 'Goju-no-to & Sacred Cherry Tree' },
+        3: { target: new THREE.Vector3(0, 2, 4), pos: new THREE.Vector3(0, 24, 40), name: '🏮 Castle Town Canal', desc: 'Moat, Waterwheel & Merchant Quarter' },
+        4: { target: new THREE.Vector3(33, 2, 6), pos: new THREE.Vector3(33, 38, 38), name: '⚔️ Ceremonial Battlefield', desc: 'Scarlet River & Tactical Honjin' },
+      };
+
+      const bm = bookmarks[idx];
+      if (!bm) return;
+
+      showBannerToast(bm.name, bm.desc);
+      cameraBookmarkAnim = {
+        startPos: camera.position.clone(),
+        endPos: bm.pos.clone(),
+        startTarget: controls.target.clone(),
+        endTarget: bm.target.clone(),
+        startTime: performance.now(),
+        duration: 900
+      };
+      camVelocity.set(0, 0, 0);
     }
 
     const onKeyDown = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
       if (e.ctrlKey || e.altKey || e.metaKey) return;
       recordInput();
       soundFX.init();
       soundFX.startMusicLoop();
 
-      const k = e.key.toLowerCase();
-      keys[k] = true;
+      const k = (e.key || '').toLowerCase();
+      const code = (e.code || '').toLowerCase();
+      if (k) keys[k] = true;
+      if (code) keys[code] = true;
+      if (e.shiftKey || k === 'shift' || code.includes('shift')) keys['shift'] = true;
+      if (k === ' ' || code === 'space') keys['space'] = true;
 
-      if (k === 'e') {
-        if (!inBattleMode) toggleWarGameMode(true);
-      } else if (k === ' ') {
+      if (k === 'e' || code === 'keye') {
+        if (!e.repeat && !inBattleMode) toggleWarGameMode(true);
+      } else if (k === ' ' || code === 'space') {
         if (inBattleMode) {
-          e.preventDefault();
-          endPlayerTurn();
+          if (e.preventDefault) e.preventDefault();
+          if (!e.repeat) endPlayerTurn();
+        } else {
+          if (e.preventDefault) e.preventDefault();
         }
-      } else if (k === 'q') {
-        if (inBattleMode && selectedUnit && selectedUnit.clan === 'red' && !selectedUnit.acted) {
+      } else if (k === 'q' || code === 'keyq') {
+        if (!e.repeat && inBattleMode && selectedUnit && selectedUnit.clan === 'red' && !selectedUnit.acted) {
           abilityTargetingMode = !abilityTargetingMode;
           highlightUnitRanges(selectedUnit);
         }
-      } else if (k === 'r') {
-        if (inBattleMode) {
+      } else if (k === 'r' || code === 'keyr') {
+        if (!e.repeat && inBattleMode) {
           soundFX.playTaiko(1.0);
           toggleWarGameMode(true);
         }
-      } else if (k === 'escape') {
-        if (inBattleMode) {
+      } else if (k === 'escape' || code === 'escape') {
+        if (!e.repeat && inBattleMode) {
           if (window.confirm('Leave the Ceremonial War Game and return to Castle Town free-roam?')) {
             toggleWarGameMode(false);
           }
         }
-      } else if (k === 'b') {
-        triggerTownBow();
-      } else if (k === 'f') {
-        toggleEdoKite();
-      } else if (k === 'm') {
-        toggleMute();
-      } else if (k === 'n') {
-        e.preventDefault();
-        toggleDayNightMode();
-      } else if (k === 'h') {
-        const c = document.getElementById('howto-card');
-        c.classList.toggle('opacity-0');
-        c.classList.toggle('pointer-events-none');
+      } else if (k === 'b' || code === 'keyb') {
+        if (!e.repeat) triggerTownBow();
+      } else if (k === 'f' || code === 'keyf') {
+        if (!e.repeat) toggleEdoKite();
+      } else if (k === 'm' || code === 'keym') {
+        if (!e.repeat) toggleMute();
+      } else if (k === '+' || k === '=' || code === 'equal' || code === 'numpadadd') {
+        if (!e.repeat) {
+          if (e.preventDefault) e.preventDefault();
+          const next = Math.min(100, Math.round(soundFX.volume * 100) + 5);
+          setVolume(next);
+          showBannerToast('Volume Up 🔊', `Master Volume: ${next}%`);
+        }
+      } else if (k === '-' || k === '_' || code === 'minus' || code === 'numpadsubtract') {
+        if (!e.repeat) {
+          if (e.preventDefault) e.preventDefault();
+          const next = Math.max(0, Math.round(soundFX.volume * 100) - 5);
+          setVolume(next);
+          showBannerToast(next === 0 ? 'Muted 🔇' : 'Volume Down 🔉', `Master Volume: ${next}%`);
+        }
+      } else if (k === 'n' || code === 'keyn') {
+        if (e.preventDefault) e.preventDefault();
+        if (!e.repeat) toggleDayNightMode();
+      } else if (k === 'h' || code === 'keyh') {
+        if (!e.repeat) {
+          const c = document.getElementById('howto-card');
+          c.classList.toggle('opacity-0');
+          c.classList.toggle('pointer-events-none');
+        }
+      } else {
+        if (!e.repeat) {
+          let bm = 0;
+          if (k >= '1' && k <= '4') bm = parseInt(k, 10);
+          else if (/^digit[1-4]$/.test(code) || /^numpad[1-4]$/.test(code)) bm = parseInt(code.replace(/\D/g, ''), 10);
+          if (bm >= 1 && bm <= 4) setCameraBookmark(bm);
+        }
       }
     };
 
     const onKeyUp = (e) => {
-      keys[e.key.toLowerCase()] = false;
+      const k = (e.key || '').toLowerCase();
+      const code = (e.code || '').toLowerCase();
+      if (k) keys[k] = false;
+      if (code) keys[code] = false;
+      if (k === ' ' || code === 'space') keys['space'] = false;
+      if (k === 'shift' || code.includes('shift') || !e.shiftKey) keys['shift'] = false;
+    };
+
+    const onBlur = () => {
+      for (const k in keys) keys[k] = false;
     };
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('pointerdown', () => window.focus());
+    window.addEventListener('message', (e) => {
+      if (!e.data || typeof e.data !== 'object' || !e.data.__fumoForwardedKey) return;
+      if (e.data.type === 'keydown' && (e.data.key || e.data.code)) onKeyDown(e.data);
+      else if (e.data.type === 'keyup' && (e.data.key || e.data.code)) onKeyUp(e.data);
+    });
 
     document.getElementById('btn-start-wargame').onclick = () => toggleWarGameMode(true);
     document.getElementById('btn-stage-select').onclick = () => {
@@ -2967,6 +3614,10 @@
     document.getElementById('btn-close-scroll').onclick = () => {
       document.getElementById('scroll-modal').classList.add('hidden');
       document.getElementById('scroll-modal').classList.remove('flex');
+      if (soundFX.isVictory) {
+        soundFX.isVictory = false;
+        soundFX.updateTrack();
+      }
     };
     document.getElementById('btn-next-battle').onclick = () => {
       document.getElementById('scroll-modal').classList.add('hidden');
@@ -2986,6 +3637,15 @@
       c.classList.toggle('pointer-events-none');
     };
     document.getElementById('btn-mute').onclick = toggleMute;
+
+    const volumeSliderEl = document.getElementById('volume-slider');
+    const volumeReadoutEl = document.getElementById('volume-readout');
+    if (volumeSliderEl) {
+      volumeSliderEl.oninput = (e) => setVolume(parseFloat(e.target.value));
+    }
+    if (volumeReadoutEl) {
+      volumeReadoutEl.onclick = onVolumeReadoutClick;
+    }
 
     // ============================================================================
     // 11. MAIN ANIMATION LOOP & FumoSceneLifecycle
@@ -3009,13 +3669,92 @@
       prevTime = now;
       const elapsed = now * 0.001;
 
-      const panSpeed = 18.0 * dt;
-      if (keys['w']) { controls.target.z -= panSpeed; camera.position.z -= panSpeed; }
-      if (keys['s']) { controls.target.z += panSpeed; camera.position.z += panSpeed; }
-      if (keys['a']) { controls.target.x -= panSpeed; camera.position.x -= panSpeed; }
-      if (keys['d']) { controls.target.x += panSpeed; camera.position.x += panSpeed; }
+      // Handle active camera bookmark flight animation
+      if (cameraBookmarkAnim) {
+        recordInput();
+        const p = Math.min(1.0, (now - cameraBookmarkAnim.startTime) / cameraBookmarkAnim.duration);
+        const ease = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+        camera.position.lerpVectors(cameraBookmarkAnim.startPos, cameraBookmarkAnim.endPos, ease);
+        controls.target.lerpVectors(cameraBookmarkAnim.startTarget, cameraBookmarkAnim.endTarget, ease);
+        if (p >= 1.0) cameraBookmarkAnim = null;
+      }
 
-      if (!inBattleMode && !pickedFumo && (now - lastInputTime > 6500)) {
+      // Camera-relative WASD + Arrow Keys movement (hold Shift to sprint)
+      const moveForward = (keys['w'] || keys['keyw'] || keys['arrowup'] ? 1 : 0) - (keys['s'] || keys['keys'] || keys['arrowdown'] ? 1 : 0);
+      const moveRight   = (keys['d'] || keys['keyd'] || keys['arrowright'] ? 1 : 0) - (keys['a'] || keys['keya'] || keys['arrowleft'] ? 1 : 0);
+      // Free-roam vertical camera elevation (Space / Q to ascend, C / Z to descend)
+      const moveUp      = !inBattleMode ? ((keys[' '] || keys['space'] || keys['q'] || keys['keyq'] ? 1 : 0) - (keys['c'] || keys['keyc'] || keys['z'] || keys['keyz'] ? 1 : 0)) : 0;
+
+      if (moveForward !== 0 || moveRight !== 0 || moveUp !== 0) {
+        cameraBookmarkAnim = null;
+      }
+
+      const speedMultiplier = keys['shift'] ? 2.2 : 1.0;
+      const panSpeed = 24.0 * speedMultiplier;
+
+      let targetVx = 0;
+      let targetVz = 0;
+      let targetVy = 0;
+
+      if (moveForward !== 0 || moveRight !== 0) {
+        // Get horizontal forward direction the camera is currently facing
+        camera.getWorldDirection(camForward);
+        camForward.y = 0;
+        if (camForward.lengthSq() > 0.0001) camForward.normalize();
+
+        // Get horizontal right vector perpendicular to forward
+        camRight.set(-camForward.z, 0, camForward.x);
+
+        camMove.set(0, 0, 0)
+          .addScaledVector(camForward, moveForward)
+          .addScaledVector(camRight, moveRight)
+          .normalize()
+          .multiplyScalar(panSpeed);
+
+        targetVx = camMove.x;
+        targetVz = camMove.z;
+      }
+
+      if (moveUp !== 0) {
+        targetVy = moveUp * (panSpeed * 0.75);
+      }
+
+      // Smooth velocity damping (inertia)
+      const hasMoveInput = (moveForward !== 0 || moveRight !== 0 || moveUp !== 0);
+      const dampingRate = hasMoveInput ? 16.0 : 8.0;
+      const lerpFactor = Math.min(1.0, dampingRate * dt);
+      camVelocity.x += (targetVx - camVelocity.x) * lerpFactor;
+      camVelocity.z += (targetVz - camVelocity.z) * lerpFactor;
+      camVelocity.y += (targetVy - camVelocity.y) * lerpFactor;
+
+      if (Math.abs(camVelocity.x) < 0.001) camVelocity.x = 0;
+      if (Math.abs(camVelocity.z) < 0.001) camVelocity.z = 0;
+      if (Math.abs(camVelocity.y) < 0.001) camVelocity.y = 0;
+
+      if (camVelocity.lengthSq() > 0.00001) {
+        recordInput(); // Keeps autoRotate disabled while moving or gliding smoothly
+
+        const deltaX = camVelocity.x * dt;
+        const deltaZ = camVelocity.z * dt;
+        const deltaY = camVelocity.y * dt;
+
+        // Clamp within diorama bounds so the camera doesn't wander into the void
+        const nextTargetX = THREE.MathUtils.clamp(controls.target.x + deltaX, -60, 62);
+        const nextTargetZ = THREE.MathUtils.clamp(controls.target.z + deltaZ, -48, 42);
+        const nextTargetY = THREE.MathUtils.clamp(controls.target.y + deltaY, 0.5, 32);
+        const actualDx = nextTargetX - controls.target.x;
+        const actualDz = nextTargetZ - controls.target.z;
+        const actualDy = nextTargetY - controls.target.y;
+
+        controls.target.x += actualDx;
+        controls.target.z += actualDz;
+        controls.target.y += actualDy;
+        camera.position.x += actualDx;
+        camera.position.z += actualDz;
+        camera.position.y += actualDy;
+      }
+
+      if (!inBattleMode && !pickedFumo && !cameraBookmarkAnim && (now - lastInputTime > 6500)) {
         controls.autoRotate = true;
       }
       controls.update();
@@ -3044,10 +3783,23 @@
         fl.mesh.position.y = 0.14 + Math.sin(elapsed * 2.2 + fl.phase) * 0.05;
       }
 
+      // Smooth pinned multi-harmonic cloth wave
       for (let i = 0; i < banners.length; i++) {
         const b = banners[i];
-        for (let s = 0; s < b.stripMeshes.length; s++) {
-          b.stripMeshes[s].position.z = Math.sin(elapsed * 3.8 + b.phase + s * 0.7) * 0.16;
+        const count = b.stripMeshes.length;
+        for (let s = 0; s < count; s++) {
+          const seg = b.stripMeshes[s];
+          const normS = s / (count - 1);
+          // Top segment is pinned to crossbar; wave amplitude grows toward the bottom tail
+          const pinFactor = Math.pow(normS, 1.25);
+          const wavePhase = elapsed * 4.2 + b.phase - s * 0.55;
+          const gust = Math.sin(elapsed * 1.7 + b.phase) * 0.06;
+
+          seg.position.z = (Math.sin(wavePhase) * 0.22 + Math.cos(wavePhase * 1.8) * 0.05 + gust) * pinFactor;
+          seg.position.x = 0.72 + Math.sin(wavePhase * 2.0) * 0.035 * pinFactor;
+          seg.rotation.y = Math.cos(wavePhase) * 0.28 * pinFactor;
+          seg.rotation.x = Math.sin(wavePhase) * 0.14 * pinFactor;
+          seg.rotation.z = Math.sin(wavePhase * 0.9) * 0.05 * pinFactor;
         }
       }
       if (kiteActive && kiteGroup) {
@@ -3183,23 +3935,32 @@
           cancelAnimationFrame(rafId);
           rafId = null;
         }
-        soundFX.stopLoops();
+        soundFX.dispose();
         renderer.domElement.removeEventListener('pointerdown', onPointerDown);
         window.removeEventListener('pointermove', onPointerMove);
         window.removeEventListener('pointerup', onPointerUp);
         window.removeEventListener('keydown', onKeyDown);
         window.removeEventListener('keyup', onKeyUp);
+        window.removeEventListener('blur', onBlur);
         window.removeEventListener('resize', onResize);
       }
     });
 
     loadCampaignState();
     try {
+      const savedVol = localStorage.getItem(VOLUME_STORAGE_KEY);
+      if (savedVol !== null) {
+        const parsed = parseFloat(savedVol);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+          soundFX.volume = parsed;
+        }
+      }
       if (localStorage.getItem(MUTE_STORAGE_KEY) === '1') {
         soundFX.enabled = false;
-        document.getElementById('mute-icon').textContent = '🔇';
       }
     } catch (e) {}
+    updateVolumeUI();
+    soundFX.updateNowPlayingUI();
 
     spawnBattleArmies(0);
     setDayNightMode('day', true);
@@ -3211,6 +3972,7 @@
 
     prevTime = performance.now();
     rafId = requestAnimationFrame(animate);
+    try { window.focus(); } catch (e) {}
   </script>
 </body>
 </html>
