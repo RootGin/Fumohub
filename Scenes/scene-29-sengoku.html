@@ -685,6 +685,84 @@
       addVoxBox(x + side * 0.35, y + 0.95, z, 0.45, 0.55, 1.1, '#eab308', goldBlocks);
     }
 
+    // Helper: Hanging Chochin Paper Lantern with Iron Chain, Lacquer Caps, Bamboo Ribs & Tassel
+    function addHangingChochin(x, y, z, colorHex = '#fef08a', bodyHex = '#dc2626', chainLen = 0.65) {
+      // 1. Segmented iron chain links hanging from the eave
+      const linkCount = Math.max(2, Math.floor(chainLen / 0.16));
+      for (let i = 0; i < linkCount; i++) {
+        const ly = y + 0.82 + i * 0.16;
+        const w = (i % 2 === 0) ? 0.14 : 0.08;
+        const d = (i % 2 === 0) ? 0.08 : 0.14;
+        addVoxBox(x, ly, z, w, 0.15, d, '#334155', solidBlocks, 0.02);
+      }
+      // 2. Top eave bracket & top black lacquer cap (Kasa) with gold ring
+      addVoxBox(x, y + 0.80 + chainLen, z, 0.26, 0.10, 0.26, '#1e293b', solidBlocks);
+      addVoxBox(x, y + 0.72, z, 0.48, 0.10, 0.48, '#1e293b', solidBlocks);
+      addVoxBox(x, y + 0.80, z, 0.20, 0.06, 0.20, '#facc15', goldBlocks);
+
+      // 3. Rounded 3-stepped paper lantern body (narrow top/bottom, wider middle belly)
+      addVoxBox(x, y + 0.56, z, 0.54, 0.16, 0.54, colorHex, glowingBlocks);
+      addVoxBox(x, y + 0.24, z, 0.68, 0.32, 0.68, colorHex, glowingBlocks);
+      addVoxBox(x, y + 0.08, z, 0.54, 0.16, 0.54, colorHex, glowingBlocks);
+
+      // 4. Bamboo horizontal ribs (Higo) & vertical side frames so it doesn't look like a bare bulb
+      addVoxBox(x, y + 0.50, z, 0.70, 0.05, 0.70, bodyHex, solidBlocks);
+      addVoxBox(x, y + 0.28, z, 0.70, 0.05, 0.70, bodyHex, solidBlocks);
+      addVoxBox(x, y + 0.14, z, 0.58, 0.05, 0.06, '#27272a', solidBlocks);
+      addVoxBox(x, y + 0.14, z, 0.06, 0.05, 0.58, '#27272a', solidBlocks);
+
+      // 5. Bottom lacquer cap, gold ring & hanging crimson silk tassel (Fusa)
+      addVoxBox(x, y, z, 0.46, 0.09, 0.46, '#1e293b', solidBlocks);
+      addVoxBox(x, y - 0.06, z, 0.16, 0.06, 0.16, '#facc15', goldBlocks);
+      addVoxBox(x, y - 0.28, z, 0.10, 0.22, 0.10, '#dc2626', solidBlocks);
+    }
+
+    // Helper: Traditional Carved Stone Standing Lantern (Toro) with Flared Roof & Lattice
+    function addStoneToro(x, y, z, interactiveLabel = '🏮 Stone Lantern (Click to Brighten!)') {
+      // 1. Wide base plinth (Kiso) & sculpted pillar (Sao)
+      addVoxBox(x, y, z, 1.35, 0.35, 1.35, '#475569', solidBlocks);
+      addVoxBox(x, y + 0.35, z, 0.95, 0.25, 0.95, '#64748b', solidBlocks);
+      addVoxBox(x, y + 0.60, z, 0.62, 1.35, 0.62, '#64748b', solidBlocks);
+      addVoxBox(x, y + 1.20, z, 0.76, 0.18, 0.76, '#475569', solidBlocks); // Middle node ring
+
+      // 2. Firebox platform (Chudai) with corner supports
+      addVoxBox(x, y + 1.95, z, 1.20, 0.24, 1.20, '#475569', solidBlocks);
+      for (const sx of [-0.38, 0.38]) {
+        for (const sz of [-0.38, 0.38]) {
+          addVoxBox(x + sx, y + 2.19, z + sz, 0.14, 0.78, 0.14, '#334155', solidBlocks);
+        }
+      }
+      // Window cross-bars
+      addVoxBox(x, y + 2.55, z + 0.41, 0.85, 0.07, 0.07, '#334155', solidBlocks);
+      addVoxBox(x, y + 2.55, z - 0.41, 0.85, 0.07, 0.07, '#334155', solidBlocks);
+      addVoxBox(x + 0.41, y + 2.55, z, 0.07, 0.07, 0.85, '#334155', solidBlocks);
+      addVoxBox(x - 0.41, y + 2.55, z, 0.07, 0.07, 0.85, '#334155', solidBlocks);
+
+      // 3. Interactive glowing inner core (Hibukuro)
+      const lHead = new THREE.Mesh(createSoftVoxelGeometry(0.74), lanternEmissiveMaterial);
+      lHead.position.set(x, y + 2.58, z);
+      scene.add(lHead);
+      lHead.userData.prop = {
+        name: interactiveLabel,
+        onActivate: () => {
+          soundFX.playPickup();
+          spawnParticles(lHead.position, '#fde047', 14, 1.0);
+        }
+      };
+      interactiveProps.push(lHead);
+
+      // 4. Stepped pagoda roof (Kasa), upturned eaves & lotus finial (Hoju)
+      addVoxBox(x, y + 2.97, z, 1.55, 0.24, 1.55, '#334155', solidBlocks);
+      addVoxBox(x, y + 3.21, z, 1.15, 0.22, 1.15, '#475569', solidBlocks);
+      for (const sx of [-0.68, 0.68]) {
+        for (const sz of [-0.68, 0.68]) {
+          addVoxBox(x + sx, y + 3.08, z + sz, 0.28, 0.18, 0.28, '#334155', solidBlocks);
+        }
+      }
+      addVoxBox(x, y + 3.43, z, 0.44, 0.16, 0.44, '#64748b', solidBlocks);
+      addVoxBox(x, y + 3.59, z, 0.26, 0.28, 0.26, '#facc15', goldBlocks);
+    }
+
     function flushInstancedBlocks(list, mat, castShadow = true) {
       if (!list.length) return null;
       const geom = createSoftVoxelGeometry(1.0);
@@ -1045,8 +1123,8 @@
         // Stepped Tiled Gable Roof
         addJapaneseRoof(s.x, 6.2, s.z - 0.3, 9.2, 7.2, 1.3, s.roof, false, 2);
         // Hanging Glowing Chochin Lanterns at Shop Corners
-        addVoxBox(s.x - 3.6, 2.4, s.z + 3.7, 0.55, 0.75, 0.55, '#fef08a', glowingBlocks);
-        addVoxBox(s.x + 3.6, 2.4, s.z + 3.7, 0.55, 0.75, 0.55, '#fef08a', glowingBlocks);
+        addHangingChochin(s.x - 3.6, 2.25, s.z + 3.7, '#fef08a', s.noren, 0.45);
+        addHangingChochin(s.x + 3.6, 2.25, s.z + 3.7, '#fef08a', s.noren, 0.45);
 
         // Interactive Noren Curtain
         const norenM = new THREE.Mesh(createSoftVoxelGeometry(1.0), new THREE.MeshStandardMaterial({ color: s.noren }));
@@ -1165,29 +1243,53 @@
       addVoxBox(-20.0, 0.2, 25.5, 1.4, 1.1, 1.4, '#64748b');
 
       // ========================================================================
-      // 9. EXPANDED BATTLEFIELD FORTIFICATIONS, HONJIN WAR CAMPS & MT. FUJI
+      // 9. EXPANDED TACTICAL ARENA, DUAL BRIDGES, WATCHTOWERS & HONJIN PAVILION
       // ========================================================================
-      // Scarlet River Tactical Bridge & Command Hill (Honjin)
-      addVoxBox(27, 0.2, 4, 5.8, 0.65, 5.0, '#9c6644');
-      addVoxBox(39, 0, -6, 10.5, 1.8, 10.5, '#4d7c0f');
-      // Cherry Clan Honjin Command Tent & Maku Curtains on Command Hill
-      addVoxBox(40.5, 1.8, -6, 6.5, 2.6, 6.5, '#f43f5e');
-      addJapaneseRoof(40.5, 4.4, -6, 7.8, 7.8, 1.1, '#831843', true, 2);
-      // Red Clan Forward War Camp Tent & Maku Curtain Enclosure (X = 11, Z = 16)
-      addVoxBox(11, 0, 16, 6.2, 2.6, 5.2, '#dc2626');
-      addJapaneseRoof(11, 2.6, 16, 7.4, 6.4, 1.0, '#7f1d1d', true, 2);
-      // Taketaba (Bamboo Bullet-Shield Bundles) & Sakaki Palisades along River
-      for (const bz of [-8, -3, 10, 14]) {
-        addVoxBox(23.2, 0, bz, 0.65, 1.6, 2.2, '#84cc16');
-        addVoxBox(30.8, 0, bz, 0.65, 1.6, 2.2, '#65a30d');
+      // Expanded Arena Turf & Perimeter War Path (X = 10 to 64, Z = -18 to 32)
+      addVoxBox(36, -0.04, 6, 54, 0.14, 48, '#5c940d');
+      // Extend Scarlet River Channel to span the full expanded arena
+      addVoxBox(32, -1.4, 6, 5.2, 0.4, 52, '#1e3a8a');
+      battleRiverWater.scale.set(1.1, 1, 1.15);
+      battleRiverWater.position.set(32, -0.06, 6);
+
+      // Dual Tactical Bridges across Scarlet River (North Bridge Z = -2, South Bridge Z = 14)
+      for (const bz of [-2, 14]) {
+        addVoxBox(32, 0.25, bz, 6.4, 0.65, 5.2, '#9c6644');
+        addVoxBox(32, 0.9, bz - 2.3, 6.4, 0.6, 0.35, '#dc2626');
+        addVoxBox(32, 0.9, bz + 2.3, 6.4, 0.6, 0.35, '#dc2626');
       }
+
+      // Expanded 2-Tier Command Hill (Honjin Plateau) at East Arena (X = 50, Z = 4)
+      addVoxBox(50, 0, 4, 16.0, 1.8, 22.0, '#4d7c0f');
+      addVoxBox(51, 1.8, 4, 11.0, 1.8, 14.0, '#3f6212');
+      // Cherry Clan Grand Honjin Command Pavilion on Top Tier (Y = 3.6)
+      addVoxBox(52, 3.6, 4, 7.5, 2.8, 8.5, '#f43f5e');
+      addJapaneseRoof(52, 6.4, 4, 9.2, 10.2, 1.3, '#831843', true, 2);
+
+      // Red Clan Forward War Camp & Taiko Drum Stage (X = 14, Z = 22)
+      addVoxBox(14, 0, 22, 8.5, 2.8, 6.5, '#dc2626');
+      addJapaneseRoof(14, 2.8, 22, 10.0, 8.0, 1.1, '#7f1d1d', true, 2);
+
+      // Arena Watchtowers (North-West & South-East)
+      for (const [wx, wz] of [[18, -14], [44, 22]]) {
+        addVoxBox(wx, 0, wz, 3.6, 5.2, 3.6, '#5c3824');
+        addJapaneseRoof(wx, 5.2, wz, 4.8, 4.8, 0.9, '#1e293b', false, 2);
+        addHangingChochin(wx, 3.8, wz + 2.05, '#fef08a', '#b91c1c', 0.55);
+      }
+
+      // Expanded Taketaba (Bamboo Shields) & Sakaki Palisades along both riverbanks
+      for (const bz of [-11, -7, 4, 8, 19, 23]) {
+        addVoxBox(27.8, 0, bz, 0.7, 1.7, 2.4, '#84cc16');
+        addVoxBox(36.2, 0, bz, 0.7, 1.7, 2.4, '#65a30d');
+      }
+
       // Multi-Deck Nitori Kappa Siege Tower (Seiro) at (14, Z = -12)
       addVoxBox(14, 0, -12, 4.0, 3.8, 4.0, '#784b2c');
       addVoxBox(14, 3.8, -12, 3.4, 3.6, 3.4, '#5c3824');
       addVoxBox(14, 7.4, -12, 3.0, 2.8, 3.0, '#784b2c');
       addVoxBox(14, 10.2, -11.2, 3.6, 0.6, 4.8, '#9c6644');
 
-      // Distant Mt. Fuji & Horizon Mountain Range Backdrop (Z = -62)
+      // Distant Mt. Fuji & Horizon Mountain Range Backdrop (Z = -64)
       for (let m = 0; m < 10; m++) {
         const w = 36 - m * 3.1;
         const col = m >= 6 ? '#f8fafc' : '#475569';
@@ -1195,6 +1297,7 @@
       }
       addVoxBox(26, 0, -60, 28, 14, 16, '#475569');
       addVoxBox(26, 14, -60, 16, 6, 10, '#64748b');
+
 
       // ========================================================================
       // 10. CHERRY BLOSSOM GROVES, STONE LANTERNS, KOI FISH & WATER LANTERNS
@@ -1216,18 +1319,7 @@
         [15, -10], [27, -10], [27, 16], [-42, -8], [-48, -8]
       ];
       lanternCoords.forEach(([lx, lz]) => {
-        addVoxBox(lx, 0, lz, 0.85, 2.3, 0.85, '#64748b');
-        const lHead = new THREE.Mesh(createSoftVoxelGeometry(0.95), lanternEmissiveMaterial);
-        lHead.position.set(lx, 2.65, lz);
-        scene.add(lHead);
-        lHead.userData.prop = {
-          name: '🏮 Stone Lantern (Click to Brighten!)',
-          onActivate: () => {
-            soundFX.playPickup();
-            spawnParticles(lHead.position, '#fde047', 14, 1.0);
-          }
-        };
-        interactiveProps.push(lHead);
+        addStoneToro(lx, 0, lz, '🏮 Stone Lantern (Click to Brighten!)');
       });
 
       // Swimming Koi Fish & Toro Nagashi Floating Water Lanterns in Moat & Canal
@@ -1248,9 +1340,25 @@
       }
 
       const floatCoords = [[-14, -9], [14, -9], [-27, -20], [27, -20], [-12, 10], [-24, 10]];
+      const woodTrayMat = new THREE.MeshStandardMaterial({ color: 0x5c3824, roughness: 0.85 });
+      const frameDarkMat = new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.8 });
+
       floatCoords.forEach(([fx, fz], idx) => {
-        const fg = new THREE.Mesh(createSoftVoxelGeometry(0.65), lanternEmissiveMaterial);
-        fg.position.set(fx, 0.15, fz);
+        const fg = new THREE.Group();
+        fg.position.set(fx, 0.12, fz);
+
+        const baseTray = new THREE.Mesh(createSoftVoxelGeometry(1.0), woodTrayMat);
+        baseTray.scale.set(0.92, 0.14, 0.92);
+
+        const paperShade = new THREE.Mesh(createSoftVoxelGeometry(1.0), lanternEmissiveMaterial);
+        paperShade.scale.set(0.58, 0.68, 0.58);
+        paperShade.position.y = 0.40;
+
+        const frameRib = new THREE.Mesh(createSoftVoxelGeometry(1.0), frameDarkMat);
+        frameRib.scale.set(0.64, 0.08, 0.64);
+        frameRib.position.y = 0.74;
+
+        fg.add(baseTray, paperShade, frameRib);
         scene.add(fg);
         floatingLanterns.push({ mesh: fg, baseX: fx, baseZ: fz, phase: idx * 1.3 });
       });
@@ -1263,6 +1371,38 @@
       kiteBody.scale.set(2.6, 3.0, 0.2);
       kiteGroup.add(kiteBody);
       scene.add(kiteGroup);
+
+      // Hanging Castle Eave Chochin Lanterns (All 5 Keep Tiers + Yagura + Gatehouse)
+      const keepEaveLanterns = [
+        // Tier 1 Eaves
+        [-11.5, CY + 5.6, KZ + 8.5], [11.5, CY + 5.6, KZ + 8.5],
+        [-4.2,  CY + 5.8, KZ + 9.2], [4.2,  CY + 5.8, KZ + 9.2],
+        [-11.5, CY + 5.6, KZ - 8.5], [11.5, CY + 5.6, KZ - 8.5],
+        // Tier 2 Eaves
+        [-9.6,  CY + 11.3, KZ + 7.2], [9.6,  CY + 11.3, KZ + 7.2],
+        [-9.6,  CY + 11.3, KZ - 7.2], [9.6,  CY + 11.3, KZ - 7.2],
+        // Tier 3 Eaves
+        [-7.8,  CY + 16.5, KZ + 6.0], [7.8,  CY + 16.5, KZ + 6.0],
+        // Tier 4 & Tier 5 Top Balcony Lanterns
+        [-6.2,  CY + 21.2, KZ + 4.8], [6.2,  CY + 21.2, KZ + 4.8],
+        [-4.8,  CY + 24.4, KZ + 4.1], [4.8,  CY + 24.4, KZ + 4.1],
+        [-4.8,  CY + 24.4, KZ - 4.1], [4.8,  CY + 24.4, KZ - 4.1],
+        // Ote-Mon Gatehouse & Corner Yagura Lanterns
+        [-5.8,  CY + 5.8, -15.0],     [5.8,  CY + 5.8, -15.0],
+        [-16.2, CY + 3.8, -13.8],     [16.2, CY + 3.8, -13.8]
+      ];
+      keepEaveLanterns.forEach(([lx, ly, lz]) => {
+        addHangingChochin(lx, ly - 0.15, lz, '#fef08a', '#dc2626', 0.70);
+      });
+
+      // Elevated Stone Lanterns (Toro) inside Honmaru & Ninomaru Courtyards
+      const castleCourtyardLanterns = [
+        [-7.5, CY, -18.5], [7.5, CY, -18.5], [-12.5, CY, -20.5], [12.5, CY, -20.5],
+        [-8.5, NINOMARU_Y, -14.2], [8.5, NINOMARU_Y, -14.2]
+      ];
+      castleCourtyardLanterns.forEach(([lx, ly, lz]) => {
+        addStoneToro(lx, ly, lz, '🏮 Castle Courtyard Lantern (Click to Sparkle!)');
+      });
 
       flushInstancedBlocks(solidBlocks, solidMaterial, true);
       flushInstancedBlocks(glowingBlocks, lanternEmissiveMaterial, false);
@@ -1296,10 +1436,20 @@
     }
 
     [
-      [-5.2, CY, -16.2, '#dc2626'], [5.2, CY, -16.2, '#dc2626'],
-      [-12, NINOMARU_Y, -13.0, '#dc2626'], [12, NINOMARU_Y, -13.0, '#dc2626'],
-      [16, 0, -6, '#dc2626'], [16, 0, 12, '#dc2626'],
-      [38, 1.8, -8, '#ec4899'], [38, 1.8, -4, '#ec4899'], [36, 0, 12, '#ec4899']
+      // Ote-Mon Gatehouse & Honmaru Curtain Walls
+      [-5.5, CY, -16.2, '#dc2626'], [5.5, CY, -16.2, '#dc2626'],
+      [-11.5, CY + 3.2, -16.5, '#dc2626'], [11.5, CY + 3.2, -16.5, '#dc2626'],
+      // Corner Yagura Turret Roofs & Ninomaru Bailey Walls
+      [-16.2, CY + 4.2, -14.2, '#b91c1c'], [16.2, CY + 4.2, -14.2, '#b91c1c'],
+      [-6.5, NINOMARU_Y, -13.0, '#dc2626'], [6.5, NINOMARU_Y, -13.0, '#dc2626'],
+      [-18.0, NINOMARU_Y, -13.0, '#dc2626'], [18.0, NINOMARU_Y, -13.0, '#dc2626'],
+      // Tenshu Keep 1st-Tier Roof & 5th-Tier Daimyo Balcony
+      [-9.5, CY + 6.2, -17.5, '#dc2626'], [9.5, CY + 6.2, -17.5, '#dc2626'],
+      [-4.8, CY + 23.2, -21.5, '#facc15'], [4.8, CY + 23.2, -21.5, '#facc15'],
+      // Expanded Arena: Red Clan West Bank & Cherry Clan East Honjin
+      [14, 0, -8, '#dc2626'], [14, 0, 18, '#dc2626'], [26, 0, -2, '#dc2626'], [26, 0, 14, '#dc2626'],
+      [46, 1.8, -4, '#ec4899'], [46, 1.8, 12, '#ec4899'],
+      [50, 3.6, -1, '#ec4899'], [50, 3.6, 9, '#ec4899'], [55, 3.6, 4, '#facc15']
     ].forEach(([x, y, z, c]) => {
       createWavingBanner(x, y, z, c);
     });
@@ -1366,6 +1516,63 @@
     // ============================================================================
     const allFumoRaycastMeshes = [];
     const townFumos = [];
+
+    function getTerrainHeightAt(x, z) {
+      const KZ = -25.5;
+      // 1. 5-Tier Tenshu Castle Keep (Top-down from Tier 5 to Tier 1)
+      if (Math.abs(x) < 5.6 && Math.abs(z - KZ) < 4.5) return CY + 26.8;
+      if (Math.abs(x) < 6.6 && Math.abs(z - KZ) < 5.2) return CY + 22.8;
+      if (Math.abs(x) < 8.4 && Math.abs(z - KZ) < 6.2) return CY + 18.0;
+      if (Math.abs(x) < 10.2 && Math.abs(z - KZ) < 7.5) return CY + 13.0;
+      if (Math.abs(x) < 12.0 && Math.abs(z - KZ) < 8.8) return CY + 7.4;
+
+      // 2. Four Corner Yagura Turrets & Ote-Mon Gatehouse Roof
+      if (Math.abs(Math.abs(x) - 16.2) < 3.4 && (Math.abs(z - (-17.0)) < 3.4 || Math.abs(z - (-31.8)) < 3.4)) {
+        return CY + 8.8;
+      }
+      if (Math.abs(x) < 6.4 && Math.abs(z - (-16.8)) < 2.4) return CY + 7.4;
+
+      // 3. Arched Vermilion Moat Bridge & Stone Approach Ramp
+      if (Math.abs(x) < 3.1 && z <= -6.8 && z >= -13.2) {
+        const t = (-6.8 - z) / 6.4;
+        return 0.55 + Math.sin(t * Math.PI) * 1.45;
+      }
+      if (Math.abs(x) < 3.1 && z < -13.2 && z >= -16.8) {
+        return NINOMARU_Y + ((-13.2 - z) / 3.6) * (CY - NINOMARU_Y);
+      }
+
+      // 4. Honmaru Upper Courtyard & Ninomaru Lower Bailey
+      if (Math.abs(x) < 18.2 && z < -15.8 && z > -33.2) return CY + 0.4;
+      if (Math.abs(x) < 24.0 && z < -12.5 && z > -35.5) return NINOMARU_Y + 0.35;
+
+      // 5. West Shrine Precinct Hill & 5-Story Pagoda
+      if (Math.abs(x - (-45)) < 4.5 && Math.abs(z - (-18)) < 4.5) return 20.2;
+      if (x < -36 && x > -54 && z < -5 && z > -27) return 2.6;
+
+      // 6. Merchant Machiya Roofs, Kabuki Stage, Temple Bell & Siege Tower
+      if ((Math.abs(x - (-32)) < 4.4 || Math.abs(x - (-22)) < 4.4 || Math.abs(x - (-12)) < 4.4) && Math.abs(z - (-2)) < 3.4) return 7.3;
+      if ((Math.abs(x - (-32)) < 4.4 || Math.abs(x - (-22)) < 4.4) && Math.abs(z - 17) < 3.4) return 7.3;
+      if (Math.abs(x - (-10)) < 5.0 && Math.abs(z - 18) < 3.6) return 1.3;
+      if (Math.abs(x - (-2)) < 2.4 && Math.abs(z - 18) < 2.4) return 1.0;
+      if (Math.abs(x - 14) < 2.1 && Math.abs(z - (-12)) < 2.4) return 10.8;
+      if (x > -35.2 && x < -30.2 && z > 3.6 && z < 7.0) return 1.0; // Rice Bales
+
+      // 7. Bridges (Town Canal + Dual Scarlet River Bridges)
+      if (Math.abs(x - (-6)) < 2.4 && Math.abs(z - 10) < 3.0) return 0.95;
+      if (Math.abs(x - 32) < 3.2 && (Math.abs(z - (-2)) < 2.6 || Math.abs(z - 14) < 2.6)) return 0.9;
+
+      // 8. Expanded Arena 2-Tier Command Hill & Honjin Pavilion
+      if (Math.abs(x - 52) < 4.2 && Math.abs(z - 4) < 4.8) return 7.5;
+      if (Math.abs(x - 51) < 5.5 && Math.abs(z - 4) < 7.0) return 3.6;
+      if (Math.abs(x - 50) < 8.0 && Math.abs(z - 4) < 11.0) return 1.8;
+
+      // 9. Water Bodies (Castle Moat, Town Canal, Scarlet River)
+      if (Math.abs(x) < 31.5 && z < -7.2 && z > -40.5) return -0.25;
+      if (Math.abs(z - 10) < 2.4 && x < 15) return -0.25;
+      if (Math.abs(x - 32) < 2.5 && z > -18 && z < 30) return -0.25;
+
+      return 0;
+    }
 
     class SengokuFumo {
       constructor(cfg) {
@@ -1674,26 +1881,29 @@
         this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.5, 0.5);
 
         if (!this.isDragged && !this.inTacticalGrid) {
+          const prevX = this.pos.x;
+          const prevZ = this.pos.z;
           this.vel.y -= 24.0 * dt;
           this.pos.addScaledVector(this.vel, dt);
 
-          let floorY = 0;
-          const inHonmaru = (Math.abs(this.pos.x) < 18.2 && this.pos.z < -15.8 && this.pos.z > -33.2);
-          const inNinomaru = (!inHonmaru && Math.abs(this.pos.x) < 24 && this.pos.z < -12.5 && this.pos.z > -35.5);
-          const inShrineHill = (this.pos.x < -36 && this.pos.x > -54 && this.pos.z < -5 && this.pos.z > -27);
-          const inMoat = (Math.abs(this.pos.x) < 31.5 && this.pos.z < -7.2 && this.pos.z > -40.5 && !inHonmaru && !inNinomaru && Math.abs(this.pos.x) > 3.1);
-          const inCanal = (Math.abs(this.pos.z - 10) < 2.3 && Math.abs(this.pos.x - (-6)) > 2.4);
+          // Horizontal cliff/wall collision check (deflects Fumo if it hits a wall > 1.8 units above its current height)
+          const targetFloorY = getTerrainHeightAt(this.pos.x, this.pos.z);
+          if (targetFloorY - this.pos.y > 1.85) {
+            this.pos.x = prevX;
+            this.pos.z = prevZ;
+            this.vel.x *= -0.55;
+            this.vel.z *= -0.55;
+            soundFX.playBounce(0.45);
+          }
 
-          if (inHonmaru) floorY = CY + 0.4;
-          else if (inNinomaru) floorY = NINOMARU_Y + 0.35;
-          else if (inShrineHill) floorY = 2.6;
-          else if (inMoat || inCanal) floorY = -0.25;
+          const floorY = getTerrainHeightAt(this.pos.x, this.pos.z);
+          const inWater = (floorY < -0.1);
 
           if (this.pos.y <= floorY) {
             const imp = -this.vel.y;
             this.pos.y = floorY;
             if (imp > 2.2) {
-              if (inMoat || inCanal) {
+              if (inWater) {
                 soundFX.playBounce(0.9);
                 spawnParticles(this.pos, '#38bdf8', 16, 1.2);
                 spawnFloatingText(this.pos, 'SPLASH! 💦', '#38bdf8');
@@ -1778,11 +1988,11 @@
     // ============================================================================
     // 7. CEREMONIAL WAR GAME (TURN-BASED TACTICAL ENGINE ON A 12x10 GRID)
     // ============================================================================
-    const GRID_W = 12;
-    const GRID_H = 10;
-    const TILE_SIZE = 2.6;
-    const GRID_ORIGIN_X = 12.0;
-    const GRID_ORIGIN_Z = -8.0;
+    const GRID_W = 16;
+    const GRID_H = 12;
+    const TILE_SIZE = 3.0;
+    const GRID_ORIGIN_X = 11.0;
+    const GRID_ORIGIN_Z = -10.5;
 
     let inBattleMode = false;
     let currentBattleStage = 0;
@@ -1831,15 +2041,15 @@
 
     function getTileTerrain(gx, gz, isSiege) {
       if (isSiege) {
-        if (gx === 7 && (gz < 4 || gz > 5)) return 'wall';
-        if (gx === 7 && (gz === 4 || gz === 5)) return 'gate';
-        if (gx >= 8) return 'courtyard';
+        if (gx === 9 && (gz < 3 || (gz > 4 && gz < 7) || gz > 8)) return 'wall';
+        if (gx === 9 && (gz === 3 || gz === 4 || gz === 7 || gz === 8)) return 'gate';
+        if (gx >= 10) return 'courtyard';
       } else {
-        if (gx === 6 && (gz < 4 || gz > 5)) return 'river';
-        if (gx === 6 && (gz === 4 || gz === 5)) return 'bridge';
+        if (gx === 7 && (gz < 2 || (gz > 3 && gz < 7) || gz > 8)) return 'river';
+        if (gx === 7 && (gz === 2 || gz === 3 || gz === 7 || gz === 8)) return 'bridge';
       }
-      if ((gx === 3 && gz === 2) || (gx === 4 && gz === 7) || (gx === 8 && gz === 2)) return 'forest';
-      if (gx >= 9 && gz <= 3) return 'hill';
+      if ((gx === 3 && gz === 2) || (gx === 4 && gz === 9) || (gx === 10 && gz === 2) || (gx === 11 && gz === 9)) return 'forest';
+      if (gx >= 12 && gz >= 2 && gz <= 8) return 'hill';
       return 'plain';
     }
 
@@ -1859,7 +2069,7 @@
           const wx = GRID_ORIGIN_X + gx * TILE_SIZE;
           const wz = GRID_ORIGIN_Z + gz * TILE_SIZE;
           const terr = getTileTerrain(gx, gz, isSiege);
-          const wy = terr === 'hill' ? 1.85 : (terr === 'wall' ? 2.4 : 0.08);
+          const wy = terr === 'wall' ? 2.4 : Math.max(0.08, getTerrainHeightAt(wx, wz) + 0.08);
 
           const mat = new THREE.MeshBasicMaterial({
             color: 0xffffff,
@@ -1900,25 +2110,25 @@
       ];
 
       const cherryRoster = [
-        { id: 'yuyuko_cmd',  name: 'Daimyo Yuyuko',    emoji: '🌸', unitType: 'commander', gx: 10, gz: 4, hp: 16, atk: 5, def: 3, move: 3, range: 2, ability: 'Blossom Ward',   armorColor: '#ec4899', hairColor: '#fbcfe8', helmetType: 'kabuto', crestColor: '#38bdf8' },
-        { id: 'youmu_cmd',   name: 'Retainer Youmu',   emoji: '⚔️', unitType: 'commander', gx: 9,  gz: 4, hp: 14, atk: 6, def: 3, move: 4, range: 1, ability: 'Twin Blade Dash',armorColor: '#047857', hairColor: '#e2e8f0', helmetType: 'kabuto', crestColor: '#34d399' },
-        { id: 'yukari_cmd',  name: 'Strategist Yukari',emoji: '👁️', unitType: 'commander', gx: 10, gz: 5, hp: 13, atk: 5, def: 3, move: 3, range: 3, ability: 'Gap Reposition', armorColor: '#7c3aed', hairColor: '#fde047', helmetType: 'kabuto', crestColor: '#facc15' },
-        { id: 'c_spear1',    name: 'Cherry Ashigaru',  emoji: '🛡️', unitType: 'ashigaru',  gx: 8,  gz: 2, hp: 10, atk: 3, def: 3, move: 3, range: 1, ability: 'Spear Brace',    armorColor: '#db2777', hairColor: '#1e293b', helmetType: 'jingasa' },
-        { id: 'c_spear2',    name: 'Cherry Ashigaru',  emoji: '🛡️', unitType: 'ashigaru',  gx: 8,  gz: 3, hp: 10, atk: 3, def: 3, move: 3, range: 1, ability: 'Spear Brace',    armorColor: '#db2777', hairColor: '#1e293b', helmetType: 'jingasa' },
-        { id: 'c_spear3',    name: 'Cherry Ashigaru',  emoji: '🛡️', unitType: 'ashigaru',  gx: 8,  gz: 5, hp: 10, atk: 3, def: 3, move: 3, range: 1, ability: 'Spear Brace',    armorColor: '#db2777', hairColor: '#1e293b', helmetType: 'jingasa' },
-        { id: 'c_spear4',    name: 'Cherry Ashigaru',  emoji: '🛡️', unitType: 'ashigaru',  gx: 8,  gz: 6, hp: 10, atk: 3, def: 3, move: 3, range: 1, ability: 'Spear Brace',    armorColor: '#db2777', hairColor: '#1e293b', helmetType: 'jingasa' },
-        { id: 'c_sam1',      name: 'Nether Samurai',   emoji: '⚔️', unitType: 'samurai',   gx: 9,  gz: 3, hp: 12, atk: 5, def: 3, move: 3, range: 1, ability: 'Iai Strike',     armorColor: '#9d174d', hairColor: '#cbd5e1', helmetType: 'kabuto' },
-        { id: 'c_sam2',      name: 'Nether Samurai',   emoji: '⚔️', unitType: 'samurai',   gx: 9,  gz: 6, hp: 12, atk: 5, def: 3, move: 3, range: 1, ability: 'Iai Strike',     armorColor: '#9d174d', hairColor: '#cbd5e1', helmetType: 'kabuto' },
-        { id: 'c_cav1',      name: 'Phantom Cavalry',  emoji: '🐎', unitType: 'cavalry',   gx: 9,  gz: 1, hp: 12, atk: 5, def: 2, move: 4, range: 1, ability: 'Flank Charge',   armorColor: '#be185d', hairColor: '#e2e8f0', helmetType: 'kabuto' },
-        { id: 'c_arch1',     name: 'Cherry Archer',    emoji: '🏹', unitType: 'archer',    gx: 10, gz: 2, hp: 9,  atk: 4, def: 2, move: 3, range: 3, ability: 'Arrow Volley',   armorColor: '#db2777', hairColor: '#451a03', helmetType: 'jingasa' },
-        { id: 'c_gun1',      name: 'Tanegashima Gunner',emoji:'💥', unitType: 'gunner',    gx: 10, gz: 6, hp: 10, atk: 5, def: 2, move: 2, range: 3, ability: 'Volley Fire',    armorColor: '#831843', hairColor: '#1e293b', helmetType: 'jingasa' },
-        { id: 'c_ninja1',    name: 'Shadow Shinobi',   emoji: '🥷', unitType: 'ninja',     gx: 8,  gz: 7, hp: 9,  atk: 4, def: 2, move: 4, range: 2, ability: 'Smoke Sabotage', armorColor: '#312e81', hairColor: '#0f172a', helmetType: 'jingasa' }
+        { id: 'yuyuko_cmd',  name: 'Daimyo Yuyuko',    emoji: '🌸', unitType: 'commander', gx: 14, gz: 5, hp: 16, atk: 5, def: 3, move: 3, range: 2, ability: 'Blossom Ward',   armorColor: '#ec4899', hairColor: '#fbcfe8', helmetType: 'kabuto', crestColor: '#38bdf8' },
+        { id: 'youmu_cmd',   name: 'Retainer Youmu',   emoji: '⚔️', unitType: 'commander', gx: 12, gz: 5, hp: 14, atk: 6, def: 3, move: 4, range: 1, ability: 'Twin Blade Dash',armorColor: '#047857', hairColor: '#e2e8f0', helmetType: 'kabuto', crestColor: '#34d399' },
+        { id: 'yukari_cmd',  name: 'Strategist Yukari',emoji: '👁️', unitType: 'commander', gx: 14, gz: 6, hp: 13, atk: 5, def: 3, move: 3, range: 3, ability: 'Gap Reposition', armorColor: '#7c3aed', hairColor: '#fde047', helmetType: 'kabuto', crestColor: '#facc15' },
+        { id: 'c_spear1',    name: 'Cherry Ashigaru',  emoji: '🛡️', unitType: 'ashigaru',  gx: 11, gz: 2, hp: 10, atk: 3, def: 3, move: 3, range: 1, ability: 'Spear Brace',    armorColor: '#db2777', hairColor: '#1e293b', helmetType: 'jingasa' },
+        { id: 'c_spear2',    name: 'Cherry Ashigaru',  emoji: '🛡️', unitType: 'ashigaru',  gx: 11, gz: 4, hp: 10, atk: 3, def: 3, move: 3, range: 1, ability: 'Spear Brace',    armorColor: '#db2777', hairColor: '#1e293b', helmetType: 'jingasa' },
+        { id: 'c_spear3',    name: 'Cherry Ashigaru',  emoji: '🛡️', unitType: 'ashigaru',  gx: 11, gz: 7, hp: 10, atk: 3, def: 3, move: 3, range: 1, ability: 'Spear Brace',    armorColor: '#db2777', hairColor: '#1e293b', helmetType: 'jingasa' },
+        { id: 'c_spear4',    name: 'Cherry Ashigaru',  emoji: '🛡️', unitType: 'ashigaru',  gx: 11, gz: 9, hp: 10, atk: 3, def: 3, move: 3, range: 1, ability: 'Spear Brace',    armorColor: '#db2777', hairColor: '#1e293b', helmetType: 'jingasa' },
+        { id: 'c_sam1',      name: 'Nether Samurai',   emoji: '⚔️', unitType: 'samurai',   gx: 12, gz: 3, hp: 12, atk: 5, def: 3, move: 3, range: 1, ability: 'Iai Strike',     armorColor: '#9d174d', hairColor: '#cbd5e1', helmetType: 'kabuto' },
+        { id: 'c_sam2',      name: 'Nether Samurai',   emoji: '⚔️', unitType: 'samurai',   gx: 12, gz: 8, hp: 12, atk: 5, def: 3, move: 3, range: 1, ability: 'Iai Strike',     armorColor: '#9d174d', hairColor: '#cbd5e1', helmetType: 'kabuto' },
+        { id: 'c_cav1',      name: 'Phantom Cavalry',  emoji: '🐎', unitType: 'cavalry',   gx: 12, gz: 1, hp: 12, atk: 5, def: 2, move: 4, range: 1, ability: 'Flank Charge',   armorColor: '#be185d', hairColor: '#e2e8f0', helmetType: 'kabuto' },
+        { id: 'c_arch1',     name: 'Cherry Archer',    emoji: '🏹', unitType: 'archer',    gx: 13, gz: 3, hp: 9,  atk: 4, def: 2, move: 3, range: 3, ability: 'Arrow Volley',   armorColor: '#db2777', hairColor: '#451a03', helmetType: 'jingasa' },
+        { id: 'c_gun1',      name: 'Tanegashima Gunner',emoji:'💥', unitType: 'gunner',    gx: 13, gz: 7, hp: 10, atk: 5, def: 2, move: 2, range: 3, ability: 'Volley Fire',    armorColor: '#831843', hairColor: '#1e293b', helmetType: 'jingasa' },
+        { id: 'c_ninja1',    name: 'Shadow Shinobi',   emoji: '🥷', unitType: 'ninja',     gx: 11, gz: 10,hp: 9,  atk: 4, def: 2, move: 4, range: 2, ability: 'Smoke Sabotage', armorColor: '#312e81', hairColor: '#0f172a', helmetType: 'jingasa' }
       ];
 
       if (isSiege) {
         cherryRoster.push({
           id: 'siege_gate', name: 'Ote-Mon Castle Gate', emoji: '🚪', unitType: 'ashigaru',
-          gx: 7, gz: 4, hp: 16, atk: 2, def: 4, move: 0, range: 1, ability: 'Fortified Timber',
+          gx: 9, gz: 4, hp: 16, atk: 2, def: 4, move: 0, range: 1, ability: 'Fortified Timber',
           armorColor: '#5c3824', hairColor: '#334155', helmetType: 'kabuto'
         });
       }
@@ -2360,8 +2570,8 @@
         spawnBattleArmies(currentBattleStage);
 
         controls.autoRotate = false;
-        controls.target.set(26, 1, 3);
-        camera.position.set(26, 32, 28);
+        controls.target.set(33, 2, 6);
+        camera.position.set(33, 38, 38);
         selectedUnit = battleUnits.find(u => u.id === 'remilia_cmd');
         updateUnitHUD(selectedUnit);
         highlightUnitRanges(selectedUnit);
