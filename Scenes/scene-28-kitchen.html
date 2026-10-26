@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../fumo-scene.css" />
+  <link rel="stylesheet" href="../Shared/fumo-scene.css" />
 
   <!-- 1. Three.js r128 + Post-Processing Addons FIRST -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -20,10 +20,10 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
 
   <!-- 2. Shared Fumo Core Library SECOND (reads THREE at load time) -->
-  <script src="../fumo-core.js"></script>
+  <script src="../Shared/fumo-core.js"></script>
 
   <style>
-    /* Complete self-contained fallback & kitchen rules so UI never breaks if ../fumo-scene.css is in a different path */
+    /* Complete self-contained fallback & kitchen rules so UI never breaks if ../Shared/fumo-scene.css is in a different path */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
     html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Quicksand', sans-serif; background-color: #161426; color: #1e293b; }
     h1, h2, h3, .font-display { font-family: 'Fredoka', 'Quicksand', sans-serif; }

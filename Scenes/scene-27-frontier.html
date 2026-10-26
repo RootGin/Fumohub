@@ -1345,88 +1345,320 @@
 
     const solidLandmarkVoxels = [];
     const glowingLandmarkVoxels = [];
+    const structureColliders = [];
+    const colliderSpatialGrid = new Map();
+    const COLLIDER_CELL_SIZE = 8;
+    let suppressColliderRegistration = false;
 
-    function addLandmarkBox(x, y, z, sx, sy, sz, col, glow = false) {
+    function registerStructureCollider(x, y, z, sx, sy, sz, surface = 'stone') {
+      if (suppressColliderRegistration) return;
+      // Skip tiny pure-detail trim pieces that shouldn't snag movement
+      if (sx < 0.32 && sz < 0.32) return;
+      if (sy < 0.2) return;
+      const halfX = sx * 0.5;
+      const halfZ = sz * 0.5;
+      const box = {
+        minX: x - halfX,
+        maxX: x + halfX,
+        minY: y,
+        maxY: y + sy,
+        minZ: z - halfZ,
+        maxZ: z + halfZ,
+        surface
+      };
+      structureColliders.push(box);
+      const gx0 = Math.floor(box.minX / COLLIDER_CELL_SIZE);
+      const gx1 = Math.floor(box.maxX / COLLIDER_CELL_SIZE);
+      const gz0 = Math.floor(box.minZ / COLLIDER_CELL_SIZE);
+      const gz1 = Math.floor(box.maxZ / COLLIDER_CELL_SIZE);
+      for (let gx = gx0; gx <= gx1; gx++) {
+        for (let gz = gz0; gz <= gz1; gz++) {
+          const key = `${gx},${gz}`;
+          let cell = colliderSpatialGrid.get(key);
+          if (!cell) {
+            cell = [];
+            colliderSpatialGrid.set(key, cell);
+          }
+          cell.push(box);
+        }
+      }
+    }
+
+    function queryNearbyColliders(x, z, radius = 1.0) {
+      const gx0 = Math.floor((x - radius) / COLLIDER_CELL_SIZE);
+      const gx1 = Math.floor((x + radius) / COLLIDER_CELL_SIZE);
+      const gz0 = Math.floor((z - radius) / COLLIDER_CELL_SIZE);
+      const gz1 = Math.floor((z + radius) / COLLIDER_CELL_SIZE);
+      const result = [];
+      for (let gx = gx0; gx <= gx1; gx++) {
+        for (let gz = gz0; gz <= gz1; gz++) {
+          const cell = colliderSpatialGrid.get(`${gx},${gz}`);
+          if (cell) {
+            for (let i = 0; i < cell.length; i++) {
+              const b = cell[i];
+              if (result.indexOf(b) === -1) result.push(b);
+            }
+          }
+        }
+      }
+      return result;
+    }
+
+    function getSurfaceHeightAt(x, z, currentY = Infinity, maxStepUp = 1.2) {
+      const terr = sampleTerrain(x, z);
+      let bestY = terr.isWater ? WATER_LEVEL - 0.35 : terr.y;
+      let bestSurface = terr.surface;
+      const boxes = queryNearbyColliders(x, z, 0.45);
+      for (let i = 0; i < boxes.length; i++) {
+        const b = boxes[i];
+        if (x >= b.minX - 0.25 && x <= b.maxX + 0.25 && z >= b.minZ - 0.25 && z <= b.maxZ + 0.25) {
+          if (b.maxY > bestY && b.maxY <= currentY + maxStepUp) {
+            bestY = b.maxY;
+            bestSurface = b.surface || 'stone';
+          }
+        }
+      }
+      return { y: bestY, surface: bestSurface, isWater: terr.isWater && bestY <= WATER_LEVEL };
+    }
+
+    function resolveEntityStructureCollision(pos, vel, prevY, radius = 0.62, height = 1.9, stepHeight = 0.78) {
+      const boxes = queryNearbyColliders(pos.x, pos.z, radius + 0.5);
+      let supportY = -Infinity;
+      let supportSurface = null;
+
+      // 1. Check step-up / standing support on top of structures
+      for (let i = 0; i < boxes.length; i++) {
+        const b = boxes[i];
+        const closestX = Math.max(b.minX, Math.min(pos.x, b.maxX));
+        const closestZ = Math.max(b.minZ, Math.min(pos.z, b.maxZ));
+        const distSq = (pos.x - closestX) ** 2 + (pos.z - closestZ) ** 2;
+        if (distSq < (radius * 0.88) ** 2) {
+          if (prevY >= b.maxY - stepHeight && pos.y <= b.maxY + 0.08 && vel.y <= 2.5) {
+            if (b.maxY > supportY) {
+              supportY = b.maxY;
+              supportSurface = b.surface || 'stone';
+            }
+          }
+        }
+      }
+
+      const effectiveY = Math.max(pos.y, supportY > -Infinity ? supportY : pos.y);
+
+      // 2. Horizontal cylinder-vs-AABB push-out for walls/pillars/buildings
+      for (let pass = 0; pass < 2; pass++) {
+        for (let i = 0; i < boxes.length; i++) {
+          const b = boxes[i];
+          // Skip boxes that the entity is stepping/standing on top of or passing underneath
+          if (b.maxY <= effectiveY + stepHeight) continue;
+          if (b.minY >= effectiveY + height) continue;
+
+          const closestX = Math.max(b.minX, Math.min(pos.x, b.maxX));
+          const closestZ = Math.max(b.minZ, Math.min(pos.z, b.maxZ));
+          const dx = pos.x - closestX;
+          const dz = pos.z - closestZ;
+          const distSq = dx * dx + dz * dz;
+
+          if (distSq < radius * radius) {
+            if (distSq > 1e-6) {
+              const dist = Math.sqrt(distSq);
+              const overlap = radius - dist;
+              const nx = dx / dist;
+              const nz = dz / dist;
+              pos.x += nx * overlap;
+              pos.z += nz * overlap;
+              const vn = vel.x * nx + vel.z * nz;
+              if (vn < 0) {
+                vel.x -= vn * nx;
+                vel.z -= vn * nz;
+              }
+            } else {
+              // Center is inside AABB: push out along shallowest axis
+              const penLeft = Math.abs(pos.x - b.minX) + radius;
+              const penRight = Math.abs(b.maxX - pos.x) + radius;
+              const penBack = Math.abs(pos.z - b.minZ) + radius;
+              const penFront = Math.abs(b.maxZ - pos.z) + radius;
+              const minPen = Math.min(penLeft, penRight, penBack, penFront);
+              if (minPen === penLeft) { pos.x = b.minX - radius; if (vel.x > 0) vel.x = 0; }
+              else if (minPen === penRight) { pos.x = b.maxX + radius; if (vel.x < 0) vel.x = 0; }
+              else if (minPen === penBack) { pos.z = b.minZ - radius; if (vel.z > 0) vel.z = 0; }
+              else { pos.z = b.maxZ + radius; if (vel.z < 0) vel.z = 0; }
+            }
+          }
+        }
+      }
+
+      // 3. Re-verify support and ceiling head-bonk after horizontal push-out
+      supportY = -Infinity;
+      supportSurface = null;
+      for (let i = 0; i < boxes.length; i++) {
+        const b = boxes[i];
+        const closestX = Math.max(b.minX, Math.min(pos.x, b.maxX));
+        const closestZ = Math.max(b.minZ, Math.min(pos.z, b.maxZ));
+        const distSq = (pos.x - closestX) ** 2 + (pos.z - closestZ) ** 2;
+        if (distSq < (radius * 0.88) ** 2) {
+          if (prevY >= b.maxY - stepHeight && pos.y <= b.maxY + 0.08 && vel.y <= 2.5) {
+            if (b.maxY > supportY) {
+              supportY = b.maxY;
+              supportSurface = b.surface || 'stone';
+            }
+          } else if (vel.y > 0 && prevY + height <= b.minY + 0.35 && pos.y + height > b.minY) {
+            pos.y = b.minY - height;
+            vel.y = 0;
+          }
+        }
+      }
+
+      return { supportY, supportSurface };
+    }
+
+    function ensureClearPosition(x, z) {
+      const pos = new THREE.Vector3(x, sampleTerrain(x, z).y, z);
+      const vel = new THREE.Vector3();
+      for (let iter = 0; iter < 4; iter++) {
+        resolveEntityStructureCollision(pos, vel, pos.y, 0.85, 2.2, 0.4);
+      }
+      const surf = getSurfaceHeightAt(pos.x, pos.z, pos.y + 3.0, 2.5);
+      pos.y = Math.max(sampleTerrain(pos.x, pos.z).y, surf.y);
+      return pos;
+    }
+
+    function addLandmarkBox(x, y, z, sx, sy, sz, col, glow = false, collide = true) {
       const target = glow ? glowingLandmarkVoxels : solidLandmarkVoxels;
       target.push({ x, y: y + sy * 0.5, z, sx, sy, sz, color: col });
+      if (collide) {
+        registerStructureCollider(x, y, z, sx, sy, sz);
+      }
     }
 
     let cableCarGroup = null;
 
-    // Architectural helpers for detailed voxel buildings with deep foundations
+    // Architectural helpers for detailed voxel buildings with deep foundations, eaves, rafters & gables
     function addTieredRoof(cx, baseY, cz, sx, sz, layers, roofCol, ridgeCol = '#cbd5e1', eaveCol = null) {
-      for (let i = 0; i < layers; i++) {
-        const w = Math.max(1.6, sx + 2.2 - i * 2.0);
-        const d = Math.max(1.6, sz + 2.2 - i * 1.8);
-        addLandmarkBox(cx, baseY + i * 0.85, cz, w, 0.9, d, (i === 0 && eaveCol) ? eaveCol : roofCol);
+      // Exposed wooden rafter tails (taruki) under the lowest eave
+      if (eaveCol) {
+        const rafterCountX = Math.max(3, Math.floor(sx / 2.2));
+        for (let r = 0; r <= rafterCountX; r++) {
+          const rx = cx - sx * 0.5 + (r / rafterCountX) * sx;
+          addLandmarkBox(rx, baseY - 0.25, cz, 0.35, 0.3, sz + 2.6, eaveCol, false, false);
+        }
       }
-      // Roof ridge beam & upturned gold finials
+      for (let i = 0; i < layers; i++) {
+        const w = Math.max(1.6, sx + 2.4 - i * 2.0);
+        const d = Math.max(1.6, sz + 2.4 - i * 1.8);
+        addLandmarkBox(cx, baseY + i * 0.85, cz, w, 0.9, d, (i === 0 && eaveCol) ? eaveCol : roofCol);
+        // Upturned corner eave tips (warphafu) on lower tiers
+        if (i < 2) {
+          for (const dx of [-1, 1]) {
+            for (const dz of [-1, 1]) {
+              addLandmarkBox(cx + dx * (w * 0.48), baseY + i * 0.85 + 0.35, cz + dz * (d * 0.48), 0.85, 0.65, 0.85, ridgeCol, false, false);
+            }
+          }
+        }
+      }
+      // Decorative gable triangle (chidorihafu) on front & back
+      const midW = Math.max(2.4, sx * 0.42);
+      addLandmarkBox(cx, baseY + 0.9, cz, midW, 1.3, sz + 1.4, ridgeCol, false, false);
+      addLandmarkBox(cx, baseY + 1.1, cz, midW * 0.68, 0.9, sz + 1.6, '#f8fafc', false, false);
+      // Roof ridge beam (oomune), end tiles (onigawara) & upturned gold finials (shachihoko)
       const topY = baseY + layers * 0.85;
       const rw = Math.max(2.0, sx - (layers - 1) * 1.6);
-      addLandmarkBox(cx, topY, cz, rw, 0.7, 1.1, ridgeCol);
-      addLandmarkBox(cx - rw * 0.48, topY + 0.5, cz, 0.7, 0.9, 0.7, '#facc15');
-      addLandmarkBox(cx + rw * 0.48, topY + 0.5, cz, 0.7, 0.9, 0.7, '#facc15');
+      addLandmarkBox(cx, topY, cz, rw + 0.6, 0.75, 1.15, ridgeCol);
+      addLandmarkBox(cx - rw * 0.52, topY + 0.5, cz, 0.8, 1.05, 0.9, '#facc15', true, false);
+      addLandmarkBox(cx + rw * 0.52, topY + 0.5, cz, 0.8, 1.05, 0.9, '#facc15', true, false);
     }
 
     function addDetailedTorii(cx, baseY, cz, scale = 1.0) {
       const w = 7.6 * scale;
       const h = 7.4 * scale;
-      // Black stone pedestals (kamebara) sunk into the ground
+      // Black stone pedestals (kamebara) sunk into the ground + vermilion pillars (hashira)
       for (const side of [-1, 1]) {
         const px = cx + side * (w * 0.42);
-        addLandmarkBox(px, baseY - 2.0, cz, 1.5 * scale, 3.2, 1.5 * scale, '#1e293b');
-        addLandmarkBox(px, baseY + 1.0, cz, 1.0 * scale, h, 1.0 * scale, '#e63946');
+        addLandmarkBox(px, baseY - 2.0, cz, 1.65 * scale, 3.2, 1.65 * scale, '#1e293b');
+        addLandmarkBox(px, baseY + 1.0, cz, 1.15 * scale, 0.6 * scale, 1.15 * scale, '#334155');
+        addLandmarkBox(px, baseY + 1.0, cz, 0.95 * scale, h, 0.95 * scale, '#e63946');
+        // Pillar wedges (kusabi)
+        addLandmarkBox(px, baseY + h - 1.35 * scale, cz, 1.35 * scale, 0.35 * scale, 1.2 * scale, '#1e293b', false, false);
       }
-      // Lower tie beam (nuki) + center tablet (gakuzuka)
-      addLandmarkBox(cx, baseY + h - 1.2 * scale, cz, w * 1.08, 0.75 * scale, 0.85 * scale, '#d90429');
-      addLandmarkBox(cx, baseY + h - 0.5 * scale, cz, 1.1 * scale, 1.3 * scale, 0.95 * scale, '#1e293b');
-      addLandmarkBox(cx, baseY + h - 0.4 * scale, cz, 0.7 * scale, 0.9 * scale, 1.05 * scale, '#facc15', true);
-      // Upper lintel (kasagi) with upturned ends + black cap
-      addLandmarkBox(cx, baseY + h + 0.6 * scale, cz, w * 1.28, 0.85 * scale, 1.2 * scale, '#d90429');
-      addLandmarkBox(cx, baseY + h + 1.35 * scale, cz, w * 1.34, 0.45 * scale, 1.35 * scale, '#1e293b');
-      addLandmarkBox(cx - w * 0.64, baseY + h + 1.5 * scale, cz, 1.2 * scale, 0.6 * scale, 1.3 * scale, '#1e293b');
-      addLandmarkBox(cx + w * 0.64, baseY + h + 1.5 * scale, cz, 1.2 * scale, 0.6 * scale, 1.3 * scale, '#1e293b');
+      // Lower tie beam (nuki) + center tablet (gakuzuka) with gold calligraphic plaque
+      addLandmarkBox(cx, baseY + h - 1.2 * scale, cz, w * 1.12, 0.75 * scale, 0.85 * scale, '#d90429');
+      addLandmarkBox(cx, baseY + h - 0.5 * scale, cz, 1.25 * scale, 1.45 * scale, 0.95 * scale, '#1e293b');
+      addLandmarkBox(cx, baseY + h - 0.35 * scale, cz, 0.85 * scale, 1.05 * scale, 1.08 * scale, '#facc15', true);
+      // Shimenawa rope & white shide paper zigzags hanging under the torii beam
+      addLandmarkBox(cx, baseY + h - 1.65 * scale, cz, w * 0.74, 0.38 * scale, 0.42 * scale, '#d4a373', false, false);
+      for (const sxOff of [-0.26, -0.09, 0.09, 0.26]) {
+        addLandmarkBox(cx + w * sxOff, baseY + h - 2.35 * scale, cz, 0.32 * scale, 0.75 * scale, 0.25 * scale, '#ffffff', false, false);
+      }
+      // Upper lintel (kasagi & shimaki) with upturned ends + black cap
+      addLandmarkBox(cx, baseY + h + 0.55 * scale, cz, w * 1.28, 0.85 * scale, 1.2 * scale, '#d90429');
+      addLandmarkBox(cx, baseY + h + 1.3 * scale, cz, w * 1.36, 0.48 * scale, 1.38 * scale, '#1e293b');
+      addLandmarkBox(cx - w * 0.65, baseY + h + 1.5 * scale, cz, 1.35 * scale, 0.68 * scale, 1.4 * scale, '#1e293b');
+      addLandmarkBox(cx + w * 0.65, baseY + h + 1.5 * scale, cz, 1.35 * scale, 0.68 * scale, 1.4 * scale, '#1e293b');
     }
 
     function addStoneLantern(x, y, z) {
-      addLandmarkBox(x, y - 1.5, z, 1.5, 2.1, 1.5, '#64748b');
-      addLandmarkBox(x, y + 0.6, z, 0.85, 2.0, 0.85, '#94a3b8');
-      addLandmarkBox(x, y + 2.5, z, 1.4, 0.45, 1.4, '#64748b');
-      addLandmarkBox(x, y + 2.95, z, 1.05, 1.0, 1.05, '#fef08a', true);
-      addLandmarkBox(x, y + 3.95, z, 1.85, 0.55, 1.85, '#475569');
-      addLandmarkBox(x, y + 4.5, z, 0.55, 0.6, 0.55, '#64748b');
+      addLandmarkBox(x, y - 1.5, z, 1.55, 2.1, 1.55, '#64748b');
+      addLandmarkBox(x, y + 0.55, z, 1.2, 0.35, 1.2, '#475569');
+      addLandmarkBox(x, y + 0.9, z, 0.8, 1.7, 0.8, '#94a3b8');
+      addLandmarkBox(x, y + 2.5, z, 1.45, 0.45, 1.45, '#64748b');
+      addLandmarkBox(x, y + 2.95, z, 1.05, 1.05, 1.05, '#fef08a', true);
+      // Corner frame bars around the lantern light box
+      for (const [lx, lz] of [[-0.48, -0.48], [0.48, -0.48], [-0.48, 0.48], [0.48, 0.48]]) {
+        addLandmarkBox(x + lx, y + 2.95, z + lz, 0.2, 1.05, 0.2, '#475569', false, false);
+      }
+      addLandmarkBox(x, y + 3.95, z, 1.95, 0.55, 1.95, '#475569');
+      addLandmarkBox(x, y + 4.5, z, 0.95, 0.35, 0.95, '#64748b');
+      addLandmarkBox(x, y + 4.85, z, 0.45, 0.5, 0.45, '#94a3b8');
     }
 
     function addFramedBuilding(cx, y, cz, sx, sy, sz, wallCol, timberCol, roofCol, stories = 1, doorSide = 'S') {
-      // Deep stone foundation plinth so no part ever floats
-      addLandmarkBox(cx, y - 3.5, cz, sx + 1.4, 4.2, sz + 1.4, '#64748b');
-      addLandmarkBox(cx, y + 0.5, cz, sx + 0.8, 0.6, sz + 0.8, '#784b2c');
+      // Deep stone foundation plinth + stepped perimeter base so no part ever floats
+      addLandmarkBox(cx, y - 3.5, cz, sx + 1.5, 4.1, sz + 1.5, '#64748b');
+      addLandmarkBox(cx, y + 0.5, cz, sx + 1.0, 0.55, sz + 1.0, '#784b2c');
       // Main plaster / brick walls
       addLandmarkBox(cx, y + 1.0, cz, sx, sy, sz, wallCol);
-      // Corner timber columns
-      for (const dx of [-1, 1]) {
-        for (const dz of [-1, 1]) {
-          addLandmarkBox(cx + dx * (sx * 0.49), y + 1.0, cz + dz * (sz * 0.49), 0.75, sy + 0.2, 0.75, timberCol);
+      // Corner & mid-wall timber columns (hashira)
+      for (const dx of [-1, 0, 1]) {
+        for (const dz of [-1, 0, 1]) {
+          if (dx === 0 && dz === 0) continue;
+          addLandmarkBox(cx + dx * (sx * 0.49), y + 1.0, cz + dz * (sz * 0.49), 0.72, sy + 0.2, 0.72, timberCol);
         }
       }
-      // Horizontal timber beams (nuki)
-      addLandmarkBox(cx, y + 1.1, cz, sx + 0.3, 0.5, sz + 0.3, timberCol);
+      // Horizontal timber beams (nuki) & decorative wainscoting
+      addLandmarkBox(cx, y + 1.0, cz, sx + 0.26, 1.35, sz + 0.26, timberCol);
+      addLandmarkBox(cx, y + 1.15, cz, sx + 0.14, 1.0, sz + 0.14, '#5c3824');
       addLandmarkBox(cx, y + sy * 0.52 + 1.0, cz, sx + 0.35, 0.55, sz + 0.35, timberCol);
-      addLandmarkBox(cx, y + sy + 0.6, cz, sx + 0.45, 0.6, sz + 0.45, timberCol);
+      addLandmarkBox(cx, y + sy + 0.6, cz, sx + 0.48, 0.6, sz + 0.48, timberCol);
 
-      // Doorway, entry steps & glowing lattice windows
+      // Doorway, entry steps, side lanterns & glowing lattice windows on front and sides
       const dzSign = (doorSide === 'N') ? -1 : 1;
-      const doorZ = cz + dzSign * (sz * 0.5 + 0.12);
-      addLandmarkBox(cx, y - 1.0, cz + dzSign * (sz * 0.5 + 1.2), 3.4, 1.6, 1.8, '#94a3b8');
-      addLandmarkBox(cx, y + 1.0, doorZ, 2.6, 3.4, 0.45, timberCol);
-      addLandmarkBox(cx, y + 1.2, cz + dzSign * (sz * 0.5 + 0.2), 1.9, 2.9, 0.35, '#fef08a', true);
-      for (const wxOff of [-sx * 0.3, sx * 0.3]) {
-        addLandmarkBox(cx + wxOff, y + 2.2, doorZ, 1.7, 1.7, 0.4, timberCol);
-        addLandmarkBox(cx + wxOff, y + 2.35, cz + dzSign * (sz * 0.5 + 0.2), 1.25, 1.35, 0.35, '#fde68a', true);
+      const doorZ = cz + dzSign * (sz * 0.5 + 0.14);
+      addLandmarkBox(cx, y - 1.0, cz + dzSign * (sz * 0.5 + 1.25), 3.6, 1.55, 1.9, '#94a3b8');
+      addLandmarkBox(cx, y + 0.55, cz + dzSign * (sz * 0.5 + 0.8), 3.2, 0.45, 1.1, '#cbd5e1');
+      addLandmarkBox(cx, y + 1.0, doorZ, 2.7, 3.5, 0.48, timberCol);
+      addLandmarkBox(cx, y + 1.15, cz + dzSign * (sz * 0.5 + 0.22), 2.0, 3.0, 0.36, '#fef08a', true);
+      // Shoji lattice mullions on the front door
+      addLandmarkBox(cx, y + 1.15, cz + dzSign * (sz * 0.5 + 0.28), 0.2, 3.0, 0.38, timberCol, false, false);
+      addLandmarkBox(cx, y + 2.55, cz + dzSign * (sz * 0.5 + 0.28), 2.0, 0.2, 0.38, timberCol, false, false);
+
+      // Hanging porch lantern beside the entrance
+      addLandmarkBox(cx + 1.85, y + 3.2, cz + dzSign * (sz * 0.5 + 0.55), 0.55, 0.85, 0.55, '#ffb703', true, false);
+
+      for (const wxOff of [-sx * 0.31, sx * 0.31]) {
+        addLandmarkBox(cx + wxOff, y + 2.15, doorZ, 1.8, 1.8, 0.42, timberCol);
+        addLandmarkBox(cx + wxOff, y + 1.95, cz + dzSign * (sz * 0.5 + 0.32), 2.0, 0.28, 0.55, timberCol, false, false);
+        addLandmarkBox(cx + wxOff, y + 2.3, cz + dzSign * (sz * 0.5 + 0.22), 1.3, 1.4, 0.36, '#fde68a', true);
         if (stories > 1) {
-          addLandmarkBox(cx + wxOff, y + sy * 0.62 + 1.2, doorZ, 1.7, 1.6, 0.4, timberCol);
-          addLandmarkBox(cx + wxOff, y + sy * 0.62 + 1.35, cz + dzSign * (sz * 0.5 + 0.2), 1.25, 1.25, 0.35, '#fde68a', true);
+          addLandmarkBox(cx + wxOff, y + sy * 0.6 + 1.15, doorZ, 1.8, 1.65, 0.42, timberCol);
+          addLandmarkBox(cx + wxOff, y + sy * 0.6 + 1.3, cz + dzSign * (sz * 0.5 + 0.22), 1.3, 1.3, 0.36, '#fde68a', true);
+          // Second-floor wooden balcony rail (kouran)
+          addLandmarkBox(cx, y + sy * 0.55 + 0.9, cz + dzSign * (sz * 0.5 + 0.45), sx * 0.86, 0.75, 0.35, timberCol, false, false);
         }
+      }
+      // Side wall windows so buildings look detailed from every angle
+      for (const sxSide of [-1, 1]) {
+        const sideX = cx + sxSide * (sx * 0.5 + 0.14);
+        addLandmarkBox(sideX, y + 2.2, cz, 0.38, 1.6, 2.2, timberCol);
+        addLandmarkBox(cx + sxSide * (sx * 0.5 + 0.2), y + 2.35, cz, 0.34, 1.25, 1.7, '#fde68a', true);
       }
       // Tiered roof
       addTieredRoof(cx, y + sy + 1.0, cz, sx, sz, 4, roofCol, '#334155', timberCol);
@@ -1434,82 +1666,117 @@
 
     function buildAllLandmarks() {
       // ======================================================================
-      // 1. HAKUREI SHRINE COMPLEX (Main Hall, Veranda, Torii Stairs, Temizuya, Ema Rack & Sakura Grove)
+      // 1. HAKUREI SHRINE COMPLEX (Haiden Hall, Veranda, Komainu Guardians, Torii Stairs, Temizuya, Ema Rack & Sakura Grove)
       // ======================================================================
       const sy = sampleTerrain(0, -10).y;
       // Deep stone foundation & wooden engawa veranda with posts and railings
-      addLandmarkBox(0, sy - 4.0, -11, 18, 4.8, 13, '#64748b');
-      addLandmarkBox(0, sy + 0.8, -11, 16.5, 0.8, 11.5, '#784b2c');
-      // Front wooden stairs & side railings leading up to the shrine veranda
+      addLandmarkBox(0, sy - 4.0, -11, 18.4, 4.8, 13.4, '#64748b');
+      addLandmarkBox(0, sy + 0.8, -11, 16.8, 0.8, 11.8, '#784b2c');
+      // Front wooden stairs & vermilion side railings leading up to the shrine veranda
       for (let st = 0; st < 3; st++) {
-        addLandmarkBox(0, sy - 0.5 + st * 0.45, -4.2 - st * 0.65, 5.2, 0.55, 0.9, '#9c6644');
+        addLandmarkBox(0, sy - 0.5 + st * 0.45, -4.2 - st * 0.65, 5.4, 0.55, 0.95, '#9c6644');
       }
-      addLandmarkBox(-2.7, sy, -4.6, 0.5, 2.2, 2.4, '#d90429');
-      addLandmarkBox(2.7, sy, -4.6, 0.5, 2.2, 2.4, '#d90429');
+      addLandmarkBox(-2.8, sy, -4.6, 0.5, 2.2, 2.4, '#d90429');
+      addLandmarkBox(2.8, sy, -4.6, 0.5, 2.2, 2.4, '#d90429');
+      addLandmarkBox(-2.8, sy + 2.2, -3.5, 0.65, 0.45, 0.65, '#facc15', true, false);
+      addLandmarkBox(2.8, sy + 2.2, -3.5, 0.65, 0.45, 0.65, '#facc15', true, false);
 
-      // Shrine Main Hall (Haiden) walls, vermilion columns, & glowing shoji doors
-      addLandmarkBox(0, sy + 1.6, -11, 13.5, 6.2, 8.8, '#f5ebe0');
-      for (const px of [-6.6, -3.4, 0, 3.4, 6.6]) {
-        addLandmarkBox(px, sy + 1.6, -6.5, 0.75, 6.4, 0.75, '#d90429');
-        addLandmarkBox(px, sy + 1.6, -15.4, 0.75, 6.4, 0.75, '#d90429');
+      // Shrine Main Hall (Haiden) walls, vermilion columns, & glowing shoji doors with lattice grid
+      addLandmarkBox(0, sy + 1.6, -11, 13.8, 6.2, 9.0, '#f5ebe0');
+      for (const px of [-6.7, -3.4, 0, 3.4, 6.7]) {
+        addLandmarkBox(px, sy + 1.6, -6.45, 0.78, 6.4, 0.78, '#d90429');
+        addLandmarkBox(px, sy + 1.6, -15.45, 0.78, 6.4, 0.78, '#d90429');
       }
       for (const pz of [-13.5, -11.0, -8.5]) {
-        addLandmarkBox(-6.6, sy + 1.6, pz, 0.75, 6.4, 0.75, '#d90429');
-        addLandmarkBox(6.6, sy + 1.6, pz, 0.75, 6.4, 0.75, '#d90429');
+        addLandmarkBox(-6.7, sy + 1.6, pz, 0.78, 6.4, 0.78, '#d90429');
+        addLandmarkBox(6.7, sy + 1.6, pz, 0.78, 6.4, 0.78, '#d90429');
       }
-      // Veranda outer red railing
-      addLandmarkBox(-7.8, sy + 1.6, -11, 0.45, 1.3, 10.6, '#d90429');
-      addLandmarkBox(7.8, sy + 1.6, -11, 0.45, 1.3, 10.6, '#d90429');
-      // Glowing Shoji screen doors
-      addLandmarkBox(0, sy + 1.8, -6.45, 5.4, 4.6, 0.35, '#fef08a', true);
-      addLandmarkBox(-4.8, sy + 2.6, -6.45, 2.0, 2.6, 0.35, '#fde68a', true);
-      addLandmarkBox(4.8, sy + 2.6, -6.45, 2.0, 2.6, 0.35, '#fde68a', true);
-
-      // Multi-tiered Irimoya Shrine Roof + Gold Chigi & Katsuogi logs
-      addTieredRoof(0, sy + 7.6, -11, 15.5, 10.5, 5, '#3b4252', '#1e293b', '#784b2c');
-      for (const kx of [-4, -1.5, 1.5, 4]) {
-        addLandmarkBox(kx, sy + 12.1, -11, 0.65, 0.65, 2.4, '#d4a373');
+      // Veranda outer red railing & corner gold giboshi caps
+      addLandmarkBox(-7.9, sy + 1.6, -11, 0.48, 1.35, 10.8, '#d90429');
+      addLandmarkBox(7.9, sy + 1.6, -11, 0.48, 1.35, 10.8, '#d90429');
+      addLandmarkBox(0, sy + 1.6, -16.2, 16.2, 1.35, 0.48, '#d90429');
+      // Glowing Shoji screen doors + dark wood lattice bars
+      addLandmarkBox(0, sy + 1.8, -6.42, 5.6, 4.7, 0.35, '#fef08a', true);
+      for (const sxBar of [-1.8, 0, 1.8]) {
+        addLandmarkBox(sxBar, sy + 1.8, -6.32, 0.22, 4.7, 0.38, '#5c3824', false, false);
       }
-      // Front gable overhang above the stairs + Shimenawa sacred rope & suzu bell
-      addLandmarkBox(0, sy + 6.8, -5.2, 7.6, 1.1, 2.8, '#3b4252');
-      addLandmarkBox(0, sy + 6.1, -5.2, 8.8, 0.75, 0.75, '#d4a373');
-      for (const sx of [-3.2, -1.2, 1.2, 3.2]) {
-        addLandmarkBox(sx, sy + 5.0, -5.1, 0.55, 1.15, 0.35, '#ffffff');
+      addLandmarkBox(-4.9, sy + 2.6, -6.42, 2.1, 2.7, 0.35, '#fde68a', true);
+      addLandmarkBox(4.9, sy + 2.6, -6.42, 2.1, 2.7, 0.35, '#fde68a', true);
+      // Framed Shrine Name Plaque (Hen'gaku) above the entrance
+      addLandmarkBox(0, sy + 6.3, -6.1, 2.6, 1.35, 0.4, '#1e293b', false, false);
+      addLandmarkBox(0, sy + 6.42, -6.0, 2.1, 1.05, 0.42, '#facc15', true, false);
+
+      // Multi-tiered Irimoya Shrine Roof + Gold Chigi Forked Finials & Katsuogi Logs
+      addTieredRoof(0, sy + 7.6, -11, 15.8, 10.8, 5, '#3b4252', '#1e293b', '#784b2c');
+      for (const kx of [-4.2, -1.6, 1.6, 4.2]) {
+        addLandmarkBox(kx, sy + 12.1, -11, 0.7, 0.7, 2.6, '#d4a373');
       }
-      addLandmarkBox(0, sy + 5.1, -5.0, 0.9, 0.9, 0.9, '#facc15', true);
-      addLandmarkBox(0, sy + 2.0, -5.0, 0.28, 3.2, 0.28, '#e63946');
-
-      // Slatted Saisenbako Donation Box
-      addLandmarkBox(0, sy - 0.5, -2.8, 3.8, 2.3, 2.4, '#9c6644');
-      addLandmarkBox(0, sy + 1.8, -2.8, 3.4, 0.25, 2.0, '#5c3824');
-      addLandmarkBox(0, sy + 0.9, -1.55, 2.8, 0.8, 0.2, '#facc15');
-
-      // Temizuya (Water Purification Pavilion) at (-11, -4) & Ema Wishing Rack at (11, -4)
-      addLandmarkBox(-11, sy - 2.0, -4, 4.6, 2.6, 3.8, '#64748b');
-      addLandmarkBox(-11, sy + 0.6, -4, 2.4, 1.4, 1.8, '#475569');
-      addLandmarkBox(-11, sy + 1.8, -4, 1.8, 0.35, 1.3, '#38bdf8', true);
-      for (const [px, pz] of [[-12.8, -5.4], [-9.2, -5.4], [-12.8, -2.6], [-9.2, -2.6]]) {
-        addLandmarkBox(px, sy + 0.6, pz, 0.45, 3.6, 0.45, '#784b2c');
+      // Crossed golden Chigi horns at roof ends
+      for (const side of [-1, 1]) {
+        addLandmarkBox(side * 5.8, sy + 12.0, -11, 0.55, 2.4, 0.55, '#facc15', true, false);
       }
-      addTieredRoof(-11, sy + 4.1, -4, 4.6, 3.6, 3, '#3b4252', '#1e293b');
+      // Front gable overhang (karahafu) above the stairs + thick tapered Shimenawa sacred rope & suzu bell
+      addLandmarkBox(0, sy + 6.8, -5.1, 8.0, 1.1, 3.0, '#3b4252');
+      addLandmarkBox(0, sy + 6.05, -5.0, 9.2, 0.85, 0.85, '#d4a373');
+      addLandmarkBox(0, sy + 6.15, -4.9, 6.2, 1.15, 1.05, '#cb997e');
+      for (const sx of [-3.4, -1.3, 1.3, 3.4]) {
+        addLandmarkBox(sx, sy + 4.95, -4.9, 0.55, 1.1, 0.32, '#ffffff', false, false);
+        addLandmarkBox(sx + 0.15, sy + 4.35, -4.9, 0.55, 0.75, 0.32, '#ffffff', false, false);
+      }
+      addLandmarkBox(0, sy + 5.05, -4.85, 1.05, 1.05, 1.05, '#facc15', true);
+      addLandmarkBox(0, sy + 2.0, -4.85, 0.32, 3.1, 0.32, '#e63946', false, false);
+      addLandmarkBox(0, sy + 2.4, -4.82, 0.36, 2.2, 0.36, '#ffffff', false, false);
 
-      // Ema Wooden Plaque Board
-      addLandmarkBox(11, sy - 1.0, -4, 0.5, 4.4, 0.5, '#784b2c');
-      addLandmarkBox(14.5, sy - 1.0, -4, 0.5, 4.4, 0.5, '#784b2c');
-      addLandmarkBox(12.75, sy + 3.2, -4, 4.6, 0.6, 1.2, '#3b4252');
-      addLandmarkBox(12.75, sy + 1.6, -4, 3.4, 1.5, 0.35, '#e9c46a');
+      // Slatted Saisenbako Donation Box with top coin bars & gold crest
+      addLandmarkBox(0, sy - 0.5, -2.5, 4.0, 2.3, 2.5, '#9c6644');
+      addLandmarkBox(0, sy + 1.8, -2.5, 3.8, 0.28, 2.3, '#5c3824');
+      for (const barZ of [-3.1, -2.5, -1.9]) {
+        addLandmarkBox(0, sy + 1.95, barZ, 3.4, 0.18, 0.22, '#d4a373', false, false);
+      }
+      addLandmarkBox(0, sy + 0.85, -1.2, 2.8, 0.85, 0.22, '#facc15', true);
+
+      // Pair of Komainu Guardian Lion-Dog Statues on stone plinths flanking the shrine approach
+      for (const side of [-1, 1]) {
+        const kx = side * 4.8, kz = -0.8;
+        addLandmarkBox(kx, sy - 1.2, kz, 1.9, 2.1, 2.2, '#64748b');
+        addLandmarkBox(kx, sy + 0.9, kz + 0.1, 1.3, 1.5, 1.5, '#94a3b8');
+        addLandmarkBox(kx, sy + 2.1, kz + 0.35, 1.25, 1.15, 1.2, '#cbd5e1');
+        addLandmarkBox(kx, sy + 1.8, kz - 0.55, 0.65, 1.1, 0.55, '#94a3b8');
+        addLandmarkBox(kx, sy + 1.6, kz + 0.75, 1.1, 0.35, 0.35, '#ef4444', false, false);
+      }
+
+      // Temizuya (Water Purification Pavilion) at (-11, -4) with bamboo water spout & ladles
+      addLandmarkBox(-11, sy - 2.0, -4, 4.8, 2.6, 4.0, '#64748b');
+      addLandmarkBox(-11, sy + 0.6, -4, 2.6, 1.45, 2.0, '#475569');
+      addLandmarkBox(-11, sy + 1.85, -4, 2.0, 0.38, 1.45, '#38bdf8', true);
+      addLandmarkBox(-11, sy + 2.05, -4.6, 0.45, 0.85, 0.9, '#52b788', false, false);
+      for (const [px, pz] of [[-12.9, -5.5], [-9.1, -5.5], [-12.9, -2.5], [-9.1, -2.5]]) {
+        addLandmarkBox(px, sy + 0.6, pz, 0.5, 3.6, 0.5, '#784b2c');
+      }
+      addTieredRoof(-11, sy + 4.1, -4, 4.8, 3.8, 3, '#3b4252', '#1e293b');
+
+      // Ema Wishing Plaque Board & Omikuji Fortune Rack at (11..14.5, -4)
+      addLandmarkBox(11, sy - 1.0, -4, 0.55, 4.5, 0.55, '#784b2c');
+      addLandmarkBox(14.6, sy - 1.0, -4, 0.55, 4.5, 0.55, '#784b2c');
+      addLandmarkBox(12.8, sy + 3.3, -4, 4.8, 0.65, 1.35, '#3b4252');
+      addLandmarkBox(12.8, sy + 1.3, -4, 3.5, 1.9, 0.32, '#5c3824');
+      for (const ex of [11.6, 12.4, 13.2, 14.0]) {
+        for (const eyOff of [1.55, 2.35]) {
+          addLandmarkBox(ex, sy + eyOff, -3.78, 0.58, 0.55, 0.18, '#fde68a', true, false);
+        }
+      }
 
       // Courtyard Stone Lanterns & Filled Stone Staircase with Balustrades + 4 Vermilion Torii Gates
-      for (const lx of [-5.2, 5.2]) {
+      for (const lx of [-5.4, 5.4]) {
         addStoneLantern(lx, sy, -2.5);
         addStoneLantern(lx, sy, 6.5);
       }
       // Stepped stone treads and side balustrades along the Shrine Staircase (z = 14..38)
       for (let szStep = 14; szStep <= 38; szStep += 2) {
         const stepY = sampleTerrain(0, szStep).y;
-        addLandmarkBox(0, stepY - 2.5, szStep, 6.4, 2.7, 2.1, '#cbd5e1');
-        addLandmarkBox(-3.6, stepY - 2.0, szStep, 0.9, 3.4, 2.1, '#94a3b8');
-        addLandmarkBox(3.6, stepY - 2.0, szStep, 0.9, 3.4, 2.1, '#94a3b8');
+        addLandmarkBox(0, stepY - 2.5, szStep, 6.4, 2.6, 2.1, '#cbd5e1', false, false);
+        addLandmarkBox(-3.8, stepY - 2.0, szStep, 0.9, 3.4, 2.1, '#94a3b8');
+        addLandmarkBox(3.8, stepY - 2.0, szStep, 0.9, 3.4, 2.1, '#94a3b8');
       }
       for (const tz of [11, 20, 29, 38]) {
         addDetailedTorii(0, sampleTerrain(0, tz).y, tz, 1.0);
@@ -1517,13 +1784,14 @@
       // Weeping Cherry Blossom Grove around Hakurei Shrine
       for (const [cx, cz] of [[-14, -12], [14, -12], [-15, 2], [15, 2], [-11, 11], [11, 11]]) {
         const cy = sampleTerrain(cx, cz).y;
-        addLandmarkBox(cx, cy - 1.5, cz, 1.5, 6.2, 1.5, '#5c3824');
-        addLandmarkBox(cx, cy + 4.4, cz, 6.5, 3.2, 6.5, '#ffb3c6');
-        addLandmarkBox(cx, cy + 6.8, cz, 4.5, 2.2, 4.5, '#ff85a1', true);
+        addLandmarkBox(cx, cy - 1.5, cz, 1.6, 6.2, 1.6, '#5c3824');
+        addLandmarkBox(cx, cy + 4.4, cz, 6.8, 3.2, 6.8, '#ffb3c6');
+        addLandmarkBox(cx, cy + 6.8, cz, 4.8, 2.4, 4.8, '#ff85a1', true);
+        addLandmarkBox(cx - 2.2, cy + 3.4, cz + 1.8, 2.8, 2.0, 2.8, '#fbcfe8', true, false);
       }
 
       // ======================================================================
-      // 2. HUMAN VILLAGE (4 Two-Story Machiya Shops, Dragon Statue Square, Covered Well, Market Stalls & Overhead Lanterns)
+      // 2. HUMAN VILLAGE (Machiya Shops, Watchtower, Dragon Statue Square, Covered Well & Market Stalls)
       // ======================================================================
       const shops = [
         { x: -80, z: 41, roof: '#b5483a', wall: '#f5ebe0', timber: '#5c3824', sign: '#ffd166', type: 'bakery', door: 'S' },
@@ -1533,91 +1801,127 @@
       ];
       shops.forEach(s => {
         const by = sampleTerrain(s.x, s.z).y;
-        addFramedBuilding(s.x, by, s.z, 10.5, 7.6, 8.8, s.wall, s.timber, s.roof, 2, s.door);
-        const frontZ = s.z + (s.door === 'N' ? -4.8 : 4.8);
-        // Glowing shop sign & first-floor awning
-        addLandmarkBox(s.x, by + 4.8, frontZ, 8.5, 0.55, 2.0, s.roof);
-        addLandmarkBox(s.x, by + 5.5, frontZ, 3.8, 1.4, 0.45, s.sign, true);
+        addFramedBuilding(s.x, by, s.z, 10.6, 7.8, 8.8, s.wall, s.timber, s.roof, 2, s.door);
+        const dzSign = (s.door === 'N' ? -1 : 1);
+        const frontZ = s.z + dzSign * 4.8;
+        // Glowing shop sign & first-floor tiled awning
+        addLandmarkBox(s.x, by + 4.8, frontZ, 9.2, 0.6, 2.2, s.roof);
+        addLandmarkBox(s.x, by + 5.5, frontZ + dzSign * 0.2, 4.2, 1.5, 0.5, '#1e293b');
+        addLandmarkBox(s.x, by + 5.62, frontZ + dzSign * 0.3, 3.7, 1.2, 0.52, s.sign, true);
 
         if (s.type === 'bakery') {
-          // Brick oven chimney & outdoor pastry counter
-          addLandmarkBox(s.x - 5.6, by - 1.0, s.z, 1.8, 10.5, 1.8, '#9e2a2b');
-          addLandmarkBox(s.x + 3.2, by, frontZ + 1.2, 2.8, 1.4, 1.4, '#9c6644');
-          addLandmarkBox(s.x + 3.2, by + 1.4, frontZ + 1.2, 1.2, 0.8, 1.2, '#fb7185', true);
+          // Tall brick oven chimney, bread display rack & glowing giant Chochin lantern (Geidontei / Bakery)
+          addLandmarkBox(s.x - 5.8, by - 1.0, s.z, 2.0, 11.2, 2.0, '#9e2a2b');
+          addLandmarkBox(s.x - 5.8, by + 10.2, s.z, 2.4, 0.65, 2.4, '#334155');
+          addLandmarkBox(s.x + 3.4, by, frontZ + dzSign * 1.3, 3.0, 1.4, 1.5, '#9c6644');
+          addLandmarkBox(s.x + 3.4, by + 1.4, frontZ + dzSign * 1.3, 1.3, 0.9, 1.3, '#fb7185', true);
+          addLandmarkBox(s.x - 3.4, by + 1.2, frontZ + dzSign * 1.1, 1.8, 2.4, 1.8, '#ef4444', true);
         } else if (s.type === 'bookstore') {
-          // Suzunaan blue noren curtains & outdoor book stall
-          for (const nx of [-1.2, 0, 1.2]) {
-            addLandmarkBox(s.x + nx, by + 3.4, frontZ + 0.4, 0.95, 1.3, 0.2, '#0284c7');
+          // Suzunaan blue noren curtains, outdoor scroll rack & stacked book crates
+          for (const nx of [-1.3, 0, 1.3]) {
+            addLandmarkBox(s.x + nx, by + 3.4, frontZ + dzSign * 0.4, 1.0, 1.35, 0.22, '#0284c7', false, false);
           }
-          addLandmarkBox(s.x - 3.4, by, frontZ + 1.2, 2.6, 1.5, 1.4, '#784b2c');
-          addLandmarkBox(s.x - 3.4, by + 1.5, frontZ + 1.2, 2.0, 0.6, 1.0, '#a855f7');
+          addLandmarkBox(s.x - 3.5, by, frontZ + dzSign * 1.3, 2.8, 1.5, 1.5, '#784b2c');
+          addLandmarkBox(s.x - 3.5, by + 1.5, frontZ + dzSign * 1.3, 2.1, 0.7, 1.1, '#a855f7', true);
+          addLandmarkBox(s.x + 3.5, by, frontZ + dzSign * 1.2, 1.8, 2.6, 1.2, '#5c3824');
         } else if (s.type === 'teahouse') {
-          // Outdoor red dango benches & crimson parasol
+          // Outdoor red dango benches, crimson parasol & giant 3-color dango skewer sign
           for (const bxOff of [-3.5, 3.5]) {
-            addLandmarkBox(s.x + bxOff, by, frontZ - 1.8, 3.0, 0.9, 1.5, '#b91c1c');
+            addLandmarkBox(s.x + bxOff, by, frontZ + dzSign * 1.8, 3.2, 0.95, 1.6, '#b91c1c');
           }
-          addLandmarkBox(s.x + 5.8, by, s.z - 2, 0.45, 4.2, 0.45, '#78350f');
-          addLandmarkBox(s.x + 5.8, by + 4.0, s.z - 2, 4.2, 0.8, 4.2, '#ef4444');
+          addLandmarkBox(s.x + 6.0, by, s.z - 2, 0.5, 4.4, 0.5, '#78350f');
+          addLandmarkBox(s.x + 6.0, by + 4.1, s.z - 2, 4.6, 0.85, 4.6, '#ef4444');
+          // Three-color dango sign (pink, white, green)
+          addLandmarkBox(s.x - 6.0, by, frontZ, 0.35, 4.5, 0.35, '#784b2c');
+          addLandmarkBox(s.x - 6.0, by + 2.2, frontZ, 1.1, 0.9, 1.1, '#74c69d', true);
+          addLandmarkBox(s.x - 6.0, by + 3.1, frontZ, 1.1, 0.9, 1.1, '#f8fafc', true);
+          addLandmarkBox(s.x - 6.0, by + 4.0, frontZ, 1.1, 0.9, 1.1, '#ff85a1', true);
         } else if (s.type === 'blacksmith') {
-          // Stone forge, glowing coal bed, & iron anvil
-          addLandmarkBox(s.x + 6.5, by - 1.0, s.z, 3.2, 3.4, 3.2, '#334155');
-          addLandmarkBox(s.x + 6.5, by + 2.2, s.z, 2.0, 0.9, 2.0, '#f97316', true);
-          addLandmarkBox(s.x + 6.5, by + 2.4, s.z, 1.4, 5.2, 1.4, '#1e293b');
-          addLandmarkBox(s.x + 4.2, by, frontZ - 1.4, 1.5, 1.2, 0.9, '#475569');
+          // Hooded stone forge, glowing coal bed, iron anvil & quenching barrel
+          addLandmarkBox(s.x + 6.6, by - 1.0, s.z, 3.4, 3.4, 3.4, '#334155');
+          addLandmarkBox(s.x + 6.6, by + 2.2, s.z, 2.2, 0.95, 2.2, '#f97316', true);
+          addLandmarkBox(s.x + 6.6, by + 2.4, s.z, 1.6, 5.6, 1.6, '#1e293b');
+          addLandmarkBox(s.x + 4.2, by, frontZ + dzSign * 1.4, 1.6, 1.25, 0.95, '#475569');
+          addLandmarkBox(s.x + 2.4, by, frontZ + dzSign * 1.4, 1.2, 1.5, 1.2, '#784b2c');
         }
       });
 
-      // Central Village Dragon Statue Fountain & Covered Well at (-65, 55)
+      // Central Village Dragon Statue Fountain (Coiled Azure/Stone Dragon with Gold Horns & Eyes) at (-65, 55)
       const wy = sampleTerrain(-65, 55).y;
-      addLandmarkBox(-65, wy - 2.0, 55, 6.4, 2.8, 6.4, '#64748b');
-      addLandmarkBox(-65, wy + 0.7, 55, 4.8, 0.6, 4.8, '#38bdf8', true);
-      addLandmarkBox(-65, wy + 0.8, 55, 2.2, 3.6, 2.2, '#94a3b8');
-      addLandmarkBox(-65, wy + 4.2, 55, 1.6, 2.2, 2.8, '#475569');
-      addLandmarkBox(-65, wy + 5.4, 56.2, 0.8, 0.8, 0.8, '#facc15', true);
-      // Covered Village Well at (-59, 55)
+      addLandmarkBox(-65, wy - 2.0, 55, 6.8, 2.8, 6.8, '#64748b');
+      addLandmarkBox(-65, wy + 0.7, 55, 5.2, 0.65, 5.2, '#38bdf8', true);
+      addLandmarkBox(-65, wy + 0.8, 55, 2.4, 3.6, 2.4, '#94a3b8');
+      // Sculpted Dragon coils, snout, golden horns & glowing pearl
+      addLandmarkBox(-65, wy + 4.2, 54.6, 1.8, 2.4, 2.2, '#475569');
+      addLandmarkBox(-65, wy + 5.2, 55.8, 1.5, 1.2, 2.2, '#334155');
+      addLandmarkBox(-65.5, wy + 6.3, 55.0, 0.35, 1.1, 0.35, '#facc15', true, false);
+      addLandmarkBox(-64.5, wy + 6.3, 55.0, 0.35, 1.1, 0.35, '#facc15', true, false);
+      addLandmarkBox(-65, wy + 4.8, 56.8, 0.85, 0.85, 0.85, '#facc15', true);
+      // Covered Village Well at (-59, 55) + Wooden Fire Watchtower (Hinomi-yagura) at (-72, 55)
       addLandmarkBox(-59, wy - 1.0, 55, 2.8, 2.4, 2.8, '#94a3b8');
-      addLandmarkBox(-60.1, wy + 1.2, 55, 0.4, 3.2, 0.4, '#784b2c');
-      addLandmarkBox(-57.9, wy + 1.2, 55, 0.4, 3.2, 0.4, '#784b2c');
-      addTieredRoof(-59, wy + 4.2, 55, 3.2, 3.2, 2, '#784b2c');
+      addLandmarkBox(-60.1, wy + 1.2, 55, 0.45, 3.2, 0.45, '#784b2c');
+      addLandmarkBox(-57.9, wy + 1.2, 55, 0.45, 3.2, 0.45, '#784b2c');
+      addTieredRoof(-59, wy + 4.2, 55, 3.4, 3.4, 2, '#784b2c');
+
+      // Village Wooden Fire Watchtower (Hinomi-yagura) at (-73, 55)
+      for (const [tx, tz] of [[-74.3, 53.7], [-71.7, 53.7], [-74.3, 56.3], [-71.7, 56.3]]) {
+        addLandmarkBox(tx, wy - 1.0, tz, 0.55, 10.5, 0.55, '#5c3824');
+      }
+      addLandmarkBox(-73, wy + 6.8, 55, 3.6, 0.8, 3.6, '#784b2c');
+      addLandmarkBox(-73, wy + 8.2, 55, 0.9, 1.1, 0.9, '#facc15', true);
+      addTieredRoof(-73, wy + 9.4, 55, 3.8, 3.8, 2, '#334155', '#1e293b');
 
       // 4 Stocked Market Stalls & Festival Street Lantern Posts
       for (const [mx, mz, col] of [[-72, 50, '#f43f5e'], [-58, 50, '#3b82f6'], [-72, 60, '#10b981'], [-58, 60, '#f59e0b']]) {
         const mby = sampleTerrain(mx, mz).y;
         addLandmarkBox(mx, mby - 1.0, mz, 3.8, 2.4, 2.4, '#9c6644');
-        addLandmarkBox(mx - 1.6, mby + 1.2, mz, 0.35, 2.4, 2.0, '#784b2c');
-        addLandmarkBox(mx + 1.6, mby + 1.2, mz, 0.35, 2.4, 2.0, '#784b2c');
+        addLandmarkBox(mx - 1.6, mby + 1.2, mz, 0.38, 2.4, 2.0, '#784b2c');
+        addLandmarkBox(mx + 1.6, mby + 1.2, mz, 0.38, 2.4, 2.0, '#784b2c');
         addLandmarkBox(mx, mby + 3.4, mz, 4.4, 0.7, 3.0, col);
         addLandmarkBox(mx, mby + 1.5, mz, 2.4, 0.6, 1.2, '#fef08a', true);
       }
       for (const [lx, lz] of [[-75, 47], [-55, 47], [-75, 63], [-55, 63], [-65, 43], [-65, 67], [-84, 55], [-46, 55]]) {
         const ly = sampleTerrain(lx, lz).y;
-        addLandmarkBox(lx, ly - 1.0, lz, 0.6, 4.8, 0.6, '#5c3824');
-        addLandmarkBox(lx, ly + 3.8, lz, 1.6, 0.4, 1.6, '#3b4252');
-        addLandmarkBox(lx, ly + 2.8, lz, 1.05, 1.2, 1.05, '#ffb703', true);
+        addLandmarkBox(lx, ly - 1.0, lz, 0.65, 4.8, 0.65, '#5c3824');
+        addLandmarkBox(lx, ly + 3.8, lz, 1.65, 0.45, 1.65, '#3b4252');
+        addLandmarkBox(lx, ly + 2.8, lz, 1.1, 1.25, 1.1, '#ffb703', true);
       }
 
       // ======================================================================
-      // 3. FOREST OF MAGIC (Marisa's Witch Cottage, Alchemy Table, Alice's Doll House & Giant Mushrooms)
+      // 3. FOREST OF MAGIC (Marisa's Kirisame Magic Shop, Bubbling Cauldron, Alice's Doll House & Giant Mushrooms)
       // ======================================================================
       const my = sampleTerrain(-152, 14).y;
-      addFramedBuilding(-152, my, 14, 9.0, 5.6, 8.5, '#8d5b3c', '#3d2817', '#2b2d42', 1, 'S');
-      // Marisa's crooked witch-hat roof spire, brick chimney & glowing potion table
-      addLandmarkBox(-152, my + 9.8, 14, 4.2, 2.6, 4.2, '#2b2d42');
-      addLandmarkBox(-152, my + 12.2, 13.2, 2.2, 2.6, 2.2, '#1e1b4b');
-      addLandmarkBox(-148.2, my + 1.0, 11.5, 1.8, 10.2, 1.8, '#9e2a2b');
-      addLandmarkBox(-146.5, my - 0.5, 18.5, 3.2, 1.8, 2.0, '#784b2c');
-      addLandmarkBox(-147.2, my + 1.3, 18.5, 0.8, 1.1, 0.8, '#a855f7', true);
-      addLandmarkBox(-145.8, my + 1.3, 18.5, 0.8, 1.1, 0.8, '#38bdf8', true);
-      // Alice's Two-Story European Doll House & Puppet Stage
+      addFramedBuilding(-152, my, 14, 9.2, 5.8, 8.6, '#8d5b3c', '#3d2817', '#2b2d42', 1, 'S');
+      // Marisa's crooked witch-hat roof spire, gold star emblem, brick chimney, broom rack & bubbling cauldron
+      addLandmarkBox(-152, my + 9.8, 14, 4.6, 2.6, 4.6, '#2b2d42');
+      addLandmarkBox(-152, my + 12.2, 13.4, 2.6, 2.6, 2.6, '#1e1b4b');
+      addLandmarkBox(-152, my + 14.5, 12.8, 1.4, 2.2, 1.4, '#1e1b4b');
+      addLandmarkBox(-152, my + 10.4, 16.4, 1.6, 1.6, 0.45, '#facc15', true);
+      addLandmarkBox(-148.0, my + 1.0, 11.5, 1.9, 10.6, 1.9, '#9e2a2b');
+      // Alchemy table, bubbling cauldron & broomstick stand
+      addLandmarkBox(-146.5, my - 0.5, 18.5, 3.4, 1.8, 2.1, '#784b2c');
+      addLandmarkBox(-147.2, my + 1.3, 18.5, 0.85, 1.1, 0.85, '#a855f7', true);
+      addLandmarkBox(-145.8, my + 1.3, 18.5, 0.85, 1.1, 0.85, '#38bdf8', true);
+      addLandmarkBox(-156.5, my - 0.4, 18.2, 2.1, 1.6, 2.1, '#1e293b');
+      addLandmarkBox(-156.5, my + 1.2, 18.2, 1.5, 0.45, 1.5, '#4ade80', true);
+
+      // Alice's Two-Story European Doll House, Rose Window & Puppet Theater Stage
       const ay = sampleTerrain(-136, 28).y;
-      addFramedBuilding(-136, ay, 28, 9.2, 7.2, 8.6, '#fde2e4', '#ffffff', '#2563eb', 2, 'S');
-      addLandmarkBox(-136, ay - 0.5, 34.5, 4.6, 1.4, 3.2, '#9c6644');
-      addLandmarkBox(-136, ay + 0.9, 33.2, 4.4, 3.2, 0.4, '#e11d48');
-      // 20 Giant Bioluminescent Mushrooms
+      addFramedBuilding(-136, ay, 28, 9.4, 7.4, 8.6, '#fde2e4', '#ffffff', '#2563eb', 2, 'S');
+      addLandmarkBox(-136, ay + 6.4, 32.5, 2.2, 2.2, 0.45, '#60a5fa', true);
+      addLandmarkBox(-136, ay - 0.5, 34.8, 4.8, 1.4, 3.2, '#9c6644');
+      addLandmarkBox(-138.1, ay + 0.9, 33.4, 0.7, 3.4, 0.5, '#e11d48');
+      addLandmarkBox(-133.9, ay + 0.9, 33.4, 0.7, 3.4, 0.5, '#e11d48');
+      addLandmarkBox(-136, ay + 3.8, 33.4, 5.0, 0.8, 0.6, '#be123c');
+      // Mini Shanghai & Hourai Dolls on the stage
+      addLandmarkBox(-136.8, ay + 0.9, 34.8, 0.75, 1.25, 0.75, '#facc15', true);
+      addLandmarkBox(-135.2, ay + 0.9, 34.8, 0.75, 1.25, 0.75, '#ec4899', true);
+
+      // 20 Giant Bioluminescent Mushrooms with gills and glowing cap spots
       for (let m = 0; m < 20; m++) {
         const mx = -145 + Math.cos(m * 1.85) * (13 + (m % 4) * 8);
         const mz = 20 + Math.sin(m * 1.85) * (13 + (m % 3) * 9);
-        if (Math.hypot(mx - (-152), mz - 14) < 8 || Math.hypot(mx - (-136), mz - 28) < 8) continue;
+        if (Math.hypot(mx - (-152), mz - 14) < 8.5 || Math.hypot(mx - (-136), mz - 28) < 8.5) continue;
         const mhy = sampleTerrain(mx, mz).y;
         const h = 4.5 + (m % 3) * 2.0;
         addLandmarkBox(mx, mhy - 1.5, mz, 1.6, h + 1.5, 1.6, '#f5ebe0');
@@ -1630,19 +1934,26 @@
       // 4. BAMBOO FOREST OF THE LOST & EIENTEI PALACE COMPLEX
       // ======================================================================
       const ey = sampleTerrain(-135, 142).y;
-      // Central Eientei Hall + Left & Right Wing Pavilions + Crimson Veranda
-      addFramedBuilding(-135, ey, 142, 16.5, 6.4, 10.2, '#f8fafc', '#334155', '#1e293b', 1, 'N');
-      addFramedBuilding(-147, ey, 140, 7.5, 5.0, 7.5, '#f8fafc', '#334155', '#1e293b', 1, 'N');
-      addFramedBuilding(-123, ey, 140, 7.5, 5.0, 7.5, '#f8fafc', '#334155', '#1e293b', 1, 'N');
+      // Central Eientei Shnden-zukuri Hall + Left & Right Wing Pavilions + Covered Corridors (Watari-rouka)
+      addFramedBuilding(-135, ey, 142, 16.8, 6.6, 10.4, '#f8fafc', '#334155', '#1e293b', 1, 'N');
+      addFramedBuilding(-148, ey, 140, 7.6, 5.2, 7.6, '#f8fafc', '#334155', '#1e293b', 1, 'N');
+      addFramedBuilding(-122, ey, 140, 7.6, 5.2, 7.6, '#f8fafc', '#334155', '#1e293b', 1, 'N');
+      // Covered wooden breezeway corridors linking wings to main hall
+      for (const corrX of [-142.5, -127.5]) {
+        addLandmarkBox(corrX, ey - 1.5, 141, 4.2, 2.4, 3.2, '#784b2c');
+        addLandmarkBox(corrX, ey + 0.9, 139.5, 4.2, 1.1, 0.4, '#d90429');
+        addLandmarkBox(corrX, ey + 4.2, 141, 4.6, 0.8, 3.8, '#1e293b');
+      }
       // Golden Lunar Crest on Eientei Roof & Karamon Forecourt Gate
-      addLandmarkBox(-135, ey + 11.6, 142, 2.2, 2.2, 0.6, '#facc15', true);
+      addLandmarkBox(-135, ey + 11.6, 142, 2.4, 2.4, 0.65, '#facc15', true);
       addDetailedTorii(-135, sampleTerrain(-135, 130).y, 130, 0.95);
-      // Moon-Rabbit Mochi Mortar (Usu) & Stacked Mochi Trays
+      // Moon-Rabbit Mochi Mortar (Usu), Wooden Mallet (Kine) & Stacked Mochi Trays
       const rby = sampleTerrain(-128, 134).y;
       addLandmarkBox(-128, rby - 0.5, 134, 2.4, 2.2, 2.4, '#b45309');
-      addLandmarkBox(-128, rby + 1.7, 134, 1.8, 0.8, 1.8, '#ffffff', true);
+      addLandmarkBox(-128, rby + 1.7, 134, 1.8, 0.85, 1.8, '#ffffff', true);
+      addLandmarkBox(-127.2, rby + 2.3, 134, 1.6, 0.45, 0.45, '#784b2c');
       addLandmarkBox(-125, rby - 0.5, 134, 2.6, 1.4, 1.8, '#784b2c');
-      addLandmarkBox(-125, rby + 0.9, 134, 1.6, 0.7, 1.2, '#fbcfe8', true);
+      addLandmarkBox(-125, rby + 0.9, 134, 1.6, 0.75, 1.2, '#fbcfe8', true);
       // Segmented Bamboo Forest Stalks
       for (let b = 0; b < 80; b++) {
         const bx = -130 + ((voxelHash(b, 1, 2) - 0.5) * 72);
@@ -1650,107 +1961,133 @@
         if (Math.hypot(bx - (-135), bz - 140) < 16 || isOnPathOrBridge(bx, bz)) continue;
         const bhy = sampleTerrain(bx, bz).y;
         const bh = 10 + (b % 5) * 1.5;
-        addLandmarkBox(bx, bhy - 1.5, bz, 0.8, bh + 1.5, 0.8, '#52b788');
-        addLandmarkBox(bx, bhy + bh * 0.5, bz, 1.0, 0.35, 1.0, '#2d6a4f');
+        addLandmarkBox(bx, bhy - 1.5, bz, 0.85, bh + 1.5, 0.85, '#52b788');
+        addLandmarkBox(bx, bhy + bh * 0.35, bz, 1.05, 0.35, 1.05, '#2d6a4f', false, false);
+        addLandmarkBox(bx, bhy + bh * 0.7, bz, 1.05, 0.35, 1.05, '#2d6a4f', false, false);
         addLandmarkBox(bx, bhy + bh - 0.5, bz, 2.6, 1.4, 2.6, '#74c69d');
       }
 
       // ======================================================================
-      // 5. MISTY LAKE BOARDWALK PIER, ISLAND SHRINE & SCARLET DEVIL MANSION (SDM)
+      // 5. MISTY LAKE BOARDWALK PIER, CIRNO'S ICE THRONE & SCARLET DEVIL MANSION (SDM)
       // ======================================================================
-      // Timber-pile boardwalk pier with pilings reaching down into the lakebed, railings, & moored boat
+      // Timber-pile boardwalk pier with pilings reaching down into the lakebed, bollards & moored boat
       addLandmarkBox(52, 2.4, -52, 24, 0.7, 4.4, '#8c583a');
       for (let px = 41; px <= 63; px += 4) {
-        addLandmarkBox(px, -2.0, -54.0, 0.7, 6.2, 0.7, '#5c3824');
-        addLandmarkBox(px, -2.0, -50.0, 0.7, 6.2, 0.7, '#5c3824');
+        addLandmarkBox(px, -2.0, -54.0, 0.75, 6.2, 0.75, '#5c3824');
+        addLandmarkBox(px, -2.0, -50.0, 0.75, 6.2, 0.75, '#5c3824');
       }
       addLandmarkBox(52, 3.5, -54.0, 23, 0.35, 0.35, '#784b2c');
       addLandmarkBox(52, 3.5, -50.0, 23, 0.35, 0.35, '#784b2c');
       addLandmarkBox(63.5, 4.2, -54.0, 0.9, 1.0, 0.9, '#fef08a', true);
       addLandmarkBox(63.5, 4.2, -50.0, 0.9, 1.0, 0.9, '#fef08a', true);
-      // Moored wooden fishing boat next to pier
-      addLandmarkBox(62, WATER_LEVEL - 0.2, -47.5, 4.8, 0.9, 2.2, '#6c462c');
-      addLandmarkBox(63.8, WATER_LEVEL + 0.7, -47.5, 0.6, 0.8, 0.6, '#fef08a', true);
-      // Lake Island Ice Crystals & Frost Pavilion at (75, -55)
+      // Moored wooden fishing boat with seats & lantern next to pier
+      addLandmarkBox(62, WATER_LEVEL - 0.2, -47.5, 5.0, 0.95, 2.3, '#6c462c');
+      addLandmarkBox(62, WATER_LEVEL + 0.55, -47.5, 3.6, 0.35, 1.8, '#9c6644');
+      addLandmarkBox(63.9, WATER_LEVEL + 0.7, -47.5, 0.65, 0.85, 0.65, '#fef08a', true);
+      // Lake Island Cirno's Ice Crystal Arch & Frost Pavilion at (75, -55)
       const liy = sampleTerrain(75, -55).y;
-      addLandmarkBox(75, liy - 1.5, -55, 6.5, 2.2, 6.5, '#bae6fd');
-      addLandmarkBox(75, liy + 0.7, -55, 2.4, 5.5, 2.4, '#7dd3fc', true);
-      addLandmarkBox(73, liy + 0.5, -53, 1.4, 3.6, 1.4, '#38bdf8', true);
-      addLandmarkBox(77, liy + 0.5, -57, 1.4, 3.6, 1.4, '#38bdf8', true);
+      addLandmarkBox(75, liy - 1.5, -55, 7.2, 2.2, 7.2, '#bae6fd');
+      addLandmarkBox(75, liy + 0.7, -55, 2.6, 6.4, 2.6, '#7dd3fc', true);
+      addLandmarkBox(72.6, liy + 0.5, -53, 1.6, 4.2, 1.6, '#38bdf8', true);
+      addLandmarkBox(77.4, liy + 0.5, -57, 1.6, 4.2, 1.6, '#38bdf8', true);
+      addLandmarkBox(72.6, liy + 0.5, -57, 1.4, 3.5, 1.4, '#e0f2fe', true);
+      addLandmarkBox(77.4, liy + 0.5, -53, 1.4, 3.5, 1.4, '#e0f2fe', true);
       for (const [ix, iz, ir] of [[68, -62, 5.8], [84, -48, 6.2], [72, -42, 4.8]]) {
         addLandmarkBox(ix, WATER_LEVEL - 0.8, iz, ir, 1.3, ir, '#bae6fd');
       }
 
-      // Scarlet Devil Mansion (Main Gothic Hall, West/East Wings, Stained Glass, Clock Tower & Courtyard Fountain)
+      // Scarlet Devil Mansion (Main Gothic Hall, West/East Wings, Crenelated Parapets, Stained Glass, Clock Tower & Courtyard)
       const sdmY = sampleTerrain(145, -95).y;
-      addLandmarkBox(145, sdmY - 4.0, -95, 32, 4.8, 20, '#475569');
-      addLandmarkBox(145, sdmY + 0.8, -95, 24, 11, 16, '#9e2a2b');
-      // West & East Manor Wings
-      addLandmarkBox(129, sdmY + 0.8, -94, 9, 9.5, 14, '#8c1d40');
-      addLandmarkBox(161, sdmY + 0.8, -94, 9, 9.5, 14, '#8c1d40');
-      addTieredRoof(145, sdmY + 11.6, -95, 25, 17, 4, '#2b2d42', '#e11d48', '#475569');
-      addTieredRoof(129, sdmY + 10.1, -94, 10, 15, 3, '#2b2d42', '#e11d48');
-      addTieredRoof(161, sdmY + 10.1, -94, 10, 15, 3, '#2b2d42', '#e11d48');
-      // White stone pilasters & glowing stained-glass rose/arched windows
+      addLandmarkBox(145, sdmY - 4.0, -95, 34, 4.8, 21, '#475569');
+      addLandmarkBox(145, sdmY + 0.8, -95, 24.4, 11.4, 16.4, '#9e2a2b');
+      // West & East Manor Wings + Corner Gothic Turrets
+      addLandmarkBox(129, sdmY + 0.8, -94, 9.4, 9.8, 14.4, '#8c1d40');
+      addLandmarkBox(161, sdmY + 0.8, -94, 9.4, 9.8, 14.4, '#8c1d40');
+      for (const tx of [124.2, 165.8]) {
+        addLandmarkBox(tx, sdmY + 0.8, -86.8, 3.4, 12.2, 3.4, '#7f1d1d');
+        addTieredRoof(tx, sdmY + 13.0, -86.8, 3.8, 3.8, 3, '#1e1b4b', '#e11d48');
+      }
+      addTieredRoof(145, sdmY + 12.0, -95, 25.4, 17.4, 4, '#2b2d42', '#e11d48', '#475569');
+      addTieredRoof(129, sdmY + 10.4, -94, 10.4, 15.4, 3, '#2b2d42', '#e11d48');
+      addTieredRoof(161, sdmY + 10.4, -94, 10.4, 15.4, 3, '#2b2d42', '#e11d48');
+      // White stone pilasters, Gothic flying buttresses & glowing arched stained-glass windows
       for (const px of [134, 140, 150, 156]) {
-        addLandmarkBox(px, sdmY + 0.8, -86.8, 0.9, 11.0, 0.9, '#e2e8f0');
+        addLandmarkBox(px, sdmY + 0.8, -86.6, 0.95, 11.4, 0.95, '#e2e8f0');
       }
       for (const wx of [129, 137, 153, 161]) {
-        addLandmarkBox(wx, sdmY + 3.2, -86.8, 2.2, 4.8, 0.45, '#fb7185', true);
+        addLandmarkBox(wx, sdmY + 3.0, -86.6, 2.4, 5.2, 0.48, '#fb7185', true);
+        addLandmarkBox(wx, sdmY + 8.2, -86.5, 1.8, 0.8, 0.52, '#fef08a', true);
       }
-      // Grand SDM Entrance Portico & Red Carpet Stairs
-      addLandmarkBox(145, sdmY - 0.5, -84.5, 6.8, 1.6, 4.8, '#cbd5e1');
-      addLandmarkBox(145, sdmY + 1.1, -84.2, 4.2, 0.25, 4.5, '#e11d48');
-      addLandmarkBox(142.2, sdmY + 1.0, -83.0, 0.9, 6.2, 0.9, '#e2e8f0');
-      addLandmarkBox(147.8, sdmY + 1.0, -83.0, 0.9, 6.2, 0.9, '#e2e8f0');
-      addTieredRoof(145, sdmY + 7.2, -84.5, 7.2, 5.2, 3, '#2b2d42', '#e11d48');
-      // Towering Central Clock Tower with 4-sided Clock Face, Hands & Crimson Spire
-      addLandmarkBox(145, sdmY + 14, -95, 7.2, 16, 7.2, '#7f1d1d');
-      for (const [cxOff, czOff] of [[-3.5, -3.5], [3.5, -3.5], [-3.5, 3.5], [3.5, 3.5]]) {
-        addLandmarkBox(145 + cxOff, sdmY + 14, -95 + czOff, 0.9, 16.5, 0.9, '#e2e8f0');
+      // Grand SDM Entrance Portico, Double Columns & Red Carpet Stairs
+      addLandmarkBox(145, sdmY - 0.5, -84.2, 7.4, 1.6, 5.2, '#cbd5e1');
+      addLandmarkBox(145, sdmY + 1.1, -84.0, 4.4, 0.28, 4.8, '#e11d48');
+      addLandmarkBox(145, sdmY + 1.2, -86.5, 3.4, 5.2, 0.55, '#450a0a');
+      addLandmarkBox(142.0, sdmY + 1.0, -82.6, 0.95, 6.4, 0.95, '#e2e8f0');
+      addLandmarkBox(148.0, sdmY + 1.0, -82.6, 0.95, 6.4, 0.95, '#e2e8f0');
+      addTieredRoof(145, sdmY + 7.4, -84.2, 7.8, 5.6, 3, '#2b2d42', '#e11d48');
+      // Towering Central Clock Tower with 4-sided Clock Faces, Hands, Belfry & Crimson Spire
+      addLandmarkBox(145, sdmY + 14, -95, 7.6, 16.5, 7.6, '#7f1d1d');
+      for (const [cxOff, czOff] of [[-3.6, -3.6], [3.6, -3.6], [-3.6, 3.6], [3.6, 3.6]]) {
+        addLandmarkBox(145 + cxOff, sdmY + 14, -95 + czOff, 0.95, 17.0, 0.95, '#e2e8f0');
       }
-      addLandmarkBox(145, sdmY + 23, -91.2, 4.0, 4.0, 0.5, '#fef08a', true);
-      addLandmarkBox(145, sdmY + 23, -98.8, 4.0, 4.0, 0.5, '#fef08a', true);
-      addLandmarkBox(145, sdmY + 23.6, -90.9, 0.35, 1.8, 0.3, '#1e293b');
-      addLandmarkBox(145.6, sdmY + 23.0, -90.9, 1.4, 0.35, 0.3, '#1e293b');
-      addTieredRoof(145, sdmY + 30, -95, 8.2, 8.2, 6, '#1e1b4b', '#e11d48');
-      // SDM Courtyard Topiary Hedge Maze, Crimson Fountain & Wrought-Iron Gate
-      addLandmarkBox(145, sdmY - 1.0, -76, 4.8, 1.8, 4.8, '#cbd5e1');
-      addLandmarkBox(145, sdmY + 0.8, -76, 3.4, 0.6, 3.4, '#e11d48', true);
-      addLandmarkBox(145, sdmY + 0.8, -76, 1.2, 2.8, 1.2, '#e2e8f0');
+      addLandmarkBox(145, sdmY + 23, -90.9, 4.2, 4.2, 0.55, '#fef08a', true);
+      addLandmarkBox(145, sdmY + 23, -99.1, 4.2, 4.2, 0.55, '#fef08a', true);
+      addLandmarkBox(140.9, sdmY + 23, -95, 0.55, 4.2, 4.2, '#fef08a', true);
+      addLandmarkBox(149.1, sdmY + 23, -95, 0.55, 4.2, 4.2, '#fef08a', true);
+      addLandmarkBox(145, sdmY + 23.6, -90.6, 0.38, 1.9, 0.3, '#1e293b', false, false);
+      addLandmarkBox(145.6, sdmY + 23.0, -90.6, 1.5, 0.38, 0.3, '#1e293b', false, false);
+      addTieredRoof(145, sdmY + 30.5, -95, 8.6, 8.6, 6, '#1e1b4b', '#e11d48');
+      addLandmarkBox(145, sdmY + 35.8, -95, 0.7, 3.5, 0.7, '#facc15', true, false);
+      // SDM Courtyard Topiary Hedge Maze, Crimson Fountain & Wrought-Iron Gate Pillars
+      addLandmarkBox(145, sdmY - 1.0, -76, 5.2, 1.8, 5.2, '#cbd5e1');
+      addLandmarkBox(145, sdmY + 0.8, -76, 3.8, 0.65, 3.8, '#e11d48', true);
+      addLandmarkBox(145, sdmY + 0.8, -76, 1.3, 3.2, 1.3, '#e2e8f0');
+      addLandmarkBox(145, sdmY + 3.8, -76, 2.2, 0.5, 2.2, '#cbd5e1');
       for (const hx of [134, 156]) {
-        addLandmarkBox(hx, sdmY - 1.0, -78, 7.5, 3.2, 2.4, '#15803d');
-        addLandmarkBox(hx, sdmY - 1.0, -72, 7.5, 3.2, 2.4, '#15803d');
+        addLandmarkBox(hx, sdmY - 1.0, -78, 7.6, 3.2, 2.4, '#15803d');
+        addLandmarkBox(hx, sdmY - 1.0, -72, 7.6, 3.2, 2.4, '#15803d');
+      }
+      // Wrought-iron gate stone pillars at courtyard entrance
+      for (const gx of [141, 149]) {
+        addLandmarkBox(gx, sdmY - 1.0, -70, 1.8, 5.2, 1.8, '#475569');
+        addLandmarkBox(gx, sdmY + 4.2, -70, 1.1, 1.1, 1.1, '#ef4444', true);
       }
 
       // ======================================================================
       // 6. YOUKAI MOUNTAIN (Kappa Workshop, Waterwheel, Waterfall, Cable Car & Moriya Shrine)
       // ======================================================================
       const ky = sampleTerrain(65, -135).y;
-      addFramedBuilding(65, ky, -135, 10.2, 5.6, 8.6, '#bae6fd', '#0369a1', '#0284c7', 1, 'S');
-      // Kappa Waterwheel, Copper Pipes & Stepped Foaming Waterfall
-      addLandmarkBox(71.5, ky + 1.0, -135, 0.9, 5.2, 5.2, '#78350f');
-      addLandmarkBox(71.5, ky + 3.2, -135, 1.4, 1.2, 1.2, '#475569');
-      addLandmarkBox(76, 2, -131, 6.5, 26, 3.2, '#64748b');
-      addLandmarkBox(76, 3, -129.6, 4.8, 24.5, 1.4, '#7dd3fc', true);
-      addLandmarkBox(76, WATER_LEVEL, -127.5, 7.2, 1.4, 3.5, '#e0f2fe', true);
+      addFramedBuilding(65, ky, -135, 10.4, 5.8, 8.8, '#bae6fd', '#0369a1', '#0284c7', 1, 'S');
+      // Kappa Waterwheel with paddles, Brass Steam Smokestack, Gear Sign & Stepped Foaming Waterfall
+      addLandmarkBox(71.6, ky + 1.0, -135, 0.95, 5.4, 5.4, '#78350f');
+      addLandmarkBox(71.6, ky + 1.6, -135, 1.3, 4.2, 1.1, '#9c6644');
+      addLandmarkBox(71.6, ky + 3.2, -135, 1.3, 1.1, 4.2, '#9c6644');
+      addLandmarkBox(71.6, ky + 3.2, -135, 1.6, 1.3, 1.3, '#475569');
+      addLandmarkBox(61.0, ky + 1.0, -138, 1.6, 9.5, 1.6, '#b45309');
+      addLandmarkBox(65, ky + 6.8, -130.2, 2.4, 2.4, 0.55, '#10b981', true);
+      addLandmarkBox(76, 2, -131, 6.8, 26, 3.4, '#64748b');
+      addLandmarkBox(76, 3, -129.5, 5.0, 24.5, 1.5, '#7dd3fc', true);
+      addLandmarkBox(76, WATER_LEVEL, -127.5, 7.6, 1.5, 3.8, '#e0f2fe', true);
 
-      // Moriya Shrine at Mountain Summit + 4 Sacred Onbashira Pillars
+      // Moriya Shrine at Mountain Summit + 4 Sacred Onbashira Pillars & Suwako Frog Statue
       const msy = sampleTerrain(80, -175).y;
-      addFramedBuilding(80, msy, -175, 14.5, 6.5, 9.8, '#fefae0', '#9e2a2b', '#2a9d8f', 1, 'S');
-      addLandmarkBox(80, msy + 6.2, -169.6, 9.0, 0.75, 0.75, '#d4a373');
+      addFramedBuilding(80, msy, -175, 14.8, 6.8, 10.0, '#fefae0', '#9e2a2b', '#2a9d8f', 1, 'S');
+      addLandmarkBox(80, msy + 6.2, -169.5, 9.4, 0.85, 0.85, '#d4a373');
+      addLandmarkBox(74, msy - 1.0, -168.5, 2.2, 2.2, 2.2, '#64748b');
+      addLandmarkBox(74, msy + 1.2, -168.5, 1.6, 1.4, 1.8, '#65a30d');
       for (const [ox, oz] of [[69, -166], [91, -166], [69, -184], [91, -184]]) {
-        addLandmarkBox(ox, msy - 3.0, oz, 2.0, 19.0, 2.0, '#7f4f24');
-        addLandmarkBox(ox, msy + 12.0, oz, 2.3, 0.9, 2.3, '#e63946');
-        addLandmarkBox(ox, msy + 14.0, oz, 2.3, 0.9, 2.3, '#ffffff');
+        addLandmarkBox(ox, msy - 3.0, oz, 2.2, 19.5, 2.2, '#7f4f24');
+        addLandmarkBox(ox, msy + 12.0, oz, 2.5, 0.95, 2.5, '#e63946');
+        addLandmarkBox(ox, msy + 14.0, oz, 2.5, 0.95, 2.5, '#ffffff');
+        addLandmarkBox(ox, msy + 16.0, oz, 2.5, 0.65, 2.5, '#facc15', true);
       }
       // Cable Car Support Pylons & Stations
       for (const t of [0.0, 0.5, 1.0]) {
         const px = 68 + t * 10;
         const pz = -136 + t * (-28);
         const py = sampleTerrain(px, pz).y;
-        addLandmarkBox(px, py - 2.0, pz, 1.2, 11.0, 1.2, '#475569');
-        addLandmarkBox(px, py + 8.5, pz, 3.4, 0.8, 1.1, '#10b981');
+        addLandmarkBox(px, py - 2.0, pz, 1.3, 11.2, 1.3, '#475569');
+        addLandmarkBox(px, py + 8.5, pz, 3.6, 0.85, 1.2, '#10b981');
       }
       cableCarGroup = new THREE.Group();
       const ccVox = [
@@ -1777,32 +2114,34 @@
       // ======================================================================
       // 7. SANZU RIVER ARCH BRIDGE, KOMACHI'S FERRY, JIZO STATUES & SPIDER LILIES
       // ======================================================================
-      // Wooden Bridge Pilings & Crimson Bridge Railings where road crosses Sanzu River (x = 132, z = 61)
-      for (const bzOff of [-2.4, 2.4]) {
-        addLandmarkBox(132, 3.0, 61 + bzOff, 14.0, 1.1, 0.45, '#d90429');
-        for (const bxP of [126, 132, 138]) {
-          addLandmarkBox(bxP, -1.0, 61 + bzOff, 0.8, 5.8, 0.8, '#5c3824');
+      // Wooden Bridge Pilings, Vermilion Railings & Golden Giboshi Posts where road crosses Sanzu River (x = 132, z = 61)
+      for (const bzOff of [-2.5, 2.5]) {
+        addLandmarkBox(132, 3.0, 61 + bzOff, 14.4, 1.15, 0.48, '#d90429');
+        for (const bxP of [125.5, 132, 138.5]) {
+          addLandmarkBox(bxP, -1.0, 61 + bzOff, 0.85, 5.4, 0.85, '#5c3824');
+          addLandmarkBox(bxP, 4.4, 61 + bzOff, 0.65, 0.55, 0.65, '#facc15', true, false);
         }
       }
       // Komachi's Ferry Boat & Pier
-      addLandmarkBox(132, WATER_LEVEL, 75, 4.8, 1.0, 9.2, '#5c3824');
-      addLandmarkBox(132, WATER_LEVEL + 0.8, 75, 3.6, 0.6, 7.6, '#7f4f24');
-      addLandmarkBox(132, WATER_LEVEL + 1.4, 78.8, 0.7, 2.0, 0.7, '#fef08a', true);
-      // Row of Stone Jizo Statues with Red Bibs along Higan Bank
+      addLandmarkBox(132, WATER_LEVEL, 75, 5.0, 1.05, 9.4, '#5c3824');
+      addLandmarkBox(132, WATER_LEVEL + 0.8, 75, 3.8, 0.65, 7.8, '#7f4f24');
+      addLandmarkBox(132, WATER_LEVEL + 1.4, 78.8, 0.75, 2.2, 0.75, '#fef08a', true);
+      // Row of Stone Jizo Statues with Red Bibs & Stone Halos along Higan Bank
       for (let j = 0; j < 6; j++) {
         const jz = 64 + j * 4.5;
         const jy = sampleTerrain(140, jz).y;
-        addLandmarkBox(140, jy - 0.5, jz, 1.2, 2.2, 1.2, '#94a3b8');
-        addLandmarkBox(140, jy + 1.4, jz, 1.1, 0.45, 1.1, '#ef4444');
-        addLandmarkBox(140, jy + 1.8, jz, 0.9, 0.9, 0.9, '#cbd5e1');
+        addLandmarkBox(140, jy - 0.5, jz, 1.3, 2.2, 1.3, '#94a3b8');
+        addLandmarkBox(140, jy + 1.4, jz, 1.15, 0.48, 1.15, '#ef4444');
+        addLandmarkBox(140, jy + 1.85, jz, 0.95, 0.95, 0.95, '#cbd5e1');
+        addLandmarkBox(140, jy + 2.6, jz, 1.2, 0.25, 0.4, '#e2e8f0', false, false);
       }
       for (let l = 0; l < 32; l++) {
         const lx = 144 + ((voxelHash(l, 4, 9) - 0.5) * 32);
         const lz = 75 + ((voxelHash(l, 7, 2) - 0.5) * 36);
         const ly = sampleTerrain(lx, lz).y;
         if (ly >= WATER_LEVEL) {
-          addLandmarkBox(lx, ly, lz, 0.35, 1.0, 0.35, '#15803d');
-          addLandmarkBox(lx, ly + 0.9, lz, 1.2, 0.6, 1.2, '#ef233c', true);
+          addLandmarkBox(lx, ly, lz, 0.35, 1.0, 0.35, '#15803d', false, false);
+          addLandmarkBox(lx, ly + 0.9, lz, 1.2, 0.6, 1.2, '#ef233c', true, false);
         }
       }
 
@@ -1812,106 +2151,124 @@
       // Support Pillars & Stone Lanterns along the Grand Sky Staircase (x = 162, z = 118..152)
       for (let sz = 120; sz <= 150; sz += 6) {
         const stY = sampleTerrain(162, sz).y;
-        addLandmarkBox(162, 2, sz, 7.2, stY - 2, 2.2, '#cbd5e1');
+        addLandmarkBox(162, 2, sz, 7.2, stY - 2, 2.2, '#cbd5e1', false, false);
         addStoneLantern(157.8, stY, sz);
         addStoneLantern(166.2, stY, sz);
       }
       const ny = sampleTerrain(175, 168).y;
       // Netherworld Entrance Gatehouse (Rōmon) at top of stairs (162, 152)
       addDetailedTorii(162, sampleTerrain(162, 152).y, 152, 1.15);
-      // Hakugyokurou Manor & Courtyard Walls
-      addFramedBuilding(175, ny, 174, 18.0, 6.8, 10.5, '#f8fafc', '#475569', '#ec4899', 1, 'N');
-      addLandmarkBox(161, ny - 1.0, 168, 1.2, 4.2, 20, '#e2e8f0');
-      addLandmarkBox(189, ny - 1.0, 168, 1.2, 4.2, 20, '#e2e8f0');
-      // Colossal Saigyou Ayakashi Cherry Tree with roots, branches & multi-layered glowing crown
-      addLandmarkBox(175, ny - 1.5, 156, 5.5, 3.0, 5.5, '#4a2c18');
+      // Hakugyokurou Manor & Tile-Capped Courtyard Walls
+      addFramedBuilding(175, ny, 174, 18.4, 7.0, 10.8, '#f8fafc', '#475569', '#ec4899', 1, 'N');
+      addLandmarkBox(161, ny - 1.0, 168, 1.3, 4.2, 20, '#e2e8f0');
+      addLandmarkBox(161, ny + 3.2, 168, 1.8, 0.55, 20.4, '#334155');
+      addLandmarkBox(189, ny - 1.0, 168, 1.3, 4.2, 20, '#e2e8f0');
+      addLandmarkBox(189, ny + 3.2, 168, 1.8, 0.55, 20.4, '#334155');
+      // Colossal Saigyou Ayakashi Cherry Tree with gnarled roots, branches, paper seals & glowing crown
+      addLandmarkBox(175, ny - 1.5, 156, 5.8, 3.0, 5.8, '#4a2c18');
       addLandmarkBox(175, ny + 1.0, 156, 3.8, 12.5, 3.8, '#5c3824');
-      addLandmarkBox(175, ny + 11.5, 156, 16.5, 5.5, 16.5, '#ffb3c6');
-      addLandmarkBox(175, ny + 15.5, 156, 12.5, 5.0, 12.5, '#ff85a1', true);
-      addLandmarkBox(170, ny + 10.0, 152, 8.5, 4.0, 8.5, '#fbcfe8', true);
-      addLandmarkBox(180, ny + 10.0, 160, 8.5, 4.0, 8.5, '#fbcfe8', true);
+      addLandmarkBox(175, ny + 4.5, 156, 4.2, 0.7, 4.2, '#d4a373');
+      addLandmarkBox(175, ny + 11.5, 156, 16.8, 5.5, 16.8, '#ffb3c6');
+      addLandmarkBox(175, ny + 15.5, 156, 12.8, 5.0, 12.8, '#ff85a1', true);
+      addLandmarkBox(170, ny + 10.0, 152, 8.8, 4.0, 8.8, '#fbcfe8', true);
+      addLandmarkBox(180, ny + 10.0, 160, 8.8, 4.0, 8.8, '#fbcfe8', true);
 
       // ======================================================================
       // 9. OLD HELL & CHIREIDEN (Palace of the Earth Spirits, Former Capital Town & Okuu's Furnace)
       // ======================================================================
       const hy = sampleTerrain(-165, -155).y;
-      addFramedBuilding(-165, hy, -156, 16.5, 8.2, 12.5, '#312e81', '#1e1b4b', '#be123c', 2, 'S');
-      // Satori's Third Eye Rose Window
-      addLandmarkBox(-165, hy + 5.5, -149.4, 4.2, 4.2, 0.5, '#f472b6', true);
-      addLandmarkBox(-165, hy + 6.4, -149.1, 2.0, 2.0, 0.6, '#ef4444', true);
-      // Okuu's Blazing Subterranean Nuclear Furnace Tower
-      addLandmarkBox(-148, hy - 2.0, -164, 8.5, 4.5, 8.5, '#334155');
-      addLandmarkBox(-148, hy + 2.5, -164, 6.8, 11.0, 6.8, '#f97316', true);
-      addLandmarkBox(-148, hy + 6.5, -164, 7.6, 1.2, 7.6, '#facc15');
-      addLandmarkBox(-148, hy + 11.5, -164, 7.6, 1.2, 7.6, '#1e293b');
+      addFramedBuilding(-165, hy, -156, 16.8, 8.4, 12.8, '#312e81', '#1e1b4b', '#be123c', 2, 'S');
+      // Satori's Iconic Giant Third Eye Rose Window & Radiating Vein Conduit Pipes
+      addLandmarkBox(-165, hy + 5.5, -149.2, 4.6, 4.6, 0.55, '#f472b6', true);
+      addLandmarkBox(-165, hy + 6.4, -148.9, 2.2, 2.2, 0.65, '#ef4444', true);
+      addLandmarkBox(-169.5, hy + 5.2, -149.3, 4.8, 0.55, 0.55, '#e11d48', true, false);
+      addLandmarkBox(-160.5, hy + 5.2, -149.3, 4.8, 0.55, 0.55, '#e11d48', true, false);
+      // Okuu's Blazing Subterranean Nuclear Furnace Tower with Hazard Rings & Control Conduits
+      addLandmarkBox(-148, hy - 2.0, -164, 9.0, 4.5, 9.0, '#334155');
+      addLandmarkBox(-148, hy + 2.5, -164, 7.0, 11.5, 7.0, '#f97316', true);
+      addLandmarkBox(-148, hy + 5.0, -164, 7.8, 1.1, 7.8, '#1e293b');
+      addLandmarkBox(-148, hy + 8.0, -164, 7.8, 1.1, 7.8, '#facc15');
+      addLandmarkBox(-148, hy + 11.5, -164, 8.2, 1.4, 8.2, '#1e293b');
+      addLandmarkBox(-148, hy + 12.9, -164, 5.6, 2.2, 5.6, '#fef08a', true);
       // Former Capital (Kyūto) Two-Story Houses & Spirit Lanterns
       for (const [ux, uz] of [[-180, -142], [-148, -142], [-180, -168], [-152, -134]]) {
         const uy = sampleTerrain(ux, uz).y;
-        addFramedBuilding(ux, uy, uz, 7.2, 5.5, 6.8, '#4c1d95', '#1e1b4b', '#9f1239', 1, 'S');
-        addLandmarkBox(ux, uy + 3.2, uz + 4.0, 1.1, 1.3, 1.1, '#38bdf8', true);
+        addFramedBuilding(ux, uy, uz, 7.4, 5.6, 6.8, '#4c1d95', '#1e1b4b', '#9f1239', 1, 'S');
+        addLandmarkBox(ux, uy + 3.2, uz + 4.1, 1.15, 1.35, 1.15, '#38bdf8', true);
       }
 
       // ======================================================================
-      // 10. GARDEN OF THE SUN (White Gazebo Pavilion, Fences & 36 Detailed Sunflowers)
+      // 10. GARDEN OF THE SUN (White Gazebo Pavilion, Trellis Arches & 36 Detailed Sunflowers)
       // ======================================================================
       const gsy = sampleTerrain(-25, 165).y;
-      addLandmarkBox(-25, gsy - 2.0, 165, 8.2, 2.8, 8.2, '#f8fafc');
-      for (const [gx, gz] of [[-28, 162], [-22, 162], [-28, 168], [-22, 168]]) {
-        addLandmarkBox(gx, gsy + 0.8, gz, 0.65, 5.2, 0.65, '#ffffff');
+      addLandmarkBox(-25, gsy - 2.0, 165, 8.6, 2.8, 8.6, '#f8fafc');
+      for (const [gx, gz] of [[-28.2, 161.8], [-21.8, 161.8], [-28.2, 168.2], [-21.8, 168.2]]) {
+        addLandmarkBox(gx, gsy + 0.8, gz, 0.75, 5.4, 0.75, '#ffffff');
       }
-      addTieredRoof(-25, gsy + 5.8, 165, 8.4, 8.4, 4, '#fde047', '#f59e0b', '#ffffff');
+      // Low white gazebo balustrades with open entryways on N/S
+      addLandmarkBox(-28.4, gsy + 0.8, 165, 0.45, 1.3, 6.2, '#e2e8f0');
+      addLandmarkBox(-21.6, gsy + 0.8, 165, 0.45, 1.3, 6.2, '#e2e8f0');
+      addTieredRoof(-25, gsy + 6.0, 165, 8.8, 8.8, 4, '#fde047', '#f59e0b', '#ffffff');
       for (let s = 0; s < 36; s++) {
         const sx = -25 + ((voxelHash(s, 8, 1) - 0.5) * 52);
         const sz = 165 + ((voxelHash(s, 2, 9) - 0.5) * 52);
-        if (Math.hypot(sx - (-25), sz - 165) < 6.5 || isOnPathOrBridge(sx, sz)) continue;
+        if (Math.hypot(sx - (-25), sz - 165) < 7.0 || isOnPathOrBridge(sx, sz)) continue;
         const shy = sampleTerrain(sx, sz).y;
         addLandmarkBox(sx, shy - 0.5, sz, 0.65, 5.0, 0.65, '#2b9348');
-        addLandmarkBox(sx, shy + 2.2, sz, 1.8, 0.35, 0.8, '#40916c');
+        addLandmarkBox(sx, shy + 2.2, sz, 1.8, 0.35, 0.8, '#40916c', false, false);
         addLandmarkBox(sx, shy + 4.4, sz, 3.0, 0.85, 3.0, '#facc15');
         addLandmarkBox(sx, shy + 5.1, sz, 1.4, 0.55, 1.4, '#78350f');
       }
 
       // ======================================================================
-      // 11. LAKESIDE GOLDEN BEACH (Cabana Boardwalk, Lifeguard Tower, Umbrellas & Sandcastle)
+      // 11. LAKESIDE GOLDEN BEACH (Lifeguard Watchtower, Surf Shack, Umbrellas & Multi-Turret Sandcastle)
       // ======================================================================
       const bcy = sampleTerrain(55, 15).y;
-      addLandmarkBox(46, bcy - 1.5, 18, 4.2, 5.8, 4.2, '#f8fafc');
-      addTieredRoof(46, bcy + 4.2, 18, 4.8, 4.8, 2, '#ef4444', '#ffffff');
-      // Multi-turret Sandcastle
-      addLandmarkBox(55, bcy - 0.5, 22, 5.2, 2.2, 5.2, '#e9c46a');
+      addLandmarkBox(46, bcy - 1.5, 18, 4.4, 5.8, 4.4, '#f8fafc');
+      addLandmarkBox(46, bcy + 2.2, 20.3, 4.8, 1.1, 0.4, '#ef4444');
+      addTieredRoof(46, bcy + 4.2, 18, 5.0, 5.0, 2, '#ef4444', '#ffffff');
+      // Multi-turret Sandcastle with flags
+      addLandmarkBox(55, bcy - 0.5, 22, 5.4, 2.2, 5.4, '#e9c46a');
       for (const [scx, scz] of [[53, 20], [57, 20], [53, 24], [57, 24], [55, 22]]) {
-        addLandmarkBox(scx, bcy + 1.5, scz, 1.4, scx === 55 ? 3.2 : 2.0, 1.4, '#d4a373');
+        const th = (scx === 55 ? 3.4 : 2.1);
+        addLandmarkBox(scx, bcy + 1.5, scz, 1.5, th, 1.5, '#d4a373');
+        addLandmarkBox(scx, bcy + 1.5 + th, scz, 0.6, 0.8, 0.6, '#ef4444', true, false);
       }
       for (const [bx, bz, col] of [[48, 10, '#ef4444'], [58, 18, '#3b82f6'], [62, 8, '#f59e0b'], [52, 6, '#ec4899']]) {
         const by = sampleTerrain(bx, bz).y;
-        addLandmarkBox(bx, by - 0.5, bz, 0.45, 4.6, 0.45, '#f8fafc');
-        addLandmarkBox(bx, by + 4.0, bz, 4.5, 0.85, 4.5, col);
+        addLandmarkBox(bx, by - 0.5, bz, 0.5, 4.6, 0.5, '#f8fafc');
+        addLandmarkBox(bx, by + 4.0, bz, 4.6, 0.85, 4.6, col);
         addLandmarkBox(bx + 1.6, by, bz, 2.0, 0.45, 3.2, col);
       }
 
       // ======================================================================
-      // 12. ANCIENT DESERT RUINS (5-Tier Stepped Pyramid, Temple Portal, Colonnade & Gold Obelisk)
+      // 12. ANCIENT DESERT RUINS (5-Tier Stepped Pyramid, Sphinx Guardians, Temple Portal, Colonnade & Gold Obelisk)
       // ======================================================================
       const dy = sampleTerrain(-180, -65).y;
-      addLandmarkBox(-180, dy - 3.0, -65, 20, 3.8, 20, '#b08968');
-      addLandmarkBox(-180, dy + 0.8, -65, 16, 3.5, 16, '#d4a373');
-      addLandmarkBox(-180, dy + 4.3, -65, 12, 3.5, 12, '#ddb892');
-      addLandmarkBox(-180, dy + 7.8, -65, 8, 3.5, 8, '#e9c46a');
-      addLandmarkBox(-180, dy + 11.3, -65, 4, 3.0, 4, '#f4a261');
-      addLandmarkBox(-180, dy + 14.3, -65, 1.8, 1.8, 1.8, '#facc15', true);
-      // Pyramid Front Staircase & Glowing Portal
+      addLandmarkBox(-180, dy - 3.0, -65, 20.4, 3.8, 20.4, '#b08968');
+      addLandmarkBox(-180, dy + 0.8, -65, 16.4, 3.5, 16.4, '#d4a373');
+      addLandmarkBox(-180, dy + 4.3, -65, 12.4, 3.5, 12.4, '#ddb892');
+      addLandmarkBox(-180, dy + 7.8, -65, 8.4, 3.5, 8.4, '#e9c46a');
+      addLandmarkBox(-180, dy + 11.3, -65, 4.4, 3.0, 4.4, '#f4a261');
+      addLandmarkBox(-180, dy + 14.3, -65, 2.0, 2.0, 2.0, '#facc15', true);
+      // Pyramid Front Staircase, Glowing Portal & Guardian Statues
       for (let st = 0; st < 4; st++) {
-        addLandmarkBox(-180, dy + st * 2.2, -56.5 - st * 1.4, 4.2, 2.4, 2.0, '#cb997e');
+        addLandmarkBox(-180, dy + st * 2.2, -56.5 - st * 1.4, 4.4, 2.4, 2.0, '#cb997e');
       }
-      addLandmarkBox(-180, dy + 1.0, -56.8, 2.4, 3.2, 0.5, '#38bdf8', true);
+      addLandmarkBox(-180, dy + 1.0, -56.6, 2.6, 3.4, 0.55, '#38bdf8', true);
+      for (const side of [-1, 1]) {
+        addLandmarkBox(-180 + side * 4.4, dy - 1.0, -54.2, 2.0, 3.6, 3.2, '#b08968');
+        addLandmarkBox(-180 + side * 4.4, dy + 2.6, -53.4, 1.6, 1.8, 1.8, '#e9c46a');
+        addLandmarkBox(-180 + side * 4.4, dy + 3.2, -52.5, 0.9, 0.5, 0.5, '#facc15', true);
+      }
       // Carved Gold-Tipped Obelisk & Sandstone Colonnade Pillars
-      addLandmarkBox(-168, dy - 2.0, -52, 3.6, 3.0, 3.6, '#b08968');
+      addLandmarkBox(-168, dy - 2.0, -52, 3.8, 3.0, 3.8, '#b08968');
       addLandmarkBox(-168, dy + 1.0, -52, 2.4, 11.5, 2.4, '#e9c46a');
-      addLandmarkBox(-168, dy + 12.5, -52, 1.6, 2.2, 1.6, '#facc15', true);
+      addLandmarkBox(-168, dy + 12.5, -52, 1.7, 2.4, 1.7, '#facc15', true);
       for (const [cx, cz, ch] of [[-174, -48, 6.5], [-162, -48, 5.0], [-174, -42, 4.0], [-162, -42, 6.5]]) {
         const cy = sampleTerrain(cx, cz).y;
-        addLandmarkBox(cx, cy - 1.5, cz, 1.6, ch + 1.5, 1.6, '#ddb892');
-        addLandmarkBox(cx, cy + ch, cz, 2.2, 0.7, 2.2, '#cb997e');
+        addLandmarkBox(cx, cy - 1.5, cz, 1.7, ch + 1.5, 1.7, '#ddb892');
+        addLandmarkBox(cx, cy + ch, cz, 2.4, 0.75, 2.4, '#cb997e');
       }
 
       // ======================================================================
@@ -1925,7 +2282,7 @@
         const reg = getClosestRegion(tx, tz);
         if (reg.id === 'desert' || reg.id === 'beach' || reg.id === 'lake') continue;
         if (Math.hypot(tx - reg.x, tz - reg.z) < 16) continue;
-        addLandmarkBox(tx, s.y - 1.5, tz, 1.2, 6.0, 1.2, '#6c462c');
+        addLandmarkBox(tx, s.y - 1.5, tz, 1.25, 6.0, 1.25, '#6c462c');
         const leafCol = (reg.id === 'shrine' || reg.id === 'nether') ? '#ffb3c6' :
                         (reg.id === 'mountain') ? '#cbd5e1' :
                         (reg.id === 'higan') ? '#ef4444' : '#40916c';
@@ -1937,12 +2294,12 @@
         const b = reg.bell;
         const by = sampleTerrain(b.x, b.z).y;
         b.y = by;
-        addLandmarkBox(b.x, by - 2.0, b.z, 3.6, 2.4, 2.4, '#64748b');
-        addLandmarkBox(b.x - 1.2, by + 0.4, b.z, 0.5, 4.0, 0.5, '#7f4f24');
-        addLandmarkBox(b.x + 1.2, by + 0.4, b.z, 0.5, 4.0, 0.5, '#7f4f24');
-        addLandmarkBox(b.x, by + 4.1, b.z, 3.6, 0.75, 1.2, '#d90429');
-        addLandmarkBox(b.x, by + 4.7, b.z, 4.0, 0.45, 1.5, '#1e293b');
-        addLandmarkBox(b.x, by + 2.8, b.z, 1.2, 1.3, 1.2, '#facc15', true);
+        addLandmarkBox(b.x, by - 2.0, b.z, 3.6, 2.2, 2.4, '#64748b');
+        addLandmarkBox(b.x - 1.25, by + 0.2, b.z, 0.55, 4.1, 0.55, '#7f4f24');
+        addLandmarkBox(b.x + 1.25, by + 0.2, b.z, 0.55, 4.1, 0.55, '#7f4f24');
+        addLandmarkBox(b.x, by + 4.1, b.z, 3.8, 0.75, 1.3, '#d90429');
+        addLandmarkBox(b.x, by + 4.7, b.z, 4.2, 0.45, 1.6, '#1e293b');
+        addLandmarkBox(b.x, by + 2.8, b.z, 1.25, 1.35, 1.25, '#facc15', true);
       });
 
       buildBlockGroup(solidLandmarkVoxels, 1.0, plushMaterial, false);
@@ -2537,8 +2894,8 @@
     ];
 
     NAMED_NPCS.forEach(cfg => {
-      const y = sampleTerrain(cfg.x, cfg.z).y;
-      npcs.push(new VoxelFumo({ ...cfg, pos: new THREE.Vector3(cfg.x, y, cfg.z) }));
+      const clearPos = ensureClearPosition(cfg.x, cfg.z);
+      npcs.push(new VoxelFumo({ ...cfg, x: clearPos.x, z: clearPos.z, pos: clearPos }));
     });
 
     const RESIDENT_ARCHETYPES = [
@@ -2563,7 +2920,7 @@
       const rad = 8 + (i % 5) * 6;
       const rx = reg.x + Math.cos(angle) * rad;
       const rz = reg.z + Math.sin(angle) * rad;
-      const ry = sampleTerrain(rx, rz).y;
+      const clearPos = ensureClearPosition(rx, rz);
       npcs.push(new VoxelFumo({
         id: `res_${i}`,
         name: `${arch.name} #${(i % 7) + 1}`,
@@ -2574,7 +2931,7 @@
         hairColor: arch.hairColor,
         outfitMain: arch.outfitMain,
         hasWhiteApron: arch.hasWhiteApron,
-        pos: new THREE.Vector3(rx, ry, rz),
+        pos: clearPos,
         scale: 0.92,
         lines: [
           `It's such a cozy day in ${reg.name}! ᗜˬᗜ`,
@@ -2589,18 +2946,18 @@
     // ============================================================================
     const QUESTS = [
       { id: 'q_coins',      title: 'Reimu\'s Lost Donation Coins', desc: 'Collect 3 golden coins around Hakurei Shrine hillside', regionId: 'shrine',    goal: 3, progress: 0, done: false, itemColor: '#facc15', spots: [[-8, 12], [11, 6], [4, 20]] },
-      { id: 'q_cake',       title: 'Sweet Delivery for SDM',       desc: 'Pick up cake at Village Bakery & deliver to Remilia at Mansion', regionId: 'mansion',   goal: 2, progress: 0, done: false, itemColor: '#fb7185', spots: [[-78, 46], [143, -87]] },
+      { id: 'q_cake',       title: 'Sweet Delivery for SDM',       desc: 'Pick up cake at Village Bakery & deliver to Remilia at Mansion', regionId: 'mansion',   goal: 2, progress: 0, done: false, itemColor: '#fb7185', spots: [[-78, 48], [143, -82]] },
       { id: 'q_fish',       title: 'Midnight Snack for Yuyuko',    desc: 'Catch or collect 3 fresh fish at Misty Lake Pier',       regionId: 'lake',      goal: 3, progress: 0, done: false, itemColor: '#38bdf8', spots: [[54, -52], [60, -52], [48, -46]] },
-      { id: 'q_gears',      title: 'Kappa Cable Car Tune-Up',      desc: 'Gather 3 kappa gears on Youkai Mountain for Nitori',     regionId: 'mountain',  goal: 3, progress: 0, done: false, itemColor: '#10b981', spots: [[68, -135], [74, -150], [82, -162]] },
-      { id: 'q_grimoire',   title: 'Patchouli\'s Borrowed Book',   desc: 'Find the starlight grimoire by Marisa\'s Forest Cottage',regionId: 'forest',    goal: 1, progress: 0, done: false, itemColor: '#a855f7', spots: [[-150, 16]] },
+      { id: 'q_gears',      title: 'Kappa Cable Car Tune-Up',      desc: 'Gather 3 kappa gears on Youkai Mountain for Nitori',     regionId: 'mountain',  goal: 3, progress: 0, done: false, itemColor: '#10b981', spots: [[65, -128], [74, -150], [82, -162]] },
+      { id: 'q_grimoire',   title: 'Patchouli\'s Borrowed Book',   desc: 'Find the starlight grimoire by Marisa\'s Forest Cottage',regionId: 'forest',    goal: 1, progress: 0, done: false, itemColor: '#a855f7', spots: [[-150, 20]] },
       { id: 'q_lilies',     title: 'Lilies of the Crossing',       desc: 'Collect 4 Red Spider Lilies along the Sanzu River',      regionId: 'higan',     goal: 4, progress: 0, done: false, itemColor: '#ef4444', spots: [[140, 68], [144, 78], [150, 72], [148, 82]] },
-      { id: 'q_lanterns',   title: 'Lanterns of the Village',      desc: 'Light 4 paper lanterns across the Human Village square',  regionId: 'village',   goal: 4, progress: 0, done: false, itemColor: '#f59e0b', spots: [[-72, 50], [-58, 50], [-72, 60], [-58, 60]] },
+      { id: 'q_lanterns',   title: 'Lanterns of the Village',      desc: 'Light 4 paper lanterns across the Human Village square',  regionId: 'village',   goal: 4, progress: 0, done: false, itemColor: '#f59e0b', spots: [[-72, 53], [-58, 53], [-72, 57], [-58, 57]] },
       { id: 'q_fairy',      title: 'Lost Fairy of the Bamboo',     desc: 'Find the lost fairy marker in the Bamboo Forest maze',   regionId: 'bamboo',    goal: 1, progress: 0, done: false, itemColor: '#60a5fa', spots: [[-118, 144]] },
-      { id: 'q_summit',     title: 'Moriya Wind Blessing',         desc: 'Reach the Moriya Shrine summit bell on Youkai Mountain', regionId: 'mountain',  goal: 1, progress: 0, done: false, itemColor: '#34d399', spots: [[80, -170]] },
-      { id: 'q_furnace',    title: 'Subterranean Core Check',      desc: 'Inspect Okuu\'s Blazing Furnace in Old Hell',            regionId: 'oldhell',   goal: 1, progress: 0, done: false, itemColor: '#f97316', spots: [[-152, -160]] },
+      { id: 'q_summit',     title: 'Moriya Wind Blessing',         desc: 'Reach the Moriya Shrine summit bell on Youkai Mountain', regionId: 'mountain',  goal: 1, progress: 0, done: false, itemColor: '#34d399', spots: [[80, -167]] },
+      { id: 'q_furnace',    title: 'Subterranean Core Check',      desc: 'Inspect Okuu\'s Blazing Furnace in Old Hell',            regionId: 'oldhell',   goal: 1, progress: 0, done: false, itemColor: '#f97316', spots: [[-152, -158]] },
       { id: 'q_sunflowers', title: 'Sunflowers for Yuuka',         desc: 'Tend 3 golden sunflowers in the Garden of the Sun',      regionId: 'sunflower', goal: 3, progress: 0, done: false, itemColor: '#fde047', spots: [[-30, 160], [-20, 168], [-25, 174]] },
-      { id: 'q_shells',     title: 'Seashells by the Shore',       desc: 'Collect 3 prism seashells at the Lakeside Beach',        regionId: 'beach',     goal: 3, progress: 0, done: false, itemColor: '#f472b6', spots: [[48, 12], [56, 18], [62, 10]] },
-      { id: 'q_ruins',      title: 'Relic of Shifting Sands',      desc: 'Touch the ancient obelisk in the Desert Ruins',          regionId: 'desert',    goal: 1, progress: 0, done: false, itemColor: '#fbbf24', spots: [[-168, -52]] },
+      { id: 'q_shells',     title: 'Seashells by the Shore',       desc: 'Collect 3 prism seashells at the Lakeside Beach',        regionId: 'beach',     goal: 3, progress: 0, done: false, itemColor: '#f472b6', spots: [[48, 13], [56, 17], [62, 11]] },
+      { id: 'q_ruins',      title: 'Relic of Shifting Sands',      desc: 'Touch the ancient obelisk in the Desert Ruins',          regionId: 'desert',    goal: 1, progress: 0, done: false, itemColor: '#fbbf24', spots: [[-168, -49]] },
       { id: 'q_friends',    title: 'Gensokyo Friendship Circle',   desc: 'Befriend 3 Fumos by gifting sweets (F) or play a Mini-Game', regionId: 'village', goal: 3, progress: 0, done: false, itemColor: '#ec4899', spots: [] }
     ];
 
@@ -2608,7 +2965,8 @@
     const tokenGeom = createSoftVoxelGeometry(0.65);
     QUESTS.forEach(q => {
       q.spots.forEach((pt, idx) => {
-        const y = sampleTerrain(pt[0], pt[1]).y + 1.1;
+        const clearPos = ensureClearPosition(pt[0], pt[1]);
+        const y = clearPos.y + 1.1;
         const mat = new THREE.MeshStandardMaterial({
           color: q.itemColor,
           emissive: new THREE.Color(q.itemColor),
@@ -2616,9 +2974,9 @@
           roughness: 0.2
         });
         const mesh = new THREE.Mesh(tokenGeom, mat);
-        mesh.position.set(pt[0], y, pt[1]);
+        mesh.position.set(clearPos.x, y, clearPos.z);
         scene.add(mesh);
-        questTokens.push({ questId: q.id, spotIndex: idx, collected: false, mesh, x: pt[0], z: pt[1] });
+        questTokens.push({ questId: q.id, spotIndex: idx, collected: false, mesh, x: clearPos.x, z: clearPos.z });
       });
     });
 
@@ -2634,9 +2992,12 @@
       const reg = REGIONS[i % REGIONS.length];
       const ang = (i * 1.85) + 0.4;
       const dist = 6 + ((i * 7) % 28);
-      const cx = Math.round(reg.x + Math.cos(ang) * dist);
-      const cz = Math.round(reg.z + Math.sin(ang) * dist);
-      const cy = sampleTerrain(cx, cz).y + 1.25;
+      const rawX = Math.round(reg.x + Math.cos(ang) * dist);
+      const rawZ = Math.round(reg.z + Math.sin(ang) * dist);
+      const clearPos = ensureClearPosition(rawX, rawZ);
+      const cx = clearPos.x;
+      const cz = clearPos.z;
+      const cy = clearPos.y + 1.25;
       const mesh = new THREE.Mesh(charmGeom, charmMat);
       mesh.position.set(cx, cy, cz);
       scene.add(mesh);
@@ -3263,21 +3624,20 @@
     }
 
     function teleportToRegion(reg) {
-      const bx = reg.bell.x, bz = reg.bell.z + 2.5;
-      const by = sampleTerrain(bx, bz).y;
-      playerFumo.pos.set(bx, by, bz);
+      const clearPos = ensureClearPosition(reg.bell.x, reg.bell.z + 2.8);
+      playerFumo.pos.copy(clearPos);
       playerFumo.vel.set(0, 0, 0);
       playerFumo.isGrounded = true;
       playerFumo.updateVisuals(0.016, false, false);
-      markExploredAround(bx, bz);
+      markExploredAround(clearPos.x, clearPos.z);
       npcs.filter(n => n.inParty).forEach((f, i) => {
-        const fx = bx + (i - 1) * 2.0, fz = bz + 2.0;
-        f.pos.set(fx, sampleTerrain(fx, fz).y, fz);
+        const fp = ensureClearPosition(clearPos.x + (i - 1) * 2.0, clearPos.z + 2.0);
+        f.pos.copy(fp);
       });
       soundFX.playBell();
       spawnPopSparkles(playerFumo.pos, '#facc15', 24, 1.5);
       showToast('Fast Travel Bell 🔔', reg.name);
-      updateChunkStreaming(bx, bz, true);
+      updateChunkStreaming(clearPos.x, clearPos.z, true);
       snapCameraToPlayer();
     }
 
@@ -3714,8 +4074,8 @@
           Number.isFinite(d.px) && Number.isFinite(d.pz) &&
           Math.abs(d.px) <= 245 && Math.abs(d.pz) <= 245
         ) {
-          const groundY = sampleTerrain(d.px, d.pz).y;
-          playerFumo.pos.set(d.px, groundY, d.pz);
+          const clearPos = ensureClearPosition(d.px, d.pz);
+          playerFumo.pos.copy(clearPos);
           playerFumo.vel.set(0, 0, 0);
           playerFumo.isGrounded = true;
         }
@@ -4060,16 +4420,21 @@
         playerFumo.vel.y -= grav * rawDt;
         if (isGliding && playerFumo.vel.y < -2.4) playerFumo.vel.y = -2.4;
 
+        const prevPlayerY = playerFumo.pos.y;
         playerFumo.pos.addScaledVector(playerFumo.vel, rawDt);
         playerFumo.pos.x = THREE.MathUtils.clamp(playerFumo.pos.x, -245, 245);
         playerFumo.pos.z = THREE.MathUtils.clamp(playerFumo.pos.z, -245, 245);
 
+        const structCol = resolveEntityStructureCollision(playerFumo.pos, playerFumo.vel, prevPlayerY, 0.62, 1.95, 0.82);
         const terr = sampleTerrain(playerFumo.pos.x, playerFumo.pos.z);
-        const floorY = terr.isWater ? WATER_LEVEL - 0.35 : terr.y;
+        const terrainFloorY = terr.isWater ? WATER_LEVEL - 0.35 : terr.y;
+        const floorY = Math.max(terrainFloorY, structCol.supportY);
+        const activeSurface = (structCol.supportY > terrainFloorY && structCol.supportSurface) ? structCol.supportSurface : terr.surface;
+
         if (playerFumo.pos.y <= floorY) {
           if (!playerFumo.isGrounded && playerFumo.vel.y < -4) {
             playerFumo.squash = 0.72;
-            soundFX.playLandSquish(terr.surface);
+            soundFX.playLandSquish(activeSurface);
           }
           playerFumo.pos.y = floorY;
           playerFumo.vel.y = 0;
@@ -4085,7 +4450,7 @@
             stepSoundAccum += rawDt * (isRunning ? 1.5 : 1.0);
             if (stepSoundAccum > 0.34) {
               stepSoundAccum = 0;
-              soundFX.playFootstep(terr.surface);
+              soundFX.playFootstep(activeSurface);
             }
           }
         }
@@ -4216,9 +4581,13 @@
             }
           }
 
+          const prevNpcY = npc.pos.y;
           npc.vel.y -= 22.0 * dt;
           npc.pos.addScaledVector(npc.vel, dt);
-          const ny = sampleTerrain(npc.pos.x, npc.pos.z).y;
+          const npcCol = (dPlayer < 55 || npc.inParty)
+            ? resolveEntityStructureCollision(npc.pos, npc.vel, prevNpcY, 0.56, 1.8, 0.78)
+            : { supportY: -Infinity };
+          const ny = Math.max(sampleTerrain(npc.pos.x, npc.pos.z).y, npcCol.supportY);
           if (npc.pos.y <= ny) {
             if (!npc.isGrounded && npc.vel.y < -3) {
               npc.squash = 0.68;
@@ -4227,6 +4596,8 @@
             npc.pos.y = ny;
             npc.vel.set(0, 0, 0);
             npc.isGrounded = true;
+          } else {
+            npc.isGrounded = false;
           }
         }
         npc.updateVisuals(dt, npcMoving, false);

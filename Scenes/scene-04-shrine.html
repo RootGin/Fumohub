@@ -161,6 +161,81 @@
     body.night-ui .donate-chip {
       box-shadow: 0 8px 28px -2px rgba(236, 72, 153, 0.75), 0 0 24px rgba(244, 114, 182, 0.55) !important;
     }
+    .sound-widget {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px 3px 4px;
+      border-radius: 18px;
+    }
+    .sound-toggle-btn {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      padding: 6px 8px !important;
+      cursor: pointer;
+    }
+    .sound-toggle-btn:hover {
+      background: rgba(255, 255, 255, 0.14) !important;
+    }
+    .volume-slider-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding-left: 6px;
+      border-left: 1px solid rgba(190, 24, 93, 0.16);
+    }
+    body.night-ui .volume-slider-group {
+      border-left-color: rgba(244, 114, 182, 0.22);
+    }
+    .volume-icon-btn {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      padding: 2px !important;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      opacity: 0.85;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.15s ease, transform 0.15s ease;
+    }
+    .volume-icon-btn:hover {
+      opacity: 1;
+      transform: scale(1.12);
+    }
+    #volume-slider {
+      width: 76px;
+      height: 5px;
+      accent-color: #db2777;
+      cursor: pointer;
+    }
+    body.night-ui #volume-slider {
+      accent-color: #f472b6;
+    }
+    #volume-readout {
+      min-width: 34px;
+      font-size: 11px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #be185d;
+      text-align: right;
+      cursor: pointer;
+      user-select: none;
+    }
+    body.night-ui #volume-readout {
+      color: #f9a8d4;
+    }
+    @media (max-width: 768px) {
+      #label-sound {
+        display: none;
+      }
+      #volume-slider {
+        width: 58px;
+      }
+    }
 
     /* Bottom-Center Hints */
     .hud-bottom-center {
@@ -559,7 +634,7 @@
     </button>
   </div>
 
-  <!-- Bottom-Right Controls: Permanent Donate Chip & Mute Toggle -->
+  <!-- Bottom-Right Controls: Permanent Donate Chip & Sound / Volume Widget -->
   <div class="hud-bottom-right">
     <button id="btn-donate-chip" title="Open Shrine Offering Box (Shortcut: E)" class="glass-panel ui-btn hud-pill-btn donate-chip">
       <span>🌸</span>
@@ -567,12 +642,22 @@
       <kbd style="background:rgba(255,255,255,0.22);color:#fff;border-color:rgba(255,255,255,0.35);">E</kbd>
     </button>
 
-    <button id="btn-sound" title="Toggle 'Petals on the Stream' BGM & Shrine Sound (Shortcut: M)" class="glass-panel ui-btn hud-pill-btn">
-      <span id="icon-sound-on">🎵</span>
-      <span id="icon-sound-off" style="display:none;opacity:0.6;">🔇</span>
-      <span id="label-sound">Petals on the Stream</span>
-      <kbd>M</kbd>
-    </button>
+    <div class="glass-panel sound-widget" id="sound-volume-widget">
+      <button id="btn-sound" title="Toggle 'Petals on the Stream' BGM & Shrine Sound (Shortcut: M)" class="ui-btn hud-pill-btn sound-toggle-btn">
+        <span id="icon-sound-on">🎵</span>
+        <span id="icon-sound-off" style="display:none;opacity:0.6;">🔇</span>
+        <span id="label-sound">Petals on the Stream</span>
+        <kbd>M</kbd>
+      </button>
+
+      <div class="volume-slider-group" title="Adjust Volume (+ / - or Slider, click % to reset)">
+        <button type="button" id="btn-volume-icon" class="volume-icon-btn" title="Toggle Mute (Shortcut: M)" aria-label="Toggle Mute">
+          <span id="volume-icon">🔊</span>
+        </button>
+        <input type="range" id="volume-slider" min="0" max="100" value="70" step="1" aria-label="Master Volume" />
+        <span id="volume-readout" title="Click to reset volume to 70%">70%</span>
+      </div>
+    </div>
   </div>
 
   <!-- Floating Cursor Tooltip -->
@@ -594,6 +679,7 @@
       <span>🔔 <b>Bell / <kbd>B</kbd>:</b> Shake Sakura</span>
       <span>🖱️ <b>Click Fumo:</b> Squeeze</span>
       <span>✋ <b>Drag:</b> Toss Down Stairs</span>
+      <span>🔊 <b><kbd>+</kbd>/<kbd>-</kbd>:</b> Volume</span>
     </div>
   </div>
 
@@ -673,12 +759,15 @@
         this.kotoIdx = 0;
         this.bgmStep = 0;
         this.bgmStepTimer = 0.35;
+        this.masterGain = null;
         this.bgmGain = null;
         this.noiseBuffer = null;
+        this.volume = 0.70; // User master volume (0.0 to 1.0)
         this.baseBgmVolume = 0.46;
         this.duckTimeout = null;
         this.bgmFailed = false;
         this.isSuspended = false;
+        this.lastIsNight = false;
 
         // Load "../assets/Petals_on_the_Stream.mp3" for the Sakura Shrine BGM
         this.bgmAudio = new Audio('../assets/Petals_on_the_Stream.mp3');
@@ -721,10 +810,15 @@
 
       init() {
         super.init();
+        if (this.ctx && !this.masterGain) {
+          this.masterGain = this.ctx.createGain();
+          this.masterGain.gain.setValueAtTime(this.enabled ? this.volume : 0, this.ctx.currentTime);
+          this.masterGain.connect(this.ctx.destination);
+        }
         if (this.ctx && !this.bgmGain) {
           this.bgmGain = this.ctx.createGain();
           this.bgmGain.gain.setValueAtTime(0.88, this.ctx.currentTime);
-          this.bgmGain.connect(this.ctx.destination);
+          this.bgmGain.connect(this.masterGain || this.ctx.destination);
         }
         if (this.ctx && !this.noiseBuffer) {
           const len = Math.floor(this.ctx.sampleRate * 0.25);
@@ -734,7 +828,28 @@
             data[i] = Math.random() * 2 - 1;
           }
         }
+        this.updateBgmAudioVolume(this.lastIsNight);
         this.startBGM();
+      }
+
+      setVolume(val) {
+        this.volume = Math.max(0, Math.min(1, val));
+        if (this.ctx && this.masterGain) {
+          try {
+            this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+            this.masterGain.gain.setValueAtTime(this.enabled ? this.volume : 0, this.ctx.currentTime);
+          } catch (e) {}
+        }
+        this.updateBgmAudioVolume(this.lastIsNight);
+      }
+
+      updateBgmAudioVolume(isNight = false) {
+        this.lastIsNight = isNight;
+        const nightMultiplier = isNight ? 0.85 : 1.0;
+        this.baseBgmVolume = Math.max(0, Math.min(1, this.volume * 0.65 * nightMultiplier));
+        if (this.bgmAudio && !this.bgmFailed && !this.duckTimeout) {
+          this.bgmAudio.volume = this.enabled ? this.baseBgmVolume : 0;
+        }
       }
 
       startBGM() {
@@ -756,8 +871,21 @@
         this.enabled = !muted;
         if (this.enabled) {
           this.init();
+          if (this.masterGain && this.ctx) {
+            try {
+              this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+              this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
+            } catch (e) {}
+          }
+          this.updateBgmAudioVolume(this.lastIsNight);
           this.startBGM();
         } else {
+          if (this.masterGain && this.ctx) {
+            try {
+              this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+              this.masterGain.gain.setValueAtTime(0, this.ctx.currentTime);
+            } catch (e) {}
+          }
           this.stopBGM();
         }
       }
@@ -791,11 +919,12 @@
 
       // Gently duck BGM when ceremonial shrine SFX (bell, coins, claps) play
       duckBGM(dipGain = 0.32, recoverSec = 1.35) {
-        if (this.bgmAudio && !this.bgmAudio.paused) {
-          this.bgmAudio.volume = Math.max(0.08, this.baseBgmVolume * dipGain);
+        if (this.bgmAudio && !this.bgmAudio.paused && this.enabled) {
+          this.bgmAudio.volume = Math.max(0, this.baseBgmVolume * dipGain);
           if (this.duckTimeout) clearTimeout(this.duckTimeout);
           this.duckTimeout = setTimeout(() => {
-            if (this.bgmAudio) {
+            this.duckTimeout = null;
+            if (this.bgmAudio && this.enabled) {
               this.bgmAudio.volume = this.baseBgmVolume;
             }
           }, recoverSec * 1000);
@@ -805,8 +934,8 @@
           const now = this.ctx.currentTime;
           this.bgmGain.gain.cancelScheduledValues(now);
           this.bgmGain.gain.setValueAtTime(this.bgmGain.gain.value, now);
-          this.bgmGain.gain.linearRampToValueAtTime(dipGain, now + 0.04);
-          this.bgmGain.gain.exponentialRampToValueAtTime(0.88, now + recoverSec);
+          this.bgmGain.gain.linearRampToValueAtTime(dipGain * this.volume, now + 0.04);
+          this.bgmGain.gain.exponentialRampToValueAtTime(Math.max(0.001, 0.88 * this.volume), now + recoverSec);
         } catch (e) {}
       }
 
@@ -830,7 +959,7 @@
             gain.gain.linearRampToValueAtTime(amp, now + 0.015);
             gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.85 + idx * 0.12);
             osc.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(this.masterGain || this.ctx.destination);
             osc.start(now);
             osc.stop(now + 1.15);
           });
@@ -855,7 +984,7 @@
             gain.gain.linearRampToValueAtTime(i === 0 ? 0.065 : 0.04, t0 + 0.006);
             gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
             osc.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(this.masterGain || this.ctx.destination);
             osc.start(t0);
             osc.stop(t0 + 0.24);
           });
@@ -889,7 +1018,7 @@
 
           noise.connect(filter);
           filter.connect(gain);
-          gain.connect(this.ctx.destination);
+          gain.connect(this.masterGain || this.ctx.destination);
           noise.start(t0);
         } catch (e) {}
       }
@@ -898,7 +1027,7 @@
       playKotoNote(freq, delaySec = 0, duration = 1.35, volume = 0.022, isNight = false) {
         if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
         try {
-          const dest = this.bgmGain || this.ctx.destination;
+          const dest = this.bgmGain || this.masterGain || this.ctx.destination;
           const t0 = this.ctx.currentTime + delaySec;
           const osc1 = this.ctx.createOscillator();
           const gain = this.ctx.createGain();
@@ -917,11 +1046,8 @@
       // Frame-driven BGM updater called from main animate() loop
       updateBGM(dt, isNight = false) {
         if (!this.enabled || this.isSuspended) return;
-        this.baseBgmVolume = isNight ? 0.40 : 0.48;
+        this.updateBgmAudioVolume(isNight);
         if (this.bgmAudio && !this.bgmFailed) {
-          if (!this.duckTimeout) {
-            this.bgmAudio.volume = this.baseBgmVolume;
-          }
           return;
         }
         if (!this.ctx || this.ctx.state !== 'running') return;
@@ -952,7 +1078,7 @@
             gain.gain.linearRampToValueAtTime(0.010, now + 0.02);
             gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.21);
             osc.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(this.masterGain || this.ctx.destination);
             osc.start(now);
             osc.stop(now + 0.22);
           } else {
@@ -962,7 +1088,7 @@
             gain.gain.linearRampToValueAtTime(0.007, now + 0.02);
             gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
             osc.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(this.masterGain || this.ctx.destination);
             osc.start(now);
             osc.stop(now + 0.17);
           }
@@ -973,8 +1099,16 @@
     const soundFX = new ShrineSoundEngine();
     const STORAGE_MUTE_KEY = 'voxel_fumo_shrine_mute';
     const STORAGE_MODE_KEY = 'voxel_fumo_shrine_mode';
+    const STORAGE_VOLUME_KEY = 'voxel_fumo_shrine_volume';
 
     try {
+      const savedVol = localStorage.getItem(STORAGE_VOLUME_KEY);
+      if (savedVol !== null) {
+        const parsed = parseFloat(savedVol);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+          soundFX.volume = parsed;
+        }
+      }
       const savedMute = localStorage.getItem(STORAGE_MUTE_KEY);
       if (savedMute === 'true') soundFX.enabled = false;
     } catch (e) {}
@@ -4561,11 +4695,34 @@
     const iconSoundOn = document.getElementById('icon-sound-on');
     const iconSoundOff = document.getElementById('icon-sound-off');
     const labelSound = document.getElementById('label-sound');
+    const volumeSliderEl = document.getElementById('volume-slider');
+    const volumeReadoutEl = document.getElementById('volume-readout');
+    const volumeIconEl = document.getElementById('volume-icon');
+    const btnVolumeIcon = document.getElementById('btn-volume-icon');
 
     function syncSoundUI() {
+      const volPct = Math.round(soundFX.volume * 100);
       iconSoundOn.style.display = soundFX.enabled ? 'inline' : 'none';
       iconSoundOff.style.display = soundFX.enabled ? 'none' : 'inline';
-      labelSound.textContent = soundFX.enabled ? '🎵 Petals on the Stream' : 'Muted';
+      labelSound.textContent = soundFX.enabled ? 'Petals on the Stream' : 'Muted';
+
+      if (volumeSliderEl) {
+        volumeSliderEl.value = volPct;
+        volumeSliderEl.style.opacity = soundFX.enabled ? '1' : '0.55';
+      }
+      if (volumeReadoutEl) {
+        volumeReadoutEl.textContent = soundFX.enabled ? `${volPct}%` : '0%';
+        volumeReadoutEl.style.opacity = soundFX.enabled ? '1' : '0.6';
+      }
+      if (volumeIconEl) {
+        if (!soundFX.enabled || volPct === 0) {
+          volumeIconEl.textContent = '🔇';
+        } else if (volPct < 45) {
+          volumeIconEl.textContent = '🔉';
+        } else {
+          volumeIconEl.textContent = '🔊';
+        }
+      }
     }
     syncSoundUI();
 
@@ -4580,6 +4737,10 @@
     };
     const onSoundClick = () => {
       const nextMuted = soundFX.enabled;
+      if (!nextMuted && soundFX.volume <= 0.05) {
+        soundFX.setVolume(0.70);
+        try { localStorage.setItem(STORAGE_VOLUME_KEY, '0.7'); } catch (err) {}
+      }
       soundFX.setMuted(nextMuted);
       syncSoundUI();
       try {
@@ -4587,6 +4748,39 @@
       } catch (e) {}
       if (soundFX.enabled) soundFX.playCoinClink(0);
     };
+
+    const onVolumeSliderInput = (e) => {
+      const val = Number(e.target.value);
+      const normalized = Math.max(0, Math.min(100, val)) / 100;
+      soundFX.setVolume(normalized);
+      if (normalized > 0 && !soundFX.enabled) {
+        soundFX.setMuted(false);
+        try { localStorage.setItem(STORAGE_MUTE_KEY, 'false'); } catch (err) {}
+      } else if (normalized === 0 && soundFX.enabled) {
+        soundFX.setMuted(true);
+        try { localStorage.setItem(STORAGE_MUTE_KEY, 'true'); } catch (err) {}
+      }
+      syncSoundUI();
+      try {
+        localStorage.setItem(STORAGE_VOLUME_KEY, String(normalized));
+      } catch (err) {}
+    };
+
+    const onVolumeReadoutClick = () => {
+      const currentPct = Math.round(soundFX.volume * 100);
+      const targetPct = currentPct === 70 ? 100 : 70;
+      soundFX.setVolume(targetPct / 100);
+      if (!soundFX.enabled) {
+        soundFX.setMuted(false);
+        try { localStorage.setItem(STORAGE_MUTE_KEY, 'false'); } catch (err) {}
+      }
+      syncSoundUI();
+      try {
+        localStorage.setItem(STORAGE_VOLUME_KEY, String(soundFX.volume));
+      } catch (err) {}
+      soundFX.playCoinClink(0);
+    };
+
     const onDonateBackdropClick = (e) => {
       if (e.target === donateBackdrop) closeDonatePanel();
     };
@@ -4634,6 +4828,26 @@
       } else if (key === 'm') {
         e.preventDefault();
         onSoundClick();
+      } else if (!isDonateModalOpen && (e.key === '+' || e.key === '=')) {
+        e.preventDefault();
+        const next = Math.min(100, Math.round(soundFX.volume * 100) + 5);
+        soundFX.setVolume(next / 100);
+        if (!soundFX.enabled) {
+          soundFX.setMuted(false);
+          try { localStorage.setItem(STORAGE_MUTE_KEY, 'false'); } catch (err) {}
+        }
+        syncSoundUI();
+        try { localStorage.setItem(STORAGE_VOLUME_KEY, String(soundFX.volume)); } catch (err) {}
+      } else if (!isDonateModalOpen && (e.key === '-' || e.key === '_')) {
+        e.preventDefault();
+        const next = Math.max(0, Math.round(soundFX.volume * 100) - 5);
+        soundFX.setVolume(next / 100);
+        if (next === 0 && soundFX.enabled) {
+          soundFX.setMuted(true);
+          try { localStorage.setItem(STORAGE_MUTE_KEY, 'true'); } catch (err) {}
+        }
+        syncSoundUI();
+        try { localStorage.setItem(STORAGE_VOLUME_KEY, String(soundFX.volume)); } catch (err) {}
       }
     }
 
@@ -4669,6 +4883,9 @@
     copyBankBtn.addEventListener('click', onCopyBankClick);
     kofiBtn.addEventListener('click', onKofiClick);
     btnSound.addEventListener('click', onSoundClick);
+    if (btnVolumeIcon) btnVolumeIcon.addEventListener('click', onSoundClick);
+    if (volumeSliderEl) volumeSliderEl.addEventListener('input', onVolumeSliderInput);
+    if (volumeReadoutEl) volumeReadoutEl.addEventListener('click', onVolumeReadoutClick);
     if (qrScaleSliderEl) qrScaleSliderEl.addEventListener('input', onQrSliderInput);
     if (btnQrSmallerEl) btnQrSmallerEl.addEventListener('click', onQrSmallerClick);
     if (btnQrLargerEl) btnQrLargerEl.addEventListener('click', onQrLargerClick);
@@ -4795,13 +5012,16 @@
       copyBankBtn.removeEventListener('click', onCopyBankClick);
       kofiBtn.removeEventListener('click', onKofiClick);
       btnSound.removeEventListener('click', onSoundClick);
+      if (btnVolumeIcon) btnVolumeIcon.removeEventListener('click', onSoundClick);
+      if (volumeSliderEl) volumeSliderEl.removeEventListener('input', onVolumeSliderInput);
+      if (volumeReadoutEl) volumeReadoutEl.removeEventListener('click', onVolumeReadoutClick);
       if (qrScaleSliderEl) qrScaleSliderEl.removeEventListener('input', onQrSliderInput);
       if (btnQrSmallerEl) btnQrSmallerEl.removeEventListener('click', onQrSmallerClick);
       if (btnQrLargerEl) btnQrLargerEl.removeEventListener('click', onQrLargerClick);
       if (qrScaleReadoutEl) qrScaleReadoutEl.removeEventListener('click', onQrReadoutClick);
       if (qrFrameBoxEl) qrFrameBoxEl.removeEventListener('click', onQrFrameClick);
       if (donateCardEl) donateCardEl.removeEventListener('wheel', onDonateCardWheel);
-      if (donateResizeHandleEl) donateResizeHandleEl.addEventListener('pointerdown', onResizeHandleDown);
+      if (donateResizeHandleEl) donateResizeHandleEl.removeEventListener('pointerdown', onResizeHandleDown);
     }
 
     // Single FumoSceneLifecycle instance (handles hub message events & cleanup)

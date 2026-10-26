@@ -1,0 +1,3007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Fumo Sengoku: Castle Town Campaign — Interactive Voxel Diorama & Tactics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Shared Stylesheet -->
+  <link rel="stylesheet" href="../Shared/fumo-scene.css" />
+
+  <!-- 1. Three.js r128 + Post-Processing Addons FIRST -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <!-- 2. Shared Fumo Core Library SECOND (reads THREE at load time) -->
+  <script src="../Shared/fumo-core.js"></script>
+
+  <style>
+    /* Scene-specific & fallback styles complementing ../Shared/fumo-scene.css */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      font-family: 'Quicksand', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #141220; color: #1e293b;
+    }
+    h1, h2, h3, .font-display { font-family: 'Fredoka', 'Quicksand', sans-serif; }
+    .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    #canvas-container { width: 100%; height: 100%; position: relative; }
+    canvas { display: block; width: 100%; height: 100%; outline: none; }
+
+    .fixed { position: fixed; }
+    .absolute { position: absolute; }
+    .relative { position: relative; }
+    .inset-0 { inset: 0; }
+    .bottom-4 { bottom: 1rem; }
+    .bottom-20 { bottom: 5rem; }
+    .bottom-28 { bottom: 7rem; }
+    .right-4 { right: 1rem; }
+    .left-1\/2 { left: 50%; }
+    .-translate-x-1\/2 { transform: translateX(-50%); }
+    .z-10 { z-index: 10; }
+    .z-20 { z-index: 20; }
+    .z-30 { z-index: 30; }
+    .z-40 { z-index: 40; }
+
+    .flex { display: flex; }
+    .inline-flex { display: inline-flex; }
+    .hidden { display: none !important; }
+    .flex-col { flex-direction: column; }
+    .flex-wrap { flex-wrap: wrap; }
+    .items-center { align-items: center; }
+    .items-end { align-items: flex-end; }
+    .justify-center { justify-content: center; }
+    .justify-between { justify-content: space-between; }
+    .justify-end { justify-content: flex-end; }
+
+    .gap-1 { gap: 0.25rem; }
+    .gap-1\.5 { gap: 0.375rem; }
+    .gap-2 { gap: 0.5rem; }
+    .gap-2\.5 { gap: 0.625rem; }
+    .gap-3 { gap: 0.75rem; }
+
+    .p-2 { padding: 0.5rem; }
+    .p-2\.5 { padding: 0.625rem; }
+    .p-3 { padding: 0.75rem; }
+    .p-4 { padding: 1rem; }
+    .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+    .px-2\.5 { padding-left: 0.625rem; padding-right: 0.625rem; }
+    .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+    .px-3\.5 { padding-left: 0.875rem; padding-right: 0.875rem; }
+    .px-4 { padding-left: 1rem; padding-right: 1rem; }
+    .py-0\.5 { padding-top: 0.125rem; padding-bottom: 0.125rem; }
+    .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+    .py-1\.5 { padding-top: 0.375rem; padding-bottom: 0.375rem; }
+    .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+
+    .rounded-lg { border-radius: 0.5rem; }
+    .rounded-xl { border-radius: 0.75rem; }
+    .rounded-2xl { border-radius: 1rem; }
+    .rounded-3xl { border-radius: 1.5rem; }
+    .rounded-full { border-radius: 9999px; }
+
+    .text-\[10px\] { font-size: 10px; }
+    .text-\[11px\] { font-size: 11px; }
+    .text-xs { font-size: 0.75rem; line-height: 1rem; }
+    .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+    .text-base { font-size: 1rem; line-height: 1.4rem; }
+    .text-lg { font-size: 1.125rem; line-height: 1.6rem; }
+    .text-xl { font-size: 1.25rem; line-height: 1.75rem; }
+    .font-bold { font-weight: 700; }
+    .font-semibold { font-weight: 600; }
+    .uppercase { text-transform: uppercase; }
+    .tracking-wider { letter-spacing: 0.05em; }
+    .opacity-0 { opacity: 0; }
+    .opacity-70 { opacity: 0.7; }
+    .opacity-80 { opacity: 0.8; }
+    .pointer-events-none { pointer-events: none; }
+    .pointer-events-auto { pointer-events: auto; }
+
+    /* Japanese Washi Scroll & Sumi-Ink Accent Styling */
+    .glass-panel {
+      background: rgba(252, 246, 234, 0.86);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(180, 140, 95, 0.55);
+      color: #2b1d14;
+      box-shadow: 0 10px 28px -6px rgba(30, 18, 10, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+      transition: background 0.35s ease, color 0.35s ease, border-color 0.35s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
+    }
+    body.night-ui .glass-panel {
+      background: rgba(24, 22, 42, 0.86);
+      border-color: rgba(212, 163, 115, 0.38);
+      color: #f8f0e5;
+      box-shadow: 0 10px 32px -6px rgba(0, 0, 0, 0.65), 0 0 18px rgba(235, 160, 90, 0.14);
+    }
+
+    .scroll-trim {
+      border-left: 4px solid #b91c1c;
+      border-right: 4px solid #b91c1c;
+    }
+    body.night-ui .scroll-trim {
+      border-left-color: #f59e0b;
+      border-right-color: #f59e0b;
+    }
+
+    .ui-btn {
+      cursor: pointer;
+      outline: none;
+    }
+    .ui-btn:hover { transform: translateY(-2px) scale(1.03); }
+    .ui-btn:active { transform: translateY(1px) scale(0.97); }
+    .active-gold {
+      border: 2px solid #d97706 !important;
+      background: rgba(251, 191, 36, 0.22) !important;
+    }
+
+    kbd {
+      font-family: 'Fredoka', sans-serif;
+      display: inline-block; padding: 1px 6px; font-size: 0.72rem; line-height: 1.2;
+      border-radius: 5px; background: rgba(0, 0, 0, 0.09);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.22);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.15);
+      border-bottom-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .morale-track {
+      width: 100%; height: 8px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 999px; overflow: hidden;
+    }
+    .morale-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #f59e0b, #10b981);
+      transition: width 0.25s ease;
+    }
+    .hp-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #ef4444, #f97316);
+      transition: width 0.25s ease;
+    }
+
+    .sengoku-panel {
+      width: 325px;
+      max-width: 92vw;
+    }
+    .log-list {
+      max-height: 88px;
+      overflow-y: auto;
+      font-size: 11px;
+    }
+    .log-list::-webkit-scrollbar { width: 4px; }
+    .log-list::-webkit-scrollbar-thumb { background: rgba(160, 120, 90, 0.45); border-radius: 99px; }
+
+    .floating-pop {
+      position: fixed;
+      pointer-events: none;
+      transform: translate(-50%, -100%);
+      font-family: 'Fredoka', sans-serif;
+      font-weight: 700;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.65);
+      z-index: 25;
+      transition: opacity 0.15s ease;
+    }
+
+    .modal-backdrop {
+      background: rgba(12, 10, 22, 0.72);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- 3D Floating Popups Layer (BONK!, POOF!, KABOOM!, Eiei-oh!, Speech Bubbles) -->
+  <div id="popups-layer" class="fixed inset-0 pointer-events-none z-20"></div>
+
+  <!-- Floating Cursor Tooltip for Hovered Fumo / Prop -->
+  <div id="fumo-tooltip" class="fixed z-30 opacity-0 px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold flex items-center gap-2 pointer-events-none">
+    <span id="tooltip-emoji">🏯</span>
+    <span id="tooltip-text">Remilia Daimyo</span>
+  </div>
+
+  <!-- Center-Bottom Event Banner / Chant Subtitle -->
+  <div id="center-banner" class="fixed bottom-28 left-1/2 -translate-x-1/2 z-30 pointer-events-none opacity-0 glass-panel scroll-trim rounded-2xl px-4 py-2.5 text-xs sm:text-sm font-bold" style="text-align:center;">
+    <div id="banner-sub" class="text-[10px] uppercase tracking-wider opacity-70">Ceremonial Proclamation</div>
+    <div id="banner-main" class="font-display text-base sm:text-lg">🥁 War Drum Sounded — Battle Begins!</div>
+  </div>
+
+  <!-- First-Run How-To Card (Bottom-Center, fades after 8s, toggle with H) -->
+  <div id="howto-card" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 glass-panel scroll-trim rounded-2xl px-4 py-2.5 text-xs font-semibold" style="width: 92vw; max-width: 620px;">
+    <div class="flex items-center justify-between" style="margin-bottom: 4px;">
+      <span class="font-display font-bold text-sm">🏯 Fumo Sengoku: Grand Citadel & Ceremonial War Game</span>
+      <span class="opacity-70 text-[10px]">Press <kbd>H</kbd> for Help</span>
+    </div>
+    <div class="flex flex-wrap items-center gap-2 text-[11px]">
+      <span>🖱️ <b>Click Fumo:</b> Squeeze</span>
+      <span>✋ <b>Drag Fumo:</b> Toss (Keep/Moat/Bales)</span>
+      <span>🥁 <b>Click Gate Drum / <kbd>E</kbd>:</b> Start War Game</span>
+      <span>🙇 <kbd>B</kbd> Bow to Samurai</span>
+      <span>🪁 <kbd>F</kbd> Fly Kite</span>
+      <span>🔔 <b>Click Props:</b> Bell, Cannon, Noren, Kabuki, Rice Bale</span>
+      <span><kbd>WASD</kbd> Pan • <kbd>R</kbd> Restart Battle • <kbd>M</kbd> Mute</span>
+    </div>
+  </div>
+
+  <!-- BOTTOM-RIGHT HUD CLUSTER (Top-Left kept 100% clear for Hub) -->
+  <div class="fixed bottom-4 right-4 z-20 flex flex-col items-end gap-2" style="max-width: 95vw;">
+
+    <!-- A. TACTICAL WAR GAME HUD PANEL (Shown during Ceremonial War Game) -->
+    <div id="battle-hud" class="glass-panel scroll-trim sengoku-panel rounded-2xl p-3 hidden flex-col gap-2">
+      <div class="flex items-center justify-between" style="border-bottom: 1px solid rgba(148,163,184,0.3); padding-bottom: 6px;">
+        <div>
+          <div id="battle-stage-title" class="font-display font-bold text-sm">⚔️ Stage 1: Scarlet River Clash</div>
+          <div id="battle-turn-badge" class="text-[11px] font-bold" style="color: #dc2626;">🚩 Red Clan Turn (Player)</div>
+        </div>
+        <div class="flex items-center gap-1">
+          <button id="btn-ai-diff" class="glass-panel ui-btn rounded-lg px-2 py-0.5 text-[10px] font-bold" title="Cycle Enemy AI Difficulty">AI: Normal</button>
+          <button id="btn-end-turn" class="glass-panel ui-btn rounded-lg px-2.5 py-1 text-xs font-bold active-gold">End Turn (<kbd>Space</kbd>)</button>
+        </div>
+      </div>
+
+      <!-- Selected Unit Stats & Morale Bar -->
+      <div id="unit-card" class="glass-panel rounded-xl p-2 flex flex-col gap-1 text-xs">
+        <div class="flex items-center justify-between font-bold">
+          <span id="unit-name">🦇 Daimyo Remilia</span>
+          <span id="unit-class-badge" class="text-[10px] px-2 py-0.5 rounded bg-black/10">Commander • Hill +1</span>
+        </div>
+        <div class="flex items-center justify-between text-[11px]">
+          <span>Plush Stamina (HP): <b id="unit-hp-text">12/12</b></span>
+          <span>ATK <b id="unit-atk-text">5</b> • DEF <b id="unit-def-text">3</b></span>
+        </div>
+        <div class="morale-track"><div id="unit-hp-bar" class="hp-fill" style="width: 100%;"></div></div>
+        <div class="flex items-center justify-between text-[11px]" style="margin-top:2px;">
+          <span>Clan Morale: <b id="unit-morale-text">100%</b></span>
+          <span id="unit-formation-text" class="text-[10px] font-bold" style="color:#d97706;">✨ Line Formation (+1 DEF)</span>
+        </div>
+        <div class="morale-track"><div id="unit-morale-bar" class="morale-fill" style="width: 100%;"></div></div>
+
+        <div class="flex items-center justify-between gap-1.5" style="margin-top: 4px;">
+          <button id="btn-unit-ability" class="glass-panel ui-btn rounded-lg px-2.5 py-1 text-[11px] font-bold flex-1">
+            ✨ <span id="unit-ability-name">Crimson Charge</span> (<kbd>Q</kbd>)
+          </button>
+          <button id="btn-restart-battle" class="glass-panel ui-btn rounded-lg px-2 py-1 text-[11px] font-bold" title="Restart Battle (R)">🔄 <kbd>R</kbd></button>
+          <button id="btn-exit-battle" class="glass-panel ui-btn rounded-lg px-2 py-1 text-[11px] font-bold" title="Leave War Game (ESC)">🏳️ <kbd>Esc</kbd></button>
+        </div>
+      </div>
+
+      <!-- Objective & Battle Log -->
+      <div class="text-[11px] font-bold opacity-80" id="battle-objective">
+        🎯 Objective: Defeat or Rout Enemy Daimyo Yuyuko!
+      </div>
+      <div id="battle-log" class="log-list flex flex-col gap-1">
+        <div>🥁 Priestess Reimu strikes the Taiko! Select a Red Clan unit on the grid.</div>
+      </div>
+    </div>
+
+    <!-- B. FREE-ROAM CASTLE TOWN CARD (Shown when exploring Castle Town) -->
+    <div id="town-hud" class="glass-panel scroll-trim sengoku-panel rounded-2xl p-2.5 flex flex-col gap-1.5">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="font-display font-bold text-sm">🏯 Edo Gensokyo Grand Citadel</div>
+          <div id="town-status-sub" class="text-[11px] opacity-80 font-semibold">5-Tier Tenshu • Shrine Pagoda • Castle Town</div>
+        </div>
+        <span id="campaign-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/25">Scrolls: 0/3</span>
+      </div>
+      <div class="flex flex-wrap items-center gap-1.5" style="margin-top: 2px;">
+        <button id="btn-start-wargame" class="glass-panel ui-btn rounded-xl px-3 py-1.5 text-xs font-bold active-gold flex items-center gap-1">
+          <span>🥁</span><span>War Game (<kbd>E</kbd>)</span>
+        </button>
+        <button id="btn-stage-select" class="glass-panel ui-btn rounded-xl px-2.5 py-1.5 text-xs font-bold" title="Switch Campaign Battle Stage">
+          🗺️ Stage 1: Field
+        </button>
+        <button id="btn-bow" class="glass-panel ui-btn rounded-xl px-2.5 py-1.5 text-xs font-bold" title="Bow to Samurai (B)">
+          🙇 <kbd>B</kbd>
+        </button>
+        <button id="btn-kite" class="glass-panel ui-btn rounded-xl px-2.5 py-1.5 text-xs font-bold" title="Fly Edo Kite (F)">
+          🪁 <kbd>F</kbd>
+        </button>
+      </div>
+    </div>
+
+    <!-- Bottom-Right Utility Row (Scroll Unlocks, Help, Mute) -->
+    <div class="flex items-center justify-end gap-1.5">
+      <button id="btn-open-scroll" class="glass-panel ui-btn rounded-xl px-3 py-1.5 text-xs font-bold flex items-center gap-1" title="View Campaign Victory Scroll & Unlocks">
+        <span>📜</span><span>Chronicle</span>
+      </button>
+      <button id="btn-help" class="glass-panel ui-btn rounded-xl px-2.5 py-1.5 text-xs font-bold" title="Toggle Controls Help (H)">
+        ❔ <kbd>H</kbd>
+      </button>
+      <button id="btn-mute" class="glass-panel ui-btn rounded-xl px-2.5 py-1.5 text-xs font-bold flex items-center gap-1" title="Mute / Unmute Audio (M)">
+        <span id="mute-icon">🔊</span><kbd>M</kbd>
+      </button>
+    </div>
+  </div>
+
+  <!-- VICTORY / CAMPAIGN CHRONICLE SCROLL MODAL -->
+  <div id="scroll-modal" class="fixed inset-0 z-40 modal-backdrop hidden items-center justify-center p-4">
+    <div class="glass-panel scroll-trim rounded-3xl p-4 flex flex-col gap-3" style="width: 100%; max-width: 480px;">
+      <div class="flex items-center justify-between" style="border-bottom: 1px solid rgba(148,163,184,0.3); padding-bottom: 6px;">
+        <div>
+          <h2 id="scroll-modal-title" class="font-display font-bold text-lg">📜 Sengoku Campaign Chronicle</h2>
+          <p id="scroll-modal-sub" class="text-xs opacity-75 font-semibold">Official Record of the Ceremonial Plush War Games</p>
+        </div>
+        <button id="btn-close-scroll" class="glass-panel ui-btn rounded-xl px-3 py-1 text-xs font-bold">Close</button>
+      </div>
+      <div id="scroll-summary-body" class="text-xs font-semibold flex flex-col gap-2"></div>
+      <div class="font-display font-bold text-xs" style="border-top: 1px solid rgba(148,163,184,0.3); padding-top: 6px;">
+        🎎 Unlocked Helmet Crests (Maedate) & Clan Banners
+      </div>
+      <div id="unlocks-grid" class="flex flex-wrap gap-1.5 text-xs"></div>
+      <div class="flex items-center justify-between" style="border-top: 1px solid rgba(148,163,184,0.3); padding-top: 8px;">
+        <button id="btn-next-battle" class="glass-panel ui-btn rounded-xl px-3.5 py-1.5 text-xs font-bold active-gold">⚔️ Play Next Battle</button>
+        <button id="btn-return-town" class="glass-panel ui-btn rounded-xl px-3.5 py-1.5 text-xs font-bold">🏯 Return to Castle Town</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 1. SENGOKU PROCEDURAL AUDIO SYNTHESIZER (Extends PlushSoundEngine)
+    // ============================================================================
+    class SengokuSoundEngine extends PlushSoundEngine {
+      constructor() {
+        super();
+        this.isBattle = false;
+        this.isNight = false;
+        this.musicTimer = null;
+        this.stepIdx = 0;
+      }
+
+      startMusicLoop() {
+        if (this.musicTimer) return;
+        const townNotes = [293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25];
+        const battleNotes = [293.66, 311.13, 392.00, 440.00, 466.16, 587.33];
+
+        this.musicTimer = setInterval(() => {
+          if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
+          try {
+            const now = this.ctx.currentTime;
+            this.stepIdx++;
+
+            // 1. Plucked Koto / Shamisen Melody
+            const scale = this.isBattle ? battleNotes : townNotes;
+            const seq = [0, 2, 3, 4, 2, 5, 3, 1];
+            let freq = scale[seq[this.stepIdx % seq.length] % scale.length];
+            if (this.isNight && !this.isBattle) freq *= 0.5;
+
+            if (!this.isNight || (this.stepIdx % 2 === 0)) {
+              const osc = this.ctx.createOscillator();
+              const gain = this.ctx.createGain();
+              osc.type = this.isBattle ? 'sawtooth' : 'triangle';
+              osc.frequency.setValueAtTime(freq, now);
+              const vol = this.isBattle ? 0.022 : (this.isNight ? 0.015 : 0.025);
+              gain.gain.setValueAtTime(0.0001, now);
+              gain.gain.linearRampToValueAtTime(vol, now + 0.015);
+              gain.gain.exponentialRampToValueAtTime(0.0001, now + (this.isNight ? 0.65 : 0.36));
+              osc.connect(gain);
+              gain.connect(this.ctx.destination);
+              osc.start(now);
+              osc.stop(now + 0.7);
+            }
+
+            // 2. Driving Taiko Drum Beat during Tactical Battle
+            if (this.isBattle && (this.stepIdx % 2 === 0)) {
+              this.playTaiko(0.45);
+            }
+          } catch (e) {}
+        }, 360);
+      }
+
+      stopLoops() {
+        if (this.musicTimer) {
+          clearInterval(this.musicTimer);
+          this.musicTimer = null;
+        }
+      }
+
+      playTaiko(intensity = 1.0) {
+        if (!this.enabled) return;
+        try {
+          this.init(); if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(115, now);
+          osc.frequency.exponentialRampToValueAtTime(42, now + 0.22);
+          gain.gain.setValueAtTime(0.14 * intensity, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+          osc.connect(gain); gain.connect(this.ctx.destination);
+          osc.start(now); osc.stop(now + 0.26);
+        } catch (e) {}
+      }
+
+      playConchHorn() {
+        if (!this.enabled) return;
+        try {
+          this.init(); if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          [220, 330].forEach((f, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(f * 0.92, now);
+            osc.frequency.linearRampToValueAtTime(f, now + 0.25);
+            gain.gain.setValueAtTime(0.001, now);
+            gain.gain.linearRampToValueAtTime(idx === 0 ? 0.045 : 0.025, now + 0.2);
+            gain.gain.exponentialRampToValueAtTime(0.0005, now + 1.1);
+            osc.connect(gain); gain.connect(this.ctx.destination);
+            osc.start(now); osc.stop(now + 1.15);
+          });
+        } catch (e) {}
+      }
+
+      playSwordClash() {
+        if (!this.enabled) return;
+        try {
+          this.init(); if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          [1180, 1760, 2420].forEach((f, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(f, now + i * 0.02);
+            osc.frequency.exponentialRampToValueAtTime(f * 0.65, now + 0.14);
+            gain.gain.setValueAtTime(0.045, now + i * 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+            osc.connect(gain); gain.connect(this.ctx.destination);
+            osc.start(now + i * 0.02); osc.stop(now + 0.18);
+          });
+        } catch (e) {}
+      }
+
+      playMatchlockBang() {
+        if (!this.enabled) return;
+        try {
+          this.init(); if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(190, now);
+          osc.frequency.exponentialRampToValueAtTime(28, now + 0.38);
+          gain.gain.setValueAtTime(0.16, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+          osc.connect(gain); gain.connect(this.ctx.destination);
+          osc.start(now); osc.stop(now + 0.45);
+        } catch (e) {}
+      }
+
+      playArrowWhoosh() {
+        if (!this.enabled) return;
+        try {
+          this.init(); if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(680, now);
+          osc.frequency.exponentialRampToValueAtTime(220, now + 0.16);
+          gain.gain.setValueAtTime(0.05, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+          osc.connect(gain); gain.connect(this.ctx.destination);
+          osc.start(now); osc.stop(now + 0.19);
+        } catch (e) {}
+      }
+
+      playTempleBell() {
+        if (!this.enabled) return;
+        try {
+          this.init(); if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          [261.63, 523.25, 659.25, 783.99].forEach((f, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(f, now);
+            gain.gain.setValueAtTime(0.08 / (i + 1), now);
+            gain.gain.exponentialRampToValueAtTime(0.0005, now + 1.4);
+            osc.connect(gain); gain.connect(this.ctx.destination);
+            osc.start(now); osc.stop(now + 1.45);
+          });
+        } catch (e) {}
+      }
+
+      playVictoryChant() {
+        this.playConchHorn();
+        setTimeout(() => this.playTaiko(1.2), 250);
+        setTimeout(() => this.playTaiko(1.2), 500);
+        setTimeout(() => this.playTempleBell(), 750);
+      }
+    }
+
+    const soundFX = new SengokuSoundEngine();
+
+    // ============================================================================
+    // 2. THREE.JS SCENE, CAMERA, RENDERER & LIGHTING SETUP
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#c8e4ff');
+    scene.fog = new THREE.FogExp2('#c8e4ff', 0.0065);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.5, 280);
+    camera.position.set(0, 32, 54);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(getOptimalPixelRatio());
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.06;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.18, 0.55, 0.8
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (e) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 7, -4);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.475;
+    controls.minPolarAngle = 0.10;
+    controls.minDistance = 8;
+    controls.maxDistance = 125;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.35;
+
+    let lastInputTime = performance.now();
+    const recordInput = () => {
+      lastInputTime = performance.now();
+      controls.autoRotate = false;
+    };
+    controls.addEventListener('start', recordInput);
+
+    const hemiLight = new THREE.HemisphereLight(0xfff8eb, 0x8d99ae, 0.74);
+    scene.add(hemiLight);
+
+    const mainDirLight = new THREE.DirectionalLight(0xfff1d0, 1.32);
+    mainDirLight.position.set(-44, 62, 36);
+    mainDirLight.castShadow = true;
+    mainDirLight.shadow.mapSize.width = 2048;
+    mainDirLight.shadow.mapSize.height = 2048;
+    mainDirLight.shadow.camera.near = 4;
+    mainDirLight.shadow.camera.far = 175;
+    const dCam = 65;
+    mainDirLight.shadow.camera.left = -dCam;
+    mainDirLight.shadow.camera.right = dCam;
+    mainDirLight.shadow.camera.top = dCam;
+    mainDirLight.shadow.camera.bottom = -dCam;
+    mainDirLight.shadow.bias = -0.0006;
+    scene.add(mainDirLight);
+
+    const gateTorchLight = new THREE.PointLight(0xff9e3b, 0.0, 34, 1.5);
+    gateTorchLight.position.set(0, 9.5, -13.5);
+    scene.add(gateTorchLight);
+
+    const keepMoonLight = new THREE.PointLight(0xffb74d, 0.0, 42, 1.5);
+    keepMoonLight.position.set(0, 26, -24);
+    scene.add(keepMoonLight);
+
+    const battleCampLight = new THREE.PointLight(0xff8c3b, 0.0, 36, 1.5);
+    battleCampLight.position.set(27, 6.5, 4);
+    scene.add(battleCampLight);
+
+    const pagodaLight = new THREE.PointLight(0xff9e3b, 0.0, 30, 1.5);
+    pagodaLight.position.set(-45, 12, -16);
+    scene.add(pagodaLight);
+
+    const solidMaterial = new THREE.MeshStandardMaterial({ roughness: 0.84, metalness: 0.05 });
+    const plushMaterial = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0.02 });
+    const goldMaterial = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.26, metalness: 0.72 });
+    const waterMaterial = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8, transparent: true, opacity: 0.76, roughness: 0.14, metalness: 0.12
+    });
+    const lanternEmissiveMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfff3d1, emissive: new THREE.Color(0xffa938), emissiveIntensity: 0.45, roughness: 0.25
+    });
+
+    // ============================================================================
+    // 3. BUILD GRAND 5-TIER CITADEL, MOAT, SHRINE PAGODA, TOWN & BATTLEFIELD
+    // ============================================================================
+    const NINOMARU_Y = 4.4; // Outer Citadel Bailey Elevation
+    const CY = 8.8;         // Upper Honmaru Citadel Courtyard Elevation
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+
+    const solidBlocks = [];
+    const glowingBlocks = [];
+    const goldBlocks = [];
+    const interactiveProps = [];
+
+    function addVoxBox(x, y, z, sx, sy, sz, hex, list = solidBlocks, variance = 0.03) {
+      list.push({
+        x, y: y + sy * 0.5, z, sx, sy, sz,
+        color: varyColor(hex, x, y, z, variance)
+      });
+    }
+
+    // Helper: Creates a stepped multi-layer Japanese curved Kawara roof with upturned eaves & gold trim
+    function addJapaneseRoof(cx, baseY, cz, width, depth, height, colorHex = '#1e293b', goldEnds = true, steps = 3) {
+      const stepH = height / steps;
+      for (let i = 0; i < steps; i++) {
+        const t = i / steps;
+        const flare = (1 - t) * 1.4;
+        const w = width * (1 - t * 0.34) + flare;
+        const d = depth * (1 - t * 0.34) + flare;
+        addVoxBox(cx, baseY + i * stepH, cz, w, stepH, d, colorHex, solidBlocks, 0.025);
+      }
+      // Upturned corner eaves (Sumimune)
+      const cOffX = width * 0.5 + 0.45;
+      const cOffZ = depth * 0.5 + 0.45;
+      for (const sx of [-1, 1]) {
+        for (const sz of [-1, 1]) {
+          addVoxBox(cx + sx * cOffX, baseY + stepH * 0.55, cz + sz * cOffZ, 1.05, stepH * 0.9, 1.05, colorHex, solidBlocks, 0.02);
+          if (goldEnds) {
+            addVoxBox(cx + sx * (cOffX + 0.35), baseY + stepH * 0.85, cz + sz * (cOffZ + 0.35), 0.45, 0.45, 0.45, '#facc15', goldBlocks);
+          }
+        }
+      }
+      // Roof ridge beam (Omune) + Golden Onigawara end tiles
+      const rw = width * 0.62;
+      addVoxBox(cx, baseY + height, cz, rw, 0.55, 0.85, '#334155', solidBlocks, 0.02);
+      if (goldEnds) {
+        addVoxBox(cx - rw * 0.5 - 0.25, baseY + height + 0.1, cz, 0.55, 0.75, 0.95, '#facc15', goldBlocks);
+        addVoxBox(cx + rw * 0.5 + 0.25, baseY + height + 0.1, cz, 0.55, 0.75, 0.95, '#facc15', goldBlocks);
+      }
+    }
+
+    // Helper: Sculpted multi-voxel Golden Shachihoko (Tiger-Headed Carp Roof Ornament)
+    function addGoldenShachihoko(x, y, z, side = 1) {
+      addVoxBox(x, y, z, 1.15, 0.75, 0.95, '#facc15', goldBlocks);
+      addVoxBox(x - side * 0.25, y + 0.75, z, 0.9, 0.95, 0.8, '#facc15', goldBlocks);
+      addVoxBox(x - side * 0.45, y + 1.7, z, 0.75, 0.9, 0.65, '#facc15', goldBlocks);
+      addVoxBox(x - side * 0.85, y + 2.35, z, 1.3, 0.6, 0.85, '#fde047', goldBlocks);
+      addVoxBox(x + side * 0.35, y + 0.95, z, 0.45, 0.55, 1.1, '#eab308', goldBlocks);
+    }
+
+    function flushInstancedBlocks(list, mat, castShadow = true) {
+      if (!list.length) return null;
+      const geom = createSoftVoxelGeometry(1.0);
+      const mesh = new THREE.InstancedMesh(geom, mat, list.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = true;
+      for (let i = 0; i < list.length; i++) {
+        const b = list[i];
+        tempPos.set(b.x, b.y, b.z);
+        tempQuat.identity();
+        tempScale.set(b.sx, b.sy, b.sz);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, b.color);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      scene.add(mesh);
+      return mesh;
+    }
+
+    let castleGateGroup = new THREE.Group();
+    let kabukiCurtainMesh = null;
+    let kabukiOpen = false;
+    let sleepyBaleFumo = null;
+    let kiteGroup = null;
+    let kiteActive = false;
+    let waterwheelGroup = new THREE.Group();
+    const koiList = [];
+    const floatingLanterns = [];
+
+    function buildCastleAndTown() {
+      // ========================================================================
+      // 1. EXPANDED REALM TERRAIN, MOAT, CANAL & PAVED ROADS
+      // ========================================================================
+      addVoxBox(0, -1.6, 0, 150, 1.6, 128, '#65a30d');
+      // Stone-paved Ote-suji Procession Avenue & Town Streets
+      addVoxBox(0, -0.04, -2, 8.5, 0.14, 24, '#cbd5e1');
+      addVoxBox(-22, -0.04, 6, 46, 0.14, 4.5, '#cbd5e1');
+
+      // Expanded Castle Moat (Horikawa) with Outer Stone Embankments
+      addVoxBox(0, -1.5, -24, 64, 0.4, 34, '#1e3a8a');
+      addVoxBox(0, -0.4, -6.8, 66, 0.8, 0.8, '#64748b');
+      addVoxBox(0, -0.4, -41.2, 66, 0.8, 0.8, '#64748b');
+      addVoxBox(-32.2, -0.4, -24, 0.8, 0.8, 35, '#64748b');
+      addVoxBox(32.2, -0.4, -24, 0.8, 0.8, 35, '#64748b');
+
+      // Town Canal & Scarlet River Beds
+      addVoxBox(-18, -1.4, 10, 68, 0.4, 5.2, '#1e3a8a');
+      addVoxBox(27, -1.4, 4, 5.0, 0.4, 48, '#1e3a8a');
+
+      const moatWater = new THREE.Mesh(new THREE.BoxGeometry(63.5, 0.32, 33.5), waterMaterial);
+      moatWater.position.set(0, -0.14, -24);
+      scene.add(moatWater);
+
+      const canalWater = new THREE.Mesh(new THREE.BoxGeometry(68, 0.32, 5.0), waterMaterial);
+      canalWater.position.set(-18, -0.1, 10);
+      scene.add(canalWater);
+
+      const battleRiverWater = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.32, 48), waterMaterial);
+      battleRiverWater.position.set(27, -0.06, 4);
+      scene.add(battleRiverWater);
+
+      // ========================================================================
+      // 2. TWO-TIER ISHIGAKI CURVED STONE FORTRESS BASE (Ninomaru + Honmaru)
+      // ========================================================================
+      // Lower Ninomaru Ishigaki (Y = 0 to 4.4)
+      for (let tier = 0; tier < 4; tier++) {
+        const shrink = tier * 0.55;
+        const w = 52 - shrink * 2;
+        const d = 27 - shrink * 1.6;
+        const col = tier % 2 === 0 ? '#64748b' : '#475569';
+        addVoxBox(0, tier * 1.1, -24, w, 1.1, d, col, solidBlocks, 0.05);
+        // Sangi-zumi reinforced corner quoins
+        for (const sx of [-1, 1]) {
+          for (const sz of [-1, 1]) {
+            addVoxBox(sx * (w * 0.5 - 0.8), tier * 1.1, -24 + sz * (d * 0.5 - 0.8), 1.8, 1.12, 1.8, '#334155', solidBlocks, 0.03);
+          }
+        }
+      }
+      // Ninomaru Bailey Paved Surface (Y = 4.4)
+      addVoxBox(0, NINOMARU_Y, -24, 48, 0.35, 23, '#d6ccc2');
+
+      // Upper Honmaru Ishigaki (Y = 4.4 to 8.8)
+      for (let tier = 0; tier < 4; tier++) {
+        const shrink = tier * 0.5;
+        const w = 40 - shrink * 2;
+        const d = 20 - shrink * 1.5;
+        const col = tier % 2 === 0 ? '#475569' : '#64748b';
+        addVoxBox(0, NINOMARU_Y + tier * 1.1, -24.5, w, 1.1, d, col, solidBlocks, 0.05);
+        for (const sx of [-1, 1]) {
+          for (const sz of [-1, 1]) {
+            addVoxBox(sx * (w * 0.5 - 0.7), NINOMARU_Y + tier * 1.1, -24.5 + sz * (d * 0.5 - 0.7), 1.6, 1.12, 1.6, '#1e293b', solidBlocks, 0.03);
+          }
+        }
+      }
+      // Honmaru Upper Courtyard Surface at Y = CY (8.8)
+      addVoxBox(0, CY, -24.5, 36.5, 0.4, 17.5, '#e5e0d8');
+
+      // ========================================================================
+      // 3. GRAND 5-TIER TENSHU (MAIN CASTLE KEEP) — Himeji / Azuchi Inspired
+      // ========================================================================
+      const KZ = -25.5;
+      // Stone Tenchudai Foundation Plinth
+      addVoxBox(0, CY + 0.4, KZ, 21.5, 1.0, 15.5, '#475569');
+
+      // --- TIER 1 (Grand Base Hall: Y = CY+1.4 to CY+6.0) ---
+      addVoxBox(0, CY + 1.4, KZ, 20.0, 4.6, 14.0, '#f8fafc');
+      // Dark timber structural bands & vertical pillars
+      addVoxBox(0, CY + 1.4, KZ, 20.2, 0.45, 14.2, '#27272a');
+      addVoxBox(0, CY + 5.5, KZ, 20.2, 0.45, 14.2, '#27272a');
+      for (let px = -8; px <= 8; px += 4) {
+        addVoxBox(px, CY + 1.4, KZ + 7.05, 0.35, 4.6, 0.25, '#3f2e21');
+        addVoxBox(px, CY + 1.4, KZ - 7.05, 0.35, 4.6, 0.25, '#3f2e21');
+      }
+      // Glowing Shoji Lattice Windows + Ishi-otoshi (corner stone-drop chutes)
+      addVoxBox(0, CY + 2.5, KZ + 7.02, 13.5, 2.2, 0.2, '#fef08a', glowingBlocks);
+      addVoxBox(0, CY + 2.5, KZ - 7.02, 13.5, 2.2, 0.2, '#fef08a', glowingBlocks);
+      addVoxBox(10.02, CY + 2.5, KZ, 0.2, 2.2, 9.5, '#fef08a', glowingBlocks);
+      addVoxBox(-10.02, CY + 2.5, KZ, 0.2, 2.2, 9.5, '#fef08a', glowingBlocks);
+      for (const sx of [-1, 1]) {
+        addVoxBox(sx * 9.5, CY + 1.2, KZ + 6.9, 2.2, 1.4, 1.2, '#f1f5f9');
+        addVoxBox(sx * 9.5, CY + 2.6, KZ + 6.9, 2.5, 0.4, 1.4, '#1e293b');
+      }
+      addJapaneseRoof(0, CY + 6.0, KZ, 24.5, 18.0, 1.5, '#1e293b', true, 3);
+      // Grand Entry Karahafu Curved Gable on Tier 1
+      addVoxBox(0, CY + 6.3, KZ + 8.2, 7.5, 1.3, 2.5, '#1e293b');
+      addVoxBox(0, CY + 6.4, KZ + 9.4, 4.2, 0.75, 0.35, '#facc15', goldBlocks);
+
+      // --- TIER 2 (Second Story: Y = CY+7.5 to CY+11.7) ---
+      addVoxBox(0, CY + 7.5, KZ, 16.5, 4.2, 11.6, '#f8fafc');
+      addVoxBox(0, CY + 7.5, KZ, 16.7, 0.4, 11.8, '#27272a');
+      addVoxBox(0, CY + 8.6, KZ + 5.82, 11.0, 2.0, 0.2, '#fef08a', glowingBlocks);
+      addVoxBox(0, CY + 8.6, KZ - 5.82, 11.0, 2.0, 0.2, '#fef08a', glowingBlocks);
+      addVoxBox(8.26, CY + 8.6, KZ, 0.2, 2.0, 7.5, '#fef08a', glowingBlocks);
+      addVoxBox(-8.26, CY + 8.6, KZ, 0.2, 2.0, 7.5, '#fef08a', glowingBlocks);
+      addJapaneseRoof(0, CY + 11.7, KZ, 20.8, 15.4, 1.4, '#334155', true, 3);
+      // Twin Chidori-hafu Triangular Dormer Gables on Tier 2
+      for (const sx of [-4.5, 4.5]) {
+        addVoxBox(sx, CY + 12.1, KZ + 6.8, 4.2, 1.3, 2.0, '#1e293b');
+        addVoxBox(sx, CY + 12.2, KZ + 7.8, 2.2, 0.7, 0.3, '#facc15', goldBlocks);
+      }
+
+      // --- TIER 3 (Third Story with Crimson Lacquer Accents: Y = CY+13.1 to CY+16.9) ---
+      addVoxBox(0, CY + 13.1, KZ, 13.2, 3.8, 9.4, '#f8fafc');
+      addVoxBox(0, CY + 13.1, KZ, 13.5, 0.5, 9.7, '#991b1b');
+      addVoxBox(0, CY + 14.1, KZ + 4.72, 8.5, 1.8, 0.2, '#fef08a', glowingBlocks);
+      addVoxBox(0, CY + 14.1, KZ - 4.72, 8.5, 1.8, 0.2, '#fef08a', glowingBlocks);
+      addJapaneseRoof(0, CY + 16.9, KZ, 17.2, 12.8, 1.3, '#1e293b', true, 3);
+      // Central Golden Karahafu Gable on Tier 3
+      addVoxBox(0, CY + 17.3, KZ + 5.6, 5.5, 1.2, 2.0, '#334155');
+      addVoxBox(0, CY + 17.4, KZ + 6.6, 3.2, 0.65, 0.3, '#facc15', goldBlocks);
+
+      // --- TIER 4 (Fourth Story: Y = CY+18.2 to CY+21.6) ---
+      addVoxBox(0, CY + 18.2, KZ, 10.2, 3.4, 7.6, '#f8fafc');
+      addVoxBox(0, CY + 18.2, KZ, 10.4, 0.4, 7.8, '#1e293b');
+      addVoxBox(0, CY + 19.1, KZ + 3.82, 6.2, 1.6, 0.2, '#fef08a', glowingBlocks);
+      addVoxBox(0, CY + 19.1, KZ - 3.82, 6.2, 1.6, 0.2, '#fef08a', glowingBlocks);
+      addJapaneseRoof(0, CY + 21.6, KZ, 13.8, 10.6, 1.2, '#334155', true, 3);
+
+      // --- TIER 5 (Top Daimyo Command Sanctuary & Panorama Balcony: Y = CY+22.8 to CY+26.4) ---
+      // Crimson wrap-around Kouran Balcony Deck & Giboshi Golden Posts
+      addVoxBox(0, CY + 22.8, KZ, 10.6, 0.45, 8.4, '#b91c1c');
+      addVoxBox(0, CY + 23.25, KZ + 4.05, 10.6, 0.65, 0.25, '#dc2626');
+      addVoxBox(0, CY + 23.25, KZ - 4.05, 10.6, 0.65, 0.25, '#dc2626');
+      addVoxBox(5.15, CY + 23.25, KZ, 0.25, 0.65, 8.4, '#dc2626');
+      addVoxBox(-5.15, CY + 23.25, KZ, 0.25, 0.65, 8.4, '#dc2626');
+      for (const sx of [-5.1, 0, 5.1]) {
+        for (const sz of [-4.0, 4.0]) {
+          addVoxBox(sx, CY + 23.9, KZ + sz, 0.4, 0.45, 0.4, '#facc15', goldBlocks);
+        }
+      }
+      // Top Sanctuary Core (Gold & Black Lacquer Azuchi Style)
+      addVoxBox(0, CY + 23.2, KZ, 7.8, 3.2, 5.8, '#1e293b');
+      addVoxBox(0, CY + 23.9, KZ + 2.92, 5.2, 1.8, 0.2, '#fef08a', glowingBlocks);
+      addVoxBox(0, CY + 23.9, KZ - 2.92, 5.2, 1.8, 0.2, '#fef08a', glowingBlocks);
+      addVoxBox(3.92, CY + 23.9, KZ, 0.2, 1.8, 3.8, '#fef08a', glowingBlocks);
+      addVoxBox(-3.92, CY + 23.9, KZ, 0.2, 1.8, 3.8, '#fef08a', glowingBlocks);
+      // Grand Top Roof + Twin Sculpted Golden Shachihoko
+      addJapaneseRoof(0, CY + 26.4, KZ, 12.2, 9.6, 1.6, '#0f172a', true, 4);
+      addGoldenShachihoko(-3.8, CY + 28.0, KZ, -1);
+      addGoldenShachihoko(3.8, CY + 28.0, KZ, 1);
+
+      // ========================================================================
+      // 4. FOUR CORNER YAGURA TURRETS, WATARI-YAGURA GALLERIES & SAMA LOOPHOLES
+      // ========================================================================
+      const yaguraCorners = [
+        { x: -16.2, z: -17.0 }, { x: 16.2, z: -17.0 },
+        { x: -16.2, z: -31.8 }, { x: 16.2, z: -31.8 }
+      ];
+      yaguraCorners.forEach(yc => {
+        // Tier 1 of Corner Yagura
+        addVoxBox(yc.x, CY + 0.4, yc.z, 5.8, 3.8, 5.8, '#f8fafc');
+        addVoxBox(yc.x, CY + 0.4, yc.z, 6.0, 0.4, 6.0, '#334155');
+        addVoxBox(yc.x, CY + 1.6, yc.z + (yc.z > -24 ? 2.92 : -2.92), 3.2, 1.5, 0.2, '#fef08a', glowingBlocks);
+        addJapaneseRoof(yc.x, CY + 4.2, yc.z, 7.6, 7.6, 1.0, '#334155', true, 2);
+        // Tier 2 of Corner Yagura
+        addVoxBox(yc.x, CY + 5.2, yc.z, 4.2, 2.8, 4.2, '#f8fafc');
+        addVoxBox(yc.x, CY + 6.0, yc.z + (yc.z > -24 ? 2.12 : -2.12), 2.2, 1.2, 0.2, '#fef08a', glowingBlocks);
+        addJapaneseRoof(yc.x, CY + 8.0, yc.z, 6.0, 6.0, 1.0, '#1e293b', true, 2);
+      });
+
+      // Connecting Plaster Curtain Walls with Sama Loopholes
+      for (const side of [-1, 1]) {
+        // Front Honmaru Wall Segments
+        addVoxBox(side * 9.6, CY + 0.4, -16.8, 8.2, 2.8, 1.3, '#f8fafc');
+        addJapaneseRoof(side * 9.6, CY + 3.2, -16.8, 8.8, 2.2, 0.65, '#334155', false, 2);
+        for (let lx = -2.5; lx <= 2.5; lx += 2.5) {
+          addVoxBox(side * 9.6 + lx, CY + 1.5, -16.12, 0.55, 0.75, 0.2, '#1e293b');
+        }
+        // Side Watari-Yagura Covered Galleries
+        addVoxBox(side * 16.2, CY + 0.4, -24.4, 2.6, 3.0, 9.6, '#f8fafc');
+        addJapaneseRoof(side * 16.2, CY + 3.4, -24.4, 3.6, 10.2, 0.8, '#334155', false, 2);
+        // Ninomaru Outer Parapet Walls (Y = 4.4)
+        addVoxBox(side * 13.5, NINOMARU_Y + 0.35, -13.2, 16.0, 2.2, 1.1, '#f1f5f9');
+        addJapaneseRoof(side * 13.5, NINOMARU_Y + 2.55, -13.2, 16.6, 1.8, 0.55, '#334155', false, 2);
+      }
+      // Rear Honmaru Wall
+      addVoxBox(0, CY + 0.4, -32.2, 26.8, 2.8, 1.3, '#f8fafc');
+      addJapaneseRoof(0, CY + 3.2, -32.2, 27.4, 2.2, 0.65, '#334155', false, 2);
+
+      // ========================================================================
+      // 5. ARCHED VERMILION TAIKO-BASHI BRIDGE & MASUGATA DOUBLE GATEHOUSE
+      // ========================================================================
+      // Arched Vermilion Bridge over Moat (Z = -6.8 to -13.2)
+      const bridgeSegs = 9;
+      for (let i = 0; i < bridgeSegs; i++) {
+        const t = i / (bridgeSegs - 1);
+        const bz = -6.8 - t * 6.4;
+        const archY = Math.sin(t * Math.PI) * 1.45;
+        addVoxBox(0, 0.15 + archY, bz, 6.2, 0.45, 0.9, '#9c6644');
+        addVoxBox(-2.9, 0.6 + archY, bz, 0.35, 0.85, 0.9, '#dc2626');
+        addVoxBox(2.9, 0.6 + archY, bz, 0.35, 0.85, 0.9, '#dc2626');
+        if (i % 2 === 0) {
+          addVoxBox(-2.9, 1.45 + archY, bz, 0.48, 0.4, 0.48, '#facc15', goldBlocks);
+          addVoxBox(2.9, 1.45 + archY, bz, 0.48, 0.4, 0.48, '#facc15', goldBlocks);
+        }
+      }
+      // Stone Ramp from Bridge up to Honmaru Gate
+      for (let s = 0; s < 8; s++) {
+        addVoxBox(0, s * 1.1, -13.0 - s * 0.48, 6.0, 1.1, 1.5, '#94a3b8');
+      }
+      // Outer Koraimon Gate Pillars at Ninomaru (Z = -13.2)
+      addVoxBox(-3.6, NINOMARU_Y, -13.2, 1.2, 3.8, 1.4, '#4a2c18');
+      addVoxBox(3.6, NINOMARU_Y, -13.2, 1.2, 3.8, 1.4, '#4a2c18');
+      addJapaneseRoof(0, NINOMARU_Y + 3.6, -13.2, 9.8, 3.2, 0.95, '#1e293b', true, 2);
+
+      // Upper Ote-Mon Yagura-Mon Gatehouse (Z = -16.8, Y = CY)
+      addVoxBox(-4.2, CY, -16.8, 2.2, 4.6, 2.8, '#4a2c18');
+      addVoxBox(4.2, CY, -16.8, 2.2, 4.6, 2.8, '#4a2c18');
+      addVoxBox(0, CY + 3.8, -16.8, 11.2, 2.6, 3.4, '#f8fafc');
+      addVoxBox(0, CY + 4.4, -15.08, 6.5, 1.3, 0.2, '#fef08a', glowingBlocks);
+      addJapaneseRoof(0, CY + 6.4, -16.8, 13.6, 5.2, 1.3, '#1e293b', true, 3);
+
+      // Breakable Iron-Studded Wooden Castle Gate
+      const gateGeo = createSoftVoxelGeometry(1.0);
+      const gateDoor = new THREE.Mesh(gateGeo, new THREE.MeshStandardMaterial({ color: 0x5c3824, roughness: 0.85 }));
+      gateDoor.scale.set(6.0, 3.8, 0.65);
+      gateDoor.position.set(0, CY + 1.9, -16.8);
+      castleGateGroup.add(gateDoor);
+      scene.add(castleGateGroup);
+
+      // ========================================================================
+      // 6. INTERACTIVE WAR DRUM PAVILION & SALUTE CANNON (In Front of Moat Bridge)
+      // ========================================================================
+      const drumGroup = new THREE.Group();
+      drumGroup.position.set(-5.2, 0, -5.8);
+      const standMesh = new THREE.Mesh(createSoftVoxelGeometry(1.0), new THREE.MeshStandardMaterial({ color: 0x7f1d1d }));
+      standMesh.scale.set(1.8, 1.5, 1.4);
+      standMesh.position.y = 0.75;
+      const drumMesh = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.15, 1.4, 16), new THREE.MeshStandardMaterial({ color: 0xfef3c7 }));
+      drumMesh.rotation.x = Math.PI / 2;
+      drumMesh.position.y = 2.0;
+      drumGroup.add(standMesh, drumMesh);
+      scene.add(drumGroup);
+      drumMesh.userData.prop = {
+        name: '🥁 Ceremonial War Drum (Click or E to Start War Game!)',
+        onActivate: () => toggleWarGameMode(true)
+      };
+      interactiveProps.push(drumMesh);
+
+      const cannonGroup = new THREE.Group();
+      cannonGroup.position.set(5.2, 0, -5.8);
+      const cannonBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.6, 2.6, 12), goldMaterial);
+      cannonBarrel.rotation.x = Math.PI / 2 - 0.35;
+      cannonBarrel.position.set(0, 1.15, 0);
+      cannonGroup.add(cannonBarrel);
+      scene.add(cannonGroup);
+      cannonBarrel.userData.prop = {
+        name: '💣 Ceremonial Matchlock Cannon (Click to Fire Salute!)',
+        onActivate: () => {
+          soundFX.playMatchlockBang();
+          spawnParticles(new THREE.Vector3(5.2, 1.8, -4.5), '#facc15', 24, 1.7);
+          spawnFloatingText(new THREE.Vector3(5.2, 2.6, -4.5), 'KABOOM! 🎆', '#f59e0b');
+        }
+      };
+      interactiveProps.push(cannonBarrel);
+
+      // ========================================================================
+      // 7. SHINTO SHRINE PRECINCT & FIVE-STORY PAGODA (GOJU-NO-TO) ON WEST HILL
+      // ========================================================================
+      // Elevated Sacred Hillock (X = -45, Z = -16)
+      addVoxBox(-45, 0, -16, 18, 2.2, 22, '#4d7c0f');
+      addVoxBox(-45, 2.2, -16, 15, 0.4, 19, '#cbd5e1');
+      // Stone Approach Steps & Vermilion Torii Gate (X = -45, Z = -4.5)
+      for (let s = 0; s < 4; s++) {
+        addVoxBox(-45, s * 0.55, -4.0 - s * 0.6, 4.5, 0.55, 0.8, '#94a3b8');
+      }
+      addVoxBox(-47.2, 0, -4.2, 0.75, 5.8, 0.75, '#dc2626');
+      addVoxBox(-42.8, 0, -4.2, 0.75, 5.8, 0.75, '#dc2626');
+      addVoxBox(-45.0, 4.6, -4.2, 6.2, 0.45, 0.65, '#dc2626');
+      addVoxBox(-45.0, 5.6, -4.2, 7.2, 0.55, 0.95, '#1e293b');
+      addVoxBox(-45.0, 5.2, -4.2, 7.0, 0.45, 0.85, '#dc2626');
+
+      // Five-Story Pagoda (Goju-no-to) at (-45, Y=2.6, Z=-18)
+      const PX = -45, PZ = -18, PBASE = 2.6;
+      addVoxBox(PX, PBASE, PZ, 9.2, 0.9, 9.2, '#64748b');
+      for (let tier = 0; tier < 5; tier++) {
+        const ty = PBASE + 0.9 + tier * 3.4;
+        const coreW = 6.6 - tier * 0.72;
+        const roofW = 9.8 - tier * 0.92;
+        addVoxBox(PX, ty, PZ, coreW, 2.4, coreW, '#991b1b');
+        addVoxBox(PX, ty + 0.5, PZ + coreW * 0.5 + 0.02, coreW * 0.6, 1.3, 0.18, '#fef08a', glowingBlocks);
+        addVoxBox(PX, ty + 0.5, PZ - coreW * 0.5 - 0.02, coreW * 0.6, 1.3, 0.18, '#fef08a', glowingBlocks);
+        addJapaneseRoof(PX, ty + 2.4, PZ, roofW, roofW, 1.0, '#1e293b', true, 2);
+      }
+      // Golden Sorin Spire on top of Pagoda
+      addVoxBox(PX, PBASE + 17.9, PZ, 0.55, 4.2, 0.55, '#facc15', goldBlocks);
+      for (let r = 0; r < 5; r++) {
+        addVoxBox(PX, PBASE + 18.4 + r * 0.65, PZ, 1.3 - r * 0.12, 0.22, 1.3 - r * 0.12, '#fde047', goldBlocks);
+      }
+
+      // Sacred Giant Goshinboku Cherry Tree beside Pagoda
+      addVoxBox(-39, 2.6, -12, 1.8, 6.5, 1.8, '#4a2c18');
+      addVoxBox(-39, 8.2, -12, 7.8, 4.5, 7.8, '#ffb3c6');
+      addVoxBox(-39, 11.8, -12, 5.2, 2.8, 5.2, '#ffc2d1');
+
+      // ========================================================================
+      // 8. TWO-STORY MERCHANT MACHIYA TOWNHOUSES, STREET STALLS & CANAL WATERWHEEL
+      // ========================================================================
+      const shopConfigs = [
+        { x: -32, z: -2, name: '📜 Aya\'s Kawaraban Print Shop',    roof: '#1e293b', noren: '#1d4ed8', sign: '#facc15' },
+        { x: -22, z: -2, name: '⚒️ Town Blacksmith & Armorer',      roof: '#334155', noren: '#b91c1c', sign: '#f97316' },
+        { x: -12, z: -2, name: '🍡 Mystia\'s Yakitori & Tea House', roof: '#7f1d1d', noren: '#db2777', sign: '#f472b6' },
+        { x: -32, z: 17, name: '📖 Keine\'s Terakoya Academy',       roof: '#1e3a8a', noren: '#0284c7', sign: '#38bdf8' },
+        { x: -22, z: 17, name: '♨️ Edo Hinoki Bathhouse (Sento)',   roof: '#065f46', noren: '#059669', sign: '#34d399' }
+      ];
+      shopConfigs.forEach(s => {
+        // 1st Floor Timber Machiya
+        addVoxBox(s.x, 0, s.z, 8.2, 3.6, 6.4, '#5c3824');
+        addVoxBox(s.x, 1.0, s.z + 3.22, 5.2, 1.9, 0.2, '#fef08a', glowingBlocks);
+        // 1st Floor Front Eave Roof (Hisashi)
+        addVoxBox(s.x, 3.3, s.z + 3.5, 8.8, 0.45, 1.4, s.roof);
+        // 2nd Floor Upper Loft + Wooden Koshi Balcony Railing
+        addVoxBox(s.x, 3.6, s.z - 0.3, 7.4, 2.6, 5.2, '#f1f5f9');
+        addVoxBox(s.x, 4.2, s.z + 2.32, 4.6, 1.4, 0.2, '#fef08a', glowingBlocks);
+        addVoxBox(s.x, 3.75, s.z + 2.75, 7.6, 0.75, 0.25, '#4a2c18');
+        // Stepped Tiled Gable Roof
+        addJapaneseRoof(s.x, 6.2, s.z - 0.3, 9.2, 7.2, 1.3, s.roof, false, 2);
+        // Hanging Glowing Chochin Lanterns at Shop Corners
+        addVoxBox(s.x - 3.6, 2.4, s.z + 3.7, 0.55, 0.75, 0.55, '#fef08a', glowingBlocks);
+        addVoxBox(s.x + 3.6, 2.4, s.z + 3.7, 0.55, 0.75, 0.55, '#fef08a', glowingBlocks);
+
+        // Interactive Noren Curtain
+        const norenM = new THREE.Mesh(createSoftVoxelGeometry(1.0), new THREE.MeshStandardMaterial({ color: s.noren }));
+        norenM.scale.set(4.5, 1.15, 0.25);
+        norenM.position.set(s.x, 2.85, s.z + 3.35);
+        scene.add(norenM);
+        norenM.userData.prop = {
+          name: `${s.name} (Click Noren to Peek!)`,
+          onActivate: () => {
+            soundFX.playPickup();
+            norenM.rotation.x = norenM.rotation.x < -0.5 ? 0 : -1.1;
+            spawnFloatingText(norenM.position, 'Irasshaimase! 🏮', '#fde047');
+          }
+        };
+        interactiveProps.push(norenM);
+      });
+
+      // Outdoor Tea Bench & Red Nodate Umbrella outside Mystia's Stall
+      addVoxBox(-12, 0, 4.5, 2.4, 0.55, 1.1, '#b91c1c');
+      addVoxBox(-12, 0, 5.2, 0.22, 3.2, 0.22, '#5c3824');
+      addVoxBox(-12, 3.0, 5.2, 3.2, 0.45, 3.2, '#dc2626');
+      // Blacksmith Outdoor Forge Glow & Sake Barrels
+      addVoxBox(-19.2, 0, 2.2, 1.4, 1.1, 1.4, '#334155');
+      addVoxBox(-19.2, 1.1, 2.2, 0.9, 0.4, 0.9, '#f97316', glowingBlocks);
+      // Sento Bathhouse Tall Chimney
+      addVoxBox(-22, 6.2, 14.5, 1.2, 4.8, 1.2, '#475569');
+
+      // Spinning Wooden Waterwheel & Canal Boat Dock (X = -28, Z = 10)
+      waterwheelGroup.position.set(-28, 1.4, 7.6);
+      const wheelRing = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.1, 0.6, 12), new THREE.MeshStandardMaterial({ color: 0x784b2c }));
+      wheelRing.rotation.x = Math.PI / 2;
+      waterwheelGroup.add(wheelRing);
+      for (let p = 0; p < 8; p++) {
+        const ang = (p / 8) * Math.PI * 2;
+        const spoke = new THREE.Mesh(createSoftVoxelGeometry(1.0), new THREE.MeshStandardMaterial({ color: 0x9c6644 }));
+        spoke.scale.set(0.25, 4.4, 0.75);
+        spoke.rotation.z = ang;
+        waterwheelGroup.add(spoke);
+      }
+      scene.add(waterwheelGroup);
+      // Moored Wooden Wasen Canal Boat at (-18, Z = 10)
+      addVoxBox(-18, -0.05, 10, 4.8, 0.45, 1.7, '#9c6644');
+      addVoxBox(-18, 0.35, 10, 3.6, 0.3, 1.4, '#784b2c');
+
+      // Interactive Rice Bale Pile
+      for (let b = 0; b < 5; b++) {
+        const bx = -34 + (b % 3) * 1.5;
+        const bz = 4.5 + Math.floor(b / 3) * 1.5;
+        const baleM = new THREE.Mesh(createSoftVoxelGeometry(1.0), new THREE.MeshStandardMaterial({ color: 0xe9c46a, roughness: 0.95 }));
+        baleM.scale.set(1.35, 1.0, 1.1);
+        baleM.position.set(bx, 0.5, bz);
+        scene.add(baleM);
+        baleM.userData.prop = {
+          name: '🌾 Straw Rice Bale (Click to Rustle!)',
+          onActivate: () => {
+            soundFX.playSqueeze(1.25);
+            if (sleepyBaleFumo) {
+              sleepyBaleFumo.vel.y = 9.5;
+              sleepyBaleFumo.isGrounded = false;
+              sleepyBaleFumo.squeeze(1.2);
+              spawnFloatingText(sleepyBaleFumo.pos, 'Fumo?! ᗜ_ᗜ', '#fb7185');
+            }
+          }
+        };
+        interactiveProps.push(baleM);
+      }
+
+      // Grand Kabuki Theater Stage with Pine Backdrop & Interactive Curtain
+      addVoxBox(-10, 0, 18, 9.8, 1.3, 7.0, '#9c6644');
+      addVoxBox(-10, 1.3, 21.1, 8.8, 3.6, 0.4, '#fde68a');
+      addVoxBox(-10, 2.4, 20.9, 4.8, 2.0, 0.3, '#15803d'); // Painted Matsubame Pine Tree
+      addJapaneseRoof(-10, 4.9, 18, 11.2, 8.4, 1.3, '#991b1b', true, 2);
+      kabukiCurtainMesh = new THREE.Mesh(createSoftVoxelGeometry(1.0), new THREE.MeshStandardMaterial({ color: 0xd97706 }));
+      kabukiCurtainMesh.scale.set(8.2, 3.4, 0.25);
+      kabukiCurtainMesh.position.set(-10, 3.0, 15.0);
+      scene.add(kabukiCurtainMesh);
+      kabukiCurtainMesh.userData.prop = {
+        name: '🎭 Kabuki Stage Curtain (Click to Open/Close!)',
+        onActivate: () => {
+          kabukiOpen = !kabukiOpen;
+          soundFX.playTaiko(0.8);
+          kabukiCurtainMesh.scale.x = kabukiOpen ? 1.2 : 8.2;
+          kabukiCurtainMesh.position.x = kabukiOpen ? -13.4 : -10;
+          spawnFloatingText(new THREE.Vector3(-10, 4.4, 16), kabukiOpen ? 'Yooo~! 🎭' : 'Curtain Call!', '#f59e0b');
+        }
+      };
+      interactiveProps.push(kabukiCurtainMesh);
+
+      // Temple Bell Tower (Shoro / Bonsho)
+      addVoxBox(-2, 0, 18, 4.8, 1.0, 4.8, '#64748b');
+      for (const sx of [-1.8, 1.8]) {
+        for (const sz of [-1.8, 1.8]) {
+          addVoxBox(-2 + sx, 1.0, 18 + sz, 0.45, 3.6, 0.45, '#7f1d1d');
+        }
+      }
+      addJapaneseRoof(-2, 4.6, 18, 6.2, 6.2, 1.2, '#334155', true, 2);
+      const bellMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.68, 0.88, 1.65, 12), new THREE.MeshStandardMaterial({ color: 0xb45309, metalness: 0.65, roughness: 0.32 }));
+      bellMesh.position.set(-2, 2.85, 18);
+      scene.add(bellMesh);
+      bellMesh.userData.prop = {
+        name: '🔔 Temple Bonsho Bell (Click to Ring!)',
+        onActivate: () => {
+          soundFX.playTempleBell();
+          spawnParticles(bellMesh.position, '#fef08a', 20, 1.25);
+          spawnFloatingText(bellMesh.position, 'GOOOONG~ 🔔', '#fde047');
+        }
+      };
+      interactiveProps.push(bellMesh);
+
+      // Canal Bridge & Karesansui Zen Rock Garden
+      addVoxBox(-6, 0.3, 10, 4.6, 0.65, 6.0, '#b45309');
+      addVoxBox(-8.1, 0.95, 10, 0.3, 0.7, 6.0, '#dc2626');
+      addVoxBox(-3.9, 0.95, 10, 0.3, 0.7, 6.0, '#dc2626');
+      addVoxBox(-22, 0.05, 26, 11, 0.16, 7.5, '#e2e8f0');
+      addVoxBox(-23.5, 0.2, 26, 1.8, 1.5, 1.6, '#475569');
+      addVoxBox(-20.0, 0.2, 25.5, 1.4, 1.1, 1.4, '#64748b');
+
+      // ========================================================================
+      // 9. EXPANDED BATTLEFIELD FORTIFICATIONS, HONJIN WAR CAMPS & MT. FUJI
+      // ========================================================================
+      // Scarlet River Tactical Bridge & Command Hill (Honjin)
+      addVoxBox(27, 0.2, 4, 5.8, 0.65, 5.0, '#9c6644');
+      addVoxBox(39, 0, -6, 10.5, 1.8, 10.5, '#4d7c0f');
+      // Cherry Clan Honjin Command Tent & Maku Curtains on Command Hill
+      addVoxBox(40.5, 1.8, -6, 6.5, 2.6, 6.5, '#f43f5e');
+      addJapaneseRoof(40.5, 4.4, -6, 7.8, 7.8, 1.1, '#831843', true, 2);
+      // Red Clan Forward War Camp Tent & Maku Curtain Enclosure (X = 11, Z = 16)
+      addVoxBox(11, 0, 16, 6.2, 2.6, 5.2, '#dc2626');
+      addJapaneseRoof(11, 2.6, 16, 7.4, 6.4, 1.0, '#7f1d1d', true, 2);
+      // Taketaba (Bamboo Bullet-Shield Bundles) & Sakaki Palisades along River
+      for (const bz of [-8, -3, 10, 14]) {
+        addVoxBox(23.2, 0, bz, 0.65, 1.6, 2.2, '#84cc16');
+        addVoxBox(30.8, 0, bz, 0.65, 1.6, 2.2, '#65a30d');
+      }
+      // Multi-Deck Nitori Kappa Siege Tower (Seiro) at (14, Z = -12)
+      addVoxBox(14, 0, -12, 4.0, 3.8, 4.0, '#784b2c');
+      addVoxBox(14, 3.8, -12, 3.4, 3.6, 3.4, '#5c3824');
+      addVoxBox(14, 7.4, -12, 3.0, 2.8, 3.0, '#784b2c');
+      addVoxBox(14, 10.2, -11.2, 3.6, 0.6, 4.8, '#9c6644');
+
+      // Distant Mt. Fuji & Horizon Mountain Range Backdrop (Z = -62)
+      for (let m = 0; m < 10; m++) {
+        const w = 36 - m * 3.1;
+        const col = m >= 6 ? '#f8fafc' : '#475569';
+        addVoxBox(-16, m * 3.6, -64, w, 3.6, w * 0.65, col, solidBlocks, 0.02);
+      }
+      addVoxBox(26, 0, -60, 28, 14, 16, '#475569');
+      addVoxBox(26, 14, -60, 16, 6, 10, '#64748b');
+
+      // ========================================================================
+      // 10. CHERRY BLOSSOM GROVES, STONE LANTERNS, KOI FISH & WATER LANTERNS
+      // ========================================================================
+      const treeCoords = [
+        [-8, -2], [8, -2], [-8, 5], [8, 5], [-16, 4], [-26, 4],
+        [-18, -10], [18, -10], [12, 14], [38, -14], [38, 18],
+        [-22, -24], [22, -24], [-40, 8], [44, 4]
+      ];
+      treeCoords.forEach(([tx, tz]) => {
+        const by = (Math.abs(tx) > 17 && Math.abs(tx) < 24 && tz < -14 && tz > -34) ? NINOMARU_Y : 0;
+        addVoxBox(tx, by, tz, 1.05, 4.4, 1.05, '#5c3824');
+        addVoxBox(tx, by + 4.0, tz, 4.6, 3.2, 4.6, '#ffb3c6');
+        addVoxBox(tx, by + 6.4, tz, 3.0, 1.8, 3.0, '#ffc2d1');
+      });
+
+      const lanternCoords = [
+        [-4.5, -3], [4.5, -3], [-4.5, 3], [4.5, 3], [-15, 2], [-25, 2],
+        [15, -10], [27, -10], [27, 16], [-42, -8], [-48, -8]
+      ];
+      lanternCoords.forEach(([lx, lz]) => {
+        addVoxBox(lx, 0, lz, 0.85, 2.3, 0.85, '#64748b');
+        const lHead = new THREE.Mesh(createSoftVoxelGeometry(0.95), lanternEmissiveMaterial);
+        lHead.position.set(lx, 2.65, lz);
+        scene.add(lHead);
+        lHead.userData.prop = {
+          name: '🏮 Stone Lantern (Click to Brighten!)',
+          onActivate: () => {
+            soundFX.playPickup();
+            spawnParticles(lHead.position, '#fde047', 14, 1.0);
+          }
+        };
+        interactiveProps.push(lHead);
+      });
+
+      // Swimming Koi Fish & Toro Nagashi Floating Water Lanterns in Moat & Canal
+      const koiColors = [0xf97316, 0xfef08a, 0xef4444, 0xffffff];
+      for (let k = 0; k < 14; k++) {
+        const km = new THREE.Mesh(createSoftVoxelGeometry(0.35), new THREE.MeshStandardMaterial({ color: koiColors[k % koiColors.length] }));
+        km.scale.set(0.7, 0.4, 1.8);
+        scene.add(km);
+        koiList.push({
+          mesh: km,
+          inMoat: k < 9,
+          cx: k < 9 ? (k % 2 === 0 ? -24 : 24) : -16 - (k - 9) * 5,
+          cz: k < 9 ? -22 + (k % 3) * 5 : 10,
+          radius: 1.8 + (k % 3) * 0.9,
+          speed: 0.9 + (k % 4) * 0.35,
+          phase: k * 1.1
+        });
+      }
+
+      const floatCoords = [[-14, -9], [14, -9], [-27, -20], [27, -20], [-12, 10], [-24, 10]];
+      floatCoords.forEach(([fx, fz], idx) => {
+        const fg = new THREE.Mesh(createSoftVoxelGeometry(0.65), lanternEmissiveMaterial);
+        fg.position.set(fx, 0.15, fz);
+        scene.add(fg);
+        floatingLanterns.push({ mesh: fg, baseX: fx, baseZ: fz, phase: idx * 1.3 });
+      });
+
+      // Edo Yakko Kite in the Sky (Toggled with F)
+      kiteGroup = new THREE.Group();
+      kiteGroup.position.set(-8, 22, 4);
+      kiteGroup.visible = false;
+      const kiteBody = new THREE.Mesh(createSoftVoxelGeometry(1.0), new THREE.MeshStandardMaterial({ color: 0xef4444 }));
+      kiteBody.scale.set(2.6, 3.0, 0.2);
+      kiteGroup.add(kiteBody);
+      scene.add(kiteGroup);
+
+      flushInstancedBlocks(solidBlocks, solidMaterial, true);
+      flushInstancedBlocks(glowingBlocks, lanternEmissiveMaterial, false);
+      flushInstancedBlocks(goldBlocks, goldMaterial, true);
+    }
+
+    buildCastleAndTown();
+
+    // ============================================================================
+    // 4. WAVING CLAN BANNERS (NOBORI) & DRIFTING CHERRY PETALS / PARTICLES
+    // ============================================================================
+    const banners = [];
+    function createWavingBanner(x, y, z, colorHex) {
+      const grp = new THREE.Group();
+      grp.position.set(x, y, z);
+      const pole = new THREE.Mesh(createSoftVoxelGeometry(1.0), solidMaterial);
+      pole.scale.set(0.18, 4.4, 0.18);
+      pole.position.y = 2.2;
+      grp.add(pole);
+
+      const stripMeshes = [];
+      for (let s = 0; s < 5; s++) {
+        const st = new THREE.Mesh(createSoftVoxelGeometry(1.0), new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.85 }));
+        st.scale.set(1.15, 0.58, 0.12);
+        st.position.set(0.68, 3.9 - s * 0.6, 0);
+        grp.add(st);
+        stripMeshes.push(st);
+      }
+      scene.add(grp);
+      banners.push({ grp, stripMeshes, phase: x * 0.5 + z * 0.3 });
+    }
+
+    [
+      [-5.2, CY, -16.2, '#dc2626'], [5.2, CY, -16.2, '#dc2626'],
+      [-12, NINOMARU_Y, -13.0, '#dc2626'], [12, NINOMARU_Y, -13.0, '#dc2626'],
+      [16, 0, -6, '#dc2626'], [16, 0, 12, '#dc2626'],
+      [38, 1.8, -8, '#ec4899'], [38, 1.8, -4, '#ec4899'], [36, 0, 12, '#ec4899']
+    ].forEach(([x, y, z, c]) => {
+      createWavingBanner(x, y, z, c);
+    });
+
+    const PETAL_COUNT = 130;
+    const petalData = [];
+    const petalMat = new THREE.MeshBasicMaterial({ color: 0xffccd5 });
+    const petalMesh = new THREE.InstancedMesh(createSoftVoxelGeometry(0.18), petalMat, PETAL_COUNT);
+    for (let i = 0; i < PETAL_COUNT; i++) {
+      petalData.push({
+        x: (Math.random() - 0.5) * 105,
+        y: 1 + Math.random() * 28,
+        z: (Math.random() - 0.5) * 80,
+        vy: 1.2 + Math.random() * 1.4,
+        phase: Math.random() * 6.28
+      });
+    }
+    scene.add(petalMesh);
+
+    const PARTICLE_MAX = 80;
+    const particles = [];
+    const particleMesh = new THREE.InstancedMesh(createSoftVoxelGeometry(0.22), new THREE.MeshBasicMaterial({ color: 0xffffff }), PARTICLE_MAX);
+    for (let i = 0; i < PARTICLE_MAX; i++) {
+      particles.push({ active: false, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, maxLife: 1, color: new THREE.Color() });
+      tempMatrix.makeScale(0, 0, 0);
+      particleMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(particleMesh);
+
+    function spawnParticles(origin, hexCol = '#fde047', count = 14, speedMul = 1.0) {
+      let n = 0;
+      for (let i = 0; i < PARTICLE_MAX && n < count; i++) {
+        const p = particles[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.5 + Math.random() * 0.35;
+          p.pos.copy(origin).add(new THREE.Vector3(0, 0.8, 0));
+          const ang = (n / count) * Math.PI * 2 + Math.random() * 0.4;
+          const spd = (2.2 + Math.random() * 2.5) * speedMul;
+          p.vel.set(Math.cos(ang) * spd, (2.8 + Math.random() * 2.5) * speedMul, Math.sin(ang) * spd);
+          p.color.set(n % 2 === 0 ? hexCol : '#ffffff');
+          particleMesh.setColorAt(i, p.color);
+          n++;
+        }
+      }
+      if (particleMesh.instanceColor) particleMesh.instanceColor.needsUpdate = true;
+    }
+
+    const activePopups = [];
+    const popupsLayer = document.getElementById('popups-layer');
+
+    function spawnFloatingText(worldPos, text, color = '#fef08a') {
+      const el = document.createElement('div');
+      el.className = 'floating-pop text-sm sm:text-base';
+      el.style.color = color;
+      el.textContent = text;
+      popupsLayer.appendChild(el);
+      activePopups.push({ el, pos: worldPos.clone().add(new THREE.Vector3(0, 1.8, 0)), life: 0, maxLife: 1.25 });
+    }
+
+    // ============================================================================
+    // 5. SengokuFumo CLASS (Round Shell Head + Kabuto, Jingasa, Sashimono, Katana)
+    // ============================================================================
+    const allFumoRaycastMeshes = [];
+    const townFumos = [];
+
+    class SengokuFumo {
+      constructor(cfg) {
+        this.id = cfg.id;
+        this.name = cfg.name;
+        this.emoji = cfg.emoji || '🏯';
+        this.clan = cfg.clan || 'town';
+        this.unitType = cfg.unitType || 'samurai';
+        this.helmetType = cfg.helmetType || 'kabuto';
+        this.crestColor = cfg.crestColor || '#facc15';
+        this.hairColor = cfg.hairColor || '#2b1e23';
+        this.eyeColor = cfg.eyeColor || '#991b1b';
+        this.armorColor = cfg.armorColor || '#dc2626';
+        this.lacingColor = cfg.lacingColor || '#facc15';
+        this.FV = 0.082 * (cfg.scale || 1.0);
+        this.partMeshes = [];
+
+        this.homePos = cfg.pos.clone();
+        this.pos = cfg.pos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = cfg.yaw || 0;
+        this.pitch = 0;
+        this.roll = 0;
+
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.isDefeated = false;
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+        this.bowTimer = 0.0;
+
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.0 * this.FV, 0.4 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.0 * this.FV, 0.4 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.2 * this.FV, 1.8 * this.FV, 2.4 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.2 * this.FV, 1.8 * this.FV, 2.4 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.buildCharacterVoxels();
+        this.syncTransform(0);
+        scene.add(this.root);
+      }
+
+      disposeFromScene() {
+        scene.remove(this.root);
+        this.partMeshes.forEach(m => {
+          const idx = allFumoRaycastMeshes.indexOf(m);
+          if (idx >= 0) allFumoRaycastMeshes.splice(idx, 1);
+        });
+        this.partMeshes.length = 0;
+      }
+
+      buildCharacterVoxels() {
+        const bodyV = [], headV = [], lArmV = [], rArmV = [], lLegV = [], rLegV = [];
+        const skin = '#ffe5d4', blush = '#ff9ebb', smile = '#4a2525';
+
+        const addV = (arr, x, y, z, col, seam = false) => {
+          const darken = (seam && ((Math.abs(x + y + z) % 2) === 0)) ? 0.055 : 0;
+          arr.push({ x, y, z, color: varyColor(col, x + this.id.length * 5, y, z, 0.038, darken) });
+        };
+
+        if (this.helmetType === 'barrel') {
+          for (let y = 0; y <= 10; y++) {
+            for (let x = -4; x <= 4; x++) {
+              for (let z = -4; z <= 4; z++) {
+                const r = Math.hypot(x, z);
+                if (r <= 4.3 && r >= 3.1) {
+                  const hoop = (y === 2 || y === 8);
+                  addV(bodyV, x, y, z, hoop ? '#334155' : '#9c6644');
+                }
+              }
+            }
+          }
+          addV(headV, -1.5, 2.5, 3.8, '#ffffff');
+          addV(headV, 1.5, 2.5, 3.8, '#ffffff');
+          for (let x = -4; x <= 4; x++) for (let z = -4; z <= 4; z++) {
+            if (Math.hypot(x, z) <= 4.2) addV(headV, x, 4.0, z, '#7f4f24');
+          }
+        } else {
+          // 1. Sengoku Armored Torso
+          for (let y = 0; y <= 7; y++) {
+            const rMax = (y === 0 || y === 7) ? 3.4 : 4.2 - y * 0.11;
+            for (let x = -4; x <= 4; x++) {
+              for (let z = -3; z <= 3; z++) {
+                if (Math.hypot(x, z * 1.15) > rMax) continue;
+                let col = this.armorColor;
+                if (y % 2 === 1 && z >= 1) col = this.lacingColor;
+                if (y <= 1) col = '#1e293b';
+                addV(bodyV, x, y + 0.5, z, col, z === 0 && Math.abs(x) >= 3);
+              }
+            }
+          }
+
+          // Sode Shoulder Guards
+          for (const side of [-1, 1]) {
+            for (let sy = 4; sy <= 6; sy++) {
+              for (let sz = -2; sz <= 2; sz++) {
+                addV(bodyV, side * 4.6, sy, sz, sy === 5 ? this.lacingColor : this.armorColor);
+              }
+            }
+          }
+
+          // Sashimono Clan Back Banner
+          if (this.clan === 'red' || this.clan === 'cherry') {
+            for (let py = 3; py <= 16; py++) addV(bodyV, 0, py, -3.8, '#5c3824');
+            const bCol = this.clan === 'red' ? '#dc2626' : '#ec4899';
+            for (let py = 10; py <= 16; py++) {
+              for (let px = -2; px <= 2; px++) {
+                const isCrest = (Math.abs(px) <= 1 && py >= 12 && py <= 14);
+                addV(bodyV, px, py, -4.3, isCrest ? '#fef08a' : bCol);
+              }
+            }
+          }
+
+          // Katana at left hip
+          for (let kz = -3; kz <= 4; kz++) {
+            addV(bodyV, -4.4, 2.2 - kz * 0.15, kz, kz === 2 ? '#facc15' : '#1e293b');
+          }
+
+          // 2. Arms & Held Weapon
+          for (const [side, arr] of [[-1, lArmV], [1, rArmV]]) {
+            for (let y = -3; y <= 0; y++) {
+              for (let x = -1; x <= 1; x++) {
+                for (let z = -1; z <= 1; z++) {
+                  if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                  addV(arr, x * 0.85 + side * 0.4, y, z * 0.85, y === -3 ? skin : this.armorColor);
+                }
+              }
+            }
+          }
+          if (this.unitType === 'ashigaru' || this.unitType === 'cavalry') {
+            for (let wy = -3; wy <= 12; wy++) addV(rArmV, 0.5, wy, 2.2, wy >= 10 ? '#e2e8f0' : '#78350f');
+          } else if (this.unitType === 'gunner') {
+            for (let wz = 0; wz <= 7; wz++) addV(rArmV, 0.5, -2.5, wz, wz >= 5 ? '#334155' : '#9c6644');
+          } else if (this.unitType === 'archer') {
+            for (let wy = -4; wy <= 6; wy++) addV(rArmV, 0.5, wy, 2.5 - Math.abs(wy) * 0.15, '#b45309');
+          } else if (this.unitType === 'commander') {
+            for (let fx = -1; fx <= 1; fx++) for (let fy = 0; fy <= 3; fy++) {
+              addV(rArmV, 0.5 + fx * 0.7, fy, 2.5, this.crestColor);
+            }
+          }
+
+          // 3. Legs & Sandals
+          for (const [side, arr] of [[-1, lLegV], [1, rLegV]]) {
+            for (let z = 0; z <= 3; z++) {
+              for (let x = -1; x <= 1; x++) {
+                for (let y = -1; y <= 1; y++) {
+                  if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                  addV(arr, x * 0.85, y * 0.85, z * 0.85, z >= 2 ? '#d4a373' : '#ffffff');
+                }
+              }
+            }
+          }
+          if (this.unitType === 'cavalry') {
+            for (let hy = 1; hy <= 5; hy++) {
+              for (let hx = -1; hx <= 1; hx++) {
+                addV(bodyV, hx, hy, 4.5, hy === 5 ? '#fef08a' : '#7f4f24');
+              }
+            }
+          }
+
+          // 4. Oversized Round Fumo Head with 'ᗜˬᗜ' Expression Plane
+          for (let y = 0; y <= 12; y++) {
+            for (let x = -7; x <= 7; x++) {
+              for (let z = -6; z <= 6; z++) {
+                const dy = (y - 6.0) * 1.05;
+                const dx = x * 0.94;
+                const dz = z * 1.02;
+                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (dist > 6.4 || dist < 4.5) continue;
+
+                let col = skin;
+                const isSeam = (z === 0 && Math.abs(x) >= 5);
+                const isHair = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3) ||
+                               (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+                if (isHair) {
+                  col = this.hairColor;
+                } else if (z >= 5) {
+                  if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                    if (y === 6) col = '#1f141e';
+                    else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                    else col = this.eyeColor;
+                  } else if (Math.abs(x) === 4 && y === 3) {
+                    col = blush;
+                  } else if (y === 2 && Math.abs(x) <= 1) {
+                    col = (x === 0) ? '#e07a7a' : smile;
+                  }
+                }
+                addV(headV, x, y, z, col, isSeam);
+              }
+            }
+          }
+
+          // 5. Kabuto Helmet with Maedate Crest or Jingasa Hat
+          if (this.helmetType === 'kabuto') {
+            for (let x = -7; x <= 7; x++) {
+              for (let z = -7; z <= 2; z++) {
+                const r = Math.hypot(x, z);
+                if (r >= 5.5 && r <= 7.6) {
+                  addV(headV, x, 7.5, z, this.armorColor);
+                  addV(headV, x * 1.05, 6.2, z * 1.05, this.lacingColor);
+                }
+              }
+            }
+            for (let bx = -5; bx <= 5; bx++) {
+              const h = Math.abs(bx);
+              addV(headV, bx, 10.5 + h * 0.75, 4.8, this.crestColor);
+              if (h >= 2) addV(headV, bx, 11.4 + h * 0.75, 4.8, this.crestColor);
+            }
+          } else if (this.helmetType === 'jingasa') {
+            for (let hx = -8; hx <= 8; hx++) {
+              for (let hz = -8; hz <= 8; hz++) {
+                const r = Math.hypot(hx, hz);
+                if (r <= 8.2) {
+                  addV(headV, hx, 10.4 + (8.2 - r) * 0.42, hz, r < 2.5 ? this.crestColor : '#1e293b');
+                }
+              }
+            }
+          } else if (this.helmetType === 'bow') {
+            for (let bx = -6; bx <= 6; bx++) {
+              for (let by = -2; by <= 2; by++) {
+                addV(headV, bx, 11.8 + by * 0.7, -2.2, this.armorColor);
+              }
+            }
+          }
+        }
+
+        const buildPart = (vList, parent) => {
+          if (!vList.length) return;
+          const geom = createSoftVoxelGeometry(this.FV);
+          const m = new THREE.InstancedMesh(geom, plushMaterial, vList.length);
+          m.castShadow = true;
+          m.receiveShadow = true;
+          for (let i = 0; i < vList.length; i++) {
+            const v = vList[i];
+            tempPos.set(v.x * this.FV, v.y * this.FV, v.z * this.FV);
+            tempQuat.identity(); tempScale.set(1, 1, 1);
+            tempMatrix.compose(tempPos, tempQuat, tempScale);
+            m.setMatrixAt(i, tempMatrix);
+            m.setColorAt(i, v.color);
+          }
+          m.instanceMatrix.needsUpdate = true;
+          if (m.instanceColor) m.instanceColor.needsUpdate = true;
+          m.userData.fumo = this;
+          parent.add(m);
+          this.partMeshes.push(m);
+          allFumoRaycastMeshes.push(m);
+        };
+
+        buildPart(bodyV, this.squashGroup);
+        buildPart(headV, this.headPivot);
+        buildPart(lArmV, this.leftArmPivot);
+        buildPart(rArmV, this.rightArmPivot);
+        buildPart(lLegV, this.leftLegPivot);
+        buildPart(rLegV, this.rightLegPivot);
+      }
+
+      squeeze(strength = 1.0) {
+        this.squash = Math.max(0.5, this.squash - 0.42 * strength);
+        this.squashVel = -3.5 * strength;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * strength;
+        this.headRollVel += (Math.random() - 0.5) * 14 * strength;
+        soundFX.playSqueeze(1.0);
+        spawnParticles(this.pos, this.crestColor, 12, 1.0);
+      }
+
+      bow() {
+        this.bowTimer = 1.4;
+        this.headPitchVel = 6.5;
+      }
+
+      updatePhysics(dt, time) {
+        const sForce = (1.0 - this.squash) * 200 - this.squashVel * 11;
+        this.squashVel += sForce * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash + this.squashVel * dt, 0.48, 1.5);
+
+        if (this.bowTimer > 0) this.bowTimer = Math.max(0, this.bowTimer - dt);
+        const bowAngle = this.bowTimer > 0 ? Math.sin((this.bowTimer / 1.4) * Math.PI) * 0.55 : 0;
+
+        const hStiff = 135, hDamp = 7.5;
+        const idleBob = Math.sin(time * 2.2 + this.homePos.x) * 0.03 + bowAngle;
+        this.headPitchVel += ((idleBob - this.headPitch) * hStiff - this.headPitchVel * hDamp) * dt;
+        this.headRollVel += ((0 - this.headRoll) * hStiff - this.headRollVel * hDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.5, 0.7);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.5, 0.5);
+
+        if (!this.isDragged && !this.inTacticalGrid) {
+          this.vel.y -= 24.0 * dt;
+          this.pos.addScaledVector(this.vel, dt);
+
+          let floorY = 0;
+          const inHonmaru = (Math.abs(this.pos.x) < 18.2 && this.pos.z < -15.8 && this.pos.z > -33.2);
+          const inNinomaru = (!inHonmaru && Math.abs(this.pos.x) < 24 && this.pos.z < -12.5 && this.pos.z > -35.5);
+          const inShrineHill = (this.pos.x < -36 && this.pos.x > -54 && this.pos.z < -5 && this.pos.z > -27);
+          const inMoat = (Math.abs(this.pos.x) < 31.5 && this.pos.z < -7.2 && this.pos.z > -40.5 && !inHonmaru && !inNinomaru && Math.abs(this.pos.x) > 3.1);
+          const inCanal = (Math.abs(this.pos.z - 10) < 2.3 && Math.abs(this.pos.x - (-6)) > 2.4);
+
+          if (inHonmaru) floorY = CY + 0.4;
+          else if (inNinomaru) floorY = NINOMARU_Y + 0.35;
+          else if (inShrineHill) floorY = 2.6;
+          else if (inMoat || inCanal) floorY = -0.25;
+
+          if (this.pos.y <= floorY) {
+            const imp = -this.vel.y;
+            this.pos.y = floorY;
+            if (imp > 2.2) {
+              if (inMoat || inCanal) {
+                soundFX.playBounce(0.9);
+                spawnParticles(this.pos, '#38bdf8', 16, 1.2);
+                spawnFloatingText(this.pos, 'SPLASH! 💦', '#38bdf8');
+                this.vel.y = imp * 0.25;
+              } else {
+                soundFX.playBounce(imp * 0.08);
+                this.vel.y = imp * 0.4;
+                this.squashVel -= Math.min(8, imp * 0.85);
+              }
+            } else {
+              this.vel.y = 0;
+              this.isGrounded = true;
+            }
+            this.vel.x *= 0.8;
+            this.vel.z *= 0.8;
+          }
+        }
+
+        if (this.isDefeated) {
+          this.pitch = THREE.MathUtils.lerp(this.pitch, -Math.PI * 0.46, dt * 8);
+        } else {
+          this.pitch = THREE.MathUtils.lerp(this.pitch, bowAngle * 0.6, dt * 8);
+        }
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.set(this.pitch, this.yaw, this.roll, 'YXZ');
+        const sy = this.squash;
+        const sxz = 1 / Math.sqrt(Math.max(0.4, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+      }
+    }
+
+    // ============================================================================
+    // 6. POPULATE CASTLE TOWN CAST, UNEXPECTED SPOTS & SANKIN-KOTAI PROCESSION
+    // ============================================================================
+    const TOWN_CAST_CONFIGS = [
+      { id: 'reimu_ref',     name: 'Reimu Hakurei (War Game Referee)',  emoji: '⛩️', pos: new THREE.Vector3(-3.2, 0, -5.5),          yaw: 0.2,  helmetType: 'bow',     armorColor: '#dc2626', hairColor: '#2b1e23' },
+      { id: 'meiling',       name: 'Hong Meiling (Ote-Mon Captain)',    emoji: '🐉', pos: new THREE.Vector3(3.2, CY + 0.4, -16.0),   yaw: 0,    helmetType: 'jingasa', armorColor: '#16a34a', hairColor: '#dc2626', unitType: 'ashigaru' },
+      { id: 'kaguya_keep',   name: 'Princess Kaguya (5th-Tier Keep)',   emoji: '🌙', pos: new THREE.Vector3(0, CY + 23.25, -21.8),   yaw: 0,    helmetType: 'bow',     armorColor: '#db2777', hairColor: '#0f172a' },
+      { id: 'patchouli',     name: 'Patchouli Knowledge (Strategist)',  emoji: '📕', pos: new THREE.Vector3(-6.5, CY + 0.4, -19.5),  yaw: 0.4,  helmetType: 'bow',     armorColor: '#9333ea', hairColor: '#c084fc' },
+      { id: 'flandre',       name: 'Flandre Scarlet (Young Heir)',      emoji: '🌈', pos: new THREE.Vector3(6.5, CY + 0.4, -19.5),   yaw: -0.4, helmetType: 'kabuto',  armorColor: '#e11d48', hairColor: '#fef08a', crestColor: '#38bdf8' },
+      { id: 'sanae_shrine',  name: 'Sanae Kochiya (Pagoda Priestess)',  emoji: '🐸', pos: new THREE.Vector3(-45, 2.6, -11.5),        yaw: 0,    helmetType: 'bow',     armorColor: '#0284c7', hairColor: '#22c55e' },
+      { id: 'mystia',        name: 'Mystia Lorelei (Yakitori Stall)',   emoji: '🎵', pos: new THREE.Vector3(-12, 0, 2.5),            yaw: 0,    helmetType: 'bow',     armorColor: '#be185d', hairColor: '#f9a8d4' },
+      { id: 'keine',         name: 'Keine Kamishirozawa (Terakoya)',    emoji: '📖', pos: new THREE.Vector3(-32, 0, 21.5),           yaw: 0,    helmetType: 'kabuto',  armorColor: '#1e3a8a', hairColor: '#cbd5e1' },
+      { id: 'aya',           name: 'Aya Shameimaru (Town Crier)',       emoji: '🍁', pos: new THREE.Vector3(-32, 0, 2.5),            yaw: 0.3,  helmetType: 'jingasa', armorColor: '#111827', hairColor: '#1e293b' },
+      { id: 'mokou',         name: 'Fujiwara no Mokou (Flame Ronin)',   emoji: '🔥', pos: new THREE.Vector3(-6, 0.95, 10),           yaw: 0.8,  helmetType: 'kabuto',  armorColor: '#991b1b', hairColor: '#f1f5f9', crestColor: '#f97316' },
+      { id: 'suika',         name: 'Suika Ibuki (Sumo Commander)',      emoji: '🍶', pos: new THREE.Vector3(-2, 0, 15.2),            yaw: -0.3, helmetType: 'kabuto',  armorColor: '#7c3aed', hairColor: '#fb923c', scale: 1.25 },
+      { id: 'nitori',        name: 'Nitori Kawashiro (Siege Engineer)', emoji: '🥒', pos: new THREE.Vector3(14, 10.8, -11.0),        yaw: 0.3,  helmetType: 'jingasa', armorColor: '#0284c7', hairColor: '#38bdf8' },
+      { id: 'bale_fumo',     name: 'Sleepy Rice-Bale Fumo',             emoji: '🌾', pos: new THREE.Vector3(-33.5, 0.9, 4.8),        yaw: 0.5,  helmetType: 'jingasa', armorColor: '#ca8a04', hairColor: '#fde047', scale: 0.88 },
+      { id: 'loophole_fumo', name: 'Loophole Scout Fumo',               emoji: '👀', pos: new THREE.Vector3(-9.6, CY + 0.4, -16.2),  yaw: 0,    helmetType: 'jingasa', armorColor: '#2563eb', hairColor: '#7dd3fc', scale: 0.82 },
+      { id: 'roof_cat',      name: 'Chen (Yagura Roof Cat Fumo)',       emoji: '🐱', pos: new THREE.Vector3(-16.2, CY + 9.0, -17.0), yaw: 0.2,  helmetType: 'kabuto',  armorColor: '#ea580c', hairColor: '#451a03', scale: 0.85 },
+      { id: 'canal_fisher',  name: 'Komachi (Canal Boat Ferryman)',     emoji: '⛵', pos: new THREE.Vector3(-18, 0.55, 10),          yaw: 1.5,  helmetType: 'bow',     armorColor: '#e11d48', hairColor: '#f43f5e', scale: 0.92 },
+      { id: 'barrel_ninja',  name: 'Barrel Ninja Fumo (Disguised!)',    emoji: '🛢️', pos: new THREE.Vector3(-15, 0, -3.5),           yaw: 0.4,  helmetType: 'barrel',  armorColor: '#1e293b', hairColor: '#0f172a' }
+    ];
+
+    TOWN_CAST_CONFIGS.forEach(cfg => {
+      const f = new SengokuFumo(cfg);
+      if (cfg.id === 'bale_fumo') sleepyBaleFumo = f;
+      townFumos.push(f);
+    });
+
+    const processionGroup = new THREE.Group();
+    scene.add(processionGroup);
+    const processionMembers = [
+      new SengokuFumo({ id: 'proc_spear', name: 'Procession Spear Bearer', emoji: '🚩', pos: new THREE.Vector3(-4, 0, 0), yaw: Math.PI / 2, helmetType: 'jingasa', armorColor: '#1e3a8a', unitType: 'ashigaru', scale: 0.9 }),
+      new SengokuFumo({ id: 'proc_lord',  name: 'Palanquin Lord Fumo',     emoji: '🏯', pos: new THREE.Vector3(0, 0.6, 0), yaw: Math.PI / 2, helmetType: 'kabuto',  armorColor: '#7c3aed', scale: 0.85 }),
+      new SengokuFumo({ id: 'proc_chest', name: 'Lacquered Chest Porter',  emoji: '📦', pos: new THREE.Vector3(4, 0, 0),  yaw: Math.PI / 2, helmetType: 'jingasa', armorColor: '#b91c1c', scale: 0.9 })
+    ];
+    const kagoBox = new THREE.Mesh(createSoftVoxelGeometry(1.0), new THREE.MeshStandardMaterial({ color: 0x4a2c18 }));
+    kagoBox.scale.set(2.4, 0.4, 1.6);
+    kagoBox.position.set(0, 0.35, 0);
+    const kagoBeam = new THREE.Mesh(createSoftVoxelGeometry(1.0), new THREE.MeshStandardMaterial({ color: 0xd4a373 }));
+    kagoBeam.scale.set(5.5, 0.22, 0.22);
+    kagoBeam.position.set(0, 2.1, 0);
+    processionGroup.add(kagoBox, kagoBeam);
+
+    // ============================================================================
+    // 7. CEREMONIAL WAR GAME (TURN-BASED TACTICAL ENGINE ON A 12x10 GRID)
+    // ============================================================================
+    const GRID_W = 12;
+    const GRID_H = 10;
+    const TILE_SIZE = 2.6;
+    const GRID_ORIGIN_X = 12.0;
+    const GRID_ORIGIN_Z = -8.0;
+
+    let inBattleMode = false;
+    let currentBattleStage = 0;
+    let currentTurn = 'red';
+    let turnNumber = 1;
+    let aiDifficulty = 'Normal';
+    let aiThinking = false;
+    let abilityTargetingMode = false;
+
+    const battleUnits = [];
+    let selectedUnit = null;
+    const gridTiles = [];
+    const battleGroup = new THREE.Group();
+    scene.add(battleGroup);
+
+    const formationLineMat = new THREE.LineBasicMaterial({ color: 0xfacc15, linewidth: 2 });
+    const formationLineGeom = new THREE.BufferGeometry();
+    const formationLines = new THREE.LineSegments(formationLineGeom, formationLineMat);
+    battleGroup.add(formationLines);
+
+    const activeProjectiles = [];
+
+    const CAMPAIGN_STAGES = [
+      {
+        id: 0,
+        name: 'Stage 1: Clash at Scarlet River',
+        shortName: 'Stage 1: Field',
+        objective: 'Defeat or Rout Enemy Daimyo Yuyuko across the Scarlet River!',
+        siege: false
+      },
+      {
+        id: 1,
+        name: 'Stage 2: Siege of Tenshu Gate',
+        shortName: 'Stage 2: Siege',
+        objective: 'Breach the Gatehouse or Defeat Commander Yuyuko inside the walls!',
+        siege: true
+      },
+      {
+        id: 2,
+        name: 'Stage 3: Grand Shogunate Finale',
+        shortName: 'Stage 3: Finale',
+        objective: 'Lead your full Sengoku Clan to victory in the decisive battle!',
+        siege: false
+      }
+    ];
+
+    function getTileTerrain(gx, gz, isSiege) {
+      if (isSiege) {
+        if (gx === 7 && (gz < 4 || gz > 5)) return 'wall';
+        if (gx === 7 && (gz === 4 || gz === 5)) return 'gate';
+        if (gx >= 8) return 'courtyard';
+      } else {
+        if (gx === 6 && (gz < 4 || gz > 5)) return 'river';
+        if (gx === 6 && (gz === 4 || gz === 5)) return 'bridge';
+      }
+      if ((gx === 3 && gz === 2) || (gx === 4 && gz === 7) || (gx === 8 && gz === 2)) return 'forest';
+      if (gx >= 9 && gz <= 3) return 'hill';
+      return 'plain';
+    }
+
+    function buildBattleGrid(isSiege) {
+      while (battleGroup.children.length > 0) {
+        battleGroup.remove(battleGroup.children[0]);
+      }
+      battleGroup.add(formationLines);
+      gridTiles.length = 0;
+
+      const tileGeo = new THREE.PlaneGeometry(TILE_SIZE * 0.92, TILE_SIZE * 0.92);
+      tileGeo.rotateX(-Math.PI / 2);
+
+      for (let gx = 0; gx < GRID_W; gx++) {
+        gridTiles[gx] = [];
+        for (let gz = 0; gz < GRID_H; gz++) {
+          const wx = GRID_ORIGIN_X + gx * TILE_SIZE;
+          const wz = GRID_ORIGIN_Z + gz * TILE_SIZE;
+          const terr = getTileTerrain(gx, gz, isSiege);
+          const wy = terr === 'hill' ? 1.85 : (terr === 'wall' ? 2.4 : 0.08);
+
+          const mat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: inBattleMode ? 0.22 : 0.0,
+            depthWrite: false
+          });
+          const m = new THREE.Mesh(tileGeo, mat);
+          m.position.set(wx, wy, wz);
+          m.userData.tile = { gx, gz, wx, wy, wz, terrain: terr };
+          battleGroup.add(m);
+          gridTiles[gx][gz] = { gx, gz, wx, wy, wz, terrain: terr, mesh: m, mode: 'none' };
+        }
+      }
+    }
+
+    function spawnBattleArmies(stageIdx) {
+      battleUnits.forEach(u => u.fumo.disposeFromScene());
+      battleUnits.length = 0;
+
+      const isSiege = CAMPAIGN_STAGES[stageIdx].siege;
+      buildBattleGrid(isSiege);
+
+      const redRoster = [
+        { id: 'remilia_cmd', name: 'Daimyo Remilia',   emoji: '🦇', unitType: 'commander', gx: 1, gz: 4, hp: 15, atk: 5, def: 3, move: 3, range: 1, ability: 'Crimson Charge', armorColor: '#dc2626', hairColor: '#a5b4fc', helmetType: 'kabuto', crestColor: '#facc15' },
+        { id: 'sakuya_cmd',  name: 'Retainer Sakuya',  emoji: '⏱️', unitType: 'commander', gx: 1, gz: 5, hp: 13, atk: 4, def: 3, move: 3, range: 3, ability: 'Knife Barrage',  armorColor: '#1e3a8a', hairColor: '#e2e8f0', helmetType: 'kabuto', crestColor: '#38bdf8' },
+        { id: 'marisa_gun',  name: 'Captain Marisa',   emoji: '🌟', unitType: 'gunner',    gx: 0, gz: 3, hp: 10, atk: 5, def: 2, move: 2, range: 3, ability: 'Volley Fire',    armorColor: '#1f2937', hairColor: '#fde047', helmetType: 'jingasa' },
+        { id: 'cirno_ash',   name: 'Ashigaru Cirno',   emoji: '❄️', unitType: 'ashigaru',  gx: 2, gz: 4, hp: 11, atk: 4, def: 3, move: 3, range: 1, ability: 'Icicle Wall',    armorColor: '#2563eb', hairColor: '#7dd3fc', helmetType: 'jingasa' },
+        { id: 'r_spear1',    name: 'Scarlet Ashigaru', emoji: '🛡️', unitType: 'ashigaru',  gx: 2, gz: 2, hp: 10, atk: 3, def: 3, move: 3, range: 1, ability: 'Spear Brace',    armorColor: '#b91c1c', hairColor: '#451a03', helmetType: 'jingasa' },
+        { id: 'r_spear2',    name: 'Scarlet Ashigaru', emoji: '🛡️', unitType: 'ashigaru',  gx: 2, gz: 3, hp: 10, atk: 3, def: 3, move: 3, range: 1, ability: 'Spear Brace',    armorColor: '#b91c1c', hairColor: '#451a03', helmetType: 'jingasa' },
+        { id: 'r_spear3',    name: 'Scarlet Ashigaru', emoji: '🛡️', unitType: 'ashigaru',  gx: 2, gz: 5, hp: 10, atk: 3, def: 3, move: 3, range: 1, ability: 'Spear Brace',    armorColor: '#b91c1c', hairColor: '#451a03', helmetType: 'jingasa' },
+        { id: 'r_spear4',    name: 'Scarlet Ashigaru', emoji: '🛡️', unitType: 'ashigaru',  gx: 2, gz: 6, hp: 10, atk: 3, def: 3, move: 3, range: 1, ability: 'Spear Brace',    armorColor: '#b91c1c', hairColor: '#451a03', helmetType: 'jingasa' },
+        { id: 'r_sam1',      name: 'Scarlet Samurai',  emoji: '⚔️', unitType: 'samurai',   gx: 1, gz: 2, hp: 12, atk: 5, def: 3, move: 3, range: 1, ability: 'Iai Strike',     armorColor: '#991b1b', hairColor: '#1e293b', helmetType: 'kabuto' },
+        { id: 'r_sam2',      name: 'Scarlet Samurai',  emoji: '⚔️', unitType: 'samurai',   gx: 1, gz: 6, hp: 12, atk: 5, def: 3, move: 3, range: 1, ability: 'Iai Strike',     armorColor: '#991b1b', hairColor: '#1e293b', helmetType: 'kabuto' },
+        { id: 'r_cav1',      name: 'Mounted Samurai',  emoji: '🐎', unitType: 'cavalry',   gx: 1, gz: 1, hp: 12, atk: 5, def: 2, move: 4, range: 1, ability: 'Flank Charge',   armorColor: '#dc2626', hairColor: '#78350f', helmetType: 'kabuto' },
+        { id: 'r_arch1',     name: 'Scarlet Archer',   emoji: '🏹', unitType: 'archer',    gx: 0, gz: 5, hp: 9,  atk: 4, def: 2, move: 3, range: 3, ability: 'Fire Arrow',     armorColor: '#b91c1c', hairColor: '#2b1e23', helmetType: 'jingasa' },
+        { id: 'r_ninja1',    name: 'Kunoichi Scout',   emoji: '🥷', unitType: 'ninja',     gx: 2, gz: 7, hp: 9,  atk: 4, def: 2, move: 4, range: 2, ability: 'Smoke Sabotage', armorColor: '#1e1b4b', hairColor: '#312e81', helmetType: 'jingasa' }
+      ];
+
+      const cherryRoster = [
+        { id: 'yuyuko_cmd',  name: 'Daimyo Yuyuko',    emoji: '🌸', unitType: 'commander', gx: 10, gz: 4, hp: 16, atk: 5, def: 3, move: 3, range: 2, ability: 'Blossom Ward',   armorColor: '#ec4899', hairColor: '#fbcfe8', helmetType: 'kabuto', crestColor: '#38bdf8' },
+        { id: 'youmu_cmd',   name: 'Retainer Youmu',   emoji: '⚔️', unitType: 'commander', gx: 9,  gz: 4, hp: 14, atk: 6, def: 3, move: 4, range: 1, ability: 'Twin Blade Dash',armorColor: '#047857', hairColor: '#e2e8f0', helmetType: 'kabuto', crestColor: '#34d399' },
+        { id: 'yukari_cmd',  name: 'Strategist Yukari',emoji: '👁️', unitType: 'commander', gx: 10, gz: 5, hp: 13, atk: 5, def: 3, move: 3, range: 3, ability: 'Gap Reposition', armorColor: '#7c3aed', hairColor: '#fde047', helmetType: 'kabuto', crestColor: '#facc15' },
+        { id: 'c_spear1',    name: 'Cherry Ashigaru',  emoji: '🛡️', unitType: 'ashigaru',  gx: 8,  gz: 2, hp: 10, atk: 3, def: 3, move: 3, range: 1, ability: 'Spear Brace',    armorColor: '#db2777', hairColor: '#1e293b', helmetType: 'jingasa' },
+        { id: 'c_spear2',    name: 'Cherry Ashigaru',  emoji: '🛡️', unitType: 'ashigaru',  gx: 8,  gz: 3, hp: 10, atk: 3, def: 3, move: 3, range: 1, ability: 'Spear Brace',    armorColor: '#db2777', hairColor: '#1e293b', helmetType: 'jingasa' },
+        { id: 'c_spear3',    name: 'Cherry Ashigaru',  emoji: '🛡️', unitType: 'ashigaru',  gx: 8,  gz: 5, hp: 10, atk: 3, def: 3, move: 3, range: 1, ability: 'Spear Brace',    armorColor: '#db2777', hairColor: '#1e293b', helmetType: 'jingasa' },
+        { id: 'c_spear4',    name: 'Cherry Ashigaru',  emoji: '🛡️', unitType: 'ashigaru',  gx: 8,  gz: 6, hp: 10, atk: 3, def: 3, move: 3, range: 1, ability: 'Spear Brace',    armorColor: '#db2777', hairColor: '#1e293b', helmetType: 'jingasa' },
+        { id: 'c_sam1',      name: 'Nether Samurai',   emoji: '⚔️', unitType: 'samurai',   gx: 9,  gz: 3, hp: 12, atk: 5, def: 3, move: 3, range: 1, ability: 'Iai Strike',     armorColor: '#9d174d', hairColor: '#cbd5e1', helmetType: 'kabuto' },
+        { id: 'c_sam2',      name: 'Nether Samurai',   emoji: '⚔️', unitType: 'samurai',   gx: 9,  gz: 6, hp: 12, atk: 5, def: 3, move: 3, range: 1, ability: 'Iai Strike',     armorColor: '#9d174d', hairColor: '#cbd5e1', helmetType: 'kabuto' },
+        { id: 'c_cav1',      name: 'Phantom Cavalry',  emoji: '🐎', unitType: 'cavalry',   gx: 9,  gz: 1, hp: 12, atk: 5, def: 2, move: 4, range: 1, ability: 'Flank Charge',   armorColor: '#be185d', hairColor: '#e2e8f0', helmetType: 'kabuto' },
+        { id: 'c_arch1',     name: 'Cherry Archer',    emoji: '🏹', unitType: 'archer',    gx: 10, gz: 2, hp: 9,  atk: 4, def: 2, move: 3, range: 3, ability: 'Arrow Volley',   armorColor: '#db2777', hairColor: '#451a03', helmetType: 'jingasa' },
+        { id: 'c_gun1',      name: 'Tanegashima Gunner',emoji:'💥', unitType: 'gunner',    gx: 10, gz: 6, hp: 10, atk: 5, def: 2, move: 2, range: 3, ability: 'Volley Fire',    armorColor: '#831843', hairColor: '#1e293b', helmetType: 'jingasa' },
+        { id: 'c_ninja1',    name: 'Shadow Shinobi',   emoji: '🥷', unitType: 'ninja',     gx: 8,  gz: 7, hp: 9,  atk: 4, def: 2, move: 4, range: 2, ability: 'Smoke Sabotage', armorColor: '#312e81', hairColor: '#0f172a', helmetType: 'jingasa' }
+      ];
+
+      if (isSiege) {
+        cherryRoster.push({
+          id: 'siege_gate', name: 'Ote-Mon Castle Gate', emoji: '🚪', unitType: 'ashigaru',
+          gx: 7, gz: 4, hp: 16, atk: 2, def: 4, move: 0, range: 1, ability: 'Fortified Timber',
+          armorColor: '#5c3824', hairColor: '#334155', helmetType: 'kabuto'
+        });
+      }
+
+      const spawnSide = (roster, clan) => {
+        roster.forEach(cfg => {
+          const tile = gridTiles[cfg.gx][cfg.gz];
+          const fumo = new SengokuFumo({
+            ...cfg,
+            clan,
+            pos: new THREE.Vector3(tile.wx, tile.wy, tile.wz),
+            yaw: clan === 'red' ? Math.PI / 2 : -Math.PI / 2,
+            scale: cfg.unitType === 'commander' ? 1.05 : 0.92
+          });
+          fumo.inTacticalGrid = true;
+          const unit = {
+            ...cfg,
+            clan,
+            maxHp: cfg.hp,
+            morale: 100,
+            moved: false,
+            acted: false,
+            routed: false,
+            formationBonus: 0,
+            formationName: 'None',
+            fumo
+          };
+          fumo.unitRef = unit;
+          battleUnits.push(unit);
+        });
+      };
+
+      spawnSide(redRoster, 'red');
+      spawnSide(cherryRoster, 'cherry');
+      updateFormations();
+    }
+
+    function getUnitAt(gx, gz) {
+      return battleUnits.find(u => !u.routed && u.hp > 0 && u.gx === gx && u.gz === gz) || null;
+    }
+
+    function updateFormations() {
+      const lineVerts = [];
+      battleUnits.forEach(u => {
+        if (u.routed || u.hp <= 0) return;
+        let neighbors = 0;
+        battleUnits.forEach(other => {
+          if (other === u || other.clan !== u.clan || other.routed || other.hp <= 0) return;
+          const dist = Math.abs(u.gx - other.gx) + Math.abs(u.gz - other.gz);
+          if (dist === 1) {
+            neighbors++;
+            if (u.id < other.id) {
+              lineVerts.push(u.fumo.pos.x, u.fumo.pos.y + 0.35, u.fumo.pos.z);
+              lineVerts.push(other.fumo.pos.x, other.fumo.pos.y + 0.35, other.fumo.pos.z);
+            }
+          }
+        });
+        if (neighbors >= 2) {
+          u.formationBonus = 2;
+          u.formationName = 'Square/Phalanx (+2 DEF)';
+        } else if (neighbors === 1) {
+          u.formationBonus = 1;
+          u.formationName = 'Line Formation (+1 DEF)';
+        } else {
+          u.formationBonus = 0;
+          u.formationName = 'Solo Skirmish';
+        }
+      });
+      formationLineGeom.setAttribute('position', new THREE.Float32BufferAttribute(lineVerts, 3));
+      formationLines.visible = inBattleMode;
+    }
+
+    function appendBattleLog(msg) {
+      const log = document.getElementById('battle-log');
+      const div = document.createElement('div');
+      div.textContent = msg;
+      log.prepend(div);
+      while (log.children.length > 14) log.removeChild(log.lastChild);
+    }
+
+    function showBannerToast(sub, main) {
+      const b = document.getElementById('center-banner');
+      document.getElementById('banner-sub').textContent = sub;
+      document.getElementById('banner-main').textContent = main;
+      b.classList.remove('opacity-0');
+      clearTimeout(b._t);
+      b._t = setTimeout(() => b.classList.add('opacity-0'), 3000);
+    }
+
+    function updateUnitHUD(unit) {
+      if (!unit) return;
+      const tile = gridTiles[unit.gx][unit.gz];
+      const terrBonus = tile.terrain === 'hill' ? 'Hill (+1 ATK/DEF)' :
+                        tile.terrain === 'forest' ? 'Forest (+2 DEF)' :
+                        tile.terrain === 'wall' ? 'Castle Wall (+2 DEF)' :
+                        tile.terrain === 'river' ? 'River (-1 DEF)' : 'Plain';
+      document.getElementById('unit-name').textContent = `${unit.emoji} ${unit.name}`;
+      document.getElementById('unit-class-badge').textContent = `${unit.unitType.toUpperCase()} • ${terrBonus}`;
+      document.getElementById('unit-hp-text').textContent = `${unit.hp}/${unit.maxHp}`;
+      document.getElementById('unit-atk-text').textContent = unit.atk + (tile.terrain === 'hill' ? 1 : 0);
+      document.getElementById('unit-def-text').textContent = unit.def + unit.formationBonus + (tile.terrain === 'forest' || tile.terrain === 'wall' ? 2 : 0);
+      document.getElementById('unit-hp-bar').style.width = `${Math.max(0, (unit.hp / unit.maxHp) * 100)}%`;
+      document.getElementById('unit-morale-text').textContent = `${unit.morale}%`;
+      document.getElementById('unit-morale-bar').style.width = `${Math.max(0, unit.morale)}%`;
+      document.getElementById('unit-formation-text').textContent = `✨ ${unit.formationName}`;
+      document.getElementById('unit-ability-name').textContent = unit.ability;
+    }
+
+    function highlightUnitRanges(unit) {
+      for (let gx = 0; gx < GRID_W; gx++) {
+        for (let gz = 0; gz < GRID_H; gz++) {
+          const t = gridTiles[gx][gz];
+          t.mode = 'none';
+          t.mesh.material.color.setHex(0xffffff);
+          t.mesh.material.opacity = inBattleMode ? 0.16 : 0.0;
+        }
+      }
+      if (!unit || !inBattleMode) return;
+
+      for (let gx = 0; gx < GRID_W; gx++) {
+        for (let gz = 0; gz < GRID_H; gz++) {
+          const t = gridTiles[gx][gz];
+          const dist = Math.abs(gx - unit.gx) + Math.abs(gz - unit.gz);
+          const occ = getUnitAt(gx, gz);
+
+          if (gx === unit.gx && gz === unit.gz) {
+            t.mesh.material.color.setHex(0xfacc15);
+            t.mesh.material.opacity = 0.55;
+          } else if (abilityTargetingMode && unit.clan === 'red' && !unit.acted && dist <= unit.range + 1) {
+            t.mode = 'ability';
+            t.mesh.material.color.setHex(0xa855f7);
+            t.mesh.material.opacity = 0.52;
+          } else if (!unit.moved && !occ && dist <= unit.move && t.terrain !== 'wall') {
+            t.mode = 'move';
+            t.mesh.material.color.setHex(0x38bdf8);
+            t.mesh.material.opacity = 0.45;
+          } else if (!unit.acted && occ && occ.clan !== unit.clan && dist <= unit.range) {
+            t.mode = 'attack';
+            t.mesh.material.color.setHex(0xef4444);
+            t.mesh.material.opacity = 0.55;
+          }
+        }
+      }
+    }
+
+    function executeMove(unit, gx, gz) {
+      const tile = gridTiles[gx][gz];
+      unit.gx = gx;
+      unit.gz = gz;
+      unit.moved = true;
+      unit.fumo.pos.set(tile.wx, tile.wy, tile.wz);
+      unit.fumo.squeeze(0.75);
+      soundFX.playPickup();
+      updateFormations();
+      updateUnitHUD(unit);
+      highlightUnitRanges(unit);
+    }
+
+    function executePlushAttack(attacker, defender, isAbility = false) {
+      attacker.acted = true;
+      attacker.moved = true;
+      abilityTargetingMode = false;
+
+      attacker.fumo.yaw = Math.atan2(defender.fumo.pos.x - attacker.fumo.pos.x, defender.fumo.pos.z - attacker.fumo.pos.z);
+
+      const attTile = gridTiles[attacker.gx][attacker.gz];
+      const defTile = gridTiles[defender.gx][defender.gz];
+      let atkScore = attacker.atk + (attTile.terrain === 'hill' ? 1 : 0) + (isAbility ? 2 : 0);
+      let defScore = defender.def + defender.formationBonus +
+                     (defTile.terrain === 'forest' || defTile.terrain === 'wall' ? 2 : 0) -
+                     (defTile.terrain === 'river' ? 1 : 0);
+
+      if (attacker.unitType === 'gunner') {
+        soundFX.playMatchlockBang();
+        spawnParticles(attacker.fumo.pos, '#e2e8f0', 18, 1.3);
+        defScore = Math.max(0, defScore - 2);
+      } else if (attacker.unitType === 'archer' || attacker.id === 'sakuya_cmd') {
+        soundFX.playArrowWhoosh();
+        activeProjectiles.push({
+          from: attacker.fumo.pos.clone().add(new THREE.Vector3(0, 1.2, 0)),
+          to: defender.fumo.pos.clone().add(new THREE.Vector3(0, 1.0, 0)),
+          t: 0,
+          mesh: new THREE.Mesh(createSoftVoxelGeometry(0.28), lanternEmissiveMaterial)
+        });
+        scene.add(activeProjectiles[activeProjectiles.length - 1].mesh);
+      } else {
+        soundFX.playSwordClash();
+      }
+
+      const dmg = Math.max(2, atkScore - Math.floor(defScore * 0.5) + (Math.random() > 0.5 ? 1 : 0));
+      defender.hp = Math.max(0, defender.hp - dmg);
+      defender.morale = Math.max(0, defender.morale - (attacker.unitType === 'gunner' ? 32 : 22));
+
+      attacker.fumo.squeeze(1.1);
+      defender.fumo.squeeze(1.35);
+      spawnParticles(defender.fumo.pos, attacker.clan === 'red' ? '#ef4444' : '#ec4899', 16, 1.2);
+
+      const word = isAbility ? `${attacker.ability.toUpperCase()}! -${dmg}` :
+                   (attacker.unitType === 'gunner' ? `KABOOM! -${dmg}` : `BONK! -${dmg}`);
+      spawnFloatingText(defender.fumo.pos, word, '#fef08a');
+      appendBattleLog(`${attacker.emoji} ${attacker.name} hits ${defender.name} for ${dmg} plush dmg!`);
+
+      if (defender.id === 'siege_gate' && defender.hp <= 0) {
+        castleGateGroup.visible = false;
+        soundFX.playTaiko(1.5);
+        spawnFloatingText(defender.fumo.pos, 'GATE BREACHED! 💥', '#f97316');
+        appendBattleLog('🚪 The Ote-Mon Castle Gate has been breached!');
+      }
+
+      if (defender.hp <= 0 || defender.morale <= 0) {
+        defender.routed = true;
+        defender.hp = 0;
+        defender.fumo.isDefeated = true;
+        soundFX.playBounce(1.0);
+        spawnFloatingText(defender.fumo.pos, 'ROUTED! @_@', '#fb7185');
+        appendBattleLog(`💫 ${defender.name} got swirly eyes and routed!`);
+      }
+
+      updateFormations();
+      updateUnitHUD(attacker);
+      highlightUnitRanges(attacker);
+      checkBattleVictory();
+    }
+
+    function executeSpecialAbility(unit, targetTile) {
+      if (!unit || unit.acted) return;
+      const targetUnit = getUnitAt(targetTile.gx, targetTile.gz);
+
+      if (unit.id === 'yuyuko_cmd') {
+        unit.acted = true;
+        abilityTargetingMode = false;
+        soundFX.playTempleBell();
+        battleUnits.forEach(ally => {
+          if (ally.clan === unit.clan && !ally.routed && Math.abs(ally.gx - unit.gx) + Math.abs(ally.gz - unit.gz) <= 3) {
+            ally.morale = Math.min(100, ally.morale + 35);
+            ally.hp = Math.min(ally.maxHp, ally.hp + 3);
+            spawnParticles(ally.fumo.pos, '#fbcfe8', 12, 1.0);
+          }
+        });
+        spawnFloatingText(unit.fumo.pos, 'BLOSSOM WARD! 🌸', '#f472b6');
+        appendBattleLog('🌸 Daimyo Yuyuko casts Blossom Ward, rallying nearby allies!');
+        highlightUnitRanges(unit);
+      } else if (unit.id === 'yukari_cmd' && targetUnit) {
+        unit.acted = true;
+        abilityTargetingMode = false;
+        soundFX.playTempleBell();
+        const ox = unit.gx, oz = unit.gz;
+        const tx = targetUnit.gx, tz = targetUnit.gz;
+        unit.gx = tx; unit.gz = tz;
+        targetUnit.gx = ox; targetUnit.gz = oz;
+        unit.fumo.pos.set(gridTiles[tx][tz].wx, gridTiles[tx][tz].wy, gridTiles[tx][tz].wz);
+        targetUnit.fumo.pos.set(gridTiles[ox][oz].wx, gridTiles[ox][oz].wy, gridTiles[ox][oz].wz);
+        spawnParticles(unit.fumo.pos, '#a855f7', 16, 1.2);
+        spawnParticles(targetUnit.fumo.pos, '#a855f7', 16, 1.2);
+        spawnFloatingText(unit.fumo.pos, 'GAP SWAP! 👁️', '#c084fc');
+        updateFormations();
+        highlightUnitRanges(unit);
+      } else if (targetUnit && targetUnit.clan !== unit.clan) {
+        executePlushAttack(unit, targetUnit, true);
+      }
+    }
+
+    const STORAGE_SENGOKU_KEY = 'fumo_sengoku_campaign_v1';
+    const campaignState = {
+      stagesWon: [false, false, false],
+      bestTurns: [null, null, null]
+    };
+
+    function loadCampaignState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_SENGOKU_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed.stagesWon)) campaignState.stagesWon = parsed.stagesWon;
+          if (Array.isArray(parsed.bestTurns)) campaignState.bestTurns = parsed.bestTurns;
+        }
+      } catch (e) {}
+      updateCampaignBadge();
+    }
+
+    function saveCampaignState() {
+      try {
+        localStorage.setItem(STORAGE_SENGOKU_KEY, JSON.stringify(campaignState));
+      } catch (e) {}
+      updateCampaignBadge();
+    }
+
+    function updateCampaignBadge() {
+      const wonCount = campaignState.stagesWon.filter(Boolean).length;
+      document.getElementById('campaign-badge').textContent = `Scrolls: ${wonCount}/3`;
+    }
+
+    function checkBattleVictory() {
+      const redCmd = battleUnits.find(u => u.id === 'remilia_cmd');
+      const cherryCmd = battleUnits.find(u => u.id === 'yuyuko_cmd');
+      const redAlive = battleUnits.filter(u => u.clan === 'red' && !u.routed && u.hp > 0).length;
+      const cherryAlive = battleUnits.filter(u => u.clan === 'cherry' && !u.routed && u.hp > 0).length;
+
+      if (!cherryCmd || cherryCmd.routed || cherryAlive === 0) {
+        soundFX.playVictoryChant();
+        campaignState.stagesWon[currentBattleStage] = true;
+        const prevBest = campaignState.bestTurns[currentBattleStage];
+        if (!prevBest || turnNumber < prevBest) campaignState.bestTurns[currentBattleStage] = turnNumber;
+        saveCampaignState();
+
+        showBannerToast('EIEI-OH!! 🏯🎉', `Red Banner Clan Triumphs in ${turnNumber} Turns!`);
+        battleUnits.filter(u => u.clan === 'red' && !u.routed).forEach(u => {
+          u.fumo.squeeze(1.3);
+          spawnParticles(u.fumo.pos, '#facc15', 18, 1.5);
+        });
+        setTimeout(() => openChronicleModal(true), 1200);
+        return true;
+      }
+
+      if (!redCmd || redCmd.routed || redAlive === 0) {
+        soundFX.playConchHorn();
+        showBannerToast('Retreat Sounded! 🏳️', 'Cherry Banner Clan Holds the Field — Press R to Retry!');
+        return true;
+      }
+      return false;
+    }
+
+    function endPlayerTurn() {
+      if (!inBattleMode || currentTurn !== 'red' || aiThinking) return;
+      currentTurn = 'cherry';
+      aiThinking = true;
+      abilityTargetingMode = false;
+      soundFX.playTaiko(0.9);
+      document.getElementById('battle-turn-badge').textContent = '🌸 Cherry Clan Turn (AI Thinking...)';
+      document.getElementById('battle-turn-badge').style.color = '#ec4899';
+
+      battleUnits.filter(u => u.clan === 'cherry' && !u.routed).forEach(u => {
+        u.moved = false;
+        u.acted = false;
+      });
+      highlightUnitRanges(null);
+
+      const aiUnits = battleUnits.filter(u => u.clan === 'cherry' && !u.routed && u.hp > 0 && u.move > 0);
+      let idx = 0;
+
+      const stepNextAi = () => {
+        if (!inBattleMode || checkBattleVictory()) {
+          aiThinking = false;
+          return;
+        }
+        if (idx >= aiUnits.length) {
+          turnNumber++;
+          currentTurn = 'red';
+          aiThinking = false;
+          soundFX.playTaiko(1.0);
+          document.getElementById('battle-turn-badge').textContent = `🚩 Turn ${turnNumber} — Red Clan (Player)`;
+          document.getElementById('battle-turn-badge').style.color = '#dc2626';
+          battleUnits.filter(u => u.clan === 'red' && !u.routed).forEach(u => {
+            u.moved = false;
+            u.acted = false;
+            u.morale = Math.min(100, u.morale + 5);
+          });
+          if (selectedUnit && !selectedUnit.routed) highlightUnitRanges(selectedUnit);
+          return;
+        }
+
+        const u = aiUnits[idx++];
+        if (u.routed || u.hp <= 0) {
+          stepNextAi();
+          return;
+        }
+
+        let bestTile = gridTiles[u.gx][u.gz];
+        let bestTarget = null;
+        let bestScore = -999;
+
+        const redTargets = battleUnits.filter(r => r.clan === 'red' && !r.routed && r.hp > 0);
+        for (let gx = 0; gx < GRID_W; gx++) {
+          for (let gz = 0; gz < GRID_H; gz++) {
+            const dMove = Math.abs(gx - u.gx) + Math.abs(gz - u.gz);
+            if (dMove > u.move) continue;
+            const occ = getUnitAt(gx, gz);
+            if (occ && occ !== u) continue;
+            const tile = gridTiles[gx][gz];
+            if (tile.terrain === 'wall') continue;
+
+            let score = 0;
+            if (tile.terrain === 'hill' || tile.terrain === 'forest') score += 4;
+            if (tile.terrain === 'river') score -= 3;
+
+            let chosenEnemy = null;
+            redTargets.forEach(en => {
+              const dEn = Math.abs(gx - en.gx) + Math.abs(gz - en.gz);
+              score -= dEn * 1.2;
+              if (dEn <= u.range) {
+                const targetValue = (en.unitType === 'commander' ? 25 : 15) + (12 - en.hp);
+                if (score + targetValue > bestScore) {
+                  chosenEnemy = en;
+                }
+                score += targetValue;
+              }
+            });
+
+            if (aiDifficulty === 'Easy') score += (Math.random() - 0.5) * 12;
+            if (score > bestScore) {
+              bestScore = score;
+              bestTile = tile;
+              bestTarget = chosenEnemy;
+            }
+          }
+        }
+
+        if (bestTile.gx !== u.gx || bestTile.gz !== u.gz) {
+          executeMove(u, bestTile.gx, bestTile.gz);
+        }
+        if (bestTarget) {
+          executePlushAttack(u, bestTarget, aiDifficulty === 'Hard' && u.unitType === 'commander');
+        }
+
+        setTimeout(stepNextAi, 260);
+      };
+
+      setTimeout(stepNextAi, 380);
+    }
+
+    function toggleWarGameMode(enable) {
+      inBattleMode = Boolean(enable);
+      soundFX.isBattle = inBattleMode;
+      document.getElementById('battle-hud').classList.toggle('hidden', !inBattleMode);
+      document.getElementById('battle-hud').classList.toggle('flex', inBattleMode);
+      document.getElementById('town-hud').classList.toggle('hidden', inBattleMode);
+      document.getElementById('town-hud').classList.toggle('flex', !inBattleMode);
+
+      if (inBattleMode) {
+        soundFX.playConchHorn();
+        soundFX.playTaiko(1.2);
+        turnNumber = 1;
+        currentTurn = 'red';
+        aiThinking = false;
+        castleGateGroup.visible = true;
+        const stg = CAMPAIGN_STAGES[currentBattleStage];
+        document.getElementById('battle-stage-title').textContent = `⚔️ ${stg.name}`;
+        document.getElementById('battle-objective').textContent = `🎯 ${stg.objective}`;
+        spawnBattleArmies(currentBattleStage);
+
+        controls.autoRotate = false;
+        controls.target.set(26, 1, 3);
+        camera.position.set(26, 32, 28);
+        selectedUnit = battleUnits.find(u => u.id === 'remilia_cmd');
+        updateUnitHUD(selectedUnit);
+        highlightUnitRanges(selectedUnit);
+        showBannerToast('Ceremonial War Game 🥁', `${stg.name} — Red Banner Clan Turn!`);
+      } else {
+        highlightUnitRanges(null);
+        formationLines.visible = false;
+        controls.target.set(0, 7, -4);
+        camera.position.set(0, 32, 54);
+        showBannerToast('Castle Town Free-Roam 🏯', 'Explore the 5-Tier Citadel, Shrine Pagoda, Shops & Moat');
+      }
+    }
+
+    function openChronicleModal(fromVictory = false) {
+      const modal = document.getElementById('scroll-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+
+      document.getElementById('scroll-modal-title').textContent = fromVictory
+        ? '🏆 Victory Scroll — Eiei-oh!!'
+        : '📜 Sengoku Campaign Chronicle';
+
+      const body = document.getElementById('scroll-summary-body');
+      body.innerHTML = '';
+      CAMPAIGN_STAGES.forEach((stg, i) => {
+        const won = campaignState.stagesWon[i];
+        const turns = campaignState.bestTurns[i];
+        const row = document.createElement('div');
+        row.className = 'glass-panel rounded-xl p-2 flex items-center justify-between';
+        row.innerHTML = `
+          <span><b>${won ? '✅' : '⚔️'} ${stg.name}</b></span>
+          <span class="text-[11px] font-bold">${won ? `Cleared (${turns} Turns)` : 'Uncaptured'}</span>
+        `;
+        body.appendChild(row);
+      });
+
+      const unlocks = [
+        { name: '🦇 Crimson Bat Maedate', unlocked: true },
+        { name: '🌸 Saigyou Butterfly Crest', unlocked: campaignState.stagesWon[0] },
+        { name: '🥒 Kappa Siege Blueprint', unlocked: campaignState.stagesWon[1] },
+        { name: '⛩️ Golden Shachihoko Banner', unlocked: campaignState.stagesWon[2] }
+      ];
+      const uGrid = document.getElementById('unlocks-grid');
+      uGrid.innerHTML = '';
+      unlocks.forEach(u => {
+        const pill = document.createElement('span');
+        pill.className = `glass-panel rounded-xl px-2.5 py-1 font-bold ${u.unlocked ? 'active-gold' : 'opacity-70'}`;
+        pill.textContent = `${u.unlocked ? u.name : '🔒 ' + u.name}`;
+        uGrid.appendChild(pill);
+      });
+    }
+
+    // ============================================================================
+    // 8. POINTER INTERACTION (Tactical Grid Clicks + Free-Roam Fumo Drag/Throw/Squeeze)
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragPoint = new THREE.Vector3();
+
+    let pickedFumo = null;
+    let isDraggingFumo = false;
+    let pointerDownScreen = { x: 0, y: 0 };
+    let dragHistory = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+
+    function updateNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    const onPointerDown = (e) => {
+      if (e.target !== renderer.domElement || e.button !== 0) return;
+      recordInput();
+      soundFX.init();
+      soundFX.startMusicLoop();
+      updateNDC(e);
+      pointerDownScreen = { x: e.clientX, y: e.clientY };
+      raycaster.setFromCamera(pointerNDC, camera);
+
+      if (inBattleMode && !aiThinking && currentTurn === 'red') {
+        const fumoHits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+        if (fumoHits.length > 0 && fumoHits[0].object.userData.fumo && fumoHits[0].object.userData.fumo.unitRef) {
+          const clickedU = fumoHits[0].object.userData.fumo.unitRef;
+          if (!clickedU.routed && clickedU.hp > 0) {
+            const tile = gridTiles[clickedU.gx][clickedU.gz];
+            if (tile.mode === 'ability' && selectedUnit) {
+              executeSpecialAbility(selectedUnit, tile);
+              return;
+            }
+            if (tile.mode === 'attack' && selectedUnit) {
+              executePlushAttack(selectedUnit, clickedU, false);
+              return;
+            }
+            selectedUnit = clickedU;
+            abilityTargetingMode = false;
+            clickedU.fumo.squeeze(0.8);
+            updateUnitHUD(clickedU);
+            highlightUnitRanges(clickedU);
+            return;
+          }
+        }
+
+        const tileMeshes = battleGroup.children.filter(c => c.userData && c.userData.tile);
+        const tileHits = raycaster.intersectObjects(tileMeshes, false);
+        if (tileHits.length > 0) {
+          const tData = tileHits[0].object.userData.tile;
+          const tile = gridTiles[tData.gx][tData.gz];
+          if (selectedUnit && selectedUnit.clan === 'red') {
+            if (tile.mode === 'move') {
+              executeMove(selectedUnit, tile.gx, tile.gz);
+              return;
+            } else if (tile.mode === 'attack') {
+              const enemy = getUnitAt(tile.gx, tile.gz);
+              if (enemy) executePlushAttack(selectedUnit, enemy, false);
+              return;
+            } else if (tile.mode === 'ability') {
+              executeSpecialAbility(selectedUnit, tile);
+              return;
+            }
+          }
+        }
+      }
+
+      const propHits = raycaster.intersectObjects(interactiveProps, false);
+      if (propHits.length > 0 && propHits[0].object.userData.prop) {
+        propHits[0].object.userData.prop.onActivate();
+        return;
+      }
+
+      if (!inBattleMode) {
+        const hits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+        if (hits.length > 0 && hits[0].object.userData.fumo) {
+          pickedFumo = hits[0].object.userData.fumo;
+          isDraggingFumo = false;
+          controls.enabled = false;
+
+          const camDir = new THREE.Vector3();
+          camera.getWorldDirection(camDir);
+          dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), pickedFumo.pos);
+          dragHistory = [{ pos: pickedFumo.pos.clone(), time: performance.now() }];
+        }
+      }
+    };
+
+    const onPointerMove = (e) => {
+      updateNDC(e);
+      raycaster.setFromCamera(pointerNDC, camera);
+
+      if (pickedFumo && !inBattleMode) {
+        const moveDist = Math.hypot(e.clientX - pointerDownScreen.x, e.clientY - pointerDownScreen.y);
+        if (!isDraggingFumo && moveDist > 6) {
+          isDraggingFumo = true;
+          pickedFumo.isDragged = true;
+          pickedFumo.isGrounded = false;
+          soundFX.playPickup();
+          tooltipEl.classList.add('opacity-0');
+        }
+        if (isDraggingFumo && raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
+          dragPoint.x = THREE.MathUtils.clamp(dragPoint.x, -52, 48);
+          dragPoint.y = THREE.MathUtils.clamp(dragPoint.y, 0.5, 36);
+          dragPoint.z = THREE.MathUtils.clamp(dragPoint.z, -40, 32);
+          pickedFumo.pos.lerp(dragPoint, 0.55);
+          dragHistory.push({ pos: pickedFumo.pos.clone(), time: performance.now() });
+          if (dragHistory.length > 6) dragHistory.shift();
+        }
+        return;
+      }
+
+      const propHits = raycaster.intersectObjects(interactiveProps, false);
+      if (propHits.length > 0 && propHits[0].object.userData.prop) {
+        tooltipEmojiEl.textContent = '✨';
+        tooltipTextEl.textContent = propHits[0].object.userData.prop.name;
+        tooltipEl.classList.remove('opacity-0');
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+        renderer.domElement.style.cursor = 'pointer';
+        return;
+      }
+
+      const fHits = raycaster.intersectObjects(allFumoRaycastMeshes, false);
+      if (fHits.length > 0 && fHits[0].object.userData.fumo) {
+        const f = fHits[0].object.userData.fumo;
+        tooltipEmojiEl.textContent = f.emoji;
+        tooltipTextEl.textContent = f.name;
+        tooltipEl.classList.remove('opacity-0');
+        tooltipEl.style.left = `${e.clientX + 14}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+        renderer.domElement.style.cursor = inBattleMode ? 'pointer' : 'grab';
+        return;
+      }
+
+      tooltipEl.classList.add('opacity-0');
+      renderer.domElement.style.cursor = 'default';
+    };
+
+    const onPointerUp = () => {
+      if (pickedFumo) {
+        controls.enabled = true;
+        if (!isDraggingFumo) {
+          pickedFumo.squeeze(1.1);
+        } else {
+          pickedFumo.isDragged = false;
+          if (dragHistory.length >= 2) {
+            const a = dragHistory[0], b = dragHistory[dragHistory.length - 1];
+            const dt = Math.max(0.016, (b.time - a.time) / 1000);
+            const v = b.pos.clone().sub(a.pos).divideScalar(dt);
+            if (v.length() > 24) v.setLength(24);
+            pickedFumo.vel.copy(v);
+          }
+        }
+        pickedFumo = null;
+        isDraggingFumo = false;
+      }
+    };
+
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+
+    // ============================================================================
+    // 9. DAY / NIGHT SMOOTH INTERPOLATION (~2 SECONDS) & HUB LIFECYCLE
+    // ============================================================================
+    let isNightMode = false;
+    let nightProgress = 0.0;
+    let nightTarget = 0.0;
+
+    const daySkyCol = new THREE.Color('#c8e4ff');
+    const nightSkyCol = new THREE.Color('#0c0e22');
+    const daySunCol = new THREE.Color('#fff1d0');
+    const nightMoonCol = new THREE.Color('#6c8cd5');
+
+    function notifyHubModeChanged() {
+      const mode = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(modeStr, immediate = false) {
+      const wantNight = (modeStr === 'night');
+      if (isNightMode === wantNight && !immediate) return;
+      isNightMode = wantNight;
+      nightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) nightProgress = nightTarget;
+      document.body.classList.toggle('night-ui', isNightMode);
+      soundFX.isNight = isNightMode;
+      notifyHubModeChanged();
+    }
+
+    function toggleDayNightMode() {
+      setDayNightMode(isNightMode ? 'day' : 'night', false);
+    }
+
+    function updateDayNightTransition(dt) {
+      if (Math.abs(nightProgress - nightTarget) > 0.001) {
+        const step = dt * 0.52;
+        nightProgress = nightProgress < nightTarget
+          ? Math.min(nightTarget, nightProgress + step)
+          : Math.max(nightTarget, nightProgress - step);
+      }
+      const t = nightProgress * nightProgress * (3 - 2 * nightProgress);
+
+      scene.background.lerpColors(daySkyCol, nightSkyCol, t);
+      scene.fog.color.copy(scene.background);
+      mainDirLight.color.lerpColors(daySunCol, nightMoonCol, t);
+      mainDirLight.intensity = THREE.MathUtils.lerp(1.32, 0.36, t);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.74, 0.25, t);
+      gateTorchLight.intensity = THREE.MathUtils.lerp(0.0, 1.55, t);
+      keepMoonLight.intensity = THREE.MathUtils.lerp(0.0, 1.4, t);
+      battleCampLight.intensity = THREE.MathUtils.lerp(0.0, 1.35, t);
+      pagodaLight.intensity = THREE.MathUtils.lerp(0.0, 1.3, t);
+      lanternEmissiveMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.3, 2.25, t);
+      petalMat.color.lerpColors(new THREE.Color('#ffb3c6'), new THREE.Color('#fde047'), t);
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.16, 0.68, t);
+      }
+    }
+
+    // ============================================================================
+    // 10. KEYBOARD SHORTCUTS & UI BUTTON BINDINGS
+    // ============================================================================
+    const keys = {};
+    const MUTE_STORAGE_KEY = 'fumo_sengoku_mute';
+
+    function triggerTownBow() {
+      soundFX.playPickup();
+      spawnFloatingText(new THREE.Vector3(0, 3, -4), 'Respectful Bow! 🙇', '#fde047');
+      townFumos.forEach(f => f.bow());
+      battleUnits.forEach(u => u.fumo.bow());
+    }
+
+    function toggleEdoKite() {
+      kiteActive = !kiteActive;
+      kiteGroup.visible = kiteActive;
+      soundFX.playPickup();
+      showBannerToast('Edo Yakko Kite 🪁', kiteActive ? 'Kite Launched into the Castle Breeze!' : 'Kite Reeled In');
+    }
+
+    function toggleMute() {
+      soundFX.enabled = !soundFX.enabled;
+      document.getElementById('mute-icon').textContent = soundFX.enabled ? '🔊' : '🔇';
+      try { localStorage.setItem(MUTE_STORAGE_KEY, soundFX.enabled ? '0' : '1'); } catch (e) {}
+    }
+
+    const onKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      recordInput();
+      soundFX.init();
+      soundFX.startMusicLoop();
+
+      const k = e.key.toLowerCase();
+      keys[k] = true;
+
+      if (k === 'e') {
+        if (!inBattleMode) toggleWarGameMode(true);
+      } else if (k === ' ') {
+        if (inBattleMode) {
+          e.preventDefault();
+          endPlayerTurn();
+        }
+      } else if (k === 'q') {
+        if (inBattleMode && selectedUnit && selectedUnit.clan === 'red' && !selectedUnit.acted) {
+          abilityTargetingMode = !abilityTargetingMode;
+          highlightUnitRanges(selectedUnit);
+        }
+      } else if (k === 'r') {
+        if (inBattleMode) {
+          soundFX.playTaiko(1.0);
+          toggleWarGameMode(true);
+        }
+      } else if (k === 'escape') {
+        if (inBattleMode) {
+          if (window.confirm('Leave the Ceremonial War Game and return to Castle Town free-roam?')) {
+            toggleWarGameMode(false);
+          }
+        }
+      } else if (k === 'b') {
+        triggerTownBow();
+      } else if (k === 'f') {
+        toggleEdoKite();
+      } else if (k === 'm') {
+        toggleMute();
+      } else if (k === 'n') {
+        e.preventDefault();
+        toggleDayNightMode();
+      } else if (k === 'h') {
+        const c = document.getElementById('howto-card');
+        c.classList.toggle('opacity-0');
+        c.classList.toggle('pointer-events-none');
+      }
+    };
+
+    const onKeyUp = (e) => {
+      keys[e.key.toLowerCase()] = false;
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+
+    document.getElementById('btn-start-wargame').onclick = () => toggleWarGameMode(true);
+    document.getElementById('btn-stage-select').onclick = () => {
+      currentBattleStage = (currentBattleStage + 1) % CAMPAIGN_STAGES.length;
+      document.getElementById('btn-stage-select').textContent = `🗺️ ${CAMPAIGN_STAGES[currentBattleStage].shortName}`;
+      soundFX.playTaiko(0.8);
+    };
+    document.getElementById('btn-bow').onclick = triggerTownBow;
+    document.getElementById('btn-kite').onclick = toggleEdoKite;
+    document.getElementById('btn-end-turn').onclick = endPlayerTurn;
+    document.getElementById('btn-ai-diff').onclick = () => {
+      const order = ['Easy', 'Normal', 'Hard'];
+      aiDifficulty = order[(order.indexOf(aiDifficulty) + 1) % order.length];
+      document.getElementById('btn-ai-diff').textContent = `AI: ${aiDifficulty}`;
+    };
+    document.getElementById('btn-unit-ability').onclick = () => {
+      if (selectedUnit && selectedUnit.clan === 'red' && !selectedUnit.acted) {
+        abilityTargetingMode = !abilityTargetingMode;
+        highlightUnitRanges(selectedUnit);
+      }
+    };
+    document.getElementById('btn-restart-battle').onclick = () => toggleWarGameMode(true);
+    document.getElementById('btn-exit-battle').onclick = () => {
+      if (window.confirm('Return to Castle Town free-roam?')) toggleWarGameMode(false);
+    };
+    document.getElementById('btn-open-scroll').onclick = () => openChronicleModal(false);
+    document.getElementById('btn-close-scroll').onclick = () => {
+      document.getElementById('scroll-modal').classList.add('hidden');
+      document.getElementById('scroll-modal').classList.remove('flex');
+    };
+    document.getElementById('btn-next-battle').onclick = () => {
+      document.getElementById('scroll-modal').classList.add('hidden');
+      document.getElementById('scroll-modal').classList.remove('flex');
+      currentBattleStage = (currentBattleStage + 1) % CAMPAIGN_STAGES.length;
+      document.getElementById('btn-stage-select').textContent = `🗺️ ${CAMPAIGN_STAGES[currentBattleStage].shortName}`;
+      toggleWarGameMode(true);
+    };
+    document.getElementById('btn-return-town').onclick = () => {
+      document.getElementById('scroll-modal').classList.add('hidden');
+      document.getElementById('scroll-modal').classList.remove('flex');
+      toggleWarGameMode(false);
+    };
+    document.getElementById('btn-help').onclick = () => {
+      const c = document.getElementById('howto-card');
+      c.classList.toggle('opacity-0');
+      c.classList.toggle('pointer-events-none');
+    };
+    document.getElementById('btn-mute').onclick = toggleMute;
+
+    // ============================================================================
+    // 11. MAIN ANIMATION LOOP & FumoSceneLifecycle
+    // ============================================================================
+    let rafId = null;
+    let prevTime = performance.now();
+
+    const onResize = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    };
+    window.addEventListener('resize', onResize);
+
+    function animate(now) {
+      if (lifecycle && lifecycle.isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const dt = Math.min(0.04, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      const panSpeed = 18.0 * dt;
+      if (keys['w']) { controls.target.z -= panSpeed; camera.position.z -= panSpeed; }
+      if (keys['s']) { controls.target.z += panSpeed; camera.position.z += panSpeed; }
+      if (keys['a']) { controls.target.x -= panSpeed; camera.position.x -= panSpeed; }
+      if (keys['d']) { controls.target.x += panSpeed; camera.position.x += panSpeed; }
+
+      if (!inBattleMode && !pickedFumo && (now - lastInputTime > 6500)) {
+        controls.autoRotate = true;
+      }
+      controls.update();
+
+      updateDayNightTransition(dt);
+
+      // Rotate Canal Waterwheel
+      if (waterwheelGroup) {
+        waterwheelGroup.rotation.z = -elapsed * 1.1;
+      }
+
+      // Swim Moat & Canal Koi Fish
+      for (let i = 0; i < koiList.length; i++) {
+        const k = koiList[i];
+        const ang = elapsed * k.speed + k.phase;
+        const nx = k.cx + Math.cos(ang) * k.radius;
+        const nz = k.cz + Math.sin(ang) * (k.inMoat ? k.radius : 0.75);
+        k.mesh.rotation.y = Math.atan2(nx - k.mesh.position.x, nz - k.mesh.position.z);
+        k.mesh.position.set(nx, -0.02, nz);
+      }
+
+      // Bobbing Floating Toro Nagashi Water Lanterns
+      for (let i = 0; i < floatingLanterns.length; i++) {
+        const fl = floatingLanterns[i];
+        fl.mesh.position.x = fl.baseX + Math.sin(elapsed * 0.65 + fl.phase) * 0.7;
+        fl.mesh.position.y = 0.14 + Math.sin(elapsed * 2.2 + fl.phase) * 0.05;
+      }
+
+      for (let i = 0; i < banners.length; i++) {
+        const b = banners[i];
+        for (let s = 0; s < b.stripMeshes.length; s++) {
+          b.stripMeshes[s].position.z = Math.sin(elapsed * 3.8 + b.phase + s * 0.7) * 0.16;
+        }
+      }
+      if (kiteActive && kiteGroup) {
+        kiteGroup.position.x = -8 + Math.sin(elapsed * 1.4) * 3.8;
+        kiteGroup.position.y = 22 + Math.cos(elapsed * 2.1) * 1.4;
+        kiteGroup.rotation.z = Math.sin(elapsed * 2.5) * 0.25;
+      }
+
+      const procX = -34 + ((elapsed * 2.6) % 44);
+      processionGroup.position.set(procX, 0, 6);
+      processionMembers.forEach((pf, idx) => {
+        pf.pos.set(procX + (idx - 1) * 3.2, idx === 1 ? 0.65 : 0, 6);
+        pf.headPitch = Math.sin(elapsed * 7 + idx) * 0.08;
+        pf.syncTransform(elapsed);
+      });
+
+      townFumos.forEach(tf => {
+        if (Math.abs(tf.pos.z - 6) < 6.5 && Math.abs(tf.pos.x - procX) < 4.5 && tf.bowTimer <= 0) {
+          tf.bowTimer = 0.8;
+        }
+        tf.updatePhysics(dt, elapsed);
+      });
+
+      for (let i = 0; i < battleUnits.length; i++) {
+        battleUnits[i].fumo.updatePhysics(dt, elapsed);
+      }
+      for (let i = activeProjectiles.length - 1; i >= 0; i--) {
+        const pr = activeProjectiles[i];
+        pr.t += dt * 3.2;
+        if (pr.t >= 1.0) {
+          scene.remove(pr.mesh);
+          activeProjectiles.splice(i, 1);
+        } else {
+          pr.mesh.position.lerpVectors(pr.from, pr.to, pr.t);
+          pr.mesh.position.y += Math.sin(pr.t * Math.PI) * 2.8;
+        }
+      }
+
+      for (let i = 0; i < PETAL_COUNT; i++) {
+        const p = petalData[i];
+        p.y -= (isNightMode ? -0.4 : p.vy) * dt;
+        if (p.y < 0.2) p.y = 26;
+        if (p.y > 27) p.y = 1.0;
+        tempPos.set(
+          p.x + Math.sin(elapsed * 1.1 + p.phase) * 1.6,
+          p.y,
+          p.z + Math.cos(elapsed * 0.9 + p.phase) * 1.6
+        );
+        tempQuat.setFromEuler(new THREE.Euler(elapsed + p.phase, elapsed * 0.8, 0));
+        tempScale.set(1, 1, 1);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        petalMesh.setMatrixAt(i, tempMatrix);
+      }
+      petalMesh.instanceMatrix.needsUpdate = true;
+
+      let pDirty = false;
+      for (let i = 0; i < PARTICLE_MAX; i++) {
+        const p = particles[i];
+        if (!p.active) continue;
+        pDirty = true;
+        p.life += dt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          particleMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= 9.5 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const s = 1 - p.life / p.maxLife;
+        tempQuat.identity();
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        particleMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (pDirty) particleMesh.instanceMatrix.needsUpdate = true;
+
+      for (let i = activePopups.length - 1; i >= 0; i--) {
+        const pop = activePopups[i];
+        pop.life += dt;
+        if (pop.life >= pop.maxLife) {
+          pop.el.remove();
+          activePopups.splice(i, 1);
+          continue;
+        }
+        pop.pos.y += dt * 1.4;
+        const proj = pop.pos.clone().project(camera);
+        if (proj.z < 1) {
+          const sx = (proj.x * 0.5 + 0.5) * window.innerWidth;
+          const sy = (-proj.y * 0.5 + 0.5) * window.innerHeight;
+          pop.el.style.left = `${sx}px`;
+          pop.el.style.top = `${sy}px`;
+          pop.el.style.opacity = String(1 - pop.life / pop.maxLife);
+        }
+      }
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    const lifecycle = new FumoSceneLifecycle({
+      renderer,
+      scene,
+      composer,
+      audio: soundFX,
+      onToggleMode: () => {
+        toggleDayNightMode();
+      },
+      onSetMode: (mode) => {
+        if (mode === 'day' || mode === 'night') {
+          setDayNightMode(mode, false);
+        }
+      },
+      onPause: () => {
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+        soundFX.stopLoops();
+      },
+      onResume: () => {
+        prevTime = performance.now();
+        soundFX.startMusicLoop();
+        if (rafId === null) {
+          rafId = requestAnimationFrame(animate);
+        }
+      },
+      onDispose: () => {
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+        soundFX.stopLoops();
+        renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+        window.removeEventListener('keydown', onKeyDown);
+        window.removeEventListener('keyup', onKeyUp);
+        window.removeEventListener('resize', onResize);
+      }
+    });
+
+    loadCampaignState();
+    try {
+      if (localStorage.getItem(MUTE_STORAGE_KEY) === '1') {
+        soundFX.enabled = false;
+        document.getElementById('mute-icon').textContent = '🔇';
+      }
+    } catch (e) {}
+
+    spawnBattleArmies(0);
+    setDayNightMode('day', true);
+
+    setTimeout(() => {
+      const card = document.getElementById('howto-card');
+      if (card) card.classList.add('opacity-0', 'pointer-events-none');
+    }, 8500);
+
+    prevTime = performance.now();
+    rafId = requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
+

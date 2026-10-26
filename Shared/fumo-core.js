@@ -75,7 +75,7 @@
         gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
 
         osc1.connect(gain1);
-        gain1.connect(this.ctx.destination);
+        gain1.connect(this.masterGain || this.ctx.destination);
         osc1.start(now);
         osc1.stop(now + 0.18);
 
@@ -91,7 +91,7 @@
         gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
 
         osc2.connect(gain2);
-        gain2.connect(this.ctx.destination);
+        gain2.connect(this.masterGain || this.ctx.destination);
         osc2.start(now + 0.11);
         osc2.stop(now + 0.25);
       } catch (e) {}
@@ -117,7 +117,7 @@
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
 
         osc.connect(gain);
-        gain.connect(this.ctx.destination);
+        gain.connect(this.masterGain || this.ctx.destination);
         osc.start(now);
         osc.stop(now + 0.1);
       } catch (e) {}
@@ -139,7 +139,7 @@
         gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
         osc.connect(gain);
-        gain.connect(this.ctx.destination);
+        gain.connect(this.masterGain || this.ctx.destination);
         osc.start(now);
         osc.stop(now + 0.1);
       } catch (e) {}
