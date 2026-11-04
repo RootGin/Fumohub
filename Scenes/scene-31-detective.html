@@ -1,0 +1,2918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Fumo Detective Agency: The Case of the Missing Donation Box</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Shared Stylesheet -->
+  <link rel="stylesheet" href="../fumo-scene.css" />
+
+  <!-- 1. Three.js r128 + Post-Processing Addons FIRST -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <!-- 2. Shared Fumo Core Library SECOND (reads THREE at load time) -->
+  <script src="../fumo-core.js"></script>
+
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Quicksand', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #0b0e1a;
+      color: #241c15;
+    }
+    .font-display { font-family: 'Fredoka', 'Quicksand', sans-serif; }
+    .font-typewriter { font-family: 'Courier Prime', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    /* Layout & Positioning Utilities */
+    .fixed { position: fixed; }
+    .absolute { position: absolute; }
+    .relative { position: relative; }
+    .inset-0 { inset: 0; }
+    .bottom-4 { bottom: 1rem; }
+    .bottom-20 { bottom: 5rem; }
+    .bottom-28 { bottom: 7rem; }
+    .right-4 { right: 1rem; }
+    .left-1\/2 { left: 50%; }
+    .-translate-x-1\/2 { transform: translateX(-50%); }
+    .z-10 { z-index: 10; }
+    .z-20 { z-index: 20; }
+    .z-30 { z-index: 30; }
+    .z-40 { z-index: 40; }
+    .z-50 { z-index: 50; }
+
+    .flex { display: flex; }
+    .inline-flex { display: inline-flex; }
+    .hidden { display: none !important; }
+    .flex-col { flex-direction: column; }
+    .flex-wrap { flex-wrap: wrap; }
+    .items-center { align-items: center; }
+    .items-start { align-items: flex-start; }
+    .items-end { align-items: flex-end; }
+    .justify-center { justify-content: center; }
+    .justify-between { justify-content: space-between; }
+    .justify-end { justify-content: flex-end; }
+
+    .gap-1 { gap: 0.25rem; }
+    .gap-1\.5 { gap: 0.375rem; }
+    .gap-2 { gap: 0.5rem; }
+    .gap-2\.5 { gap: 0.625rem; }
+    .gap-3 { gap: 0.75rem; }
+
+    .p-2 { padding: 0.5rem; }
+    .p-2\.5 { padding: 0.625rem; }
+    .p-3 { padding: 0.75rem; }
+    .p-3\.5 { padding: 0.875rem; }
+    .p-4 { padding: 1rem; }
+    .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+    .px-2\.5 { padding-left: 0.625rem; padding-right: 0.625rem; }
+    .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+    .px-3\.5 { padding-left: 0.875rem; padding-right: 0.875rem; }
+    .px-4 { padding-left: 1rem; padding-right: 1rem; }
+    .py-0\.5 { padding-top: 0.125rem; padding-bottom: 0.125rem; }
+    .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+    .py-1\.5 { padding-top: 0.375rem; padding-bottom: 0.375rem; }
+    .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+
+    .rounded-lg { border-radius: 0.5rem; }
+    .rounded-xl { border-radius: 0.75rem; }
+    .rounded-2xl { border-radius: 1rem; }
+    .rounded-3xl { border-radius: 1.5rem; }
+    .rounded-full { border-radius: 9999px; }
+
+    .text-\[10px\] { font-size: 10px; }
+    .text-\[11px\] { font-size: 11px; }
+    .text-xs { font-size: 0.75rem; line-height: 1rem; }
+    .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+    .text-base { font-size: 1rem; line-height: 1.4rem; }
+    .text-lg { font-size: 1.125rem; line-height: 1.6rem; }
+    .font-bold { font-weight: 700; }
+    .font-semibold { font-weight: 600; }
+    .uppercase { text-transform: uppercase; }
+    .tracking-wider { letter-spacing: 0.06em; }
+    .opacity-0 { opacity: 0; }
+    .opacity-60 { opacity: 0.6; }
+    .opacity-75 { opacity: 0.75; }
+    .pointer-events-none { pointer-events: none; }
+    .pointer-events-auto { pointer-events: auto; }
+
+    /* Worn-Paper, Ink & Typewriter Detective Aesthetic on .glass-panel */
+    .glass-panel {
+      background: rgba(246, 238, 221, 0.9);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(138, 108, 76, 0.55);
+      color: #261c14;
+      box-shadow: 0 10px 28px -6px rgba(15, 12, 8, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+      transition: background 0.35s ease, color 0.35s ease, border-color 0.35s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
+    }
+    body.night-ui .glass-panel {
+      background: rgba(22, 24, 38, 0.88);
+      border-color: rgba(217, 167, 106, 0.42);
+      color: #f4ead8;
+      box-shadow: 0 12px 32px -6px rgba(0, 0, 0, 0.72), 0 0 18px rgba(245, 158, 11, 0.14);
+    }
+
+    .noir-stamp {
+      border-left: 4px solid #b45309;
+      border-right: 4px solid #b45309;
+    }
+    body.night-ui .noir-stamp {
+      border-left-color: #f59e0b;
+      border-right-color: #f59e0b;
+    }
+
+    .ui-btn {
+      cursor: pointer;
+      outline: none;
+    }
+    .ui-btn:hover { transform: translateY(-2px) scale(1.03); }
+    .ui-btn:active { transform: translateY(1px) scale(0.97); }
+
+    .active-amber {
+      border: 2px solid #d97706 !important;
+      background: rgba(245, 158, 11, 0.24) !important;
+    }
+    .locked-loc {
+      opacity: 0.48;
+    }
+
+    kbd {
+      font-family: 'Courier Prime', monospace;
+      font-weight: 700;
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      border-radius: 5px;
+      background: rgba(0, 0, 0, 0.1);
+      border-bottom: 2px solid rgba(0, 0, 0, 0.25);
+    }
+    body.night-ui kbd {
+      background: rgba(255, 255, 255, 0.15);
+      border-bottom-color: rgba(255, 255, 255, 0.32);
+    }
+
+    /* Magnifying Glass Lens Overlay during Evidence Hunt */
+    #magnifier-lens {
+      position: fixed;
+      width: 128px;
+      height: 128px;
+      border-radius: 50%;
+      border: 4px solid #d97706;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.45), 0 12px 30px rgba(0, 0, 0, 0.55), inset 0 0 24px rgba(251, 191, 36, 0.35);
+      background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.22), rgba(245, 158, 11, 0.06) 70%);
+      backdrop-filter: contrast(1.12) brightness(1.12) saturate(1.18);
+      -webkit-backdrop-filter: contrast(1.12) brightness(1.12) saturate(1.18);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      z-index: 25;
+      transition: border-color 0.15s ease, transform 0.1s ease;
+    }
+    #magnifier-lens.clue-hot {
+      border-color: #10b981;
+      transform: translate(-50%, -50%) scale(1.08);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.7), inset 0 0 28px rgba(16, 185, 129, 0.35);
+    }
+    #magnifier-ring-svg {
+      position: absolute;
+      inset: -6px;
+      width: 132px;
+      height: 132px;
+      transform: rotate(-90deg);
+    }
+
+    /* Corkboard & Red String Deduction Modal */
+    .modal-backdrop {
+      background: rgba(8, 10, 18, 0.76);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .corkboard-surface {
+      background: radial-gradient(circle, rgba(168, 118, 72, 0.25) 0%, rgba(92, 61, 36, 0.35) 100%);
+      border: 2px dashed rgba(217, 119, 6, 0.5);
+      border-radius: 14px;
+      padding: 10px;
+      position: relative;
+    }
+    .pin-card {
+      position: relative;
+      cursor: pointer;
+      padding: 6px 10px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      text-align: left;
+      transition: transform 0.12s ease, border-color 0.15s ease;
+    }
+    .pin-card::before {
+      content: "📌";
+      margin-right: 4px;
+    }
+    .pin-card.pin-selected {
+      border: 2px solid #ef4444 !important;
+      background: rgba(239, 68, 68, 0.24) !important;
+      transform: scale(1.03);
+    }
+
+    .detective-panel {
+      width: 340px;
+      max-width: 92vw;
+    }
+    .scroll-box {
+      max-height: 210px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .scroll-box::-webkit-scrollbar { width: 4px; }
+    .scroll-box::-webkit-scrollbar-thumb { background: rgba(160, 120, 80, 0.5); border-radius: 99px; }
+
+    .floating-bubble {
+      position: fixed;
+      pointer-events: none;
+      transform: translate(-50%, -100%);
+      z-index: 22;
+      font-size: 11px;
+      font-weight: 700;
+      max-width: 210px;
+      text-align: center;
+      transition: opacity 0.2s ease;
+    }
+  </style>
+</head>
+<body class="night-ui">
+  <div id="canvas-container"></div>
+
+  <!-- Magnifying Glass Lens (Visible during Evidence Hunt Mode) -->
+  <div id="magnifier-lens" class="hidden">
+    <svg id="magnifier-ring-svg" viewBox="0 0 120 120">
+      <circle id="magnifier-ring-circle" cx="60" cy="60" r="54" fill="none" stroke="#10b981" stroke-width="6"
+        stroke-dasharray="339.29" stroke-dashoffset="339.29" stroke-linecap="round" />
+    </svg>
+  </div>
+
+  <!-- 3D Floating Speech Bubbles & Wisp Sidekick Comments Layer -->
+  <div id="bubbles-layer" class="fixed inset-0 pointer-events-none z-20"></div>
+
+  <!-- Floating Cursor Tooltip for Hovered Fumo / Clue / Prop -->
+  <div id="fumo-tooltip" class="fixed z-30 opacity-0 px-3 py-1.5 rounded-xl glass-panel text-xs font-semibold flex items-center gap-2 pointer-events-none">
+    <span id="tooltip-emoji">🕵️</span>
+    <span id="tooltip-text">Sakuya Detective</span>
+  </div>
+
+  <!-- Center-Bottom Toast / Case Update Banner -->
+  <div id="case-toast" class="fixed bottom-28 left-1/2 -translate-x-1/2 z-30 pointer-events-none opacity-0 glass-panel noir-stamp rounded-2xl px-4 py-2.5 text-xs sm:text-sm font-bold" style="text-align: center;">
+    <div id="toast-sub" class="text-[10px] uppercase tracking-wider opacity-75 font-typewriter">Case File Entry</div>
+    <div id="toast-main" class="font-display text-base">🔎 New Clue Logged in Notebook!</div>
+  </div>
+
+  <!-- INTERROGATION DIALOGUE PANEL (Bottom-Center) -->
+  <div id="interrogation-panel" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-30 hidden flex-col gap-2 glass-panel noir-stamp rounded-2xl p-3.5" style="width: 92vw; max-width: 540px;">
+    <div class="flex items-center justify-between gap-2" style="border-bottom: 1px solid rgba(148,163,184,0.3); padding-bottom: 6px;">
+      <div class="flex items-center gap-2">
+        <span id="interrog-emoji" class="text-lg">📰</span>
+        <div>
+          <div id="interrog-name" class="font-display font-bold text-sm sm:text-base">Aya Shameimaru</div>
+          <div id="interrog-role" class="text-[10px] font-typewriter opacity-75">Suspect • Bunbunmaru Reporter</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span id="interrog-status" class="text-[10px] font-typewriter px-2 py-0.5 rounded bg-black/10 font-bold">Calm</span>
+        <button id="btn-close-interrog" class="glass-panel ui-btn rounded-lg px-2 py-1 text-xs font-bold">Close (<kbd>Esc</kbd>)</button>
+      </div>
+    </div>
+
+    <div id="interrog-speech" class="font-typewriter text-xs sm:text-sm font-bold py-1.5">
+      "Ayaya! My camera never lies, Detective! I snapped the culprit right at 9:00 PM!"
+    </div>
+
+    <!-- Question Options -->
+    <div id="interrog-questions" class="flex flex-wrap gap-1.5"></div>
+
+    <!-- Present Evidence Strip (Revealed when player clicks Present Evidence) -->
+    <div id="present-evidence-strip" class="hidden flex-col gap-1.5" style="border-top: 1px solid rgba(148,163,184,0.3); padding-top: 6px;">
+      <div class="text-[11px] font-bold font-typewriter">📌 Select Clue from Notebook to Catch Contradiction:</div>
+      <div id="present-clue-list" class="flex flex-wrap gap-1.5"></div>
+    </div>
+
+    <div class="flex items-center justify-between" style="border-top: 1px solid rgba(148,163,184,0.3); padding-top: 6px;">
+      <span id="interrog-hint-line" class="text-[11px] opacity-75 font-semibold">Tip: Compare alibis against physical evidence.</span>
+      <button id="btn-present-toggle" class="glass-panel ui-btn rounded-xl px-3 py-1 text-xs font-bold active-amber">
+        ⚡ Present Evidence! (<kbd>E</kbd>)
+      </button>
+    </div>
+  </div>
+
+  <!-- First-Run How-To Card (Bottom-Center, fades after 8.5s, toggle with H) -->
+  <div id="howto-card" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 glass-panel noir-stamp rounded-2xl px-4 py-2.5 text-xs font-semibold" style="width: 92vw; max-width: 610px;">
+    <div class="flex items-center justify-between" style="margin-bottom: 4px;">
+      <span class="font-display font-bold text-sm">🕵️ Fumo Detective Agency — Investigation Controls</span>
+      <span class="opacity-75 text-[10px] font-typewriter">Press <kbd>H</kbd> for Help</span>
+    </div>
+    <div class="flex flex-wrap items-center gap-2 text-[11px]">
+      <span>🔍 <kbd>E</kbd> Magnifier Hunt (Hover & Click Clues)</span>
+      <span>🗣️ <b>Click Suspect:</b> Question & Present Evidence</span>
+      <span>📌 <kbd>Q</kbd> Notebook & Red-String Board</span>
+      <span>✨ <kbd>F</kbd> Detective Perk / Hint</span>
+      <span>📳 <kbd>R</kbd> Shake Diorama</span>
+      <span>🖱️ <b>Free-Roam:</b> Click Fumo to Squeeze • Drag to Toss</span>
+      <span><kbd>M</kbd> Mute • <kbd>N</kbd> Day/Night</span>
+    </div>
+  </div>
+
+  <!-- BOTTOM-RIGHT HUD CLUSTER (Top-Left kept 100% clear for Hub) -->
+  <div class="fixed bottom-4 right-4 z-20 flex flex-col items-end gap-2" style="max-width: 95vw;">
+
+    <!-- Collapsible Notebook & Detective Picker Panel -->
+    <div id="notebook-panel" class="glass-panel noir-stamp detective-panel rounded-2xl p-3 hidden flex-col gap-2">
+      <div class="flex items-center justify-between" style="border-bottom: 1px solid rgba(148,163,184,0.3); padding-bottom: 6px;">
+        <span class="font-display font-bold text-sm">📓 Detective Notebook (<span id="nb-clue-count">0/8</span>)</span>
+        <div class="flex gap-1">
+          <button id="tab-nb-clues" class="glass-panel ui-btn rounded-lg px-2 py-0.5 text-[11px] font-bold active-amber">Clues</button>
+          <button id="tab-nb-testimony" class="glass-panel ui-btn rounded-lg px-2 py-0.5 text-[11px] font-bold">Alibis</button>
+          <button id="tab-nb-detective" class="glass-panel ui-btn rounded-lg px-2 py-0.5 text-[11px] font-bold">Detective</button>
+        </div>
+      </div>
+
+      <div id="nb-clues-list" class="scroll-box flex flex-col gap-1.5 text-xs"></div>
+      <div id="nb-testimony-list" class="scroll-box hidden flex-col gap-1.5 text-xs"></div>
+      <div id="nb-detective-list" class="scroll-box hidden flex-col gap-1.5 text-xs"></div>
+    </div>
+
+    <!-- Main Case Control Card -->
+    <div class="glass-panel noir-stamp detective-panel rounded-2xl p-2.5 flex flex-col gap-1.5">
+      <div class="flex items-center justify-between">
+        <div>
+          <div id="hud-loc-title" class="font-display font-bold text-sm">⛩️ 1. Hakurei Shrine (Night)</div>
+          <div id="hud-case-sub" class="text-[11px] font-typewriter opacity-80">Clues: 0/4 Essential • Rep: ⭐⭐⭐⭐⭐</div>
+        </div>
+        <button id="btn-hint" class="glass-panel ui-btn rounded-xl px-2.5 py-1 text-[11px] font-bold" title="Spend a Hint Token for a Nudge">
+          💡 Hints: <span id="hint-count-text">3</span>
+        </button>
+      </div>
+
+      <!-- 4 Crime-Scene Diorama Switcher Buttons -->
+      <div class="flex flex-wrap items-center gap-1">
+        <button id="loc-btn-0" class="glass-panel ui-btn rounded-lg px-2 py-1 text-[11px] font-bold active-amber">⛩️ Shrine</button>
+        <button id="loc-btn-1" class="glass-panel ui-btn rounded-lg px-2 py-1 text-[11px] font-bold">🏮 Alley</button>
+        <button id="loc-btn-2" class="glass-panel ui-btn rounded-lg px-2 py-1 text-[11px] font-bold">🍢 Stall</button>
+        <button id="loc-btn-3" class="glass-panel ui-btn rounded-lg px-2 py-1 text-[11px] font-bold locked-loc" title="Unlocked by Clue 2 (Alley Tracks)">🍵 Tea House 🔒</button>
+      </div>
+
+      <!-- Investigation Action Row -->
+      <div class="flex flex-wrap items-center justify-between gap-1.5" style="margin-top: 2px;">
+        <button id="btn-magnifier" class="glass-panel ui-btn rounded-xl px-2.5 py-1.5 text-xs font-bold flex items-center gap-1">
+          <span>🔍</span><span id="magnifier-label">Hunt Clues</span><kbd>E</kbd>
+        </button>
+        <button id="btn-perk" class="glass-panel ui-btn rounded-xl px-2.5 py-1.5 text-xs font-bold flex items-center gap-1" title="Activate Detective Perk (F)">
+          <span id="perk-icon">⏱️</span><span id="perk-label">Chrono</span><kbd>F</kbd>
+        </button>
+        <button id="btn-shake" class="glass-panel ui-btn rounded-xl px-2 py-1.5 text-xs font-bold" title="Gently Shake Diorama Props (R)">
+          📳 <kbd>R</kbd>
+        </button>
+      </div>
+    </div>
+
+    <!-- Bottom-Right Utility Bar -->
+    <div class="flex flex-wrap items-center justify-end gap-1.5">
+      <button id="btn-open-notebook" class="glass-panel ui-btn rounded-xl px-2.5 py-1.5 text-xs font-bold flex items-center gap-1">
+        <span>📓</span><span>Notebook</span><kbd>Q</kbd>
+      </button>
+      <button id="btn-open-board" class="glass-panel ui-btn rounded-xl px-3 py-1.5 text-xs font-bold active-amber flex items-center gap-1">
+        <span>📌</span><span>Deduction Board</span>
+      </button>
+      <button id="btn-help" class="glass-panel ui-btn rounded-xl px-2.5 py-1.5 text-xs font-bold" title="Toggle Controls Help (H)">
+        ❔ <kbd>H</kbd>
+      </button>
+      <button id="btn-mute" class="glass-panel ui-btn rounded-xl px-2.5 py-1.5 text-xs font-bold flex items-center gap-1" title="Mute / Unmute Audio (M)">
+        <span id="mute-icon">🔊</span><kbd>M</kbd>
+      </button>
+    </div>
+  </div>
+
+  <!-- DEDUCTION CORKBOARD MODAL (Red String Pin Connections) -->
+  <div id="board-modal" class="fixed inset-0 z-40 modal-backdrop hidden items-center justify-center p-3.5">
+    <div class="glass-panel noir-stamp rounded-3xl p-4 flex flex-col gap-3" style="width: 100%; max-width: 600px;">
+      <div class="flex items-center justify-between" style="border-bottom: 1px solid rgba(148,163,184,0.3); padding-bottom: 6px;">
+        <div>
+          <h2 class="font-display font-bold text-base sm:text-lg">📌 Detective Deduction Corkboard</h2>
+          <p class="text-xs font-typewriter opacity-75">Connect the pins with red string to link WHO, HOW, and WHY!</p>
+        </div>
+        <button id="btn-close-board" class="glass-panel ui-btn rounded-xl px-3 py-1 text-xs font-bold">Close (<kbd>Esc</kbd>)</button>
+      </div>
+
+      <div class="corkboard-surface flex flex-col gap-2.5">
+        <canvas id="string-canvas" width="540" height="220" class="absolute inset-0 pointer-events-none" style="width:100%; height:100%;"></canvas>
+
+        <!-- Slot 1: WHO (Suspects) -->
+        <div class="flex flex-col gap-1 z-10">
+          <div class="text-[11px] font-typewriter font-bold">1. WHO took the Hakurei Donation Box? (Click a Suspect Pin):</div>
+          <div id="pins-who" class="flex flex-wrap gap-1.5"></div>
+        </div>
+
+        <!-- Slot 2: HOW (Disguise / Method Clues) -->
+        <div class="flex flex-col gap-1 z-10">
+          <div class="text-[11px] font-typewriter font-bold">2. HOW did the culprit fool witnesses at 9:00 PM? (Click an Evidence Pin):</div>
+          <div id="pins-how" class="flex flex-wrap gap-1.5"></div>
+        </div>
+
+        <!-- Slot 3: WHY & WHERE (Motive / Location) -->
+        <div class="flex flex-col gap-1 z-10">
+          <div class="text-[11px] font-typewriter font-bold">3. WHY was it taken & WHERE is it hidden? (Click a Motive Pin):</div>
+          <div id="pins-why" class="flex flex-wrap gap-1.5"></div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between gap-2">
+        <span id="board-feedback" class="text-xs font-typewriter font-bold">Link all 3 red strings to present your deduction!</span>
+        <button id="btn-submit-deduction" class="glass-panel ui-btn rounded-xl px-4 py-1.5 text-xs font-bold active-amber">
+          🔎 Present Deduction!
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CASE FILE FINALE CARD MODAL -->
+  <div id="finale-modal" class="fixed inset-0 z-50 modal-backdrop hidden items-center justify-center p-4">
+    <div class="glass-panel noir-stamp rounded-3xl p-4 flex flex-col gap-3" style="width: 100%; max-width: 460px;">
+      <div class="flex items-center justify-between" style="border-bottom: 1px solid rgba(148,163,184,0.3); padding-bottom: 6px;">
+        <div>
+          <div class="text-[10px] font-typewriter uppercase tracking-wider opacity-75">Case Closed • Official Dossier</div>
+          <h2 id="finale-rank-title" class="font-display font-bold text-lg">🏆 Rank: Master Detective</h2>
+        </div>
+        <span class="text-xl">🕵️✨</span>
+      </div>
+      <p id="finale-story-text" class="text-xs sm:text-sm font-typewriter leading-relaxed"></p>
+      <div id="finale-stats-box" class="glass-panel rounded-xl p-2.5 text-xs font-typewriter flex flex-col gap-1"></div>
+      <div class="flex items-center justify-between gap-2" style="border-top: 1px solid rgba(148,163,184,0.3); padding-top: 8px;">
+        <button id="btn-free-roam" class="glass-panel ui-btn rounded-xl px-3.5 py-1.5 text-xs font-bold active-amber">🌧️ Enter Free Roam</button>
+        <button id="btn-replay-case" class="glass-panel ui-btn rounded-xl px-3.5 py-1.5 text-xs font-bold">🔄 Replay Case</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 0. SAFE FALLBACK BRIDGE FOR ../fumo-core.js
+    // Ensures PlushSoundEngine, voxelHash, varyColor, createSoftVoxelGeometry,
+    // getOptimalPixelRatio, and FumoSceneLifecycle are always defined even if
+    // ../fumo-core.js is at a different path on disk.
+    // ============================================================================
+    if (typeof window.voxelHash === 'undefined') {
+      window.voxelHash = function(x, y, z) {
+        const n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+        return n - Math.floor(n);
+      };
+    }
+    if (typeof window.varyColor === 'undefined') {
+      const _tc = new THREE.Color();
+      window.varyColor = function(hex, x, y, z, variance = 0.035, seamDarken = 0) {
+        _tc.set(hex);
+        const h = window.voxelHash(x, y, z);
+        _tc.offsetHSL(0, (h - 0.5) * 0.03, (h - 0.5) * 2 * variance - seamDarken);
+        return _tc.clone();
+      };
+    }
+    if (typeof window.createSoftVoxelGeometry === 'undefined') {
+      const _gCache = new Map();
+      window.createSoftVoxelGeometry = function(size = 1) {
+        const k = Math.round(size * 1000) / 1000;
+        if (!_gCache.has(k)) {
+          _gCache.set(k, new THREE.BoxGeometry(size * 0.985, size * 0.985, size * 0.985));
+        }
+        return _gCache.get(k);
+      };
+    }
+    if (typeof window.getOptimalPixelRatio === 'undefined') {
+      window.getOptimalPixelRatio = function() {
+        return Math.min(window.devicePixelRatio || 1, 1.5);
+      };
+    }
+    if (typeof window.PlushSoundEngine === 'undefined') {
+      window.PlushSoundEngine = class PlushSoundEngine {
+        constructor() {
+          this.ctx = null;
+          this.enabled = true;
+        }
+        init() {
+          if (!this.ctx) {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (AC) this.ctx = new AC();
+          }
+          if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume().catch(() => {});
+          }
+        }
+        resume() {
+          if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume().catch(() => {});
+          }
+        }
+        suspend() {
+          if (this.ctx && this.ctx.state === 'running') {
+            this.ctx.suspend().catch(() => {});
+          }
+        }
+        dispose() {
+          if (this.ctx) {
+            try { this.ctx.close().catch(() => {}); } catch (e) {}
+            this.ctx = null;
+          }
+        }
+        playSqueeze(pitchMultiplier = 1.0) {
+          if (!this.enabled) return;
+          try {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc1 = this.ctx.createOscillator();
+            const gain1 = this.ctx.createGain();
+            osc1.type = 'sine';
+            const baseFreq = (520 + Math.random() * 80) * pitchMultiplier;
+            osc1.frequency.setValueAtTime(baseFreq, now);
+            osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.085);
+            osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.15, now + 0.16);
+            gain1.gain.setValueAtTime(0.001, now);
+            gain1.gain.linearRampToValueAtTime(0.11, now + 0.025);
+            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+            osc1.connect(gain1);
+            gain1.connect(this.ctx.destination);
+            osc1.start(now);
+            osc1.stop(now + 0.18);
+          } catch (e) {}
+        }
+        playBounce(intensity = 0.5) {
+          if (!this.enabled || intensity < 0.08) return;
+          try {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(115 + Math.min(80, intensity * 35), now);
+            osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
+            gain.gain.setValueAtTime(Math.min(0.14, intensity * 0.12), now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.1);
+          } catch (e) {}
+        }
+        playPickup() {
+          if (!this.enabled) return;
+          try {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(280, now);
+            osc.frequency.exponentialRampToValueAtTime(440, now + 0.09);
+            gain.gain.setValueAtTime(0.05, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.1);
+          } catch (e) {}
+        }
+      };
+    }
+    if (typeof window.FumoSceneLifecycle === 'undefined') {
+      window.FumoSceneLifecycle = class FumoSceneLifecycle {
+        constructor(options = {}) {
+          this.renderer = options.renderer || null;
+          this.scene = options.scene || null;
+          this.composer = options.composer || null;
+          this.audio = options.audio || null;
+          this.onToggleMode = options.onToggleMode || null;
+          this.onSetMode = options.onSetMode || null;
+          this.onPause = options.onPause || null;
+          this.onResume = options.onResume || null;
+          this.onDispose = options.onDispose || null;
+          this.isPaused = false;
+          this.isDisposed = false;
+
+          this._boundMessage = (e) => {
+            const d = e.data;
+            if (!d || typeof d !== 'object') return;
+            if (d.type === 'setMode' && this.onSetMode) this.onSetMode(d.mode);
+            else if (d.type === 'toggleMode' && this.onToggleMode) this.onToggleMode();
+            else if (d.type === 'pause') {
+              this.isPaused = true;
+              if (this.audio && typeof this.audio.suspend === 'function') this.audio.suspend();
+              if (this.onPause) this.onPause();
+            } else if (d.type === 'resume') {
+              this.isPaused = false;
+              if (this.audio && typeof this.audio.resume === 'function') this.audio.resume();
+              if (this.onResume) this.onResume();
+            } else if (d.type === 'destroy') {
+              if (this.onDispose) this.onDispose();
+            }
+          };
+          window.addEventListener('message', this._boundMessage);
+        }
+      };
+    }
+
+    // ============================================================================
+    // 1. PLAIN DATA OBJECT FOR THE CASE (Easily extensible for future cases)
+    // ============================================================================
+    const CASE_DATA = {
+      id: 'case_01_missing_donation_box',
+      title: 'The Case of the Missing Donation Box',
+      solution: {
+        who: 'mamizou',
+        how: 'tanuki_disguise',
+        why: 'festival_lanterns'
+      },
+      detectives: [
+        {
+          id: 'sakuya',
+          name: 'Sakuya Izayoi',
+          emoji: '⏱️',
+          perkName: 'Chrono-Lens',
+          perkDesc: 'Briefly slows time & highlights every clue in the current diorama.',
+          coatColor: '#334155',
+          hatColor: '#1e293b',
+          hairColor: '#e2e8f0',
+          eyeColor: '#1d4ed8',
+          scarfColor: '#38bdf8'
+        },
+        {
+          id: 'marisa',
+          name: 'Marisa Kirisame',
+          emoji: '🌟',
+          perkName: 'Detective Hunch',
+          perkDesc: 'Nudges your camera & wisp toward the next unfound clue in the room.',
+          coatColor: '#292524',
+          hatColor: '#1c1917',
+          hairColor: '#fde047',
+          eyeColor: '#ca8a04',
+          scarfColor: '#facc15'
+        },
+        {
+          id: 'youmu',
+          name: 'Youmu Konpaku',
+          emoji: '⚔️',
+          perkName: 'Phantom Sight',
+          perkDesc: 'Half-ghost senses make faint spirit & tanuki residue glow brightly.',
+          coatColor: '#065f46',
+          hatColor: '#064e3b',
+          hairColor: '#e2e8f0',
+          eyeColor: '#0f766e',
+          scarfColor: '#34d399'
+        }
+      ],
+      dioramas: [
+        { id: 0, name: '1. Hakurei Shrine (Night)', short: '⛩️ Shrine', center: { x: -36, y: 1.5, z: 0 }, camInspect: { x: -36, y: 6.8, z: 10.5 }, unlocked: true },
+        { id: 1, name: '2. Wet Village Alley',      short: '🏮 Alley',  center: { x: -12, y: 1.5, z: 0 }, camInspect: { x: -12, y: 6.5, z: 10.5 }, unlocked: true },
+        { id: 2, name: '3. Mystia\'s Night Stall',  short: '🍢 Stall',  center: { x: 12,  y: 1.5, z: 0 }, camInspect: { x: 12,  y: 6.2, z: 10.5 }, unlocked: true },
+        { id: 3, name: '4. Geidontei Tea House',    short: '🍵 Tea House', center: { x: 36, y: 1.5, z: 0 }, camInspect: { x: 36,  y: 6.5, z: 10.5 }, unlocked: false }
+      ],
+      clues: [
+        {
+          id: 'clue_leaf',
+          name: 'Tanuki Transformation Leaf',
+          essential: true,
+          dioramaId: 0,
+          modeReq: 'any',
+          pos: { x: -36.0, y: 1.45, z: -1.8 },
+          desc: 'A single green leaf-shaped scrap left on the empty donation-box ledge at Hakurei Shrine. Emits faint illusion magic.'
+        },
+        {
+          id: 'clue_umbrella_tracks',
+          name: 'Single-Foot Umbrella Hop Marks',
+          essential: false,
+          dioramaId: 0,
+          modeReq: 'any',
+          pos: { x: -38.8, y: 0.35, z: 2.2 },
+          desc: 'Pogo-like single-foot hop marks near the shrine torii gate. Matches Kogasa\'s umbrella tip.'
+        },
+        {
+          id: 'clue_night_residue',
+          name: 'Glowing Illusion Smoke Residue',
+          essential: false,
+          dioramaId: 0,
+          modeReq: 'night_or_youmu',
+          pos: { x: -33.5, y: 1.1, z: -1.2 },
+          desc: 'Faintly luminescent puff residue drifting near the shrine steps (visible in Night glow or Phantom Sight).'
+        },
+        {
+          id: 'clue_tracks',
+          name: 'Overlapping Boot & Tanuki Paw Tracks',
+          essential: true,
+          dioramaId: 1,
+          modeReq: 'any',
+          pos: { x: -11.5, y: 0.35, z: 1.6 },
+          desc: 'Witch-boot prints in the muddy village alley that abruptly morph into rounded tanuki paw prints leading toward the Tea House!'
+        },
+        {
+          id: 'clue_cart_marks',
+          name: 'Kappa Cart Wheel Ruts & Blur Photo',
+          essential: false,
+          dioramaId: 1,
+          modeReq: 'any',
+          pos: { x: -14.8, y: 0.45, z: -1.8 },
+          desc: 'Heavy wheel ruts from Nitori\'s gadget cart and a discarded blurry photo of a cat fumo on the roof.'
+        },
+        {
+          id: 'clue_photo_receipt',
+          name: '9:00 PM Shrine Photo vs. Stall Receipt',
+          essential: true,
+          dioramaId: 2,
+          modeReq: 'any',
+          pos: { x: 11.2, y: 1.65, z: -0.8 },
+          desc: 'Aya\'s 9:00 PM photo shows the witch suspect at the Shrine, but Mystia\'s stamped receipt proves the real witch bought yakitori at 9:00 PM!'
+        },
+        {
+          id: 'clue_library_sack',
+          name: 'Bulging Sack of Overdue Books',
+          essential: false,
+          dioramaId: 2,
+          modeReq: 'any',
+          pos: { x: 14.5, y: 0.75, z: 1.8 },
+          desc: 'A heavy cloth sack beside the stall. It is stuffed with borrowed Scarlet Devil Mansion grimoires, not donation box coins!'
+        },
+        {
+          id: 'clue_tally_note',
+          name: 'Intact Donation Box & Festival Tally Note',
+          essential: true,
+          dioramaId: 3,
+          modeReq: 'any',
+          pos: { x: 36.2, y: 1.4, z: -2.1 },
+          desc: 'The Hakurei Donation Box sitting safe in the Tea House storeroom with every coin counted, plus an IOU note for Village Festival Lanterns signed with a leaf stamp!'
+        }
+      ],
+      boardOptions: {
+        who: [
+          { id: 'aya',     label: '📰 Aya Shameimaru' },
+          { id: 'kogasa',  label: '☂️ Kogasa Tatara' },
+          { id: 'mamizou', label: '🍃 Mamizou Futatsuiwa' },
+          { id: 'witch',   label: '🧹 Marisa / Alice' },
+          { id: 'mystia',  label: '🍢 Mystia Lorelei' }
+        ],
+        how: [
+          { id: 'kappa_crane',     label: '🔧 Nitori\'s Cart Winch' },
+          { id: 'tanuki_disguise', label: '🍃 Tanuki Leaf Disguise (9:00 PM Alibi)' },
+          { id: 'umbrella_hop',    label: '☂️ Umbrella Rooftop Hop' }
+        ],
+        why: [
+          { id: 'overdue_books',     label: '📚 Hiding Borrowed Library Books' },
+          { id: 'scoop_headline',    label: '📸 Staging a Newspaper Headline' },
+          { id: 'festival_lanterns', label: '🏮 Borrowing & Counting for Festival Lanterns (Tea House)' }
+        ]
+      }
+    };
+
+    // ============================================================================
+    // 2. NOIR JAZZ & RAIN PROCEDURAL AUDIO ENGINE (Extends PlushSoundEngine)
+    // ============================================================================
+    class NoirSoundEngine extends PlushSoundEngine {
+      constructor() {
+        super();
+        this.isNight = true;
+        this.isInterrogating = false;
+        this.duckFactor = 1.0;
+        this.jazzTimer = null;
+        this.stepIdx = 0;
+      }
+
+      startLoops() {
+        if (this.jazzTimer) return;
+        const bassLine = [146.83, 174.61, 196.00, 207.65, 220.00, 207.65, 196.00, 164.81];
+        const leadNotes = [293.66, 349.23, 392.00, 415.30, 440.00, 523.25, 587.33];
+
+        this.jazzTimer = setInterval(() => {
+          if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
+          try {
+            const now = this.ctx.currentTime;
+            const bFreq = bassLine[this.stepIdx % bassLine.length];
+            this.stepIdx++;
+
+            // 1. Upright Walking Bass Pluck
+            const bOsc = this.ctx.createOscillator();
+            const bGain = this.ctx.createGain();
+            bOsc.type = 'triangle';
+            bOsc.frequency.setValueAtTime(this.isInterrogating ? bFreq * 0.75 : bFreq, now);
+            const bVol = 0.038 * this.duckFactor;
+            bGain.gain.setValueAtTime(0.0001, now);
+            bGain.gain.linearRampToValueAtTime(bVol, now + 0.02);
+            bGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+            bOsc.connect(bGain);
+            bGain.connect(this.ctx.destination);
+            bOsc.start(now);
+            bOsc.stop(now + 0.45);
+
+            // 2. Mellow Electric Piano / Muted Trumpet Lead on off-beats
+            if (this.stepIdx % 2 === 1 && (!this.isInterrogating || this.stepIdx % 4 === 1)) {
+              const lFreq = leadNotes[(this.stepIdx * 3) % leadNotes.length] * (this.isNight ? 1.0 : 1.25);
+              const lOsc = this.ctx.createOscillator();
+              const lGain = this.ctx.createGain();
+              lOsc.type = 'sine';
+              lOsc.frequency.setValueAtTime(lFreq, now + 0.12);
+              lGain.gain.setValueAtTime(0.0001, now + 0.12);
+              lGain.gain.linearRampToValueAtTime(0.018 * this.duckFactor, now + 0.18);
+              lGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.65);
+              lOsc.connect(lGain);
+              lGain.connect(this.ctx.destination);
+              lOsc.start(now + 0.12);
+              lOsc.stop(now + 0.7);
+            }
+          } catch (e) {}
+        }, 480);
+      }
+
+      stopLoops() {
+        if (this.jazzTimer) {
+          clearInterval(this.jazzTimer);
+          this.jazzTimer = null;
+        }
+      }
+
+      playClueChime() {
+        if (!this.enabled) return;
+        try {
+          this.init(); if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+            const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+            o.type = 'triangle';
+            o.frequency.setValueAtTime(f, now + i * 0.07);
+            g.gain.setValueAtTime(0.055, now + i * 0.07);
+            g.gain.exponentialRampToValueAtTime(0.0005, now + i * 0.07 + 0.55);
+            o.connect(g); g.connect(this.ctx.destination);
+            o.start(now + i * 0.07); o.stop(now + i * 0.07 + 0.6);
+          });
+        } catch (e) {}
+      }
+
+      playContradictionHit() {
+        if (!this.enabled) return;
+        try {
+          this.init(); if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          [220, 277.18, 329.63, 440].forEach((f) => {
+            const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+            o.type = 'sawtooth';
+            o.frequency.setValueAtTime(f, now);
+            g.gain.setValueAtTime(0.04, now);
+            g.gain.exponentialRampToValueAtTime(0.0005, now + 0.65);
+            o.connect(g); g.connect(this.ctx.destination);
+            o.start(now); o.stop(now + 0.7);
+          });
+        } catch (e) {}
+      }
+
+      playThunder() {
+        if (!this.enabled) return;
+        try {
+          this.init(); if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+          o.type = 'sawtooth';
+          o.frequency.setValueAtTime(92, now);
+          o.frequency.exponentialRampToValueAtTime(28, now + 1.1);
+          g.gain.setValueAtTime(0.07, now);
+          g.gain.exponentialRampToValueAtTime(0.0005, now + 1.15);
+          o.connect(g); g.connect(this.ctx.destination);
+          o.start(now); o.stop(now + 1.2);
+        } catch (e) {}
+      }
+
+      playCameraShutter() {
+        if (!this.enabled) return;
+        try {
+          this.init(); if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+          o.type = 'triangle';
+          o.frequency.setValueAtTime(1600, now);
+          o.frequency.exponentialRampToValueAtTime(420, now + 0.045);
+          g.gain.setValueAtTime(0.07, now);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+          o.connect(g); g.connect(this.ctx.destination);
+          o.start(now); o.stop(now + 0.055);
+        } catch (e) {}
+      }
+
+      playCatMeow() {
+        if (!this.enabled) return;
+        try {
+          this.init(); if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+          o.type = 'sine';
+          o.frequency.setValueAtTime(620, now);
+          o.frequency.exponentialRampToValueAtTime(920, now + 0.12);
+          o.frequency.exponentialRampToValueAtTime(480, now + 0.36);
+          g.gain.setValueAtTime(0.06, now);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+          o.connect(g); g.connect(this.ctx.destination);
+          o.start(now); o.stop(now + 0.4);
+        } catch (e) {}
+      }
+
+      playBell() {
+        if (!this.enabled) return;
+        try {
+          this.init(); if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          [329.63, 659.25, 987.77].forEach((f, i) => {
+            const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+            o.type = 'sine';
+            o.frequency.setValueAtTime(f, now);
+            g.gain.setValueAtTime(0.06 / (i + 1), now);
+            g.gain.exponentialRampToValueAtTime(0.0005, now + 1.1);
+            o.connect(g); g.connect(this.ctx.destination);
+            o.start(now); o.stop(now + 1.15);
+          });
+        } catch (e) {}
+      }
+    }
+
+    const soundFX = new NoirSoundEngine();
+
+    // ============================================================================
+    // 3. THREE.JS SCENE, CAMERA, RENDERER & LIGHTING
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#090d1a');
+    scene.fog = new THREE.FogExp2('#090d1a', 0.015);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.4, 180);
+    camera.position.set(-36, 9.5, 16.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(getOptimalPixelRatio());
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      const renderPass = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.58, 0.55, 0.72
+      );
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+    } catch (e) {
+      composer = null;
+    }
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(-36, 2.0, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.47;
+    controls.minPolarAngle = 0.12;
+    controls.minDistance = 6;
+    controls.maxDistance = 42;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.35;
+
+    let lastInputTime = performance.now();
+    const recordInput = () => {
+      lastInputTime = performance.now();
+      controls.autoRotate = false;
+    };
+    controls.addEventListener('start', recordInput);
+
+    const hemiLight = new THREE.HemisphereLight(0x283655, 0x0b0e1a, 0.38);
+    scene.add(hemiLight);
+
+    const mainDirLight = new THREE.DirectionalLight(0x7aa2f7, 0.52);
+    mainDirLight.position.set(-20, 32, 22);
+    mainDirLight.castShadow = true;
+    mainDirLight.shadow.mapSize.width = 2048;
+    mainDirLight.shadow.mapSize.height = 2048;
+    mainDirLight.shadow.camera.near = 2;
+    mainDirLight.shadow.camera.far = 110;
+    const dCam = 48;
+    mainDirLight.shadow.camera.left = -dCam;
+    mainDirLight.shadow.camera.right = dCam;
+    mainDirLight.shadow.camera.top = dCam;
+    mainDirLight.shadow.camera.bottom = -dCam;
+    mainDirLight.shadow.bias = -0.0007;
+    scene.add(mainDirLight);
+
+    const dioramaWarmLight = new THREE.PointLight(0xffa94d, 1.45, 22, 1.6);
+    dioramaWarmLight.position.set(-36, 5.5, 2);
+    scene.add(dioramaWarmLight);
+
+    const solidMaterial = new THREE.MeshStandardMaterial({ roughness: 0.78, metalness: 0.08 });
+    const wetGroundMaterial = new THREE.MeshStandardMaterial({ roughness: 0.22, metalness: 0.25 });
+    const plushMaterial = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0.02 });
+    const puddleMaterial = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8, transparent: true, opacity: 0.65, roughness: 0.08, metalness: 0.35,
+      emissive: new THREE.Color(0x1e3a8a), emissiveIntensity: 0.35
+    });
+    const warmEmissiveMat = new THREE.MeshStandardMaterial({
+      color: 0xfff3d1, emissive: new THREE.Color(0xffa233), emissiveIntensity: 1.6, roughness: 0.2
+    });
+    const neonEmissiveMat = new THREE.MeshStandardMaterial({
+      color: 0xffd6e7, emissive: new THREE.Color(0xf43f5e), emissiveIntensity: 1.8, roughness: 0.2
+    });
+
+    // ============================================================================
+    // 4. BUILD THE FOUR CRIME-SCENE DIORAMAS IN VOXELS
+    // ============================================================================
+    const worldRoot = new THREE.Group();
+    scene.add(worldRoot);
+
+    const tempMatrix = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+
+    const solidVox = [];
+    const wetVox = [];
+    const warmGlowVox = [];
+    const neonGlowVox = [];
+    const interactiveProps = [];
+    const puddleCenters = [];
+
+    function addBlock(list, x, y, z, sx, sy, sz, hex, variance = 0.03) {
+      list.push({
+        x, y: y + sy * 0.5, z, sx, sy, sz,
+        color: varyColor(hex, x, y, z, variance)
+      });
+    }
+
+    function buildInstanced(list, mat, castShadow = true) {
+      if (!list.length) return null;
+      const geom = createSoftVoxelGeometry(1.0);
+      const mesh = new THREE.InstancedMesh(geom, mat, list.length);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = true;
+      for (let i = 0; i < list.length; i++) {
+        const b = list[i];
+        tempPos.set(b.x, b.y, b.z);
+        tempQuat.identity();
+        tempScale.set(b.sx, b.sy, b.sz);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        mesh.setMatrixAt(i, tempMatrix);
+        mesh.setColorAt(i, b.color);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      worldRoot.add(mesh);
+      return mesh;
+    }
+
+    function buildFourCrimeSceneDioramas() {
+      const bases = [
+        { cx: -36, col: '#334155', rim: '#475569' },
+        { cx: -12, col: '#292524', rim: '#44403c' },
+        { cx: 12,  col: '#312e81', rim: '#4338ca' },
+        { cx: 36,  col: '#4a2c18', rim: '#784b2c' }
+      ];
+      bases.forEach(b => {
+        addBlock(wetVox, b.cx, -1.0, 0, 18, 1.0, 14, b.col, 0.04);
+        addBlock(solidVox, b.cx, -1.6, 0, 18.6, 0.6, 14.6, b.rim, 0.02);
+      });
+
+      // DIORAMA 1: HAKUREI SHRINE AT NIGHT (X = -36, Z = 0)
+      const S1 = -36;
+      addBlock(wetVox, S1, 0, -3.5, 12, 0.8, 5.5, '#64748b');
+      addBlock(solidVox, S1, 0.8, -4.2, 10, 4.2, 4.0, '#f5ebe0');
+      addBlock(solidVox, S1, 5.0, -4.2, 12.5, 1.4, 5.5, '#1e293b');
+      addBlock(solidVox, S1, 0.8, -1.8, 2.4, 0.5, 1.4, '#78350f');
+      addBlock(solidVox, S1 - 3.2, 0, 3.5, 0.8, 6.2, 0.8, '#dc2626');
+      addBlock(solidVox, S1 + 3.2, 0, 3.5, 0.8, 6.2, 0.8, '#dc2626');
+      addBlock(solidVox, S1, 5.8, 3.5, 8.6, 0.7, 1.0, '#b91c1c');
+      addBlock(solidVox, S1, 4.6, 3.5, 7.0, 0.5, 0.7, '#dc2626');
+
+      const shrineBell = new THREE.Mesh(new THREE.SphereGeometry(0.55, 10, 10), new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.7, roughness: 0.25 }));
+      shrineBell.position.set(S1, 4.2, -1.9);
+      worldRoot.add(shrineBell);
+      shrineBell.userData.prop = {
+        name: '🔔 Hakurei Shrine Suzu Bell (Click to Ring!)',
+        onActivate: () => {
+          soundFX.playBell();
+          spawnSparkles(shrineBell.position, '#fef08a', 14);
+        }
+      };
+      interactiveProps.push(shrineBell);
+
+      for (const side of [-1, 1]) {
+        const lx = S1 + side * 5.2;
+        addBlock(solidVox, lx, 0, 1.2, 0.9, 2.2, 0.9, '#64748b');
+        const lGlow = new THREE.Mesh(createSoftVoxelGeometry(0.95), warmEmissiveMat);
+        lGlow.position.set(lx, 2.6, 1.2);
+        worldRoot.add(lGlow);
+        lGlow.userData.prop = {
+          name: '🏮 Shrine Stone Lantern (Click to Toggle Glow!)',
+          onActivate: () => {
+            lGlow.visible = !lGlow.visible;
+            soundFX.playPickup();
+          }
+        };
+        interactiveProps.push(lGlow);
+        addBlock(solidVox, lx, 3.1, 1.2, 1.3, 0.4, 1.3, '#475569');
+      }
+      addBlock(solidVox, S1 - 5.2, 3.5, 1.2, 0.55, 0.45, 0.55, '#4ade80');
+
+      const umbMesh = new THREE.Mesh(new THREE.ConeGeometry(1.4, 1.1, 10), new THREE.MeshStandardMaterial({ color: 0xec4899 }));
+      umbMesh.rotation.x = Math.PI;
+      umbMesh.position.set(S1 + 5.5, 0.65, -1.5);
+      worldRoot.add(umbMesh);
+      umbMesh.userData.prop = {
+        name: '☂️ Upside-Down Umbrella (Click to Spin!)',
+        onActivate: () => {
+          soundFX.playPickup();
+          umbMesh.rotation.y += 1.8;
+          spawnSparkles(umbMesh.position, '#f472b6', 10);
+        }
+      };
+      interactiveProps.push(umbMesh);
+      puddleCenters.push({ x: S1 - 2.2, z: 1.8, r: 1.8 }, { x: S1 + 2.4, z: 2.5, r: 1.5 });
+
+      // DIORAMA 2: WET VILLAGE ALLEY (X = -12, Z = 0)
+      const S2 = -12;
+      addBlock(solidVox, S2 - 4.2, 0, -3.5, 7.5, 4.6, 4.5, '#5c3824');
+      addBlock(solidVox, S2 - 4.2, 4.6, -3.5, 8.6, 1.1, 5.6, '#1e293b');
+      addBlock(warmGlowVox, S2 - 4.2, 1.5, -1.2, 3.5, 1.8, 0.2, '#fef08a');
+      addBlock(solidVox, S2 + 4.2, 0.5, -2.5, 4.2, 2.8, 2.8, '#9c6644');
+      addBlock(neonGlowVox, S2 + 4.2, 2.2, -1.0, 2.6, 0.9, 0.2, '#f43f5e');
+      addBlock(solidVox, S2 - 4.8, 0.4, 2.2, 2.8, 1.2, 2.0, '#0284c7');
+      for (let i = 0; i < 6; i++) {
+        addBlock(solidVox, S2 - 2.5 + i * 1.1, 0.02, 1.5 + (i % 2) * 0.4, 0.6, 0.08, 0.6, i < 3 ? '#451a03' : '#78350f');
+      }
+      puddleCenters.push({ x: S2 + 1.5, z: 2.2, r: 1.7 });
+
+      // DIORAMA 3: MYSTIA'S NIGHT STALL (X = 12, Z = 0)
+      const S3 = 12;
+      addBlock(solidVox, S3, 0, -1.5, 8.5, 1.5, 3.2, '#7f4f24');
+      addBlock(solidVox, S3 - 3.8, 1.5, -1.5, 0.5, 3.5, 0.5, '#5c3824');
+      addBlock(solidVox, S3 + 3.8, 1.5, -1.5, 0.5, 3.5, 0.5, '#5c3824');
+      addBlock(solidVox, S3, 4.8, -1.2, 9.8, 0.8, 5.2, '#991b1b');
+      addBlock(warmGlowVox, S3 - 1.5, 1.5, -1.5, 2.2, 0.4, 1.4, '#f97316');
+      addBlock(neonGlowVox, S3, 5.6, 1.2, 5.2, 1.2, 0.3, '#fb7185');
+      addBlock(solidVox, S3 + 1.2, 1.5, -0.8, 0.5, 0.6, 0.5, '#fef08a');
+      addBlock(solidVox, S3 + 2.6, 1.5, -1.2, 0.4, 0.9, 0.4, '#10b981');
+      addBlock(solidVox, S3 + 3.2, 1.5, -1.4, 0.4, 0.9, 0.4, '#38bdf8');
+      puddleCenters.push({ x: S3 - 1.8, z: 2.6, r: 1.9 });
+
+      // DIORAMA 4: GEIDONTEI TEA HOUSE & STOREROOM (X = 36, Z = 0)
+      const S4 = 36;
+      addBlock(solidVox, S4, 0, -1.0, 13, 0.3, 9, '#a3b18a');
+      addBlock(solidVox, S4, 0.3, -5.2, 13, 5.2, 0.6, '#5c3824');
+      addBlock(warmGlowVox, S4 - 3.5, 1.5, -4.8, 3.8, 2.8, 0.2, '#fef3c7');
+      addBlock(solidVox, S4, 5.5, -1.5, 14.5, 1.1, 10.5, '#1e293b');
+      addBlock(solidVox, S4 + 3.2, 0.3, -3.5, 4.5, 3.6, 1.8, '#78350f');
+      addBlock(solidVox, S4 + 0.2, 0.3, -2.1, 2.2, 1.4, 1.4, '#b91c1c');
+      addBlock(warmGlowVox, S4 + 0.2, 1.72, -2.1, 0.9, 0.15, 0.6, '#facc15');
+
+      puddleCenters.forEach(p => {
+        const pm = new THREE.Mesh(new THREE.CylinderGeometry(p.r, p.r, 0.06, 16), puddleMaterial);
+        pm.position.set(p.x, 0.03, p.z);
+        worldRoot.add(pm);
+        pm.userData.prop = {
+          name: '💧 Rain Puddle (Click to Splash!)',
+          onActivate: () => {
+            soundFX.playBounce(0.8);
+            spawnSparkles(pm.position, '#38bdf8', 14);
+          }
+        };
+        interactiveProps.push(pm);
+      });
+
+      buildInstanced(solidVox, solidMaterial, true);
+      buildInstanced(wetVox, wetGroundMaterial, true);
+      buildInstanced(warmGlowVox, warmEmissiveMat, false);
+      buildInstanced(neonGlowVox, neonEmissiveMat, false);
+    }
+
+    buildFourCrimeSceneDioramas();
+
+    // ============================================================================
+    // 5. SPAWN 3D CLUE MARKERS (Inspectable with Magnifying Glass)
+    // ============================================================================
+    const clueMeshes = [];
+    const foundClues = new Set();
+    const collectedTestimonies = [];
+
+    function buildClueMarkers() {
+      const markerGeom = new THREE.OctahedronGeometry(0.45, 0);
+      CASE_DATA.clues.forEach(c => {
+        const mat = new THREE.MeshStandardMaterial({
+          color: c.essential ? 0xfbbf24 : 0x38bdf8,
+          emissive: new THREE.Color(c.essential ? 0xd97706 : 0x0284c7),
+          emissiveIntensity: 0.9,
+          roughness: 0.2,
+          transparent: true,
+          opacity: 0.88
+        });
+        const m = new THREE.Mesh(markerGeom, mat);
+        m.position.set(c.pos.x, c.pos.y, c.pos.z);
+        m.userData.clue = c;
+        worldRoot.add(m);
+        clueMeshes.push(m);
+      });
+    }
+
+    buildClueMarkers();
+
+    // ============================================================================
+    // 6. NOIR VoxelFumo CLASS (Round Shell Head + Trench Coat, Fedora, Scarf, Umbrella)
+    // ============================================================================
+    const allFumoMeshes = [];
+    const castFumos = [];
+
+    class NoirFumo {
+      constructor(cfg) {
+        this.id = cfg.id;
+        this.name = cfg.name;
+        this.role = cfg.role || 'Suspect';
+        this.emoji = cfg.emoji || '🕵️';
+        this.dioramaId = cfg.dioramaId !== undefined ? cfg.dioramaId : 0;
+        this.coatColor = cfg.coatColor || '#334155';
+        this.hatColor = cfg.hatColor || '#1e293b';
+        this.hairColor = cfg.hairColor || '#2b1e23';
+        this.eyeColor = cfg.eyeColor || '#991b1b';
+        this.scarfColor = cfg.scarfColor || '#facc15';
+        this.hatStyle = cfg.hatStyle || 'fedora';
+        this.hasTanukiLeaf = Boolean(cfg.hasTanukiLeaf);
+        this.suspectData = cfg.suspectData || null;
+        this.FV = 0.082 * (cfg.scale || 1.0);
+
+        this.homePos = cfg.pos.clone();
+        this.pos = cfg.pos.clone();
+        this.vel = new THREE.Vector3();
+        this.yaw = cfg.yaw || 0;
+        this.pitch = 0;
+        this.roll = 0;
+
+        this.isGrounded = true;
+        this.isDragged = false;
+        this.isFlustered = false;
+        this.squash = 1.0;
+        this.squashVel = 0.0;
+        this.headPitch = 0.0;
+        this.headRoll = 0.0;
+        this.headPitchVel = 0.0;
+        this.headRollVel = 0.0;
+
+        this.root = new THREE.Group();
+        this.squashGroup = new THREE.Group();
+        this.root.add(this.squashGroup);
+
+        this.headPivot = new THREE.Group();
+        this.headPivot.position.set(0, 7.2 * this.FV, 0);
+        this.squashGroup.add(this.headPivot);
+
+        this.leftArmPivot = new THREE.Group();
+        this.leftArmPivot.position.set(-4.2 * this.FV, 6.0 * this.FV, 0.4 * this.FV);
+        this.squashGroup.add(this.leftArmPivot);
+
+        this.rightArmPivot = new THREE.Group();
+        this.rightArmPivot.position.set(4.2 * this.FV, 6.0 * this.FV, 0.4 * this.FV);
+        this.squashGroup.add(this.rightArmPivot);
+
+        this.leftLegPivot = new THREE.Group();
+        this.leftLegPivot.position.set(-2.2 * this.FV, 1.8 * this.FV, 2.4 * this.FV);
+        this.squashGroup.add(this.leftLegPivot);
+
+        this.rightLegPivot = new THREE.Group();
+        this.rightLegPivot.position.set(2.2 * this.FV, 1.8 * this.FV, 2.4 * this.FV);
+        this.squashGroup.add(this.rightLegPivot);
+
+        this.buildNoirVoxels();
+        this.syncTransform(0);
+        worldRoot.add(this.root);
+      }
+
+      buildNoirVoxels() {
+        const clearInstanced = (grp) => {
+          for (let i = grp.children.length - 1; i >= 0; i--) {
+            if (grp.children[i].isInstancedMesh) grp.remove(grp.children[i]);
+          }
+        };
+        clearInstanced(this.squashGroup);
+        clearInstanced(this.headPivot);
+        clearInstanced(this.leftArmPivot);
+        clearInstanced(this.rightArmPivot);
+        clearInstanced(this.leftLegPivot);
+        clearInstanced(this.rightLegPivot);
+
+        const bodyV = [], headV = [], lArmV = [], rArmV = [], lLegV = [], rLegV = [];
+        const skin = '#ffe5d4', blush = '#ff9ebb', smile = '#4a2525';
+
+        const addV = (arr, x, y, z, col, seam = false) => {
+          const darken = (seam && ((Math.abs(x + y + z) % 2) === 0)) ? 0.055 : 0;
+          arr.push({ x, y, z, color: varyColor(col, x + this.id.length * 5, y, z, 0.038, darken) });
+        };
+
+        if (this.hatStyle === 'barrel') {
+          for (let y = 0; y <= 10; y++) {
+            for (let x = -4; x <= 4; x++) {
+              for (let z = -4; z <= 4; z++) {
+                const r = Math.hypot(x, z);
+                if (r <= 4.3 && r >= 3.1) addV(bodyV, x, y, z, (y === 2 || y === 8) ? '#334155' : '#9c6644');
+              }
+            }
+          }
+          addV(headV, -1.5, 2.5, 3.8, '#ffffff');
+          addV(headV, 1.5, 2.5, 3.8, '#ffffff');
+        } else {
+          // 1. Noir Trench Coat Torso with Lapels, Belt & Scarf
+          for (let y = 0; y <= 7; y++) {
+            const rMax = (y === 0 || y === 7) ? 3.5 : 4.3 - y * 0.11;
+            for (let x = -4; x <= 4; x++) {
+              for (let z = -3; z <= 3; z++) {
+                if (Math.hypot(x, z * 1.15) > rMax) continue;
+                let col = this.coatColor;
+                if (y === 6 && z >= 1 && Math.abs(x) <= 2) col = this.scarfColor;
+                if (y === 2) col = '#1e293b';
+                addV(bodyV, x, y + 0.5, z, col, z === 0 && Math.abs(x) >= 3);
+              }
+            }
+          }
+
+          // 2. Dangling Arms & Legs
+          for (const [side, arr] of [[-1, lArmV], [1, rArmV]]) {
+            for (let y = -3; y <= 0; y++) {
+              for (let x = -1; x <= 1; x++) {
+                for (let z = -1; z <= 1; z++) {
+                  if (Math.abs(x) === 1 && Math.abs(z) === 1 && y === -3) continue;
+                  addV(arr, x * 0.85 + side * 0.4, y, z * 0.85, y === -3 ? skin : this.coatColor);
+                }
+              }
+            }
+          }
+          for (const [side, arr] of [[-1, lLegV], [1, rLegV]]) {
+            for (let z = 0; z <= 3; z++) {
+              for (let x = -1; x <= 1; x++) {
+                for (let y = -1; y <= 1; y++) {
+                  if (Math.abs(x) === 1 && Math.abs(y) === 1) continue;
+                  addV(arr, x * 0.85, y * 0.85, z * 0.85, z >= 2 ? '#1c1917' : '#ffffff');
+                }
+              }
+            }
+          }
+
+          // 3. Oversized Spherical Shell Head with 'ᗜˬᗜ' Expression Plane
+          for (let y = 0; y <= 12; y++) {
+            for (let x = -7; x <= 7; x++) {
+              for (let z = -6; z <= 6; z++) {
+                const dy = (y - 6.0) * 1.05;
+                const dx = x * 0.94;
+                const dz = z * 1.02;
+                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (dist > 6.4 || dist < 4.5) continue;
+
+                let col = skin;
+                const isSeam = (z === 0 && Math.abs(x) >= 5);
+                const isHair = (z <= 1) || (y >= 9) || (Math.abs(x) >= 5 && z <= 3) ||
+                               (z >= 4 && y >= 7 && (Math.abs(x) !== 2 || y >= 8));
+                if (isHair) {
+                  col = this.hairColor;
+                } else if (z >= 5) {
+                  if ((Math.abs(x) === 3 || Math.abs(x) === 2) && y >= 4 && y <= 6) {
+                    if (y === 6) col = '#1f141e';
+                    else if (y === 5 && Math.abs(x) === 2) col = '#ffffff';
+                    else col = this.eyeColor;
+                  } else if (Math.abs(x) === 4 && y === 3) {
+                    col = blush;
+                  } else if (y === 2 && Math.abs(x) <= 1) {
+                    col = (x === 0) ? '#e07a7a' : smile;
+                  }
+                }
+                addV(headV, x, y, z, col, isSeam);
+              }
+            }
+          }
+
+          // 4. Noir Fedora Hat, Shrine Bow, Cat Ears, or Tanuki Leaf Tell
+          if (this.hatStyle === 'fedora') {
+            for (let hx = -8; hx <= 8; hx++) {
+              for (let hz = -8; hz <= 8; hz++) {
+                const r = Math.hypot(hx, hz);
+                if (r <= 8.2 && r >= 4.2) addV(headV, hx, 10.4, hz, this.hatColor);
+                if (r <= 5.2) {
+                  addV(headV, hx, 11.4, hz, this.scarfColor);
+                  addV(headV, hx, 12.4, hz, this.hatColor);
+                }
+              }
+            }
+          } else if (this.hatStyle === 'bow') {
+            for (let bx = -6; bx <= 6; bx++) {
+              for (let by = -2; by <= 2; by++) {
+                addV(headV, bx, 11.8 + by * 0.7, -2.2, this.scarfColor);
+              }
+            }
+          } else if (this.hatStyle === 'cat') {
+            for (const side of [-1, 1]) {
+              addV(headV, side * 4.5, 11.8, 1.0, '#ea580c');
+              addV(headV, side * 4.5, 12.8, 1.0, '#ea580c');
+            }
+          }
+
+          if (this.hasTanukiLeaf) {
+            for (let lx = -2; lx <= 2; lx++) {
+              addV(headV, lx, 13.4, 0.5, '#22c55e');
+            }
+          }
+        }
+
+        const buildPart = (vList, parent) => {
+          if (!vList.length) return;
+          const geom = createSoftVoxelGeometry(this.FV);
+          const m = new THREE.InstancedMesh(geom, plushMaterial, vList.length);
+          m.castShadow = true;
+          m.receiveShadow = true;
+          for (let i = 0; i < vList.length; i++) {
+            const v = vList[i];
+            tempPos.set(v.x * this.FV, v.y * this.FV, v.z * this.FV);
+            tempQuat.identity(); tempScale.set(1, 1, 1);
+            tempMatrix.compose(tempPos, tempQuat, tempScale);
+            m.setMatrixAt(i, tempMatrix);
+            m.setColorAt(i, v.color);
+          }
+          m.instanceMatrix.needsUpdate = true;
+          if (m.instanceColor) m.instanceColor.needsUpdate = true;
+          m.userData.fumo = this;
+          parent.add(m);
+          allFumoMeshes.push(m);
+        };
+
+        buildPart(bodyV, this.squashGroup);
+        buildPart(headV, this.headPivot);
+        buildPart(lArmV, this.leftArmPivot);
+        buildPart(rArmV, this.rightArmPivot);
+        buildPart(lLegV, this.leftLegPivot);
+        buildPart(rLegV, this.rightLegPivot);
+      }
+
+      squeeze(power = 1.0) {
+        this.squash = Math.max(0.48, this.squash - 0.42 * power);
+        this.squashVel = -3.5 * power;
+        this.headPitchVel += (Math.random() - 0.5) * 14 * power;
+        this.headRollVel += (Math.random() - 0.5) * 14 * power;
+        soundFX.playSqueeze(1.0);
+        spawnSparkles(this.pos, this.scarfColor, 12);
+      }
+
+      updatePhysics(dt, time) {
+        const sForce = (1.0 - this.squash) * 200 - this.squashVel * 11;
+        this.squashVel += sForce * dt;
+        this.squash = THREE.MathUtils.clamp(this.squash + this.squashVel * dt, 0.48, 1.5);
+
+        const hStiff = 135, hDamp = 7.5;
+        const flusterWobble = this.isFlustered ? Math.sin(time * 18) * 0.25 : 0;
+        const idleBob = Math.sin(time * 2.2 + this.homePos.x) * 0.035;
+        this.headPitchVel += ((idleBob - this.headPitch) * hStiff - this.headPitchVel * hDamp) * dt;
+        this.headRollVel += ((flusterWobble - this.headRoll) * hStiff - this.headRollVel * hDamp) * dt;
+        this.headPitch = THREE.MathUtils.clamp(this.headPitch + this.headPitchVel * dt, -0.5, 0.6);
+        this.headRoll = THREE.MathUtils.clamp(this.headRoll + this.headRollVel * dt, -0.5, 0.5);
+
+        if (!this.isDragged) {
+          this.vel.y -= 24.0 * dt;
+          this.pos.addScaledVector(this.vel, dt);
+
+          let floorY = 0;
+          if (Math.abs(this.pos.x - (-16.2)) < 4.3 && Math.abs(this.pos.z - (-3.5)) < 2.8 && this.pos.y >= 4.2) {
+            floorY = 5.7;
+          } else if (Math.abs(this.pos.x - (-36)) < 6.0 && this.pos.z < -0.8) {
+            floorY = 0.8;
+          } else if (Math.abs(this.pos.x - 36) < 6.5) {
+            floorY = 0.3;
+          }
+
+          if (this.pos.y <= floorY) {
+            const imp = -this.vel.y;
+            this.pos.y = floorY;
+            if (imp > 2.2) {
+              const hitPuddle = puddleCenters.some(p => Math.hypot(this.pos.x - p.x, this.pos.z - p.z) < p.r + 0.6);
+              if (hitPuddle) {
+                soundFX.playBounce(0.95);
+                spawnSparkles(this.pos, '#38bdf8', 16);
+              } else {
+                soundFX.playBounce(imp * 0.08);
+              }
+              this.vel.y = imp * 0.38;
+              this.squashVel -= Math.min(8, imp * 0.85);
+            } else {
+              this.vel.y = 0;
+              this.isGrounded = true;
+            }
+            this.vel.x *= 0.8;
+            this.vel.z *= 0.8;
+          }
+        }
+
+        this.syncTransform(time);
+      }
+
+      syncTransform(time) {
+        this.root.position.copy(this.pos);
+        this.root.rotation.set(this.pitch, this.yaw, this.roll, 'YXZ');
+        const sy = this.squash;
+        const sxz = 1 / Math.sqrt(Math.max(0.4, sy));
+        this.squashGroup.scale.set(sxz, sy, sxz);
+        this.headPivot.rotation.set(this.headPitch, 0, this.headRoll);
+      }
+    }
+
+    // ============================================================================
+    // 7. SPAWN THE DETECTIVE, GHOST-WISP SIDEKICK, REIMU & FIVE SUSPECTS
+    // ============================================================================
+    let currentDetectiveIdx = 0;
+    const detectiveFumo = new NoirFumo({
+      ...CASE_DATA.detectives[0],
+      role: 'Lead Fumo Detective',
+      hatStyle: 'fedora',
+      pos: new THREE.Vector3(-39.5, 0, 2.8),
+      yaw: 0.35,
+      scale: 1.08
+    });
+    castFumos.push(detectiveFumo);
+
+    const wispGroup = new THREE.Group();
+    const wispCore = new THREE.Mesh(new THREE.SphereGeometry(0.36, 12, 12), new THREE.MeshStandardMaterial({
+      color: 0xe0f2fe, emissive: new THREE.Color(0x38bdf8), emissiveIntensity: 1.5, roughness: 0.1
+    }));
+    const wispTail = new THREE.Mesh(createSoftVoxelGeometry(0.22), warmEmissiveMat);
+    wispTail.position.set(0, -0.35, -0.2);
+    wispGroup.add(wispCore, wispTail);
+    worldRoot.add(wispGroup);
+
+    const reimuClient = new NoirFumo({
+      id: 'reimu',
+      name: 'Reimu Hakurei (Client)',
+      role: 'Furious Shrine Maiden',
+      emoji: '⛩️',
+      dioramaId: 0,
+      coatColor: '#dc2626',
+      hairColor: '#2b1e23',
+      scarfColor: '#facc15',
+      hatStyle: 'bow',
+      pos: new THREE.Vector3(-34.2, 0.8, -2.0),
+      yaw: -0.25,
+      suspectData: {
+        role: 'Client • Hakurei Shrine Maiden',
+        greeting: 'My donation box vanished right at 9:00 PM! Find the culprit and bring my box back!',
+        questions: [
+          { q: 'When did the box vanish?', a: 'Right at 9:00 PM during the heavy downpour! I stepped inside for warm tea and—poof—gone!', clueContra: null },
+          { q: 'Did you notice anything odd?', a: 'There was a strange green leaf scrap on the stand, and umbrella tracks by the torii!', clueContra: null }
+        ]
+      }
+    });
+    castFumos.push(reimuClient);
+
+    const suspectKogasa = new NoirFumo({
+      id: 'kogasa',
+      name: 'Kogasa Tatara',
+      role: 'Suspect • Surprising Umbrella',
+      emoji: '☂️',
+      dioramaId: 0,
+      coatColor: '#7c3aed',
+      hairColor: '#38bdf8',
+      scarfColor: '#ec4899',
+      hatStyle: 'fedora',
+      pos: new THREE.Vector3(-39.2, 0, -1.2),
+      yaw: 0.45,
+      suspectData: {
+        role: 'Suspect #1 • Karakasa Umbrella',
+        greeting: 'Boo! Did I spook you, Detective? I just got here—I wasn\'t near the shrine earlier!',
+        questions: [
+          { q: 'Were you at the shrine at 9:00 PM?', a: 'Nope! I was never at Hakurei Shrine tonight! Not even a single hop!', clueContra: 'clue_umbrella_tracks', contraReply: 'Uwah! @_@ Okay, okay! Those single-foot umbrella tracks are mine! I hid by the torii for a harmless prank, and I saw someone in a witch coat run down the Village Alley!' },
+          { q: 'Did you take the donation box?', a: 'I only collect surprised gasps, never coins!', clueContra: null }
+        ]
+      }
+    });
+    castFumos.push(suspectKogasa);
+
+    const suspectAya = new NoirFumo({
+      id: 'aya',
+      name: 'Aya Shameimaru',
+      role: 'Suspect • News-Sheet Reporter',
+      emoji: '📰',
+      dioramaId: 1,
+      coatColor: '#1f2937',
+      hairColor: '#0f172a',
+      scarfColor: '#ef4444',
+      hatStyle: 'fedora',
+      pos: new THREE.Vector3(-14.5, 0, 1.5),
+      yaw: 0.3,
+      suspectData: {
+        role: 'Suspect #2 • Bunbunmaru Reporter',
+        greeting: 'Ayaya! My 9:00 PM scoop photo clearly shows the real witch stealing the donation box!',
+        questions: [
+          { q: 'Tell me about your 9:00 PM photo.', a: 'My camera is 100% infallible! That figure at the shrine at 9:00 PM is definitely the real witch—no disguise or trickery possible!', clueContra: 'clue_leaf', contraReply: 'Ayaya?! @_@ Wait—if the culprit dropped a Tanuki transformation leaf on the ledge AND the real witch has a 9:00 PM receipt at Mystia\'s stall... I photographed a shapeshifter!' },
+          { q: 'What about the muddy alley tracks?', a: 'The boot prints walk into this alley and suddenly turn into round paw prints near the Tea House!', clueContra: null }
+        ]
+      }
+    });
+    castFumos.push(suspectAya);
+
+    const suspectWitch = new NoirFumo({
+      id: 'witch',
+      name: 'Marisa Kirisame',
+      role: 'Suspect • Ordinary Magician',
+      emoji: '🧹',
+      dioramaId: 2,
+      coatColor: '#1c1917',
+      hairColor: '#fde047',
+      scarfColor: '#facc15',
+      hatStyle: 'fedora',
+      pos: new THREE.Vector3(14.2, 0, 2.2),
+      yaw: -0.35,
+      suspectData: {
+        role: 'Suspect #3 • Witch with a Heavy Sack',
+        greeting: 'Hey! Why is everyone staring at my bulging cloth sack? I didn\'t touch Reimu\'s donation box!',
+        questions: [
+          { q: 'Aya\'s photo shows you at the shrine at 9:00 PM!', a: 'Impossible! I was right here at Mystia\'s stall at 9:00 PM, though I lost my receipt somewhere!', clueContra: 'clue_photo_receipt', contraReply: 'Aha! Look at Mystia\'s receipt spike—9:00 PM sharp! Someone else disguised themselves as me at the shrine while I was eating grilled lamprey!' },
+          { q: 'What is inside that bulging sack?', a: 'Uh... totally nothing! Definitely not overdue books borrowed from Patchouli\'s library!', clueContra: 'clue_library_sack', contraReply: 'Ehehe @_@ Okay, it\'s just borrowed magic grimoires! Not a single donation box inside!' }
+        ]
+      }
+    });
+    castFumos.push(suspectWitch);
+
+    const suspectMystia = new NoirFumo({
+      id: 'mystia',
+      name: 'Mystia Lorelei',
+      role: 'Suspect • Night Stall Chef',
+      emoji: '🍢',
+      dioramaId: 2,
+      coatColor: '#831843',
+      hairColor: '#f9a8d4',
+      scarfColor: '#f472b6',
+      hatStyle: 'bow',
+      pos: new THREE.Vector3(10.0, 0, -0.2),
+      yaw: 0.15,
+      suspectData: {
+        role: 'Suspect #4 • Night Sparrow Chef',
+        greeting: 'Welcome to my rainy-night yakitori stall! Every order is timestamped on my receipt spike!',
+        questions: [
+          { q: 'Who was here at 9:00 PM?', a: 'The witch was sitting right here munching skewers at 9:00 PM! Check my receipt spike on the counter!', clueContra: null },
+          { q: 'Did anyone else pass by in the rain?', a: 'Mamizou strolled past toward the Tea House carrying something heavy under her cloak, humming a festival tune!', clueContra: null }
+        ]
+      }
+    });
+    castFumos.push(suspectMystia);
+
+    const suspectMamizou = new NoirFumo({
+      id: 'mamizou',
+      name: 'Mamizou Futatsuiwa',
+      role: 'Suspect • Disguise Master Tanuki',
+      emoji: '🍃',
+      dioramaId: 1,
+      coatColor: '#78350f',
+      hairColor: '#b45309',
+      scarfColor: '#22c55e',
+      hatStyle: 'leaf',
+      hasTanukiLeaf: true,
+      pos: new THREE.Vector3(-9.2, 0, 2.0),
+      yaw: -0.4,
+      suspectData: {
+        role: 'Suspect #5 • Bake-danuki Elder',
+        greeting: 'Hohoho~ Quite a rainy night for a mystery, young Detective. I\'ve just been enjoying a quiet stroll.',
+        questions: [
+          { q: 'Did you use a Tanuki disguise tonight?', a: 'Me? Transform into a witch and borrow the donation box? Why, you\'d need proof of my paw tracks or a note in the Tea House!', clueContra: 'clue_tally_note', contraReply: 'Hohoho! @_@ You caught me fair and square! I only borrowed the box to count how much we needed for the Village Festival lanterns—and I left the box safe in the Tea House with extra coins!' },
+          { q: 'Why do the boot tracks turn into paws?', a: 'Even an old tanuki\'s illusion slips a little when stepping through cold rainwater puddles!', clueContra: 'clue_tracks', contraReply: 'Impressive eye! Those overlapping tracks lead straight to the Geidontei Tea House storeroom!' }
+        ]
+      }
+    });
+    castFumos.push(suspectMamizou);
+
+    castFumos.push(new NoirFumo({
+      id: 'umb_sleeper', name: 'Umbrella Sleeper Fumo', emoji: '💤', dioramaId: 0,
+      coatColor: '#38bdf8', hairColor: '#7dd3fc', scarfColor: '#ffffff', hatStyle: 'bow',
+      pos: new THREE.Vector3(-30.5, 0.4, -1.5), scale: 0.84
+    }));
+
+    const roofCatFumo = new NoirFumo({
+      id: 'roof_cat', name: 'Noir Roof Cat Fumo ("Saw Something!")', emoji: '🐱', dioramaId: 1,
+      coatColor: '#ea580c', hairColor: '#451a03', scarfColor: '#fde047', hatStyle: 'cat',
+      pos: new THREE.Vector3(-16.2, 5.7, -3.5), scale: 0.86
+    });
+    castFumos.push(roofCatFumo);
+
+    castFumos.push(new NoirFumo({
+      id: 'barrel_fumo', name: 'Barrel Peeker Fumo', emoji: '🛢️', dioramaId: 1,
+      pos: new THREE.Vector3(-8.5, 0, -2.5), hatStyle: 'barrel', scale: 0.9
+    }));
+
+    const disguisedMamizouGag = new NoirFumo({
+      id: 'gag_mamizou', name: '"Totally Ordinary Villager" (Notice the Leaf!)', emoji: '🍃', dioramaId: 2,
+      coatColor: '#4f46e5', hairColor: '#fde047', scarfColor: '#22c55e', hatStyle: 'fedora',
+      hasTanukiLeaf: true, pos: new THREE.Vector3(15.5, 0, -2.2), scale: 0.9
+    });
+    castFumos.push(disguisedMamizouGag);
+
+    function syncWitchSuspectIdentity() {
+      const detId = CASE_DATA.detectives[currentDetectiveIdx].id;
+      if (detId === 'marisa') {
+        suspectWitch.name = 'Alice Margatroid';
+        suspectWitch.hairColor = '#fde047';
+        suspectWitch.coatColor = '#1d4ed8';
+        suspectWitch.scarfColor = '#f43f5e';
+        CASE_DATA.boardOptions.who[3].label = '🪆 Alice Margatroid';
+      } else {
+        suspectWitch.name = 'Marisa Kirisame';
+        suspectWitch.hairColor = '#fde047';
+        suspectWitch.coatColor = '#1c1917';
+        suspectWitch.scarfColor = '#facc15';
+        CASE_DATA.boardOptions.who[3].label = '🧹 Marisa Kirisame';
+      }
+      suspectWitch.buildNoirVoxels();
+    }
+
+    // ============================================================================
+    // 8. RAIN STREAKS, PUDDLE RIPPLES, GRILL STEAM & SPARKLE PARTICLES
+    // ============================================================================
+    const RAIN_COUNT = 220;
+    const rainData = [];
+    const rainMat = new THREE.MeshBasicMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.65 });
+    const rainMesh = new THREE.InstancedMesh(createSoftVoxelGeometry(1.0), rainMat, RAIN_COUNT);
+    for (let i = 0; i < RAIN_COUNT; i++) {
+      rainData.push({
+        dx: (Math.random() - 0.5) * 28,
+        y: Math.random() * 18,
+        dz: (Math.random() - 0.5) * 20,
+        speed: 18 + Math.random() * 8
+      });
+    }
+    scene.add(rainMesh);
+
+    const STEAM_COUNT = 28;
+    const steamData = [];
+    const steamMat = new THREE.MeshBasicMaterial({ color: 0xf1f5f9, transparent: true, opacity: 0.45 });
+    const steamMesh = new THREE.InstancedMesh(createSoftVoxelGeometry(0.28), steamMat, STEAM_COUNT);
+    for (let i = 0; i < STEAM_COUNT; i++) {
+      steamData.push({
+        ox: 10.5 + (Math.random() - 0.5) * 1.8,
+        y: 1.8 + Math.random() * 3.5,
+        oz: -1.5 + (Math.random() - 0.5) * 1.2,
+        speed: 0.8 + Math.random() * 0.6,
+        phase: Math.random() * 6.28
+      });
+    }
+    worldRoot.add(steamMesh);
+
+    const SPARK_MAX = 75;
+    const sparks = [];
+    const sparkMesh = new THREE.InstancedMesh(createSoftVoxelGeometry(0.2), new THREE.MeshBasicMaterial({ color: 0xffffff }), SPARK_MAX);
+    for (let i = 0; i < SPARK_MAX; i++) {
+      sparks.push({ active: false, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, maxLife: 1, color: new THREE.Color() });
+      tempMatrix.makeScale(0, 0, 0);
+      sparkMesh.setMatrixAt(i, tempMatrix);
+    }
+    scene.add(sparkMesh);
+
+    function spawnSparkles(origin, hexCol = '#fde047', count = 14, speedMul = 1.0) {
+      let n = 0;
+      for (let i = 0; i < SPARK_MAX && n < count; i++) {
+        const p = sparks[i];
+        if (!p.active) {
+          p.active = true;
+          p.life = 0;
+          p.maxLife = 0.5 + Math.random() * 0.35;
+          p.pos.copy(origin).add(new THREE.Vector3(0, 0.8, 0));
+          const ang = (n / count) * Math.PI * 2 + Math.random() * 0.4;
+          const spd = (2.0 + Math.random() * 2.2) * speedMul;
+          p.vel.set(Math.cos(ang) * spd, (2.6 + Math.random() * 2.4) * speedMul, Math.sin(ang) * spd);
+          p.color.set(n % 2 === 0 ? hexCol : '#ffffff');
+          sparkMesh.setColorAt(i, p.color);
+          n++;
+        }
+      }
+      if (sparkMesh.instanceColor) sparkMesh.instanceColor.needsUpdate = true;
+    }
+
+    const activeBubbles = [];
+    const bubblesLayer = document.getElementById('bubbles-layer');
+
+    function spawnSpeechBubble(worldPos, messageText, duration = 2.6) {
+      const el = document.createElement('div');
+      el.className = 'floating-bubble glass-panel rounded-xl px-2.5 py-1';
+      el.textContent = messageText;
+      bubblesLayer.appendChild(el);
+      activeBubbles.push({
+        el,
+        pos: worldPos.clone().add(new THREE.Vector3(0, 2.1, 0)),
+        life: 0,
+        maxLife: duration
+      });
+    }
+
+    // ============================================================================
+    // 9. INVESTIGATION STATE, MAGNIFYING GLASS, INTERROGATION & DEDUCTION BOARD
+    // ============================================================================
+    let currentDioramaIdx = 0;
+    let isMagnifierActive = false;
+    let hoveredClue = null;
+    let hoverClueProgress = 0;
+    let reputation = 5;
+    let hintsRemaining = 3;
+    let caseSolved = false;
+    let freeRoamUnlocked = false;
+    let shakeTimer = 0;
+    let perkTimer = 0;
+    let caseStartTime = performance.now();
+
+    const camGlideTarget = new THREE.Vector3(-36, 2.0, 0);
+    const camPosGlide = new THREE.Vector3(-36, 9.5, 16.5);
+    let isGlidingCamera = false;
+
+    function showCaseToast(sub, main) {
+      const el = document.getElementById('case-toast');
+      document.getElementById('toast-sub').textContent = sub;
+      document.getElementById('toast-main').textContent = main;
+      el.classList.remove('opacity-0');
+      clearTimeout(el._t);
+      el._t = setTimeout(() => el.classList.add('opacity-0'), 3400);
+    }
+
+    function updateCaseStatusHUD() {
+      const essFound = CASE_DATA.clues.filter(c => c.essential && foundClues.has(c.id)).length;
+      const stars = '⭐'.repeat(reputation) + '☆'.repeat(5 - reputation);
+      document.getElementById('hud-case-sub').textContent = `Clues: ${essFound}/4 Essential • Rep: ${stars}`;
+      document.getElementById('nb-clue-count').textContent = `${foundClues.size}/${CASE_DATA.clues.length}`;
+      document.getElementById('hint-count-text').textContent = String(hintsRemaining);
+
+      const teaUnlocked = CASE_DATA.dioramas[3].unlocked || freeRoamUnlocked;
+      const btn3 = document.getElementById('loc-btn-3');
+      btn3.classList.toggle('locked-loc', !teaUnlocked);
+      btn3.textContent = teaUnlocked ? '🍵 Tea House' : '🍵 Tea House 🔒';
+    }
+
+    function switchDiorama(idx) {
+      const d = CASE_DATA.dioramas[idx];
+      if (!d.unlocked && !freeRoamUnlocked) {
+        showCaseToast('Location Locked 🔒', 'Find Clue #2 (Overlapping Tracks in the Village Alley) to unlock the Tea House!');
+        soundFX.playBounce(0.6);
+        return;
+      }
+      currentDioramaIdx = idx;
+      document.getElementById('hud-loc-title').textContent = d.name;
+      for (let i = 0; i < 4; i++) {
+        document.getElementById(`loc-btn-${i}`).classList.toggle('active-amber', i === idx);
+      }
+
+      detectiveFumo.pos.set(d.center.x - 3.6, 0, 2.8);
+      detectiveFumo.vel.set(0, 0, 0);
+      dioramaWarmLight.position.set(d.center.x, 5.5, 2);
+
+      camGlideTarget.set(d.center.x, d.center.y, d.center.z);
+      if (isMagnifierActive) {
+        camPosGlide.set(d.camInspect.x, d.camInspect.y, d.camInspect.z);
+      } else {
+        camPosGlide.set(d.center.x, 9.5, 16.5);
+      }
+      isGlidingCamera = true;
+      closeInterrogationPanel();
+    }
+
+    function toggleMagnifierMode(forceState) {
+      isMagnifierActive = forceState !== undefined ? forceState : !isMagnifierActive;
+      const lens = document.getElementById('magnifier-lens');
+      lens.classList.toggle('hidden', !isMagnifierActive);
+      document.getElementById('btn-magnifier').classList.toggle('active-amber', isMagnifierActive);
+      document.getElementById('magnifier-label').textContent = isMagnifierActive ? 'Exit Lens' : 'Hunt Clues';
+
+      const d = CASE_DATA.dioramas[currentDioramaIdx];
+      camGlideTarget.set(d.center.x, d.center.y, d.center.z);
+      camPosGlide.set(
+        d.center.x,
+        isMagnifierActive ? d.camInspect.y : 9.5,
+        isMagnifierActive ? d.camInspect.z : 16.5
+      );
+      isGlidingCamera = true;
+      controls.enabled = !isMagnifierActive;
+    }
+
+    function collectClue(clue) {
+      if (foundClues.has(clue.id)) return;
+      foundClues.add(clue.id);
+      soundFX.playClueChime();
+      spawnSparkles(new THREE.Vector3(clue.pos.x, clue.pos.y, clue.pos.z), '#10b981', 18);
+      showCaseToast('Clue Added to Notebook! 🔎', clue.name);
+      spawnSpeechBubble(wispGroup.position, `Found: ${clue.name}!`, 3.0);
+
+      if (clue.id === 'clue_tracks') {
+        CASE_DATA.dioramas[3].unlocked = true;
+        setTimeout(() => showCaseToast('New Diorama Unlocked! 🍵', '4. Geidontei Tea House is now open for investigation!'), 1800);
+      }
+
+      updateCaseStatusHUD();
+      renderNotebookPanel();
+      saveDetectiveProgress();
+    }
+
+    let activeSuspectFumo = null;
+
+    function openInterrogationPanel(fumo) {
+      if (!fumo || !fumo.suspectData) return;
+      activeSuspectFumo = fumo;
+      soundFX.isInterrogating = true;
+      soundFX.duckFactor = 0.4;
+      fumo.squeeze(0.75);
+      if (fumo.id === 'aya') soundFX.playCameraShutter();
+
+      document.getElementById('interrog-emoji').textContent = fumo.emoji;
+      document.getElementById('interrog-name').textContent = fumo.name;
+      document.getElementById('interrog-role').textContent = fumo.suspectData.role;
+      document.getElementById('interrog-status').textContent = fumo.isFlustered ? 'Flustered @_@' : 'Testifying';
+      document.getElementById('interrog-speech').textContent = `"${fumo.suspectData.greeting}"`;
+      document.getElementById('present-evidence-strip').classList.add('hidden');
+
+      const qContainer = document.getElementById('interrog-questions');
+      while (qContainer.firstChild) qContainer.removeChild(qContainer.firstChild);
+
+      fumo.suspectData.questions.forEach((qObj) => {
+        const btn = document.createElement('button');
+        btn.className = 'glass-panel ui-btn rounded-xl px-2.5 py-1 text-xs font-bold';
+        btn.textContent = `💬 ${qObj.q}`;
+        btn.onclick = () => {
+          document.getElementById('interrog-speech').textContent = `"${qObj.a}"`;
+          spawnSpeechBubble(fumo.pos, qObj.a.slice(0, 52) + '...', 2.8);
+          fumo.squeeze(0.6);
+          const entry = `${fumo.name}: "${qObj.a}"`;
+          if (!collectedTestimonies.includes(entry)) {
+            collectedTestimonies.push(entry);
+            renderNotebookPanel();
+          }
+        };
+        qContainer.appendChild(btn);
+      });
+
+      const panel = document.getElementById('interrogation-panel');
+      panel.classList.remove('hidden');
+      panel.classList.add('flex');
+    }
+
+    function closeInterrogationPanel() {
+      activeSuspectFumo = null;
+      soundFX.isInterrogating = false;
+      soundFX.duckFactor = 1.0;
+      const panel = document.getElementById('interrogation-panel');
+      panel.classList.add('hidden');
+      panel.classList.remove('flex');
+    }
+
+    function openPresentEvidenceStrip() {
+      if (!activeSuspectFumo) return;
+      const strip = document.getElementById('present-evidence-strip');
+      strip.classList.remove('hidden');
+      strip.classList.add('flex');
+
+      const list = document.getElementById('present-clue-list');
+      while (list.firstChild) list.removeChild(list.firstChild);
+
+      const available = CASE_DATA.clues.filter(c => foundClues.has(c.id));
+      if (available.length === 0) {
+        const msg = document.createElement('span');
+        msg.className = 'text-xs opacity-75';
+        msg.textContent = 'No clues in Notebook yet! Use Magnifier (E) to find clues first.';
+        list.appendChild(msg);
+        return;
+      }
+
+      available.forEach(c => {
+        const btn = document.createElement('button');
+        btn.className = 'glass-panel ui-btn rounded-lg px-2.5 py-1 text-[11px] font-bold active-amber';
+        btn.textContent = `📌 ${c.name}`;
+        btn.onclick = () => evaluatePresentedEvidence(c);
+        list.appendChild(btn);
+      });
+    }
+
+    function evaluatePresentedEvidence(clue) {
+      if (!activeSuspectFumo || !activeSuspectFumo.suspectData) return;
+      const matchQ = activeSuspectFumo.suspectData.questions.find(q => q.clueContra === clue.id);
+
+      if (matchQ) {
+        soundFX.playContradictionHit();
+        activeSuspectFumo.isFlustered = true;
+        activeSuspectFumo.squeeze(1.35);
+        spawnSparkles(activeSuspectFumo.pos, '#f43f5e', 20, 1.3);
+        document.getElementById('interrog-status').textContent = 'Contradiction Caught! @_@';
+        document.getElementById('interrog-speech').textContent = `"${matchQ.contraReply}"`;
+        spawnSpeechBubble(activeSuspectFumo.pos, 'Uwah! Contradiction! @_@', 3.0);
+        showCaseToast('Contradiction Caught! ⚡', `${activeSuspectFumo.name} revealed the truth!`);
+
+        const entry = `[CONFESSION] ${activeSuspectFumo.name}: "${matchQ.contraReply}"`;
+        if (!collectedTestimonies.includes(entry)) {
+          collectedTestimonies.push(entry);
+          renderNotebookPanel();
+        }
+      } else {
+        reputation = Math.max(0, reputation - 1);
+        soundFX.playBounce(0.6);
+        activeSuspectFumo.headRollVel = 8.0;
+        document.getElementById('interrog-speech').textContent = `"Hmm? What does '${clue.name}' have to do with what I just said, Detective?"`;
+        updateCaseStatusHUD();
+      }
+      document.getElementById('present-evidence-strip').classList.add('hidden');
+    }
+
+    // ============================================================================
+    // 10. NOTEBOOK, DETECTIVE PICKER & RED-STRING DEDUCTION BOARD
+    // ============================================================================
+    function renderNotebookPanel() {
+      const cList = document.getElementById('nb-clues-list');
+      while (cList.firstChild) cList.removeChild(cList.firstChild);
+
+      CASE_DATA.clues.forEach(c => {
+        const isFound = foundClues.has(c.id);
+        const card = document.createElement('div');
+        card.className = `glass-panel rounded-xl p-2 flex flex-col gap-0.5 ${isFound ? '' : 'opacity-60'}`;
+        const title = document.createElement('div');
+        title.className = 'font-bold';
+        title.textContent = isFound ? `🔎 ${c.name}` : '❔ Undiscovered Clue';
+        const desc = document.createElement('div');
+        desc.className = 'text-[11px] font-typewriter opacity-80';
+        desc.textContent = isFound ? c.desc : `Hidden in Diorama #${c.dioramaId + 1}`;
+        card.appendChild(title);
+        card.appendChild(desc);
+        cList.appendChild(card);
+      });
+
+      const tList = document.getElementById('nb-testimony-list');
+      while (tList.firstChild) tList.removeChild(tList.firstChild);
+      if (collectedTestimonies.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'text-xs opacity-75 p-2';
+        empty.textContent = 'Click any suspect Fumo to question them and record alibis.';
+        tList.appendChild(empty);
+      } else {
+        collectedTestimonies.forEach(txt => {
+          const row = document.createElement('div');
+          row.className = 'glass-panel rounded-xl p-2 text-[11px] font-typewriter';
+          row.textContent = txt;
+          tList.appendChild(row);
+        });
+      }
+
+      const dList = document.getElementById('nb-detective-list');
+      while (dList.firstChild) dList.removeChild(dList.firstChild);
+      CASE_DATA.detectives.forEach((det, idx) => {
+        const active = (idx === currentDetectiveIdx);
+        const btn = document.createElement('button');
+        btn.className = `glass-panel ui-btn rounded-xl p-2 flex flex-col gap-0.5 ${active ? 'active-amber' : ''}`;
+        btn.style.textAlign = 'left';
+        const t = document.createElement('div');
+        t.className = 'font-bold';
+        t.textContent = `${det.emoji} ${det.name} — ${det.perkName}`;
+        const sub = document.createElement('div');
+        sub.className = 'text-[11px] opacity-80';
+        sub.textContent = det.perkDesc;
+        btn.appendChild(t);
+        btn.appendChild(sub);
+        btn.onclick = () => {
+          currentDetectiveIdx = idx;
+          Object.assign(detectiveFumo, det);
+          detectiveFumo.buildNoirVoxels();
+          detectiveFumo.squeeze(1.0);
+          syncWitchSuspectIdentity();
+          document.getElementById('perk-icon').textContent = det.emoji;
+          document.getElementById('perk-label').textContent = det.perkName.split('-')[0];
+          renderNotebookPanel();
+        };
+        dList.appendChild(btn);
+      });
+    }
+
+    const boardSelection = { who: null, how: null, why: null };
+    const pinElements = { who: {}, how: {}, why: {} };
+
+    function openDeductionBoard() {
+      syncWitchSuspectIdentity();
+      const modal = document.getElementById('board-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+
+      const buildRow = (slotKey, containerId) => {
+        const wrap = document.getElementById(containerId);
+        while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
+        pinElements[slotKey] = {};
+        CASE_DATA.boardOptions[slotKey].forEach(opt => {
+          const btn = document.createElement('button');
+          btn.className = `glass-panel pin-card ${boardSelection[slotKey] === opt.id ? 'pin-selected' : ''}`;
+          btn.textContent = opt.label;
+          btn.onclick = () => {
+            boardSelection[slotKey] = opt.id;
+            soundFX.playPickup();
+            Object.values(pinElements[slotKey]).forEach(el => el.classList.remove('pin-selected'));
+            btn.classList.add('pin-selected');
+            drawRedStrings();
+          };
+          wrap.appendChild(btn);
+          pinElements[slotKey][opt.id] = btn;
+        });
+      };
+
+      buildRow('who', 'pins-who');
+      buildRow('how', 'pins-how');
+      buildRow('why', 'pins-why');
+      setTimeout(drawRedStrings, 40);
+    }
+
+    function drawRedStrings() {
+      const cvs = document.getElementById('string-canvas');
+      const rect = cvs.parentElement.getBoundingClientRect();
+      cvs.width = rect.width;
+      cvs.height = rect.height;
+      const ctx = cvs.getContext('2d');
+      ctx.clearRect(0, 0, cvs.width, cvs.height);
+
+      const getPinCenter = (slotKey) => {
+        const id = boardSelection[slotKey];
+        const el = id ? pinElements[slotKey][id] : null;
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { x: r.left - rect.left + r.width * 0.5, y: r.top - rect.top + r.height * 0.5 };
+      };
+
+      const p1 = getPinCenter('who');
+      const p2 = getPinCenter('how');
+      const p3 = getPinCenter('why');
+
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      if (p1 && p2) {
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+      }
+      if (p2 && p3) {
+        ctx.moveTo(p2.x, p2.y);
+        ctx.lineTo(p3.x, p3.y);
+      }
+      ctx.stroke();
+    }
+
+    function submitBoardDeduction() {
+      const sol = CASE_DATA.solution;
+      if (!boardSelection.who || !boardSelection.how || !boardSelection.why) {
+        document.getElementById('board-feedback').textContent = '⚠️ Please click one pin in all three rows (WHO, HOW, WHY)!';
+        return;
+      }
+
+      if (boardSelection.who === sol.who && boardSelection.how === sol.how && boardSelection.why === sol.why) {
+        document.getElementById('board-modal').classList.add('hidden');
+        document.getElementById('board-modal').classList.remove('flex');
+        triggerFinaleCutscene();
+      } else {
+        reputation = Math.max(0, reputation - 1);
+        updateCaseStatusHUD();
+        soundFX.playBounce(0.9);
+        detectiveFumo.squeeze(1.3);
+        spawnSpeechBubble(detectiveFumo.pos, 'Oops! That theory doesn\'t add up! @_@', 3.2);
+        document.getElementById('board-feedback').textContent = '❌ Oops! Hint: Check who dropped the green transformation leaf and left the festival note in the Tea House!';
+      }
+    }
+
+    function triggerFinaleCutscene() {
+      caseSolved = true;
+      freeRoamUnlocked = true;
+      CASE_DATA.dioramas[3].unlocked = true;
+      updateCaseStatusHUD();
+      switchDiorama(3);
+      toggleMagnifierMode(false);
+
+      suspectMamizou.pos.set(35.0, 0.3, -0.5);
+      reimuClient.pos.set(38.0, 0.3, -0.5);
+      soundFX.playClueChime();
+      spawnSparkles(suspectMamizou.pos, '#22c55e', 26, 1.5);
+      spawnSpeechBubble(suspectMamizou.pos, 'POOF! 🍃 I counted every coin for the Festival Lanterns!', 4.0);
+      spawnSpeechBubble(reimuClient.pos, 'Hmph... Since my box is safe and has extra coins, you\'re forgiven!', 4.2);
+
+      const elapsedMin = Math.max(1, Math.round((performance.now() - caseStartTime) / 60000));
+      const rank = (reputation >= 4 && hintsRemaining >= 2) ? 'Master Detective' :
+                   (reputation >= 2) ? 'Sharp Eye Detective' : 'Cozy Rookie Detective';
+
+      setTimeout(() => {
+        const modal = document.getElementById('finale-modal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.getElementById('finale-rank-title').textContent = `🏆 Rank: ${rank}`;
+        document.getElementById('finale-story-text').textContent =
+          'With a puff of leaf-shaped smoke, Mamizou transformed back into herself in the Geidontei Tea House! She apologized for disguising herself as the witch, explaining she wanted to tally the funds needed for the Village Festival lanterns—and returned Reimu\'s donation box completely intact with a generous bonus donation!';
+        document.getElementById('finale-stats-box').textContent =
+          `Clues Found: ${foundClues.size}/${CASE_DATA.clues.length} • Reputation: ${reputation}/5 • Hints Remaining: ${hintsRemaining}/3 • Time: ${elapsedMin} min`;
+        saveDetectiveProgress();
+      }, 1500);
+    }
+
+    function activateDetectivePerk() {
+      const det = CASE_DATA.detectives[currentDetectiveIdx];
+      perkTimer = 5.0;
+      soundFX.playClueChime();
+      detectiveFumo.squeeze(0.95);
+
+      const unfoundHere = CASE_DATA.clues.find(c => c.dioramaId === currentDioramaIdx && !foundClues.has(c.id));
+      if (det.id === 'sakuya') {
+        showCaseToast('⏱️ Sakuya\'s Chrono-Lens!', 'Time slows down — all clues in this diorama are highlighted!');
+      } else if (det.id === 'marisa') {
+        if (unfoundHere) {
+          spawnSparkles(new THREE.Vector3(unfoundHere.pos.x, unfoundHere.pos.y, unfoundHere.pos.z), '#facc15', 20, 1.2);
+          showCaseToast('🌟 Marisa\'s Hunch!', `Something glints near "${unfoundHere.name}"!`);
+        } else {
+          showCaseToast('🌟 Marisa\'s Hunch!', 'All clues in this diorama have been found! Try another location!');
+        }
+      } else if (det.id === 'youmu') {
+        showCaseToast('⚔️ Youmu\'s Phantom Sight!', 'Spirit & tanuki illusion residue is glowing brightly!');
+      }
+    }
+
+    function useHintToken() {
+      if (hintsRemaining <= 0) {
+        showCaseToast('No Hint Tokens Left 💡', 'Check your Notebook (Q) or open the Deduction Board!');
+        return;
+      }
+      hintsRemaining--;
+      updateCaseStatusHUD();
+      soundFX.playClueChime();
+
+      const nextEss = CASE_DATA.clues.find(c => c.essential && !foundClues.has(c.id));
+      if (nextEss) {
+        const dName = CASE_DATA.dioramas[nextEss.dioramaId].name;
+        showCaseToast('Detective Hint 💡', `Use your Magnifier (E) in ${dName} to find: ${nextEss.name}`);
+      } else {
+        showCaseToast('Detective Hint 💡', 'Open the Deduction Board: Mamizou used a Tanuki Leaf Disguise to count coins for Festival Lanterns!');
+      }
+    }
+
+    // ============================================================================
+    // 11. POINTER INTERACTION (Magnifier Sweep, Suspect Click, Free-Roam Drag/Throw)
+    // ============================================================================
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    const dragPlane = new THREE.Plane();
+    const dragPoint = new THREE.Vector3();
+
+    let pickedFumo = null;
+    let isDraggingFumo = false;
+    let downScreenPos = { x: 0, y: 0 };
+    let dragSamples = [];
+
+    const tooltipEl = document.getElementById('fumo-tooltip');
+    const tooltipEmojiEl = document.getElementById('tooltip-emoji');
+    const tooltipTextEl = document.getElementById('tooltip-text');
+    const lensEl = document.getElementById('magnifier-lens');
+    const ringCircle = document.getElementById('magnifier-ring-circle');
+
+    function updateNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    const onPointerDown = (e) => {
+      if (e.target !== renderer.domElement || e.button !== 0) return;
+      recordInput();
+      soundFX.init();
+      soundFX.startLoops();
+      updateNDC(e);
+      downScreenPos = { x: e.clientX, y: e.clientY };
+      raycaster.setFromCamera(pointerNDC, camera);
+
+      if (hoveredClue && !foundClues.has(hoveredClue.id)) {
+        collectClue(hoveredClue);
+        return;
+      }
+      const clueHits = raycaster.intersectObjects(clueMeshes.filter(m => m.visible), false);
+      if (clueHits.length > 0 && clueHits[0].object.userData.clue) {
+        collectClue(clueHits[0].object.userData.clue);
+        return;
+      }
+
+      const propHits = raycaster.intersectObjects(interactiveProps, false);
+      if (propHits.length > 0 && propHits[0].object.userData.prop) {
+        propHits[0].object.userData.prop.onActivate();
+        return;
+      }
+
+      const fHits = raycaster.intersectObjects(allFumoMeshes, false);
+      if (fHits.length > 0 && fHits[0].object.userData.fumo) {
+        pickedFumo = fHits[0].object.userData.fumo;
+        isDraggingFumo = false;
+        controls.enabled = false;
+
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        dragPlane.setFromNormalAndCoplanarPoint(camDir.negate(), pickedFumo.pos);
+        dragSamples = [{ pos: pickedFumo.pos.clone(), time: performance.now() }];
+      }
+    };
+
+    const onPointerMove = (e) => {
+      updateNDC(e);
+      raycaster.setFromCamera(pointerNDC, camera);
+
+      if (isMagnifierActive) {
+        lensEl.style.left = `${e.clientX}px`;
+        lensEl.style.top = `${e.clientY}px`;
+      }
+
+      if (pickedFumo) {
+        const dist = Math.hypot(e.clientX - downScreenPos.x, e.clientY - downScreenPos.y);
+        if (!isDraggingFumo && dist > 6) {
+          isDraggingFumo = true;
+          pickedFumo.isDragged = true;
+          pickedFumo.isGrounded = false;
+          soundFX.playPickup();
+          tooltipEl.classList.add('opacity-0');
+        }
+        if (isDraggingFumo && raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
+          dragPoint.y = THREE.MathUtils.clamp(dragPoint.y, 0.5, 16);
+          pickedFumo.pos.lerp(dragPoint, 0.55);
+          dragSamples.push({ pos: pickedFumo.pos.clone(), time: performance.now() });
+          if (dragSamples.length > 6) dragSamples.shift();
+        }
+        return;
+      }
+
+      const cHits = raycaster.intersectObjects(clueMeshes.filter(m => m.visible), false);
+      if (cHits.length > 0 && cHits[0].object.userData.clue) {
+        hoveredClue = cHits[0].object.userData.clue;
+        lensEl.classList.add('clue-hot');
+        tooltipEmojiEl.textContent = '🔎';
+        tooltipTextEl.textContent = `Hold/Click to Inspect: ${hoveredClue.name}`;
+        tooltipEl.classList.remove('opacity-0');
+        tooltipEl.style.left = `${e.clientX + 16}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+        renderer.domElement.style.cursor = 'pointer';
+        return;
+      } else {
+        hoveredClue = null;
+        hoverClueProgress = 0;
+        ringCircle.style.strokeDashoffset = '339.29';
+        lensEl.classList.remove('clue-hot');
+      }
+
+      const pHits = raycaster.intersectObjects(interactiveProps, false);
+      if (pHits.length > 0 && pHits[0].object.userData.prop) {
+        tooltipEmojiEl.textContent = '✨';
+        tooltipTextEl.textContent = pHits[0].object.userData.prop.name;
+        tooltipEl.classList.remove('opacity-0');
+        tooltipEl.style.left = `${e.clientX + 16}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+        renderer.domElement.style.cursor = 'pointer';
+        return;
+      }
+
+      const fHits = raycaster.intersectObjects(allFumoMeshes, false);
+      if (fHits.length > 0 && fHits[0].object.userData.fumo) {
+        const f = fHits[0].object.userData.fumo;
+        tooltipEmojiEl.textContent = f.emoji;
+        tooltipTextEl.textContent = f.suspectData ? `${f.name} (Click to Question • Drag to Toss)` : `${f.name} (Click to Squeeze)`;
+        tooltipEl.classList.remove('opacity-0');
+        tooltipEl.style.left = `${e.clientX + 16}px`;
+        tooltipEl.style.top = `${e.clientY - 18}px`;
+        renderer.domElement.style.cursor = 'grab';
+        return;
+      }
+
+      tooltipEl.classList.add('opacity-0');
+      renderer.domElement.style.cursor = 'default';
+    };
+
+    const onPointerUp = () => {
+      if (pickedFumo) {
+        controls.enabled = !isMagnifierActive;
+        if (!isDraggingFumo) {
+          pickedFumo.squeeze(1.1);
+          if (pickedFumo.id === 'roof_cat') {
+            soundFX.playCatMeow();
+            spawnSpeechBubble(pickedFumo.pos, 'Meow~ I saw a witch coat morph into a tanuki tail! 🐾', 3.4);
+          } else if (pickedFumo.id === 'gag_mamizou') {
+            spawnSpeechBubble(pickedFumo.pos, 'Hohoho~ Nothing to see here, just a normal villager! 🍃', 3.0);
+          } else if (pickedFumo.suspectData) {
+            openInterrogationPanel(pickedFumo);
+          }
+        } else {
+          pickedFumo.isDragged = false;
+          if (dragSamples.length >= 2) {
+            const a = dragSamples[0], b = dragSamples[dragSamples.length - 1];
+            const dt = Math.max(0.016, (b.time - a.time) / 1000);
+            const v = b.pos.clone().sub(a.pos).divideScalar(dt);
+            if (v.length() > 22) v.setLength(22);
+            pickedFumo.vel.copy(v);
+          }
+        }
+        pickedFumo = null;
+        isDraggingFumo = false;
+      }
+    };
+
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+
+    // ============================================================================
+    // 12. DAY / NIGHT SMOOTH INTERPOLATION (~2 SECONDS) & HUB LIFECYCLE
+    // ============================================================================
+    let isNightMode = true;
+    let nightProgress = 1.0;
+    let nightTarget = 1.0;
+    let lightningFlash = 0.0;
+    let nextThunderTimer = 11.0;
+
+    const daySkyCol = new THREE.Color('#7c8da6');
+    const nightSkyCol = new THREE.Color('#090d1a');
+    const dayDirCol = new THREE.Color('#dbeafe');
+    const nightDirCol = new THREE.Color('#6482c8');
+
+    function notifyHubModeChanged() {
+      const mode = isNightMode ? 'night' : 'day';
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'modeChanged', mode }, '*');
+        }
+      } catch (e) {}
+    }
+
+    function setDayNightMode(modeStr, immediate = false) {
+      const wantNight = (modeStr === 'night');
+      if (isNightMode === wantNight && !immediate) return;
+      isNightMode = wantNight;
+      nightTarget = isNightMode ? 1.0 : 0.0;
+      if (immediate) nightProgress = nightTarget;
+      document.body.classList.toggle('night-ui', isNightMode);
+      soundFX.isNight = isNightMode;
+      notifyHubModeChanged();
+    }
+
+    function toggleDayNightMode() {
+      setDayNightMode(isNightMode ? 'day' : 'night', false);
+    }
+
+    function updateDayNightTransition(dt) {
+      if (Math.abs(nightProgress - nightTarget) > 0.001) {
+        const step = dt * 0.52;
+        nightProgress = nightProgress < nightTarget
+          ? Math.min(nightTarget, nightProgress + step)
+          : Math.max(nightTarget, nightProgress - step);
+      }
+      const t = nightProgress * nightProgress * (3 - 2 * nightProgress);
+
+      if (isNightMode) {
+        nextThunderTimer -= dt;
+        if (nextThunderTimer <= 0) {
+          nextThunderTimer = 14 + Math.random() * 14;
+          lightningFlash = 1.0;
+          setTimeout(() => soundFX.playThunder(), 320);
+        }
+      }
+      if (lightningFlash > 0) lightningFlash = Math.max(0, lightningFlash - dt * 3.5);
+
+      scene.background.lerpColors(daySkyCol, nightSkyCol, t);
+      if (lightningFlash > 0) scene.background.lerp(new THREE.Color('#cbd5e1'), lightningFlash * 0.45);
+      scene.fog.color.copy(scene.background);
+
+      mainDirLight.color.lerpColors(dayDirCol, nightDirCol, t);
+      mainDirLight.intensity = THREE.MathUtils.lerp(1.15, 0.42, t) + lightningFlash * 1.4;
+      hemiLight.intensity = THREE.MathUtils.lerp(0.72, 0.32, t);
+      dioramaWarmLight.intensity = THREE.MathUtils.lerp(0.45, 1.55, t);
+      warmEmissiveMat.emissiveIntensity = THREE.MathUtils.lerp(0.35, 1.95, t);
+      neonEmissiveMat.emissiveIntensity = THREE.MathUtils.lerp(0.45, 2.2, t);
+      rainMat.opacity = THREE.MathUtils.lerp(0.35, 0.72, t);
+      if (bloomPass) {
+        bloomPass.strength = THREE.MathUtils.lerp(0.16, 0.64, t);
+      }
+    }
+
+    // ============================================================================
+    // 13. LOCALSTORAGE PERSISTENCE & KEYBOARD / BUTTON HANDLERS
+    // ============================================================================
+    const STORAGE_DETECTIVE_KEY = 'fumo_detective_agency_save_v1';
+    const STORAGE_MUTE_KEY = 'fumo_detective_agency_mute';
+
+    function saveDetectiveProgress() {
+      try {
+        const data = {
+          clues: Array.from(foundClues),
+          reputation,
+          hintsRemaining,
+          freeRoamUnlocked,
+          teaUnlocked: CASE_DATA.dioramas[3].unlocked
+        };
+        localStorage.setItem(STORAGE_DETECTIVE_KEY, JSON.stringify(data));
+      } catch (e) {}
+    }
+
+    function loadDetectiveProgress() {
+      try {
+        if (localStorage.getItem(STORAGE_MUTE_KEY) === '1') {
+          soundFX.enabled = false;
+          document.getElementById('mute-icon').textContent = '🔇';
+        }
+        const raw = localStorage.getItem(STORAGE_DETECTIVE_KEY);
+        if (!raw) return;
+        const d = JSON.parse(raw);
+        if (Array.isArray(d.clues)) d.clues.forEach(id => foundClues.add(id));
+        if (typeof d.reputation === 'number') reputation = d.reputation;
+        if (typeof d.hintsRemaining === 'number') hintsRemaining = d.hintsRemaining;
+        if (d.freeRoamUnlocked) freeRoamUnlocked = true;
+        if (d.teaUnlocked) CASE_DATA.dioramas[3].unlocked = true;
+      } catch (e) {}
+      updateCaseStatusHUD();
+    }
+
+    function toggleMute() {
+      soundFX.enabled = !soundFX.enabled;
+      document.getElementById('mute-icon').textContent = soundFX.enabled ? '🔊' : '🔇';
+      try { localStorage.setItem(STORAGE_MUTE_KEY, soundFX.enabled ? '0' : '1'); } catch (e) {}
+    }
+
+    function triggerShakeDiorama() {
+      shakeTimer = 0.65;
+      soundFX.playBounce(0.75);
+      castFumos.forEach(f => {
+        if (f.dioramaId === currentDioramaIdx) {
+          f.vel.y = 4.2;
+          f.isGrounded = false;
+          f.squeeze(0.8);
+        }
+      });
+      showCaseToast('📳 Gentle Diorama Shake!', 'Loose props & Fumos rattled playfully!');
+    }
+
+    const onKeyDown = (e) => {
+      const tag = e.target && e.target.tagName ? e.target.tagName.toUpperCase() : '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable)) {
+        e.stopPropagation();
+        return;
+      }
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      recordInput();
+      soundFX.init();
+      soundFX.startLoops();
+
+      const k = e.key.toLowerCase();
+      if (k === 'e') {
+        if (!document.getElementById('interrogation-panel').classList.contains('hidden')) {
+          openPresentEvidenceStrip();
+        } else {
+          toggleMagnifierMode();
+        }
+      } else if (k === 'q') {
+        const nb = document.getElementById('notebook-panel');
+        const open = nb.classList.contains('hidden');
+        nb.classList.toggle('hidden', !open);
+        nb.classList.toggle('flex', open);
+        if (open) renderNotebookPanel();
+      } else if (k === 'f') {
+        activateDetectivePerk();
+      } else if (k === 'r') {
+        triggerShakeDiorama();
+      } else if (k === 'h') {
+        const c = document.getElementById('howto-card');
+        c.classList.toggle('opacity-0');
+        c.classList.toggle('pointer-events-none');
+      } else if (k === 'm') {
+        toggleMute();
+      } else if (k === 'n') {
+        e.preventDefault();
+        toggleDayNightMode();
+      } else if (k === 'escape' || k === ' ') {
+        if (!document.getElementById('finale-modal').classList.contains('hidden')) {
+          document.getElementById('finale-modal').classList.add('hidden');
+          document.getElementById('finale-modal').classList.remove('flex');
+        } else if (!document.getElementById('board-modal').classList.contains('hidden') && k === 'escape') {
+          document.getElementById('board-modal').classList.add('hidden');
+          document.getElementById('board-modal').classList.remove('flex');
+        } else if (!document.getElementById('interrogation-panel').classList.contains('hidden') && k === 'escape') {
+          closeInterrogationPanel();
+        } else if (isMagnifierActive && k === 'escape') {
+          toggleMagnifierMode(false);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+
+    for (let i = 0; i < 4; i++) {
+      document.getElementById(`loc-btn-${i}`).onclick = () => switchDiorama(i);
+    }
+    document.getElementById('btn-magnifier').onclick = () => toggleMagnifierMode();
+    document.getElementById('btn-perk').onclick = activateDetectivePerk;
+    document.getElementById('btn-shake').onclick = triggerShakeDiorama;
+    document.getElementById('btn-hint').onclick = useHintToken;
+    document.getElementById('btn-open-notebook').onclick = () => {
+      const nb = document.getElementById('notebook-panel');
+      const open = nb.classList.contains('hidden');
+      nb.classList.toggle('hidden', !open);
+      nb.classList.toggle('flex', open);
+      if (open) renderNotebookPanel();
+    };
+    document.getElementById('tab-nb-clues').onclick = () => {
+      document.getElementById('nb-clues-list').classList.remove('hidden');
+      document.getElementById('nb-testimony-list').classList.add('hidden');
+      document.getElementById('nb-detective-list').classList.add('hidden');
+      document.getElementById('tab-nb-clues').classList.add('active-amber');
+      document.getElementById('tab-nb-testimony').classList.remove('active-amber');
+      document.getElementById('tab-nb-detective').classList.remove('active-amber');
+    };
+    document.getElementById('tab-nb-testimony').onclick = () => {
+      document.getElementById('nb-clues-list').classList.add('hidden');
+      document.getElementById('nb-testimony-list').classList.remove('hidden');
+      document.getElementById('nb-testimony-list').classList.add('flex');
+      document.getElementById('nb-detective-list').classList.add('hidden');
+      document.getElementById('tab-nb-testimony').classList.add('active-amber');
+      document.getElementById('tab-nb-clues').classList.remove('active-amber');
+      document.getElementById('tab-nb-detective').classList.remove('active-amber');
+    };
+    document.getElementById('tab-nb-detective').onclick = () => {
+      document.getElementById('nb-clues-list').classList.add('hidden');
+      document.getElementById('nb-testimony-list').classList.add('hidden');
+      document.getElementById('nb-detective-list').classList.remove('hidden');
+      document.getElementById('nb-detective-list').classList.add('flex');
+      document.getElementById('tab-nb-detective').classList.add('active-amber');
+      document.getElementById('tab-nb-clues').classList.remove('active-amber');
+      document.getElementById('tab-nb-testimony').classList.remove('active-amber');
+    };
+    document.getElementById('btn-close-interrog').onclick = closeInterrogationPanel;
+    document.getElementById('btn-present-toggle').onclick = openPresentEvidenceStrip;
+    document.getElementById('btn-open-board').onclick = openDeductionBoard;
+    document.getElementById('btn-close-board').onclick = () => {
+      document.getElementById('board-modal').classList.add('hidden');
+      document.getElementById('board-modal').classList.remove('flex');
+    };
+    document.getElementById('btn-submit-deduction').onclick = submitBoardDeduction;
+    document.getElementById('btn-free-roam').onclick = () => {
+      document.getElementById('finale-modal').classList.add('hidden');
+      document.getElementById('finale-modal').classList.remove('flex');
+      showCaseToast('Free Roam Unlocked! 🌧️', 'All 4 dioramas & Fumo props are open for exploration!');
+    };
+    document.getElementById('btn-replay-case').onclick = () => {
+      foundClues.clear();
+      collectedTestimonies.length = 0;
+      reputation = 5;
+      hintsRemaining = 3;
+      caseSolved = false;
+      caseStartTime = performance.now();
+      castFumos.forEach(f => { f.isFlustered = false; f.pos.copy(f.homePos); });
+      document.getElementById('finale-modal').classList.add('hidden');
+      document.getElementById('finale-modal').classList.remove('flex');
+      updateCaseStatusHUD();
+      switchDiorama(0);
+      saveDetectiveProgress();
+    };
+    document.getElementById('btn-help').onclick = () => {
+      const c = document.getElementById('howto-card');
+      c.classList.toggle('opacity-0');
+      c.classList.toggle('pointer-events-none');
+    };
+    document.getElementById('btn-mute').onclick = toggleMute;
+
+    // ============================================================================
+    // 14. MAIN ANIMATION LOOP & FumoSceneLifecycle
+    // ============================================================================
+    let rafId = null;
+    let prevTime = performance.now();
+
+    const onResize = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    };
+    window.addEventListener('resize', onResize);
+
+    function animate(now) {
+      if (lifecycle && lifecycle.isPaused) return;
+      rafId = requestAnimationFrame(animate);
+
+      const rawDt = Math.min(0.04, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
+      const elapsed = now * 0.001;
+
+      if (perkTimer > 0) perkTimer = Math.max(0, perkTimer - rawDt);
+      const detId = CASE_DATA.detectives[currentDetectiveIdx].id;
+      const dt = (detId === 'sakuya' && perkTimer > 0) ? rawDt * 0.35 : rawDt;
+
+      if (isGlidingCamera) {
+        controls.target.lerp(camGlideTarget, Math.min(1, rawDt * 7.5));
+        camera.position.lerp(camPosGlide, Math.min(1, rawDt * 6.5));
+        if (camera.position.distanceTo(camPosGlide) < 0.15) {
+          isGlidingCamera = false;
+        }
+      }
+
+      if (!isMagnifierActive && !activeSuspectFumo && !pickedFumo && (now - lastInputTime > 7000)) {
+        controls.autoRotate = true;
+      }
+      controls.update();
+
+      if (shakeTimer > 0) {
+        shakeTimer = Math.max(0, shakeTimer - rawDt);
+        worldRoot.position.x = Math.sin(elapsed * 48) * 0.18 * shakeTimer;
+        worldRoot.rotation.z = Math.cos(elapsed * 42) * 0.015 * shakeTimer;
+      } else {
+        worldRoot.position.x = 0;
+        worldRoot.position.z = 0;
+        worldRoot.rotation.z = 0;
+      }
+
+      updateDayNightTransition(rawDt);
+
+      wispGroup.position.set(
+        detectiveFumo.pos.x + Math.cos(elapsed * 2.2) * 1.35,
+        detectiveFumo.pos.y + 1.85 + Math.sin(elapsed * 3.4) * 0.22,
+        detectiveFumo.pos.z + Math.sin(elapsed * 2.2) * 1.35
+      );
+
+      clueMeshes.forEach(m => {
+        const c = m.userData.clue;
+        if (foundClues.has(c.id)) {
+          m.visible = false;
+          return;
+        }
+        const nightOrYoumuOk = (c.modeReq !== 'night_or_youmu') || isNightMode || (detId === 'youmu') || (perkTimer > 0);
+        m.visible = nightOrYoumuOk;
+        m.rotation.y += rawDt * 2.4;
+        const scaleBoost = (perkTimer > 0 || isMagnifierActive) ? 1.35 : 0.85;
+        m.scale.setScalar(scaleBoost + Math.sin(elapsed * 4) * 0.12);
+      });
+
+      if (hoveredClue && !foundClues.has(hoveredClue.id)) {
+        hoverClueProgress = Math.min(1.0, hoverClueProgress + rawDt * 1.35);
+        const offset = 339.29 * (1.0 - hoverClueProgress);
+        ringCircle.style.strokeDashoffset = String(offset);
+        if (hoverClueProgress >= 1.0) {
+          collectClue(hoveredClue);
+          hoverClueProgress = 0;
+        }
+      }
+
+      for (let i = 0; i < castFumos.length; i++) {
+        castFumos[i].updatePhysics(dt, elapsed);
+      }
+
+      const cx = CASE_DATA.dioramas[currentDioramaIdx].center.x;
+      for (let i = 0; i < RAIN_COUNT; i++) {
+        const r = rainData[i];
+        r.y -= r.speed * dt;
+        if (r.y < 0) r.y = 18;
+        tempPos.set(cx + r.dx, r.y, r.dz);
+        tempQuat.identity();
+        tempScale.set(0.05, isNightMode ? 0.85 : 0.55, 0.05);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        rainMesh.setMatrixAt(i, tempMatrix);
+      }
+      rainMesh.instanceMatrix.needsUpdate = true;
+
+      for (let i = 0; i < STEAM_COUNT; i++) {
+        const st = steamData[i];
+        st.y += st.speed * dt;
+        if (st.y > 5.2) st.y = 1.8;
+        tempPos.set(st.ox + Math.sin(elapsed * 2 + st.phase) * 0.25, st.y, st.oz);
+        tempQuat.identity();
+        const s = 1.0 - (st.y - 1.8) / 3.6;
+        tempScale.set(s, s, s);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+        steamMesh.setMatrixAt(i, tempMatrix);
+      }
+      steamMesh.instanceMatrix.needsUpdate = true;
+
+      let sDirty = false;
+      for (let i = 0; i < SPARK_MAX; i++) {
+        const p = sparks[i];
+        if (!p.active) continue;
+        sDirty = true;
+        p.life += rawDt;
+        if (p.life >= p.maxLife) {
+          p.active = false;
+          tempMatrix.makeScale(0, 0, 0);
+          sparkMesh.setMatrixAt(i, tempMatrix);
+          continue;
+        }
+        p.vel.y -= 8.5 * rawDt;
+        p.pos.addScaledVector(p.vel, rawDt);
+        const s = 1 - p.life / p.maxLife;
+        tempQuat.identity();
+        tempScale.set(s, s, s);
+        tempMatrix.compose(p.pos, tempQuat, tempScale);
+        sparkMesh.setMatrixAt(i, tempMatrix);
+      }
+      if (sDirty) sparkMesh.instanceMatrix.needsUpdate = true;
+
+      for (let i = activeBubbles.length - 1; i >= 0; i--) {
+        const b = activeBubbles[i];
+        b.life += rawDt;
+        if (b.life >= b.maxLife) {
+          b.el.remove();
+          activeBubbles.splice(i, 1);
+          continue;
+        }
+        const proj = b.pos.clone().project(camera);
+        if (proj.z < 1) {
+          const sx = (proj.x * 0.5 + 0.5) * window.innerWidth;
+          const sy = (-proj.y * 0.5 + 0.5) * window.innerHeight;
+          b.el.style.left = `${sx}px`;
+          b.el.style.top = `${sy}px`;
+        }
+      }
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    const lifecycle = new FumoSceneLifecycle({
+      renderer,
+      scene,
+      composer,
+      audio: soundFX,
+      onToggleMode: () => {
+        toggleDayNightMode();
+      },
+      onSetMode: (mode) => {
+        if (mode === 'day' || mode === 'night') {
+          setDayNightMode(mode, false);
+        }
+      },
+      onPause: () => {
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+        soundFX.stopLoops();
+      },
+      onResume: () => {
+        prevTime = performance.now();
+        soundFX.startLoops();
+        if (rafId === null) {
+          rafId = requestAnimationFrame(animate);
+        }
+      },
+      onDispose: () => {
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+        soundFX.stopLoops();
+        saveDetectiveProgress();
+        renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+        window.removeEventListener('keydown', onKeyDown);
+        window.removeEventListener('resize', onResize);
+      }
+    });
+
+    loadDetectiveProgress();
+    renderNotebookPanel();
+    setDayNightMode('night', true);
+
+    setTimeout(() => {
+      const card = document.getElementById('howto-card');
+      if (card) card.classList.add('opacity-0', 'pointer-events-none');
+    }, 8500);
+
+    prevTime = performance.now();
+    rafId = requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
