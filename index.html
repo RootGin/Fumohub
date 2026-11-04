@@ -727,7 +727,8 @@
       { file: "Scenes/scene-26-camping.html",  name: "Campfire Night",     description: "Marshmallows and ghost stories",           accent: "#ff9800" },
       { file: "Scenes/scene-27-frontier.html", name: "Plush Frontier",     description: "An explorable open-world Gensokyo of fumo", accent: "#66bb6a" },
       { file: "Scenes/scene-28-kitchen.html",  name: "Kitchen Showdown",   description: "Chop, fry and plate in the fumo cooking contest", accent: "#ffa726" },
-      { file: "Scenes/scene-29-sengoku.html",  name: "Fumo Sengoku",       description: "Edo castle town & ceremonial clan war game", accent: "#e63946" }
+      { file: "Scenes/scene-29-sengoku.html",  name: "Fumo Sengoku",       description: "Edo castle town & ceremonial clan war game", accent: "#e63946" },
+      { file: "Scenes/scene-30-tanabata.html", name: "Tanabata Sky River", description: "Star festival wishes & magpie bridge across the Milky Way", accent: "#c084fc" }
     ];
 
     // ============================================================================
@@ -1115,24 +1116,26 @@
       if (document.activeElement === searchInput) return;
       const activeFrame = getActiveFrame();
       if (activeFrame && activeFrame.contentWindow) {
-        try {
-          // Direct dispatch for same-origin iframe
-          activeFrame.contentWindow.dispatchEvent(new KeyboardEvent(e.type, {
-            key: e.key,
-            code: e.code,
-            bubbles: true,
-            cancelable: true,
-            shiftKey: e.shiftKey,
-            ctrlKey: e.ctrlKey,
-            altKey: e.altKey,
-            metaKey: e.metaKey,
-            repeat: e.repeat
-          }));
-          return;
-        } catch (err) {}
+        if (window.location.protocol !== "file:") {
+          try {
+            // Direct dispatch for same-origin iframe
+            activeFrame.contentWindow.dispatchEvent(new KeyboardEvent(e.type, {
+              key: e.key,
+              code: e.code,
+              bubbles: true,
+              cancelable: true,
+              shiftKey: e.shiftKey,
+              ctrlKey: e.ctrlKey,
+              altKey: e.altKey,
+              metaKey: e.metaKey,
+              repeat: e.repeat
+            }));
+            return;
+          } catch (err) {}
+        }
 
         try {
-          // Fallback postMessage for cross-origin iframe
+          // Fallback postMessage for cross-origin iframe (or when running via file://)
           activeFrame.contentWindow.postMessage({
             type: e.type,
             key: e.key,
